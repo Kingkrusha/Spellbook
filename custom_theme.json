@@ -1,0 +1,170 @@
+{
+  "text_primary": [
+    "#1a1a1a",
+    "#ffffff"
+  ],
+  "text_secondary": [
+    "#4a4a4a",
+    "#b0b0b0"
+  ],
+  "text_disabled": [
+    "#808080",
+    "#606060"
+  ],
+  "text_on_accent": [
+    "#ffffff",
+    "#ffffff"
+  ],
+  "bg_primary": [
+    "#f5f5f5",
+    "#1a1a1a"
+  ],
+  "bg_secondary": [
+    "#e8e8e8",
+    "#2b2b2b"
+  ],
+  "bg_tertiary": [
+    "#d9d9d9",
+    "#3a3a3a"
+  ],
+  "bg_input": [
+    "#ffffff",
+    "#343638"
+  ],
+  "accent_primary": [
+    "#3b8ed0",
+    "#1f538d"
+  ],
+  "accent_hover": [
+    "#2d7fc4",
+    "#2a6eb0"
+  ],
+  "button_normal": [
+    "#c0c0c0",
+    "#4a4a4a"
+  ],
+  "button_hover": [
+    "#a0a0a0",
+    "#5a5a5a"
+  ],
+  "button_danger": [
+    "#dc3545",
+    "#6b3030"
+  ],
+  "button_danger_hover": [
+    "#c82333",
+    "#8b4040"
+  ],
+  "button_success": [
+    "#28a745",
+    "#2d5a2d"
+  ],
+  "button_success_hover": [
+    "#218838",
+    "#3d6a3d"
+  ],
+  "button_warning": [
+    "#d4a017",
+    "#5a5a2d"
+  ],
+  "button_warning_hover": [
+    "#c49516",
+    "#6a6a3d"
+  ],
+  "compare_better": [
+    "#22c55e",
+    "#4ade80"
+  ],
+  "compare_worse": [
+    "#ef4444",
+    "#f87171"
+  ],
+  "compare_neutral": [
+    "#6b7280",
+    "#9ca3af"
+  ],
+  "level_cantrip": [
+    "#e0e7ff",
+    "#312e81"
+  ],
+  "level_1": [
+    "#dbeafe",
+    "#1e3a5f"
+  ],
+  "level_2": [
+    "#d1fae5",
+    "#064e3b"
+  ],
+  "level_3": [
+    "#fef3c7",
+    "#78350f"
+  ],
+  "level_4": [
+    "#fee2e2",
+    "#7f1d1d"
+  ],
+  "level_5": [
+    "#f3e8ff",
+    "#581c87"
+  ],
+  "level_6": [
+    "#cffafe",
+    "#164e63"
+  ],
+  "level_7": [
+    "#fce7f3",
+    "#831843"
+  ],
+  "level_8": [
+    "#ffedd5",
+    "#7c2d12"
+  ],
+  "level_9": [
+    "#fef9c3",
+    "#713f12"
+  ],
+  "tab_bar": [
+    "#e0e0e0",
+    "#1a1a1a"
+  ],
+  "separator": [
+    "#d0d0d0",
+    "#404040"
+  ],
+  "border": [
+    "#c0c0c0",
+    "#505050"
+  ],
+  "scrollbar": [
+    "#c0c0c0",
+    "#4a4a4a"
+  ],
+  "scrollbar_thumb": [
+    "#909090",
+    "#606060"
+  ],
+  "pane_sash": [
+    "#c0c0c0",
+    "#4a4a4a"
+  ],
+  "warlock_panel": [
+    "#c5c5d5",
+    "#2a2a3a"
+  ],
+  "spell_row": [
+    "#e8e8e8",
+    "#2b2b2b"
+  ],
+  "level_header": [
+    "#d5d5d5",
+    "#2a2a2a"
+  ],
+  "description_bg": [
+    "#d9d9d9",
+    "#2b2b2b"
+  ],
+  "menu_bg_light": "#f0f0f0",
+  "menu_fg_light": "#1a1a1a",
+  "menu_bg_dark": "#2b2b2b",
+  "menu_fg_dark": "#ffffff"
+}

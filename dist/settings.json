@@ -1,0 +1,11 @@
+{
+  "appearance_mode": "dark",
+  "theme_name": "default",
+  "use_custom_theme": false,
+  "show_spell_added_notification": true,
+  "show_rest_notification": true,
+  "warn_too_many_cantrips": true,
+  "warn_wrong_class": true,
+  "warn_spell_too_high_level": true,
+  "show_comparison_highlights": true
+}

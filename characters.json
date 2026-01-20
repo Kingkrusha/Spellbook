@@ -1,0 +1,53 @@
+{
+  "characters": [
+    {
+      "name": "Fizban",
+      "classes": [
+        {
+          "class": "Sorcerer",
+          "level": 20
+        }
+      ],
+      "known_spells": [
+        "Chill Touch"
+      ],
+      "prepared_spells": [],
+      "current_slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 3,
+        "6": 2,
+        "7": 2,
+        "8": 1,
+        "9": 1
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": []
+    },
+    {
+      "name": "tim",
+      "classes": [
+        {
+          "class": "Wizard",
+          "level": 4
+        }
+      ],
+      "known_spells": [
+        "Detect Magic",
+        "Magic Missile",
+        "Acid Splash"
+      ],
+      "prepared_spells": [
+        "Detect Magic"
+      ],
+      "current_slots": {
+        "1": 4,
+        "2": 3
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": []
+    }
+  ]
+}
