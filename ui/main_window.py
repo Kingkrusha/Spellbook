@@ -751,23 +751,46 @@ class MainWindow(ctk.CTkFrame):
     
     def _update_filter_dropdowns(self):
         """Update the casting time, duration, and source dropdowns with current values."""
+        # Preserve current selections
+        current_cast_time = self.cast_time_var.get()
+        current_duration = self.duration_var.get()
+        current_source = self.source_var.get()
+        current_min_range = self.min_range_var.get()
+        
         # Casting times
         cast_times = ["Any"] + self.spell_manager.get_all_casting_times()
         self.cast_time_combo.configure(values=cast_times)
+        # Restore selection if still valid, otherwise reset to "Any"
+        if current_cast_time in cast_times:
+            self.cast_time_var.set(current_cast_time)
+        else:
+            self.cast_time_var.set("Any")
         
         # Durations
         durations = ["Any"] + self.spell_manager.get_all_durations()
         self.duration_combo.configure(values=durations)
+        if current_duration in durations:
+            self.duration_var.set(current_duration)
+        else:
+            self.duration_var.set("Any")
         
         # Sources
         sources = ["Any"] + self.spell_manager.get_all_sources()
         self.source_combo.configure(values=sources)
+        if current_source in sources:
+            self.source_var.set(current_source)
+        else:
+            self.source_var.set("Any")
         
         # Range values
         ranges = self.spell_manager.get_all_ranges_for_display()
         self._range_display_to_value = {label: value for value, label in ranges}
         range_labels = [label for _, label in ranges]
         self.min_range_combo.configure(values=range_labels)
+        if current_min_range in range_labels:
+            self.min_range_var.set(current_min_range)
+        else:
+            self.min_range_var.set("Self")
     
     def _clear_advanced_filters(self):
         """Reset all advanced filters to their default values."""

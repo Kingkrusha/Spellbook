@@ -1291,6 +1291,9 @@
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\\Lib\\secrets.py',
    'PYMODULE'),
+  ('seed_stat_blocks',
+   'C:\\Users\\domin\\Documents\\Spellbook\\seed_stat_blocks.py',
+   'PYMODULE'),
   ('selectors',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\\Lib\\selectors.py',
@@ -1809,6 +1812,9 @@
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\\Lib\\ssl.py',
    'PYMODULE'),
+  ('stat_block',
+   'C:\\Users\\domin\\Documents\\Spellbook\\stat_block.py',
+   'PYMODULE'),
   ('statistics',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\\Lib\\statistics.py',
@@ -1910,6 +1916,18 @@
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\\Lib\\tomllib\\_types.py',
    'PYMODULE'),
+  ('tools',
+   'C:\\Users\\domin\\Documents\\Spellbook\\tools\\__init__.py',
+   'PYMODULE'),
+  ('tools.spell_data',
+   'C:\\Users\\domin\\Documents\\Spellbook\\tools\\spell_data.py',
+   'PYMODULE'),
+  ('tools.stat_block_data',
+   'C:\\Users\\domin\\Documents\\Spellbook\\tools\\stat_block_data.py',
+   'PYMODULE'),
+  ('tools.update_spell_descriptions',
+   'C:\\Users\\domin\\Documents\\Spellbook\\tools\\update_spell_descriptions.py',
+   'PYMODULE'),
   ('tracemalloc',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0\\Lib\\tracemalloc.py',
@@ -1943,6 +1961,12 @@
    'PYMODULE'),
   ('ui.spell_lists_view',
    'C:\\Users\\domin\\Documents\\Spellbook\\ui\\spell_lists_view.py',
+   'PYMODULE'),
+  ('ui.stat_block_display',
+   'C:\\Users\\domin\\Documents\\Spellbook\\ui\\stat_block_display.py',
+   'PYMODULE'),
+  ('ui.stat_block_editor',
+   'C:\\Users\\domin\\Documents\\Spellbook\\ui\\stat_block_editor.py',
    'PYMODULE'),
   ('unittest',
    'C:\\Program '

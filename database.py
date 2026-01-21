@@ -65,6 +65,7 @@ class SpellDatabase:
                     concentration INTEGER NOT NULL DEFAULT 0,
                     description TEXT,
                     source TEXT,
+                    is_modified INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -92,6 +93,37 @@ class SpellDatabase:
                 )
             """)
             
+            # Stat blocks table (for summoning spells)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stat_blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    spell_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    size TEXT NOT NULL DEFAULT 'Medium',
+                    creature_type TEXT NOT NULL DEFAULT '',
+                    creature_subtype TEXT DEFAULT '',
+                    alignment TEXT DEFAULT 'Neutral',
+                    armor_class TEXT NOT NULL DEFAULT '',
+                    hit_points TEXT NOT NULL DEFAULT '',
+                    speed TEXT NOT NULL DEFAULT '',
+                    abilities_json TEXT,
+                    damage_resistances TEXT DEFAULT '',
+                    damage_immunities TEXT DEFAULT '',
+                    condition_immunities TEXT DEFAULT '',
+                    senses TEXT DEFAULT '',
+                    languages TEXT DEFAULT '',
+                    challenge_rating TEXT DEFAULT '',
+                    traits_json TEXT DEFAULT '[]',
+                    actions_json TEXT DEFAULT '[]',
+                    bonus_actions_json TEXT DEFAULT '[]',
+                    reactions_json TEXT DEFAULT '[]',
+                    legendary_actions_json TEXT DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (spell_id) REFERENCES spells(id) ON DELETE CASCADE
+                )
+            """)
+            
             # Create indexes for faster queries
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spells_level ON spells(level)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spells_name ON spells(name)")
@@ -99,6 +131,7 @@ class SpellDatabase:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spell_classes_class ON spell_classes(class_name)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spell_tags_spell_id ON spell_tags(spell_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spell_tags_tag ON spell_tags(tag)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_stat_blocks_spell_id ON stat_blocks(spell_id)")
             
             # Set schema version if not exists
             cursor.execute("SELECT version FROM schema_version LIMIT 1")
@@ -192,6 +225,92 @@ class SpellDatabase:
                 values.append(spell_name)  # For WHERE clause
                 sql = f"UPDATE spells SET {', '.join(set_parts)} WHERE name = ? COLLATE NOCASE"
                 cursor.execute(sql, values)
+    
+    def populate_initial_spells(self) -> int:
+        """
+        Populate the database with all official spells from spell_data.
+        Called when the database is empty on first run.
+        
+        Returns:
+            Number of spells inserted
+        """
+        from tools.spell_data import get_all_spells
+        
+        spells = get_all_spells()
+        count = self.bulk_insert_spells(spells)
+        
+        # Also populate stat blocks
+        self._populate_initial_stat_blocks()
+        
+        return count
+    
+    def _populate_initial_stat_blocks(self):
+        """Populate stat blocks for summoning spells."""
+        from tools.stat_block_data import get_all_stat_blocks
+        
+        stat_blocks = get_all_stat_blocks()
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            for sb in stat_blocks:
+                # Get the spell_id from the spell_name
+                spell_name = sb.get('spell_name')
+                if not spell_name:
+                    continue
+                    
+                cursor.execute(
+                    "SELECT id FROM spells WHERE name = ? COLLATE NOCASE",
+                    (spell_name,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    print(f"Warning: Spell '{spell_name}' not found for stat block '{sb.get('name')}'")
+                    continue
+                
+                spell_id = row['id']
+                
+                # Check if stat block already exists
+                cursor.execute(
+                    "SELECT id FROM stat_blocks WHERE spell_id = ? AND name = ?",
+                    (spell_id, sb.get('name'))
+                )
+                if cursor.fetchone():
+                    continue  # Skip duplicates
+                
+                # Insert stat block
+                cursor.execute("""
+                    INSERT INTO stat_blocks (
+                        spell_id, name, size, creature_type, creature_subtype, alignment,
+                        armor_class, hit_points, speed, abilities_json,
+                        damage_resistances, damage_immunities, condition_immunities,
+                        senses, languages, challenge_rating,
+                        traits_json, actions_json, bonus_actions_json,
+                        reactions_json, legendary_actions_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    spell_id,
+                    sb.get('name', ''),
+                    sb.get('size', 'Medium'),
+                    sb.get('creature_type', ''),
+                    sb.get('creature_subtype', ''),
+                    sb.get('alignment', 'Neutral'),
+                    sb.get('armor_class', ''),
+                    sb.get('hit_points', ''),
+                    sb.get('speed', ''),
+                    sb.get('abilities_json', '{}'),
+                    sb.get('damage_resistances', ''),
+                    sb.get('damage_immunities', ''),
+                    sb.get('condition_immunities', ''),
+                    sb.get('senses', ''),
+                    sb.get('languages', ''),
+                    sb.get('challenge_rating', ''),
+                    sb.get('traits_json', '[]'),
+                    sb.get('actions_json', '[]'),
+                    sb.get('bonus_actions_json', '[]'),
+                    sb.get('reactions_json', '[]'),
+                    sb.get('legendary_actions_json', '[]')
+                ))
     
     def get_schema_version(self) -> int:
         """Get current schema version."""

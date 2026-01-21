@@ -115,10 +115,11 @@ class SpellManager:
             # Initialize database (creates tables if needed)
             self._db.initialize()
             
-            # Check if we need to migrate from legacy text file
-            if self._db.get_spell_count() == 0 and os.path.exists(self.LEGACY_FILE):
-                print(f"Migrating spells from {self.LEGACY_FILE} to SQLite database...")
-                self._migrate_from_text_file()
+            # Check if we need to populate with initial spell data
+            if self._db.get_spell_count() == 0:
+                print("Populating database with initial spell data...")
+                count = self._db.populate_initial_spells()
+                print(f"Populated {count} spells into the database.")
             
             # Load all spells from database
             spell_dicts = self._db.get_all_spells()

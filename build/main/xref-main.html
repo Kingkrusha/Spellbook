@@ -179,6 +179,10 @@ imports:
  &#8226;   <a href="#stat">stat</a>
  &#8226;   <a href="#sys">sys</a>
  &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tools">tools</a>
+ &#8226;   <a href="#tools.spell_data">tools.spell_data</a>
+ &#8226;   <a href="#tools.stat_block_data">tools.stat_block_data</a>
+ &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
  &#8226;   <a href="#traceback">traceback</a>
  &#8226;   <a href="#types">types</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
@@ -6793,6 +6797,8 @@ imported by:
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+ &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -7969,14 +7975,21 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#contextlib">contextlib</a>
+ &#8226;   <a href="#json">json</a>
  &#8226;   <a href="#os">os</a>
  &#8226;   <a href="#sqlite3">sqlite3</a>
+ &#8226;   <a href="#tools.spell_data">tools.spell_data</a>
+ &#8226;   <a href="#tools.stat_block_data">tools.stat_block_data</a>
+ &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
  &#8226;   <a href="#typing">typing</a>
 
   </div>
   <div class="import">
 imported by:
-    <a href="#spell_manager">spell_manager</a>
+    <a href="#seed_stat_blocks">seed_stat_blocks</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
+ &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
+ &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
 
   </div>
 
@@ -8013,6 +8026,7 @@ imported by:
  &#8226;   <a href="#setuptools._vendor.packaging._tokenizer">setuptools._vendor.packaging._tokenizer</a>
  &#8226;   <a href="#setuptools._vendor.wheel.vendored.packaging._tokenizer">setuptools._vendor.wheel.vendored.packaging._tokenizer</a>
  &#8226;   <a href="#spell">spell</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
  &#8226;   <a href="#theme">theme</a>
 
   </div>
@@ -12726,6 +12740,7 @@ imported by:
     <a href="#character">character</a>
  &#8226;   <a href="#character_manager">character_manager</a>
  &#8226;   <a href="#customtkinter.windows.widgets.theme.theme_manager">customtkinter.windows.widgets.theme.theme_manager</a>
+ &#8226;   <a href="#database">database</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#json.decoder">json.decoder</a>
  &#8226;   <a href="#json.encoder">json.encoder</a>
@@ -12734,6 +12749,7 @@ imported by:
  &#8226;   <a href="#setuptools._vendor.importlib_metadata">setuptools._vendor.importlib_metadata</a>
  &#8226;   <a href="#setuptools.config._validate_pyproject.error_reporting">setuptools.config._validate_pyproject.error_reporting</a>
  &#8226;   <a href="#setuptools.msvc">setuptools.msvc</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
  &#8226;   <a href="#theme">theme</a>
 
   </div>
@@ -14267,6 +14283,7 @@ imported by:
  &#8226;   <a href="#threading">threading</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
+ &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
  &#8226;   <a href="#unittest.loader">unittest.loader</a>
  &#8226;   <a href="#unittest.main">unittest.main</a>
  &#8226;   <a href="#urllib.request">urllib.request</a>
@@ -15571,6 +15588,24 @@ imports:
   <div class="import">
 imported by:
     <a href="#multiprocessing.shared_memory">multiprocessing.shared_memory</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="seed_stat_blocks"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/seed_stat_blocks.py" type="text/plain"><tt>seed_stat_blocks</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#database">database</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.main_window">ui.main_window</a>
 
   </div>
 
@@ -20088,6 +20123,7 @@ imports:
     <a href="#database">database</a>
  &#8226;   <a href="#os">os</a>
  &#8226;   <a href="#spell">spell</a>
+ &#8226;   <a href="#sys">sys</a>
  &#8226;   <a href="#typing">typing</a>
 
   </div>
@@ -20318,6 +20354,27 @@ imported by:
  &#8226;   <a href="#tarfile">tarfile</a>
  &#8226;   <a href="#zipfile">zipfile</a>
  &#8226;   <a href="#zipfile._path">zipfile._path</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="stat_block"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/stat_block.py" type="text/plain"><tt>stat_block</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#dataclasses">dataclasses</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#seed_stat_blocks">seed_stat_blocks</a>
+ &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
+ &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -20728,6 +20785,7 @@ imported by:
  &#8226;   <a href="#site">site</a>
  &#8226;   <a href="#socket">socket</a>
  &#8226;   <a href="#socketserver">socketserver</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
  &#8226;   <a href="#sqlite3.__main__">sqlite3.__main__</a>
  &#8226;   <a href="#ssl">ssl</a>
  &#8226;   <a href="#statistics">statistics</a>
@@ -20738,6 +20796,7 @@ imported by:
  &#8226;   <a href="#threading">threading</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tokenize">tokenize</a>
+ &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
  &#8226;   <a href="#traceback">traceback</a>
  &#8226;   <a href="#types">types</a>
  &#8226;   <a href="#typing">typing</a>
@@ -20950,6 +21009,8 @@ imported by:
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+ &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -21133,6 +21194,7 @@ imported by:
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -21265,6 +21327,7 @@ imported by:
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -21440,6 +21503,74 @@ imports:
 imported by:
     <a href="#tomllib._parser">tomllib._parser</a>
  &#8226;   <a href="#tomllib._re">tomllib._re</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="tools"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/tools/__init__.py" type="text/plain"><tt>tools</tt></a>
+<span class="moduletype">Package</span>  <div class="import">
+imported by:
+    <a href="#main.py">main.py</a>
+ &#8226;   <a href="#tools.spell_data">tools.spell_data</a>
+ &#8226;   <a href="#tools.stat_block_data">tools.stat_block_data</a>
+ &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="tools.spell_data"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/tools/spell_data.py" type="text/plain"><tt>tools.spell_data</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#tools">tools</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#database">database</a>
+ &#8226;   <a href="#main.py">main.py</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="tools.stat_block_data"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/tools/stat_block_data.py" type="text/plain"><tt>tools.stat_block_data</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#tools">tools</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#database">database</a>
+ &#8226;   <a href="#main.py">main.py</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="tools.update_spell_descriptions"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/tools/update_spell_descriptions.py" type="text/plain"><tt>tools.update_spell_descriptions</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#database">database</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#tools">tools</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#database">database</a>
+ &#8226;   <a href="#main.py">main.py</a>
 
   </div>
 
@@ -21768,6 +21899,7 @@ imported by:
  &#8226;   <a href="#packaging.tags">packaging.tags</a>
  &#8226;   <a href="#packaging.utils">packaging.utils</a>
  &#8226;   <a href="#packaging.version">packaging.version</a>
+ &#8226;   <a href="#seed_stat_blocks">seed_stat_blocks</a>
  &#8226;   <a href="#settings">settings</a>
  &#8226;   <a href="#setuptools">setuptools</a>
  &#8226;   <a href="#setuptools._distutils._modified">setuptools._distutils._modified</a>
@@ -21850,6 +21982,7 @@ imported by:
  &#8226;   <a href="#spell">spell</a>
  &#8226;   <a href="#spell_manager">spell_manager</a>
  &#8226;   <a href="#spell_slots">spell_slots</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
  &#8226;   <a href="#theme">theme</a>
  &#8226;   <a href="#tomllib._parser">tomllib._parser</a>
  &#8226;   <a href="#tomllib._re">tomllib._re</a>
@@ -21861,6 +21994,8 @@ imported by:
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+ &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
  &#8226;   <a href="#validation">validation</a>
 
   </div>
@@ -22037,6 +22172,8 @@ imported by:
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+ &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -22073,6 +22210,7 @@ imported by:
 imports:
     <a href="#character_manager">character_manager</a>
  &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#seed_stat_blocks">seed_stat_blocks</a>
  &#8226;   <a href="#settings">settings</a>
  &#8226;   <a href="#spell">spell</a>
  &#8226;   <a href="#spell_manager">spell_manager</a>
@@ -22129,13 +22267,17 @@ imported by:
 imports:
     <a href="#character_manager">character_manager</a>
  &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#database">database</a>
  &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#spell">spell</a>
  &#8226;   <a href="#spell_manager">spell_manager</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
  &#8226;   <a href="#theme">theme</a>
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#typing">typing</a>
  &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
  &#8226;   <a href="#validation">validation</a>
 
   </div>
@@ -22217,6 +22359,48 @@ imports:
 imported by:
     <a href="#ui">ui</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.stat_block_display"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/stat_block_display.py" type="text/plain"><tt>ui.stat_block_display</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.spell_detail">ui.spell_detail</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.stat_block_editor"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/stat_block_editor.py" type="text/plain"><tt>ui.stat_block_editor</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#stat_block">stat_block</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.spell_detail">ui.spell_detail</a>
 
   </div>
 
