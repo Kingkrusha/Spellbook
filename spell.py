@@ -11,12 +11,16 @@ from typing import List, Optional, Tuple, Dict
 class CharacterClass(Enum):
     """D&D character classes that can cast spells."""
     ARTIFICER = "Artificer"
+    BARBARIAN = "Barbarian"
     BARD = "Bard"
     CLERIC = "Cleric"
     CUSTOM = "Custom"
     DRUID = "Druid"
+    FIGHTER = "Fighter"
+    MONK = "Monk"
     PALADIN = "Paladin"
     RANGER = "Ranger"
+    ROGUE = "Rogue"
     SORCERER = "Sorcerer"
     WARLOCK = "Warlock"
     WIZARD = "Wizard"
@@ -34,6 +38,18 @@ class CharacterClass(Enum):
     def all_classes(cls) -> List["CharacterClass"]:
         """Return all character classes in order."""
         return list(cls)
+    
+    @classmethod
+    def spellcasting_classes(cls) -> List["CharacterClass"]:
+        """Return only classes that can cast spells."""
+        non_casters = {cls.BARBARIAN, cls.FIGHTER, cls.MONK, cls.ROGUE}
+        return [c for c in cls if c not in non_casters]
+    
+    def is_spellcaster(self) -> bool:
+        """Check if this class can cast spells."""
+        non_casters = {CharacterClass.BARBARIAN, CharacterClass.FIGHTER, 
+                       CharacterClass.MONK, CharacterClass.ROGUE}
+        return self not in non_casters
 
 
 class TagFilterMode(Enum):
@@ -41,6 +57,12 @@ class TagFilterMode(Enum):
     HAS_ALL = "has_all"       # Spell must have ALL selected tags
     HAS_ANY = "has_any"       # Spell must have at least ONE selected tag
     HAS_NONE = "has_none"     # Spell must NOT have any selected tags
+
+
+class SourceFilterMode(Enum):
+    """Mode for filtering by sources."""
+    INCLUDE = "include"       # Show spells from selected sources
+    EXCLUDE = "exclude"       # Hide spells from selected sources
 
 
 @dataclass
@@ -55,7 +77,8 @@ class AdvancedFilters:
     costly_component: Optional[bool] = None  # None=any, True=has gp cost, False=no gp cost
     casting_time_filter: str = ""  # Empty=any, else must contain this string
     duration_filter: str = ""  # Empty=any, else must contain this string
-    source_filter: str = ""  # Empty=any, else must match this source
+    source_filter: List[str] = field(default_factory=list)  # Empty=any, else filter by sources
+    source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE  # How to apply source filter
     tags_filter: List[str] = field(default_factory=list)  # Empty=any, else filter by tags
     tags_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL  # How to apply tag filter
 
@@ -87,6 +110,13 @@ def range_value_to_feet(range_value: int) -> int:
 
 # Protected tags that users cannot add/remove manually
 PROTECTED_TAGS = frozenset({"Official", "Unofficial"})
+# Lowercase versions for case-insensitive comparison
+_PROTECTED_TAGS_LOWER = frozenset(t.lower() for t in PROTECTED_TAGS)
+
+
+def is_protected_tag(tag: str) -> bool:
+    """Check if a tag is a protected tag (case-insensitive)."""
+    return tag.lower() in _PROTECTED_TAGS_LOWER
 
 
 @dataclass
@@ -384,10 +414,20 @@ class Spell:
                 if advanced.duration_filter.lower() not in self.duration.lower():
                     return False
             
-            # Source filter (substring match)
+            # Source filter (multi-select with include/exclude mode)
             if advanced.source_filter:
-                if advanced.source_filter.lower() not in self.source.lower():
-                    return False
+                source_lower = self.source.lower()
+                sources_lower = [s.lower() for s in advanced.source_filter]
+                source_matches = any(s in source_lower for s in sources_lower)
+                
+                if advanced.source_filter_mode == SourceFilterMode.INCLUDE:
+                    # Must match one of the selected sources
+                    if not source_matches:
+                        return False
+                else:  # EXCLUDE mode
+                    # Must NOT match any of the selected sources
+                    if source_matches:
+                        return False
             
             # Tags filter (must have ALL selected tags)
             if advanced.tags_filter:

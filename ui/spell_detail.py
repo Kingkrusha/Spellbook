@@ -214,13 +214,15 @@ class SpellDetailPanel(ctk.CTkFrame):
                  on_export: Callable[[Spell], None],
                 on_add_to_list: Optional[Callable[[Spell, str], None]] = None,
                 character_manager: Optional[CharacterManager] = None,
-                spell_manager: Optional[SpellManager] = None):
+                spell_manager: Optional[SpellManager] = None,
+                on_restore: Optional[Callable[[Spell], None]] = None):
         super().__init__(parent, corner_radius=10)
         
         self.on_edit = on_edit
         self.on_delete = on_delete
         self.on_export = on_export
         self.on_add_to_list = on_add_to_list
+        self.on_restore = on_restore
         self.character_manager = character_manager
         self.spell_manager = spell_manager
         self._current_spell: Optional[Spell] = None
@@ -458,7 +460,16 @@ class SpellDetailPanel(ctk.CTkFrame):
             fg_color=get_theme_manager().get_current_color('button_normal'), hover_color=get_theme_manager().get_current_color('button_hover'),
             command=self._on_export_click
         )
-        self.export_btn.pack(side="left")
+        self.export_btn.pack(side="left", padx=(0, 8))
+        
+        # Restore button (only visible for modified official spells)
+        self.restore_btn = ctk.CTkButton(
+            left_btns, text="Restore", width=80,
+            fg_color=get_theme_manager().get_current_color('button_normal'),
+            hover_color=get_theme_manager().get_current_color('button_hover'),
+            command=self._on_restore_click
+        )
+        # Don't pack initially - will be shown/hidden based on spell
         
         # Add to List button (right side)
         if self.on_add_to_list and self.character_manager:
@@ -535,8 +546,13 @@ class SpellDetailPanel(ctk.CTkFrame):
         if spell.is_official and spell.is_modified:
             # Bind tooltip for modified official spell
             self._bind_modified_tooltip(self.name_label, True)
+            # Show restore button for modified official spells
+            if self.on_restore:
+                self.restore_btn.pack(side="left")
         else:
             self._bind_modified_tooltip(self.name_label, False)
+            # Hide restore button for non-modified spells
+            self.restore_btn.pack_forget()
         
         # Level badge with theme-aware color based on spell level
         level_text = spell.display_level()
@@ -897,6 +913,20 @@ class SpellDetailPanel(ctk.CTkFrame):
         """Handle export button click."""
         if self._current_spell:
             self.on_export(self._current_spell)
+    
+    def _on_restore_click(self):
+        """Handle restore button click for modified official spells."""
+        if self._current_spell and self.on_restore:
+            if self._current_spell.is_official and self._current_spell.is_modified:
+                # Confirm restoration
+                from tkinter import messagebox
+                if messagebox.askyesno(
+                    "Restore Spell",
+                    f"Restore '{self._current_spell.name}' to its original official version?\n\n"
+                    "This will undo any modifications you made.",
+                    parent=self.winfo_toplevel()
+                ):
+                    self.on_restore(self._current_spell)
     
     def _on_add_to_list_click(self):
         """Handle add to list button click."""

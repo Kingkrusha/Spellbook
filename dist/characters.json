@@ -1,0 +1,20 @@
+{
+  "characters": [
+    {
+      "name": "Test",
+      "classes": [
+        {
+          "class": "Sorcerer",
+          "level": 1
+        }
+      ],
+      "known_spells": [],
+      "prepared_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    }
+  ]
+}

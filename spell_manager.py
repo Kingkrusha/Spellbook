@@ -248,6 +248,111 @@ class SpellManager:
             print(f"Error updating spell: {e}")
             return False
     
+    def restore_spell_to_default(self, spell_name: str) -> bool:
+        """
+        Restore a modified official spell to its original default values.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            from tools.spell_data import get_all_spells
+            
+            # Find the original spell data
+            original_data = None
+            for spell_data in get_all_spells():
+                if spell_data['name'].lower() == spell_name.lower():
+                    original_data = spell_data
+                    break
+            
+            if not original_data:
+                print(f"Original spell data not found for: {spell_name}")
+                return False
+            
+            # Get the current spell ID
+            spell_id = self._db.get_spell_id_by_name(spell_name)
+            if spell_id is None:
+                return False
+            
+            # Restore with is_modified=False
+            restore_data = {
+                'name': original_data['name'],
+                'level': original_data['level'],
+                'casting_time': original_data['casting_time'],
+                'ritual': original_data['ritual'],
+                'range_value': original_data['range_value'],
+                'components': original_data['components'],
+                'duration': original_data['duration'],
+                'concentration': original_data['concentration'],
+                'description': original_data['description'],
+                'source': original_data['source'],
+                'classes': original_data['classes'],
+                'tags': original_data['tags'],
+                'is_modified': False
+            }
+            
+            # Update in database
+            self._db.update_spell(spell_id, restore_data)
+            
+            # Update in-memory list
+            restored_spell = self._dict_to_spell(restore_data)
+            for i, spell in enumerate(self._spells):
+                if spell.name.lower() == spell_name.lower():
+                    self._spells[i] = restored_spell
+                    break
+            
+            self._notify_listeners()
+            return True
+            
+        except Exception as e:
+            print(f"Error restoring spell: {e}")
+            return False
+    
+    def restore_all_official_spells(self) -> int:
+        """
+        Restore all modified official spells to their default values.
+        Returns the number of spells restored.
+        """
+        try:
+            from tools.spell_data import get_all_spells
+            
+            # Build a lookup of original spell data
+            original_spells = {spell_data['name'].lower(): spell_data for spell_data in get_all_spells()}
+            
+            count = 0
+            for spell in self._spells:
+                if spell.is_official and spell.is_modified:
+                    original_data = original_spells.get(spell.name.lower())
+                    if original_data:
+                        spell_id = self._db.get_spell_id_by_name(spell.name)
+                        if spell_id:
+                            restore_data = {
+                                'name': original_data['name'],
+                                'level': original_data['level'],
+                                'casting_time': original_data['casting_time'],
+                                'ritual': original_data['ritual'],
+                                'range_value': original_data['range_value'],
+                                'components': original_data['components'],
+                                'duration': original_data['duration'],
+                                'concentration': original_data['concentration'],
+                                'description': original_data['description'],
+                                'source': original_data['source'],
+                                'classes': original_data['classes'],
+                                'tags': original_data['tags'],
+                                'is_modified': False
+                            }
+                            self._db.update_spell(spell_id, restore_data)
+                            count += 1
+            
+            # Reload spells if any were restored
+            if count > 0:
+                self.load_spells()
+                self._notify_listeners()
+            
+            return count
+            
+        except Exception as e:
+            print(f"Error restoring all official spells: {e}")
+            return 0
+    
     def _has_gameplay_changes(self, original: Spell, updated: Spell) -> bool:
         """
         Check if an official spell has gameplay-relevant changes.
@@ -367,9 +472,8 @@ class SpellManager:
             has_material = advanced.has_material
             costly_component = advanced.costly_component
             
-            # Source filter (use exact match for SQL)
-            if advanced.source_filter:
-                source = advanced.source_filter
+            # Source filter now handled in Python for multi-select support
+            # Keep source_filter and source_filter_mode for post-processing
             
             # Tags filter
             if advanced.tags_filter:
@@ -385,7 +489,7 @@ class SpellManager:
                 duration = advanced.duration_filter
         
         # Get filtered results from database
-        # Note: min_range not passed to SQL - handled in Python due to complex encoding
+        # Note: min_range and source not passed to SQL - handled in Python due to complex filtering
         # Normalize None -> empty values for database call to satisfy typed signatures
         spell_dicts = self._db.search_spells(
             search_text=search_text,
@@ -394,7 +498,7 @@ class SpellManager:
             ritual=ritual,
             concentration=concentration,
             min_range=0,  # Don't filter by range in SQL
-            source=(source or ""),
+            source="",  # Don't filter by source in SQL - handled in Python
             tags=(tags or []),
             tags_mode=tags_mode,
             casting_time=(casting_time or ""),
@@ -416,6 +520,17 @@ class SpellManager:
             from spell import range_value_to_feet
             min_feet = range_value_to_feet(min_range)
             results = [s for s in results if s.range_as_feet >= min_feet]
+        
+        # Filter by source using include/exclude mode
+        if advanced and advanced.source_filter:
+            from spell import SourceFilterMode
+            sources_lower = [s.lower() for s in advanced.source_filter]
+            if advanced.source_filter_mode == SourceFilterMode.INCLUDE:
+                # Keep spells from selected sources
+                results = [s for s in results if any(src in s.source.lower() for src in sources_lower)]
+            else:  # EXCLUDE mode
+                # Remove spells from selected sources
+                results = [s for s in results if not any(src in s.source.lower() for src in sources_lower)]
         
         return results
     

@@ -30,6 +30,12 @@ class AppSettings:
     # Comparison mode
     show_comparison_highlights: bool = True
     
+    # Character sheet
+    auto_calculate_hp: bool = True  # Automatically calculate HP maximum based on class and level
+    auto_fill_proficiencies: bool = True  # Automatically fill proficiencies when creating new sheet
+    warn_multiclass_removal: bool = True  # Show warning when removing a multiclass by setting level to 0
+    long_rest_hit_dice: str = "all"  # "all", "half", or "none" - how many hit dice to restore on long rest
+    
     # Official spell protection
     allow_delete_official_spells: bool = False  # If False, cannot delete spells tagged as Official
     
@@ -53,7 +59,8 @@ class AppSettings:
             'show_rest_notification', 'warn_too_many_cantrips',
             'warn_wrong_class', 'warn_spell_too_high_level',
             'show_comparison_highlights', 'initial_official_tag_applied',
-            'allow_delete_official_spells'
+            'allow_delete_official_spells', 'auto_calculate_hp', 'auto_fill_proficiencies',
+            'warn_multiclass_removal', 'long_rest_hit_dice'
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

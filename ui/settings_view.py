@@ -4,9 +4,8 @@ Displays and manages application settings.
 """
 
 import customtkinter as ctk
-from tkinter import colorchooser
 from typing import Callable, Optional
-from settings import AppSettings, SettingsManager
+from settings import SettingsManager
 from theme import get_theme_manager
 
 # Theme editor removed: this build supports only appearance modes (Light/Dark/System)
@@ -16,10 +15,12 @@ class SettingsView(ctk.CTkFrame):
     """Settings page for configuring application preferences."""
     
     def __init__(self, parent, settings_manager: SettingsManager,
-                 on_appearance_changed: Optional[Callable[[str], None]] = None):
+                 on_appearance_changed: Optional[Callable[[str], None]] = None,
+                 spell_manager=None):
         super().__init__(parent, fg_color="transparent")
         
         self.settings_manager = settings_manager
+        self.spell_manager = spell_manager
         self.theme_manager = get_theme_manager()
         self.on_appearance_changed = on_appearance_changed
         
@@ -210,6 +211,101 @@ class SettingsView(ctk.CTkFrame):
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
+        # === Character Sheet Section ===
+        self._create_section(self.container, "Character Sheets")
+        
+        charsheet_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        charsheet_frame.pack(fill="x", pady=(0, 20))
+        
+        charsheet_content = ctk.CTkFrame(charsheet_frame, fg_color="transparent")
+        charsheet_content.pack(fill="x", padx=20, pady=15)
+        
+        self._auto_calc_hp_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.auto_calculate_hp
+        )
+        
+        self._create_toggle_row(
+            charsheet_content,
+            "Automatically calculate hit point maximum",
+            self._auto_calc_hp_var,
+            self._on_setting_change
+        )
+        
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, calculates HP based on class levels\n(first level max, others average) + CON modifier.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
+        self._auto_fill_prof_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.auto_fill_proficiencies
+        )
+        
+        self._create_toggle_row(
+            charsheet_content,
+            "Automatically fill proficiencies for new sheets",
+            self._auto_fill_prof_var,
+            self._on_setting_change
+        )
+        
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, new character sheets will automatically fill 'Other Proficiencies'\nwith the default proficiencies for the character's class.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
+        # Multiclass removal warning toggle
+        self._warn_multiclass_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.warn_multiclass_removal
+        )
+        
+        self._create_toggle_row(
+            charsheet_content,
+            "Warn when removing a multiclass",
+            self._warn_multiclass_var,
+            self._on_setting_change,
+            pady=(15, 0)
+        )
+        
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, shows a confirmation dialog before removing a class\nby setting its level to 0.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
+        # Long rest hit dice restoration
+        dice_row = ctk.CTkFrame(charsheet_content, fg_color="transparent")
+        dice_row.pack(fill="x", pady=(15, 0))
+        
+        ctk.CTkLabel(
+            dice_row, text="Long rest hit dice restoration:",
+            font=ctk.CTkFont(size=14)
+        ).pack(side="left")
+        
+        self._hit_dice_rest_var = ctk.StringVar(
+            value=self.settings_manager.settings.long_rest_hit_dice
+        )
+        
+        dice_options = ctk.CTkFrame(dice_row, fg_color="transparent")
+        dice_options.pack(side="right")
+        
+        for mode in [("All", "all"), ("Half", "half"), ("None", "none")]:
+            ctk.CTkRadioButton(
+                dice_options, text=mode[0],
+                variable=self._hit_dice_rest_var, value=mode[1],
+                command=self._on_setting_change
+            ).pack(side="left", padx=10)
+        
+        ctk.CTkLabel(
+            charsheet_content,
+            text="Controls how many hit dice are restored on a long rest.\n• All: Restore all hit dice to maximum\n• Half: Restore half of total hit dice\n• None: Do not restore any hit dice",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
         # === Official Spells Section ===
         self._create_section(self.container, "Official Spells")
         
@@ -234,6 +330,28 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             official_content,
             text="When disabled, spells tagged as 'Official' cannot be deleted.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
+        # Restore all official spells button
+        restore_frame = ctk.CTkFrame(official_content, fg_color="transparent")
+        restore_frame.pack(fill="x", pady=(15, 0))
+        
+        self._restore_all_btn = ctk.CTkButton(
+            restore_frame,
+            text="Restore All Official Spells",
+            width=200,
+            fg_color=self.theme_manager.get_current_color('button_normal'),
+            hover_color=self.theme_manager.get_current_color('button_hover'),
+            text_color=self.theme_manager.get_current_color('text_primary'),
+            command=self._on_restore_all_spells
+        )
+        self._restore_all_btn.pack(side="left")
+        
+        ctk.CTkLabel(
+            official_content,
+            text="Restores all modified official spells to their original versions.",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
@@ -263,7 +381,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             about_content,
-            text="Version 1.0 • Data stored in SQLite database",
+            text="Version 1.1 • Data stored in SQLite database",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
@@ -355,8 +473,46 @@ class SettingsView(ctk.CTkFrame):
             warn_wrong_class=self._warn_class_var.get(),
             warn_spell_too_high_level=self._warn_level_var.get(),
             show_comparison_highlights=self._comparison_var.get(),
-            allow_delete_official_spells=self._allow_delete_official_var.get()
+            allow_delete_official_spells=self._allow_delete_official_var.get(),
+            auto_calculate_hp=self._auto_calc_hp_var.get(),
+            auto_fill_proficiencies=self._auto_fill_prof_var.get(),
+            warn_multiclass_removal=self._warn_multiclass_var.get(),
+            long_rest_hit_dice=self._hit_dice_rest_var.get()
         )
+    
+    def _on_restore_all_spells(self):
+        """Restore all modified official spells to their defaults."""
+        from tkinter import messagebox
+        
+        if not self.spell_manager:
+            messagebox.showerror("Error", "Spell manager not available.", parent=self.winfo_toplevel())
+            return
+        
+        # Count modified spells first
+        modified_count = sum(1 for s in self.spell_manager.spells if s.is_official and s.is_modified)
+        
+        if modified_count == 0:
+            messagebox.showinfo("No Modified Spells", 
+                "No official spells have been modified.", 
+                parent=self.winfo_toplevel())
+            return
+        
+        # Confirm with user
+        if messagebox.askyesno(
+            "Restore All Official Spells",
+            f"This will restore {modified_count} modified official spell(s) to their original versions.\n\n"
+            "Are you sure you want to continue?",
+            parent=self.winfo_toplevel()
+        ):
+            restored = self.spell_manager.restore_all_official_spells()
+            if restored > 0:
+                messagebox.showinfo("Success", 
+                    f"Restored {restored} official spell(s) to their default versions.",
+                    parent=self.winfo_toplevel())
+            else:
+                messagebox.showerror("Error", 
+                    "Failed to restore spells. Please try again.",
+                    parent=self.winfo_toplevel())
     
     def _on_reset_defaults(self):
         """Reset all settings to defaults."""
@@ -376,6 +532,10 @@ class SettingsView(ctk.CTkFrame):
         self._warn_level_var.set(settings.warn_spell_too_high_level)
         self._comparison_var.set(settings.show_comparison_highlights)
         self._allow_delete_official_var.set(settings.allow_delete_official_spells)
+        self._auto_calc_hp_var.set(settings.auto_calculate_hp)
+        self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
+        self._warn_multiclass_var.set(settings.warn_multiclass_removal)
+        self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         
         # Update edit button visibility
         self._update_theme_editor_visibility()
@@ -397,6 +557,10 @@ class SettingsView(ctk.CTkFrame):
         self._warn_class_var.set(settings.warn_wrong_class)
         self._warn_level_var.set(settings.warn_spell_too_high_level)
         self._comparison_var.set(settings.show_comparison_highlights)
+        self._auto_calc_hp_var.set(settings.auto_calculate_hp)
+        self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
+        self._warn_multiclass_var.set(settings.warn_multiclass_removal)
+        self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         self._update_theme_editor_visibility()
 
     def _on_theme_changed(self):

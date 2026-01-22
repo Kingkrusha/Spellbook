@@ -16,8 +16,14 @@ class SpellDatabase:
     DEFAULT_DB_PATH = "spellbook.db"
     SCHEMA_VERSION = 4  # Bumped for spell description updates
     
-    # Protected tags that users cannot add/remove
+    # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
+    _PROTECTED_TAGS_LOWER = {t.lower() for t in PROTECTED_TAGS}
+    
+    @classmethod
+    def is_protected_tag(cls, tag: str) -> bool:
+        """Check if a tag is a protected tag (case-insensitive)."""
+        return tag.lower() in cls._PROTECTED_TAGS_LOWER
     
     def __init__(self, db_path: Optional[str] = None):
         """Initialize the database connection."""

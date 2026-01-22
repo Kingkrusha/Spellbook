@@ -8,6 +8,10 @@
   "warn_wrong_class": true,
   "warn_spell_too_high_level": true,
   "show_comparison_highlights": true,
+  "auto_calculate_hp": true,
+  "auto_fill_proficiencies": true,
+  "warn_multiclass_removal": true,
+  "long_rest_hit_dice": "all",
   "allow_delete_official_spells": false,
   "initial_official_tag_applied": true
 }

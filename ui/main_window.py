@@ -8,10 +8,11 @@ from tkinter import messagebox, filedialog
 from typing import List, Optional
 from spell_manager import SpellManager
 from character_manager import CharacterManager
-from spell import Spell, CharacterClass, AdvancedFilters, TagFilterMode
+from spell import Spell, CharacterClass, AdvancedFilters, TagFilterMode, SourceFilterMode
 from settings import SettingsManager, get_settings_manager
 from validation import validate_spell_for_character
 from theme import get_theme_manager
+from ui.character_sheet_view import CharacterSheetView
 
 
 class TagFilterDialog(ctk.CTkToplevel):
@@ -165,6 +166,154 @@ class TagFilterDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class SourceFilterDialog(ctk.CTkToplevel):
+    """Dialog for selecting multiple sources to filter by with include/exclude mode."""
+    
+    def __init__(self, parent, available_sources: List[str], selected_sources: List[str], 
+                 current_mode: SourceFilterMode = SourceFilterMode.INCLUDE):
+        super().__init__(parent)
+        
+        self.result: List[str] = selected_sources.copy()
+        self.result_mode: SourceFilterMode = current_mode
+        self._source_vars = {}
+        
+        self.title("Select Sources")
+        self.geometry("400x500")
+        self.minsize(350, 400)
+        self.resizable(True, True)
+        
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+        
+        # Create widgets
+        self._create_widgets(available_sources, selected_sources, current_mode)
+        
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+    
+    def _create_widgets(self, available_sources: List[str], selected_sources: List[str], current_mode: SourceFilterMode):
+        """Create dialog widgets."""
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Header
+        ctk.CTkLabel(
+            container,
+            text="Select sources to filter by:",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(fill="x", pady=(0, 10))
+
+        theme = get_theme_manager()
+        text_secondary = theme.get_text_secondary()
+        
+        # Filter mode selector
+        mode_frame = ctk.CTkFrame(container, fg_color="transparent")
+        mode_frame.pack(fill="x", pady=(0, 15))
+        
+        ctk.CTkLabel(
+            mode_frame,
+            text="Filter mode:",
+            font=ctk.CTkFont(size=12)
+        ).pack(side="left", padx=(0, 10))
+        
+        self._mode_var = ctk.StringVar(value=current_mode.value)
+        mode_combo = ctk.CTkComboBox(
+            mode_frame,
+            values=["include", "exclude"],
+            variable=self._mode_var,
+            width=150,
+            state="readonly",
+            command=self._on_mode_changed
+        )
+        mode_combo.pack(side="left")
+        
+        # Mode description label
+        self._mode_desc_label = ctk.CTkLabel(
+            container,
+            text=self._get_mode_description(current_mode.value),
+            font=ctk.CTkFont(size=11),
+            text_color=text_secondary
+        )
+        self._mode_desc_label.pack(fill="x", pady=(0, 15))
+
+        if not available_sources:
+            ctk.CTkLabel(
+                container,
+                text="No sources found in your spell collection.",
+                font=ctk.CTkFont(size=13),
+                text_color=text_secondary
+            ).pack(pady=30)
+        else:
+            # Scrollable source list
+            scroll = ctk.CTkScrollableFrame(container)
+            scroll.pack(fill="both", expand=True, pady=(0, 15))
+
+            selected_lower = [s.lower() for s in selected_sources]
+
+            for source in sorted(available_sources):
+                var = ctk.BooleanVar(value=source.lower() in selected_lower)
+                self._source_vars[source] = var
+
+                cb = ctk.CTkCheckBox(
+                    scroll, text=source, variable=var,
+                    font=ctk.CTkFont(size=13)
+                )
+                cb.pack(fill="x", pady=3)
+
+        # Button frame
+        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        # Theme-aware buttons
+        btn_text = theme.get_current_color('text_primary')
+
+        ctk.CTkButton(btn_frame, text="Clear All", width=90,
+                      fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
+                      text_color=btn_text,
+                      command=self._clear_all).pack(side="left")
+
+        ctk.CTkButton(btn_frame, text="Cancel", width=80,
+                      fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
+                      text_color=btn_text,
+                      command=self._on_cancel).pack(side="right", padx=(10, 0))
+
+        ctk.CTkButton(btn_frame, text="Apply", width=80,
+                      fg_color=theme.get_current_color('accent_primary'), hover_color=theme.get_current_color('accent_hover'),
+                      text_color=btn_text,
+                      command=self._on_apply).pack(side="right")
+    
+    def _get_mode_description(self, mode: str) -> str:
+        """Get the description text for a filter mode."""
+        descriptions = {
+            "include": "Show only spells from selected sources",
+            "exclude": "Hide spells from selected sources"
+        }
+        return descriptions.get(mode, "")
+    
+    def _on_mode_changed(self, value: str):
+        """Update description when mode changes."""
+        self._mode_desc_label.configure(text=self._get_mode_description(value))
+    
+    def _clear_all(self):
+        """Clear all source selections."""
+        for var in self._source_vars.values():
+            var.set(False)
+    
+    def _on_apply(self):
+        """Apply selection and close."""
+        self.result = [source for source, var in self._source_vars.items() if var.get()]
+        self.result_mode = SourceFilterMode(self._mode_var.get())
+        self.destroy()
+    
+    def _on_cancel(self):
+        """Cancel and close."""
+        self.destroy()
+
+
 class MainWindow(ctk.CTkFrame):
     """Main application window with tabs, toolbar, and paned layout."""
     
@@ -219,6 +368,8 @@ class MainWindow(ctk.CTkFrame):
         self._current_tab = "spells"
         self._selected_tags: List[str] = []
         self._tag_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
+        self._selected_sources: List[str] = []
+        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
         self._compare_mode = False  # Whether compare panel is shown
         self._compare_spell: Optional[Spell] = None  # Spell in compare panel
         self._filter_debounce_id: Optional[str] = None  # For debouncing filter changes
@@ -227,7 +378,7 @@ class MainWindow(ctk.CTkFrame):
         # Build UI
         self._create_tab_bar()
         self._create_spells_view()
-        self._create_spell_lists_view()
+        self._create_character_sheet_view()
         self._create_settings_view()
         self._create_context_menu()
         
@@ -277,15 +428,15 @@ class MainWindow(ctk.CTkFrame):
         )
         self.spells_tab_btn.pack(side="left", padx=(0, 5))
         
-        # Spell Lists tab
-        self.lists_tab_btn = ctk.CTkButton(
-            tabs_container, text="Spell Lists", width=100, height=34,
+        # Character Sheets tab
+        self.sheets_tab_btn = ctk.CTkButton(
+            tabs_container, text="Character Sheets", width=130, height=34,
             corner_radius=8,
             fg_color="transparent", hover_color=theme.get_current_color('button_hover'),
             text_color=btn_text,
-            command=lambda: self._show_tab("spell_lists")
+            command=lambda: self._show_tab("character_sheets")
         )
-        self.lists_tab_btn.pack(side="left", padx=(0, 5))
+        self.sheets_tab_btn.pack(side="left", padx=(0, 5))
         
         # Settings tab (on the right side)
         self.settings_tab_btn = ctk.CTkButton(
@@ -304,12 +455,12 @@ class MainWindow(ctk.CTkFrame):
         
         # Reset all tab button styles
         self.spells_tab_btn.configure(fg_color="transparent")
-        self.lists_tab_btn.configure(fg_color="transparent")
+        self.sheets_tab_btn.configure(fg_color="transparent")
         self.settings_tab_btn.configure(fg_color="transparent")
         
         # Hide all views
         self.spells_view.pack_forget()
-        self.spell_lists_view.pack_forget()
+        self.character_sheet_view.pack_forget()
         self.settings_view.pack_forget()
 
         # Show selected tab
@@ -317,9 +468,10 @@ class MainWindow(ctk.CTkFrame):
         if tab_name == "spells":
             self.spells_tab_btn.configure(fg_color=active_color)
             self.spells_view.pack(fill="both", expand=True)
-        elif tab_name == "spell_lists":
-            self.lists_tab_btn.configure(fg_color=active_color)
-            self.spell_lists_view.pack(fill="both", expand=True)
+        elif tab_name == "character_sheets":
+            self.sheets_tab_btn.configure(fg_color=active_color)
+            self.character_sheet_view.pack(fill="both", expand=True)
+            self.character_sheet_view.refresh()
         elif tab_name == "settings":
             self.settings_tab_btn.configure(fg_color=active_color)
             self.settings_view.pack(fill="both", expand=True)
@@ -348,13 +500,12 @@ class MainWindow(ctk.CTkFrame):
         self._create_advanced_filters()
         self._create_main_content()
     
-    def _create_spell_lists_view(self):
-        """Create the spell lists view."""
-        from ui.spell_lists_view import SpellListsView
-        self.spell_lists_view = SpellListsView(
-            self, self.character_manager, self.spell_manager,
-            on_navigate_to_spell=self._navigate_to_spell,
-            settings_manager=self.settings_manager
+    def _create_character_sheet_view(self):
+        """Create the character sheet view."""
+        self.character_sheet_view = CharacterSheetView(
+            self, self.character_manager,
+            spell_manager=self.spell_manager,
+            on_navigate_to_spell=self._navigate_to_spell
         )
     
     def _create_settings_view(self):
@@ -362,7 +513,8 @@ class MainWindow(ctk.CTkFrame):
         from ui.settings_view import SettingsView
         self.settings_view = SettingsView(
             self, self.settings_manager,
-            on_appearance_changed=self._on_appearance_changed
+            on_appearance_changed=self._on_appearance_changed,
+            spell_manager=self.spell_manager
         )
     
     def _on_appearance_changed(self, mode: str):
@@ -376,10 +528,6 @@ class MainWindow(ctk.CTkFrame):
             self.spell_detail._update_description_colors()
         if hasattr(self, 'compare_detail'):
             self.compare_detail._update_description_colors()
-        
-        # Update spell lists view paned window
-        if hasattr(self, 'spell_lists_view'):
-            self.spell_lists_view.update_paned_colors()
 
     def _on_theme_changed(self):
         """Handle ThemeManager changes (colors updated or custom theme saved)."""
@@ -397,7 +545,7 @@ class MainWindow(ctk.CTkFrame):
         # Reconfigure key tab/toolbar buttons to pick up new hover/fg colors
         try:
             self.spells_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
-            self.lists_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
+            self.sheets_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
             self.settings_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
         except Exception:
             pass
@@ -446,12 +594,6 @@ class MainWindow(ctk.CTkFrame):
             pass
 
         # Notify subviews
-        try:
-            if hasattr(self, 'spell_lists_view'):
-                self.spell_lists_view.update_paned_colors()
-        except Exception:
-            pass
-
         try:
             if hasattr(self, 'spell_detail'):
                 # SpellDetailPanel provides its own description color updater
@@ -658,15 +800,24 @@ class MainWindow(ctk.CTkFrame):
                                                command=lambda x: self._on_filter_changed(immediate=True))
         self.duration_combo.pack(side="left")
         
-        # Source filter
+        # Source filter (button opens multi-select dialog)
         source_frame = ctk.CTkFrame(row3, fg_color="transparent")
         source_frame.pack(side="left", padx=(0, 25))
-        ctk.CTkLabel(source_frame, text="Source:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 8))
-        self.source_var = ctk.StringVar(value="Any")
-        self.source_combo = ctk.CTkComboBox(source_frame, variable=self.source_var,
-                                             values=["Any"], width=150,
-                                             command=lambda x: self._on_filter_changed(immediate=True))
-        self.source_combo.pack(side="left")
+        ctk.CTkLabel(source_frame, text="Source:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(0, 8))
+        
+        self.source_btn = ctk.CTkButton(
+            source_frame, text="Select Sources...", width=130,
+            fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
+            command=self._open_source_filter
+        )
+        self.source_btn.pack(side="left", padx=(0, 10))
+        
+        self.source_label = ctk.CTkLabel(
+            source_frame, text="None selected",
+            font=ctk.CTkFont(size=11),
+            text_color=text_secondary
+        )
+        self.source_label.pack(side="left")
         
         # Row 4: Tags filter and Clear button
         row4 = ctk.CTkFrame(content, fg_color="transparent")
@@ -720,6 +871,38 @@ class MainWindow(ctk.CTkFrame):
         self._update_tags_label()
         self._on_filter_changed(immediate=True)
     
+    def _open_source_filter(self):
+        """Open the source filter dialog."""
+        available_sources = self.spell_manager.get_all_sources()
+        dialog = SourceFilterDialog(
+            self.winfo_toplevel(),
+            available_sources,
+            self._selected_sources,
+            self._source_filter_mode
+        )
+        self.wait_window(dialog)
+        
+        self._selected_sources = dialog.result
+        self._source_filter_mode = dialog.result_mode
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+    
+    def _update_source_label(self):
+        """Update the source label with selected source count and mode."""
+        count = len(self._selected_sources)
+        mode_labels = {
+            SourceFilterMode.INCLUDE: "include",
+            SourceFilterMode.EXCLUDE: "exclude"
+        }
+        mode_str = mode_labels.get(self._source_filter_mode, "")
+        
+        if count == 0:
+            self.source_label.configure(text="None selected")
+        elif count == 1:
+            self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
+        else:
+            self.source_label.configure(text=f"{count} sources ({mode_str})")
+    
     def _update_tags_label(self):
         """Update the tags label with selected tag count and mode."""
         count = len(self._selected_tags)
@@ -754,7 +937,6 @@ class MainWindow(ctk.CTkFrame):
         # Preserve current selections
         current_cast_time = self.cast_time_var.get()
         current_duration = self.duration_var.get()
-        current_source = self.source_var.get()
         current_min_range = self.min_range_var.get()
         
         # Casting times
@@ -773,14 +955,6 @@ class MainWindow(ctk.CTkFrame):
             self.duration_var.set(current_duration)
         else:
             self.duration_var.set("Any")
-        
-        # Sources
-        sources = ["Any"] + self.spell_manager.get_all_sources()
-        self.source_combo.configure(values=sources)
-        if current_source in sources:
-            self.source_var.set(current_source)
-        else:
-            self.source_var.set("Any")
         
         # Range values
         ranges = self.spell_manager.get_all_ranges_for_display()
@@ -803,7 +977,9 @@ class MainWindow(ctk.CTkFrame):
         self.costly_var.set("Any")
         self.cast_time_var.set("Any")
         self.duration_var.set("Any")
-        self.source_var.set("Any")
+        self._selected_sources = []
+        self._source_filter_mode = SourceFilterMode.INCLUDE
+        self._update_source_label()
         self._selected_tags = []
         self._tag_filter_mode = TagFilterMode.HAS_ALL
         self._update_tags_label()
@@ -851,7 +1027,8 @@ class MainWindow(ctk.CTkFrame):
             on_export=self._on_export_spell,
             on_add_to_list=self._on_add_to_list,
             character_manager=self.character_manager,
-            spell_manager=self.spell_manager
+            spell_manager=self.spell_manager,
+            on_restore=self._on_restore_spell
         )
         
         # Add panes with minimum sizes
@@ -1102,10 +1279,9 @@ class MainWindow(ctk.CTkFrame):
         if duration_val != "Any":
             advanced.duration_filter = duration_val
         
-        # Source filter
-        source_val = self.source_var.get()
-        if source_val != "Any":
-            advanced.source_filter = source_val
+        # Source filter (multi-select)
+        advanced.source_filter = self._selected_sources.copy()
+        advanced.source_filter_mode = self._source_filter_mode
         
         # Tags filter
         advanced.tags_filter = self._selected_tags.copy()
@@ -1170,7 +1346,7 @@ class MainWindow(ctk.CTkFrame):
     def _on_new_spell(self):
         """Open dialog to create a new spell."""
         from ui.spell_editor import SpellEditorDialog
-        dialog = SpellEditorDialog(self.winfo_toplevel(), "New Spell")
+        dialog = SpellEditorDialog(self.winfo_toplevel(), "New Spell", spell_manager=self.spell_manager)
         self.wait_window(dialog)
         
         if dialog.result:
@@ -1183,7 +1359,7 @@ class MainWindow(ctk.CTkFrame):
     def _on_edit_spell(self, spell):
         """Open dialog to edit an existing spell."""
         from ui.spell_editor import SpellEditorDialog
-        dialog = SpellEditorDialog(self.winfo_toplevel(), "Edit Spell", spell)
+        dialog = SpellEditorDialog(self.winfo_toplevel(), "Edit Spell", spell, spell_manager=self.spell_manager)
         self.wait_window(dialog)
         
         if dialog.result:
@@ -1192,6 +1368,19 @@ class MainWindow(ctk.CTkFrame):
             else:
                 messagebox.showerror("Error", 
                     f"A spell named '{dialog.result.name}' already exists.")
+    
+    def _on_restore_spell(self, spell):
+        """Restore a modified official spell to its default values."""
+        if self.spell_manager.restore_spell_to_default(spell.name):
+            # Refresh the spell list and detail view
+            self._refresh_spell_list(reset_scroll=False)
+            # Re-select the restored spell to show updated details
+            self.spell_list.select_spell(spell.name)
+            messagebox.showinfo("Success", 
+                f"'{spell.name}' has been restored to its original version.")
+        else:
+            messagebox.showerror("Error", 
+                f"Failed to restore '{spell.name}'.")
     
     def _on_delete_spell(self, spell):
         """Delete the selected spell."""

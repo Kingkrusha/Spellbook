@@ -1,6 +1,30 @@
 {
   "characters": [
     {
+      "name": "Bug man",
+      "classes": [
+        {
+          "class": "Fighter",
+          "level": 9
+        },
+        {
+          "class": "Barbarian",
+          "level": 3
+        },
+        {
+          "class": "Sorcerer",
+          "level": 2
+        }
+      ],
+      "known_spells": [],
+      "prepared_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
       "name": "Fizban",
       "classes": [
         {
@@ -24,7 +48,9 @@
         "9": 1
       },
       "warlock_slots_current": 0,
-      "mystic_arcanum_used": []
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
     },
     {
       "name": "tim",
@@ -47,7 +73,9 @@
         "2": 3
       },
       "warlock_slots_current": 0,
-      "mystic_arcanum_used": []
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
     }
   ]
 }
