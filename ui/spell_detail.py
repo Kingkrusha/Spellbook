@@ -1094,3 +1094,233 @@ class SpellDetailPanel(ctk.CTkFrame):
         else:
             self._stat_blocks_container.pack_forget()
             self._stat_blocks_toggle_btn.configure(text="▶")
+
+
+class SpellPopupDialog(ctk.CTkToplevel):
+    """Read-only popup dialog for viewing spell details."""
+    
+    def __init__(self, parent, spell: Spell):
+        super().__init__(parent)
+        
+        self.spell = spell
+        self.theme = get_theme_manager()
+        
+        self.title(spell.name)
+        self.geometry("550x650")
+        self.minsize(450, 500)
+        self.resizable(True, True)
+        
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+        
+        self._create_widgets()
+        
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{x}+{y}")
+        
+        # Bind Escape to close
+        self.bind("<Escape>", lambda e: self.destroy())
+    
+    def _render_formatted_text(self, parent, text: str):
+        """Render text with *bold* markdown formatting."""
+        import re
+        
+        # Split by double newlines to get paragraphs
+        paragraphs = text.split('\n\n')
+        
+        for para_idx, paragraph in enumerate(paragraphs):
+            lines = paragraph.strip().split('\n')
+            combined_text = ' '.join(line.strip() for line in lines if line.strip())
+            
+            if not combined_text:
+                continue
+            
+            # Check for bullet points
+            if combined_text.startswith('•') or combined_text.startswith('-'):
+                bullet_text = combined_text.lstrip('•- ')
+                combined_text = f"  • {bullet_text}"
+            
+            pady = (6, 2) if para_idx > 0 else (2, 2)
+            
+            # Find all *text* patterns for bold
+            pattern = r'\*([^*]+)\*'
+            parts = re.split(pattern, combined_text)
+            
+            if len(parts) == 1:
+                # No formatting found, just render plain text
+                ctk.CTkLabel(
+                    parent,
+                    text=combined_text,
+                    font=ctk.CTkFont(size=12),
+                    wraplength=480,
+                    justify="left"
+                ).pack(anchor="w", pady=pady)
+            else:
+                # Has formatting - use a Text widget for proper inline rendering
+                text_widget = tk.Text(
+                    parent,
+                    wrap="word",
+                    font=ctk.CTkFont(size=12),
+                    bg=self.theme.get_current_color('bg_secondary'),
+                    fg=self.theme.get_current_color('text_primary'),
+                    relief="flat",
+                    borderwidth=0,
+                    highlightthickness=0,
+                    padx=0,
+                    pady=2,
+                    cursor="arrow"
+                )
+                
+                # Configure tags
+                text_widget.tag_configure("bold", font=ctk.CTkFont(size=12, weight="bold", slant="italic"))
+                text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
+                
+                # Insert parts with formatting
+                for i, part in enumerate(parts):
+                    if not part:
+                        continue
+                    is_bold = (i % 2 == 1)
+                    tag = "bold" if is_bold else "normal"
+                    text_widget.insert("end", part, tag)
+                
+                # Calculate height
+                text_widget.update_idletasks()
+                total_chars = sum(len(p) for p in parts if p)
+                estimated_lines = max(1, (total_chars // 60) + 1)
+                
+                text_widget.configure(state="disabled", height=estimated_lines)
+                text_widget.pack(fill="x", anchor="w", pady=pady)
+    
+    def _create_widgets(self):
+        """Create dialog widgets."""
+        spell = self.spell
+        
+        # Main scrollable container
+        scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        # Spell name (title)
+        ctk.CTkLabel(
+            scroll_frame,
+            text=spell.name.upper(),
+            font=ctk.CTkFont(size=22, weight="bold"),
+            anchor="w"
+        ).pack(fill="x", pady=(0, 5))
+        
+        # Level badge
+        level_text = spell.display_level()
+        badge_color_tuple = self.theme.get_level_color(spell.level)
+        mode = ctk.get_appearance_mode().lower()
+        badge_color = badge_color_tuple[0] if mode == "light" else badge_color_tuple[1]
+        
+        badge_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        badge_frame.pack(fill="x", pady=(0, 12))
+        
+        ctk.CTkLabel(
+            badge_frame,
+            text=level_text,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color=badge_color,
+            text_color="white",
+            corner_radius=5,
+            padx=8, pady=2
+        ).pack(side="left")
+        
+        # Properties section
+        props_frame = ctk.CTkFrame(scroll_frame, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
+        props_frame.pack(fill="x", pady=(0, 12))
+        
+        props = [
+            ("Casting Time", spell.casting_time + (" (Ritual)" if spell.ritual else "")),
+            ("Range", spell.display_range()),
+            ("Components", spell.components or "—"),
+            ("Duration", ("Concentration, " if spell.concentration else "") + spell.duration),
+        ]
+        
+        for i, (label, value) in enumerate(props):
+            row = ctk.CTkFrame(props_frame, fg_color="transparent")
+            row.pack(fill="x", padx=12, pady=4)
+            
+            ctk.CTkLabel(
+                row, text=f"{label}:",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                width=100, anchor="w"
+            ).pack(side="left")
+            
+            ctk.CTkLabel(
+                row, text=value,
+                font=ctk.CTkFont(size=12),
+                anchor="w",
+                wraplength=350
+            ).pack(side="left", fill="x", expand=True)
+        
+        # Classes section
+        if spell.classes:
+            classes_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+            classes_frame.pack(fill="x", pady=(0, 12))
+            
+            ctk.CTkLabel(
+                classes_frame, text="Classes:",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                anchor="w"
+            ).pack(side="left")
+            
+            classes_text = ", ".join(c.value for c in spell.classes)
+            ctk.CTkLabel(
+                classes_frame, text=classes_text,
+                font=ctk.CTkFont(size=12),
+                anchor="w",
+                wraplength=400
+            ).pack(side="left", padx=(5, 0))
+        
+        # Description
+        desc_label = ctk.CTkLabel(
+            scroll_frame, text="Description",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        desc_label.pack(fill="x", pady=(0, 5))
+        
+        # Create a frame for the formatted description
+        desc_frame = ctk.CTkFrame(scroll_frame, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
+        desc_frame.pack(fill="both", expand=True, pady=(0, 12), padx=2)
+        
+        # Render description with formatting
+        desc_text = spell.description or ""
+        if desc_text:
+            inner_frame = ctk.CTkFrame(desc_frame, fg_color="transparent")
+            inner_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            self._render_formatted_text(inner_frame, desc_text)
+        
+        # Source
+        if spell.source:
+            source_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+            source_frame.pack(fill="x", pady=(0, 5))
+            
+            ctk.CTkLabel(
+                source_frame, text="Source:",
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=self.theme.get_text_secondary(),
+                anchor="w"
+            ).pack(side="left")
+            
+            ctk.CTkLabel(
+                source_frame, text=spell.source,
+                font=ctk.CTkFont(size=11),
+                text_color=self.theme.get_text_secondary(),
+                anchor="w"
+            ).pack(side="left", padx=(5, 0))
+        
+        # Close button
+        btn_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(10, 0))
+        
+        ctk.CTkButton(
+            btn_frame, text="Close", width=100,
+            command=self.destroy
+        ).pack()
+

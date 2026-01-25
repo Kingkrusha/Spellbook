@@ -4,8 +4,141 @@ Contains full character sheet information beyond just spell lists.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional, Any
 from enum import Enum
+
+
+# ===== Armor Types for AC Calculation =====
+
+class ArmorType(Enum):
+    """Armor types for AC calculation."""
+    NONE = ("None", 10, None, True)  # (name, base_ac, max_dex, add_dex)
+    PADDED = ("Padded", 11, None, True)
+    LEATHER = ("Leather", 11, None, True)
+    STUDDED_LEATHER = ("Studded Leather", 12, None, True)
+    HIDE = ("Hide", 12, 2, True)
+    CHAIN_SHIRT = ("Chain Shirt", 13, 2, True)
+    SCALE_MAIL = ("Scale Mail", 14, 2, True)
+    BREASTPLATE = ("Breastplate", 14, 2, True)
+    HALF_PLATE = ("Half Plate", 15, 2, True)
+    RING_MAIL = ("Ring Mail", 14, 0, False)
+    CHAIN_MAIL = ("Chain Mail", 16, 0, False)
+    SPLINT = ("Splint", 17, 0, False)
+    PLATE = ("Plate", 18, 0, False)
+    
+    @property
+    def display_name(self) -> str:
+        return self.value[0]
+    
+    @property
+    def base_ac(self) -> int:
+        return self.value[1]
+    
+    @property
+    def max_dex_bonus(self) -> Optional[int]:
+        """Maximum DEX bonus allowed, or None for no limit."""
+        return self.value[2]
+    
+    @property
+    def adds_dex(self) -> bool:
+        """Whether this armor adds DEX modifier to AC."""
+        return self.value[3]
+    
+    def is_heavy(self) -> bool:
+        """Check if this is heavy armor."""
+        return self in [ArmorType.RING_MAIL, ArmorType.CHAIN_MAIL, ArmorType.SPLINT, ArmorType.PLATE]
+    
+    def is_medium(self) -> bool:
+        """Check if this is medium armor."""
+        return self in [ArmorType.HIDE, ArmorType.CHAIN_SHIRT, ArmorType.SCALE_MAIL, ArmorType.BREASTPLATE, ArmorType.HALF_PLATE]
+    
+    def is_light(self) -> bool:
+        """Check if this is light armor."""
+        return self in [ArmorType.PADDED, ArmorType.LEATHER, ArmorType.STUDDED_LEATHER]
+    
+    @classmethod
+    def from_name(cls, name: str) -> "ArmorType":
+        """Get armor type from display name."""
+        for armor in cls:
+            if armor.display_name.lower() == name.lower():
+                return armor
+        return cls.NONE
+
+
+# Simple list for common armor selections in dropdown
+COMMON_ARMOR_OPTIONS = [
+    ("None", ArmorType.NONE),
+    ("Leather (11 + DEX)", ArmorType.LEATHER),
+    ("Studded Leather (12 + DEX)", ArmorType.STUDDED_LEATHER),
+    ("Chain Shirt (13 + DEX max 2)", ArmorType.CHAIN_SHIRT),
+    ("Breastplate (14 + DEX max 2)", ArmorType.BREASTPLATE),
+    ("Half Plate (15 + DEX max 2)", ArmorType.HALF_PLATE),
+    ("Chain Mail (16)", ArmorType.CHAIN_MAIL),
+    ("Splint (17)", ArmorType.SPLINT),
+    ("Plate (18)", ArmorType.PLATE),
+]
+
+# Shield options - can be expanded for magic shields
+SHIELD_OPTIONS = [
+    ("None", 0),
+    ("Shield (+2)", 2),
+]
+
+
+def calculate_ac(armor_type: ArmorType, dex_modifier: int, has_shield: bool = False,
+                 unarmored_defense: str = "", con_modifier: int = 0, wis_modifier: int = 0,
+                 cha_modifier: int = 0, shield_bonus: int = 0) -> int:
+    """
+    Calculate Armor Class based on armor, shield, and special abilities.
+    
+    Args:
+        armor_type: The type of armor worn
+        dex_modifier: Character's DEX modifier
+        has_shield: Whether character is using a shield (legacy, use shield_bonus instead)
+        unarmored_defense: Special unarmored AC formula (e.g., "10 + DEX + CON" for Barbarian)
+        con_modifier: Character's CON modifier (for Barbarian unarmored defense)
+        wis_modifier: Character's WIS modifier (for Monk unarmored defense)
+        cha_modifier: Character's CHA modifier (for College of Dance unarmored defense)
+        shield_bonus: AC bonus from shield (0 = no shield, 2 = normal shield, etc.)
+    
+    Returns:
+        Calculated AC value
+    """
+    ac = 10
+    
+    # Check for unarmored defense (only applies when not wearing armor)
+    if armor_type == ArmorType.NONE and unarmored_defense:
+        if "DEX + CON" in unarmored_defense:
+            # Barbarian: 10 + DEX + CON
+            ac = 10 + dex_modifier + con_modifier
+        elif "DEX + WIS" in unarmored_defense:
+            # Monk: 10 + DEX + WIS
+            ac = 10 + dex_modifier + wis_modifier
+        elif "DEX + CHA" in unarmored_defense:
+            # College of Dance Bard: 10 + DEX + CHA
+            ac = 10 + dex_modifier + cha_modifier
+        else:
+            # Standard unarmored: 10 + DEX
+            ac = 10 + dex_modifier
+    elif armor_type == ArmorType.NONE:
+        # Standard unarmored: 10 + DEX
+        ac = 10 + dex_modifier
+    else:
+        # Armored: base AC + DEX (with possible cap)
+        ac = armor_type.base_ac
+        if armor_type.adds_dex:
+            dex_bonus = dex_modifier
+            if armor_type.max_dex_bonus is not None:
+                dex_bonus = min(dex_modifier, armor_type.max_dex_bonus)
+            ac += dex_bonus
+    
+    # Add shield bonus (use shield_bonus if provided, otherwise legacy has_shield)
+    if shield_bonus > 0:
+        ac += shield_bonus
+    elif has_shield:
+        ac += 2  # Legacy support
+    
+    return ac
 
 
 # ===== Class Data for Hit Dice and Proficiencies =====
@@ -566,8 +699,13 @@ class CharacterSheet:
     
     # Combat
     armor_class: int = 10
+    armor_type: str = "None"  # ArmorType display name for storage
+    has_shield: bool = False  # Legacy - kept for backwards compatibility
+    shield_bonus: int = 0  # Shield AC bonus (0 = no shield, 2 = normal shield, etc.)
+    unarmored_defense: str = ""  # Formula like "10 + DEX + CON" for Barbarian
     initiative_bonus: int = 0  # Additional bonus beyond DEX
     speed: int = 30
+    base_speed: int = 30  # Base speed before bonuses (race-based)
     hit_points: HitPoints = field(default_factory=HitPoints)
     death_saves: DeathSaves = field(default_factory=DeathSaves)
     inspiration: bool = False
@@ -584,11 +722,15 @@ class CharacterSheet:
     other_proficiencies: str = ""  # Languages, tools, weapons, armor
     
     # Magic Items (list of dicts with name, description, attuned)
-    magic_items: List[Dict[str, any]] = field(default_factory=list)
+    magic_items: List[Dict[str, Any]] = field(default_factory=list)
     
     # Class Feature Uses (tracks current uses for class features like rage, bardic inspiration, etc.)
     # Format: {"class_name:feature_name": current_value}
     class_feature_uses: Dict[str, int] = field(default_factory=dict)
+    
+    # Ability score bonuses from class features (e.g., Primal Champion)
+    # Format: {"feature_name": {"ability": bonus}} e.g., {"Primal Champion": {"strength": 4, "constitution": 4}}
+    ability_bonuses: Dict[str, Dict[str, int]] = field(default_factory=dict)
     
     # Personality
     personality_traits: str = ""
@@ -624,20 +766,96 @@ class CharacterSheet:
     
     def get_saving_throw_bonus(self, ability: AbilityScore) -> int:
         """Calculate saving throw bonus for an ability."""
-        base = self.ability_scores.modifier(ability)
+        base = self.get_effective_ability_modifier(ability)
         if self.saving_throws.is_proficient(ability):
             base += self.proficiency_bonus
         return base
     
-    def get_skill_bonus(self, skill: Skill) -> int:
-        """Calculate skill bonus."""
-        ability_mod = self.ability_scores.modifier(skill.ability)
+    def get_skill_bonus(self, skill: Skill, jack_of_all_trades_bonus: int = 0) -> int:
+        """Calculate skill bonus.
+        
+        Args:
+            skill: The skill to calculate bonus for
+            jack_of_all_trades_bonus: Half proficiency bonus (rounded down) to add
+                                      if the character is not proficient in the skill
+                                      (from Bard's Jack of All Trades feature)
+        """
+        ability_mod = self.get_effective_ability_modifier(skill.ability)
         prof_level = self.skills.get(skill)
         if prof_level == 1:
             return ability_mod + self.proficiency_bonus
         elif prof_level == 2:
             return ability_mod + (self.proficiency_bonus * 2)  # Expertise
-        return ability_mod
+        # Not proficient - add Jack of All Trades bonus if applicable
+        return ability_mod + jack_of_all_trades_bonus
+    
+    def get_ability_bonus(self, ability: AbilityScore) -> int:
+        """Get total ability bonus from features like Primal Champion."""
+        ability_name = ability.name.lower()
+        total_bonus = 0
+        for feature_name, bonuses in self.ability_bonuses.items():
+            total_bonus += bonuses.get(ability_name, 0)
+        return total_bonus
+    
+    def get_effective_ability_score(self, ability: AbilityScore, max_score: int = 30) -> int:
+        """Get ability score including bonuses from features."""
+        base = self.ability_scores.get(ability)
+        bonus = self.get_ability_bonus(ability)
+        return min(base + bonus, max_score)
+    
+    def get_effective_ability_modifier(self, ability: AbilityScore, max_score: int = 30) -> int:
+        """Get ability modifier using effective score with bonuses."""
+        return (self.get_effective_ability_score(ability, max_score) - 10) // 2
+    
+    def apply_primal_champion(self):
+        """Apply Primal Champion bonus (+4 STR/CON, max 25)."""
+        # Get current base scores
+        base_str = self.ability_scores.get(AbilityScore.STRENGTH)
+        base_con = self.ability_scores.get(AbilityScore.CONSTITUTION)
+        
+        # Calculate bonus (up to 4, but don't exceed 25)
+        str_bonus = min(4, 25 - base_str) if base_str < 25 else 0
+        con_bonus = min(4, 25 - base_con) if base_con < 25 else 0
+        
+        # Apply as ability_bonuses (so we can track and revert)
+        self.ability_bonuses["Primal Champion"] = {
+            "strength": str_bonus,
+            "constitution": con_bonus
+        }
+    
+    def remove_primal_champion(self):
+        """Remove Primal Champion bonus."""
+        if "Primal Champion" in self.ability_bonuses:
+            del self.ability_bonuses["Primal Champion"]
+    
+    def has_primal_champion(self) -> bool:
+        """Check if character has Primal Champion bonus applied."""
+        return "Primal Champion" in self.ability_bonuses
+    
+    def apply_body_and_mind(self):
+        """Apply Body and Mind bonus (+4 DEX/WIS, max 25) for Monk level 20."""
+        # Get current base scores
+        base_dex = self.ability_scores.get(AbilityScore.DEXTERITY)
+        base_wis = self.ability_scores.get(AbilityScore.WISDOM)
+        
+        # Calculate bonus (up to 4, but don't exceed 25)
+        dex_bonus = min(4, 25 - base_dex) if base_dex < 25 else 0
+        wis_bonus = min(4, 25 - base_wis) if base_wis < 25 else 0
+        
+        # Apply as ability_bonuses (so we can track and revert)
+        self.ability_bonuses["Body and Mind"] = {
+            "dexterity": dex_bonus,
+            "wisdom": wis_bonus
+        }
+    
+    def remove_body_and_mind(self):
+        """Remove Body and Mind bonus."""
+        if "Body and Mind" in self.ability_bonuses:
+            del self.ability_bonuses["Body and Mind"]
+    
+    def has_body_and_mind(self) -> bool:
+        """Check if character has Body and Mind bonus applied."""
+        return "Body and Mind" in self.ability_bonuses
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -655,8 +873,13 @@ class CharacterSheet:
             "saving_throws": self.saving_throws.to_dict(),
             "skills": self.skills.to_dict(),
             "armor_class": self.armor_class,
+            "armor_type": self.armor_type,
+            "has_shield": self.has_shield,
+            "shield_bonus": self.shield_bonus,
+            "unarmored_defense": self.unarmored_defense,
             "initiative_bonus": self.initiative_bonus,
             "speed": self.speed,
+            "base_speed": self.base_speed,
             "hit_points": self.hit_points.to_dict(),
             "death_saves": self.death_saves.to_dict(),
             "inspiration": self.inspiration,
@@ -667,6 +890,7 @@ class CharacterSheet:
             "other_proficiencies": self.other_proficiencies,
             "magic_items": self.magic_items,
             "class_feature_uses": self.class_feature_uses,
+            "ability_bonuses": self.ability_bonuses,
             "personality_traits": self.personality_traits,
             "ideals": self.ideals,
             "bonds": self.bonds,
@@ -699,8 +923,13 @@ class CharacterSheet:
             saving_throws=SavingThrows.from_dict(data.get("saving_throws", {})),
             skills=SkillProficiencies.from_dict(data.get("skills", {})),
             armor_class=data.get("armor_class", 10),
+            armor_type=data.get("armor_type", "None"),
+            has_shield=data.get("has_shield", False),
+            shield_bonus=data.get("shield_bonus", 2 if data.get("has_shield", False) else 0),  # Migrate legacy
+            unarmored_defense=data.get("unarmored_defense", ""),
             initiative_bonus=data.get("initiative_bonus", 0),
             speed=data.get("speed", 30),
+            base_speed=data.get("base_speed", data.get("speed", 30)),  # Default to speed for migration
             hit_points=HitPoints.from_dict(data.get("hit_points", {})),
             death_saves=DeathSaves.from_dict(data.get("death_saves", {})),
             inspiration=data.get("inspiration", False),
@@ -711,6 +940,7 @@ class CharacterSheet:
             other_proficiencies=data.get("other_proficiencies", ""),
             magic_items=data.get("magic_items", []),
             class_feature_uses=data.get("class_feature_uses", {}),
+            ability_bonuses=data.get("ability_bonuses", {}),
             personality_traits=data.get("personality_traits", ""),
             ideals=data.get("ideals", ""),
             bonds=data.get("bonds", ""),

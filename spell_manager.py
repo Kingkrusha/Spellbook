@@ -81,7 +81,8 @@ class SpellManager:
             'source': spell.source,
             'classes': [c.value for c in spell.classes],
             'tags': spell.tags,
-            'is_modified': spell.is_modified
+            'is_modified': spell.is_modified,
+            'original_name': spell.original_name
         }
     
     def _dict_to_spell(self, data: dict) -> Spell:
@@ -106,7 +107,8 @@ class SpellManager:
             description=data.get('description', ''),
             source=data.get('source', ''),
             tags=data.get('tags', []),
-            is_modified=data.get('is_modified', False)
+            is_modified=data.get('is_modified', False),
+            original_name=data.get('original_name', '')
         )
     
     def load_spells(self) -> bool:
@@ -251,20 +253,35 @@ class SpellManager:
     def restore_spell_to_default(self, spell_name: str) -> bool:
         """
         Restore a modified official spell to its original default values.
+        Uses original_name if the spell was renamed, falls back to current name.
         Returns True if successful, False otherwise.
         """
         try:
             from tools.spell_data import get_all_spells
             
+            # First find the spell by current name to get its original_name
+            spell_to_restore = None
+            for spell in self._spells:
+                if spell.name.lower() == spell_name.lower():
+                    spell_to_restore = spell
+                    break
+            
+            if not spell_to_restore:
+                print(f"Spell not found in collection: {spell_name}")
+                return False
+            
+            # Use original_name if available, otherwise use current name
+            lookup_name = spell_to_restore.original_name if spell_to_restore.original_name else spell_name
+            
             # Find the original spell data
             original_data = None
             for spell_data in get_all_spells():
-                if spell_data['name'].lower() == spell_name.lower():
+                if spell_data['name'].lower() == lookup_name.lower():
                     original_data = spell_data
                     break
             
             if not original_data:
-                print(f"Original spell data not found for: {spell_name}")
+                print(f"Original spell data not found for: {lookup_name}")
                 return False
             
             # Get the current spell ID
@@ -272,7 +289,7 @@ class SpellManager:
             if spell_id is None:
                 return False
             
-            # Restore with is_modified=False
+            # Restore with is_modified=False (keep original_name for future restoration)
             restore_data = {
                 'name': original_data['name'],
                 'level': original_data['level'],
@@ -293,6 +310,7 @@ class SpellManager:
             self._db.update_spell(spell_id, restore_data)
             
             # Update in-memory list
+            restore_data['original_name'] = original_data['name']  # Ensure original_name is set
             restored_spell = self._dict_to_spell(restore_data)
             for i, spell in enumerate(self._spells):
                 if spell.name.lower() == spell_name.lower():
@@ -309,6 +327,7 @@ class SpellManager:
     def restore_all_official_spells(self) -> int:
         """
         Restore all modified official spells to their default values.
+        Uses original_name to find the original spell data even if renamed.
         Returns the number of spells restored.
         """
         try:
@@ -320,7 +339,9 @@ class SpellManager:
             count = 0
             for spell in self._spells:
                 if spell.is_official and spell.is_modified:
-                    original_data = original_spells.get(spell.name.lower())
+                    # Use original_name if available, otherwise use current name
+                    lookup_name = spell.original_name if spell.original_name else spell.name
+                    original_data = original_spells.get(lookup_name.lower())
                     if original_data:
                         spell_id = self._db.get_spell_id_by_name(spell.name)
                         if spell_id:

@@ -8,11 +8,12 @@ from tkinter import messagebox
 from typing import Optional, List, Callable
 from character import CharacterSpellList, ClassLevel
 from spell import CharacterClass
+from character_class import get_class_manager
 from theme import get_theme_manager
 
 
 class ClassLevelRow(ctk.CTkFrame):
-    """A row widget for editing a class and its level."""
+    """A row widget for editing a class, level, and subclass."""
     
     def __init__(self, parent, class_level: Optional[ClassLevel] = None, 
                  on_delete: Optional[Callable[..., None]] = None, is_primary: bool = False):
@@ -20,21 +21,27 @@ class ClassLevelRow(ctk.CTkFrame):
         
         self.on_delete = on_delete
         self.is_primary = is_primary
+        self.class_manager = get_class_manager()
         
-        # Class dropdown
-        self.class_var = ctk.StringVar(
-            value=class_level.character_class.value if class_level else "Wizard"
-        )
+        # Main row
+        main_row = ctk.CTkFrame(self, fg_color="transparent")
+        main_row.pack(fill="x")
+        
+        # Class dropdown - get all classes from class manager
+        all_class_names = [c.name for c in self.class_manager.classes]
+        initial_class = class_level.character_class.value if class_level else (all_class_names[0] if all_class_names else "Wizard")
+        self.class_var = ctk.StringVar(value=initial_class)
         class_combo = ctk.CTkComboBox(
-            self, variable=self.class_var,
-            values=[c.value for c in CharacterClass.all_classes()],
-            width=120
+            main_row, variable=self.class_var,
+            values=all_class_names,
+            width=120,
+            command=self._on_class_changed
         )
         class_combo.pack(side="left", padx=(0, 10))
         self.class_combo = class_combo
         
         # Level label and spinbox-like controls
-        ctk.CTkLabel(self, text="Level:", font=ctk.CTkFont(size=12)).pack(
+        ctk.CTkLabel(main_row, text="Level:", font=ctk.CTkFont(size=12)).pack(
             side="left", padx=(0, 5))
         
         self.level_var = ctk.StringVar(
@@ -45,24 +52,24 @@ class ClassLevelRow(ctk.CTkFrame):
         btn_text = theme.get_current_color('text_primary')
         
         # Decrease button
-        ctk.CTkButton(self, text="-", width=30, height=30,
+        ctk.CTkButton(main_row, text="-", width=30, height=30,
                       text_color=btn_text,
                       command=self._decrease_level).pack(side="left")
         
         # Level entry
-        self.level_entry = ctk.CTkEntry(self, textvariable=self.level_var, 
+        self.level_entry = ctk.CTkEntry(main_row, textvariable=self.level_var, 
                                          width=50, justify="center")
         self.level_entry.pack(side="left", padx=5)
         
         # Increase button
-        ctk.CTkButton(self, text="+", width=30, height=30,
+        ctk.CTkButton(main_row, text="+", width=30, height=30,
                       text_color=btn_text,
                       command=self._increase_level).pack(side="left")
         
         # Delete button (not shown for primary class)
         if not is_primary:
             # Use themed danger colors for delete
-            self.delete_btn = ctk.CTkButton(self, text="✕", width=30, height=30,
+            self.delete_btn = ctk.CTkButton(main_row, text="✕", width=30, height=30,
                                             fg_color=theme.get_current_color('button_danger'), hover_color=theme.get_current_color('button_danger_hover'),
                                             text_color=btn_text,
                                             command=self._on_delete)
@@ -70,9 +77,54 @@ class ClassLevelRow(ctk.CTkFrame):
         else:
             # Primary label
             text_secondary = theme.get_text_secondary()
-            self.primary_label = ctk.CTkLabel(self, text="(Primary)", font=ctk.CTkFont(size=11),
+            self.primary_label = ctk.CTkLabel(main_row, text="(Primary)", font=ctk.CTkFont(size=11),
                                               text_color=text_secondary)
             self.primary_label.pack(side="left", padx=(15, 0))
+        
+        # Subclass row (only shown when subclasses are available)
+        self.subclass_row = ctk.CTkFrame(self, fg_color="transparent")
+        
+        ctk.CTkLabel(self.subclass_row, text="Subclass:", font=ctk.CTkFont(size=11)).pack(
+            side="left", padx=(20, 5))
+        
+        self.subclass_var = ctk.StringVar(
+            value=class_level.subclass if class_level and class_level.subclass else "(None)"
+        )
+        self.subclass_combo = ctk.CTkComboBox(
+            self.subclass_row, variable=self.subclass_var,
+            values=["(None)"],
+            width=200
+        )
+        self.subclass_combo.pack(side="left")
+        
+        # Update subclass options for initial class
+        self._update_subclass_options()
+    
+    def _on_class_changed(self, _=None):
+        """Handle class selection change - update subclass options."""
+        self._update_subclass_options()
+    
+    def _update_subclass_options(self):
+        """Update subclass dropdown based on selected class."""
+        class_name = self.class_var.get()
+        class_def = self.class_manager.get_class(class_name)
+        
+        if class_def and class_def.subclasses:
+            subclass_names = ["(None)"] + [s.name for s in class_def.subclasses]
+            self.subclass_combo.configure(values=subclass_names)
+            
+            # Preserve existing selection if valid
+            current = self.subclass_var.get()
+            if current not in subclass_names:
+                self.subclass_var.set("(None)")
+            
+            # Show subclass row
+            self.subclass_row.pack(fill="x", pady=(5, 0))
+        else:
+            # No subclasses available
+            self.subclass_combo.configure(values=["(None)"])
+            self.subclass_var.set("(None)")
+            self.subclass_row.pack_forget()
 
     def apply_theme(self, theme):
         """Apply theme colors to widgets in this row."""
@@ -136,9 +188,14 @@ class ClassLevelRow(ctk.CTkFrame):
         except ValueError:
             level = 1
         
+        subclass = self.subclass_var.get()
+        if subclass == "(None)":
+            subclass = ""
+        
         return ClassLevel(
             character_class=CharacterClass.from_string(self.class_var.get()),
-            level=level
+            level=level,
+            subclass=subclass
         )
 
 
@@ -314,6 +371,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
         # Preserve known spells and custom settings if editing
         known_spells = []
         prepared_spells = []
+        subclass_spells = []
         current_slots = {}
         warlock_slots_current = 0
         mystic_arcanum_used = []
@@ -323,6 +381,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
         if self._original_character:
             known_spells = self._original_character.known_spells
             prepared_spells = self._original_character.prepared_spells
+            subclass_spells = self._original_character.subclass_spells
             current_slots = self._original_character.current_slots
             warlock_slots_current = self._original_character.warlock_slots_current
             mystic_arcanum_used = self._original_character.mystic_arcanum_used
@@ -335,12 +394,17 @@ class CharacterEditorDialog(ctk.CTkToplevel):
             classes=classes,
             known_spells=known_spells,
             prepared_spells=prepared_spells,
+            subclass_spells=subclass_spells,
             current_slots=current_slots,
             warlock_slots_current=warlock_slots_current,
             mystic_arcanum_used=mystic_arcanum_used,
             custom_max_slots=custom_max_slots,
             custom_max_cantrips=custom_max_cantrips
         )
+        
+        # Update subclass spells based on class/subclass selections
+        from character import update_subclass_spells
+        update_subclass_spells(self.result)
         
         self.destroy()
     

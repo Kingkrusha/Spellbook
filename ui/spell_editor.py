@@ -296,7 +296,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
                         variable=self.concentration_var,
                         font=ctk.CTkFont(size=13)).pack(side="right", padx=(20, 0))
         
-        # Classes section
+        # Classes section (only show spellcasting classes)
         ctk.CTkLabel(container, text="Classes *",
                      font=ctk.CTkFont(size=13, weight="bold")).pack(
             fill="x", pady=(0, 10))
@@ -308,7 +308,9 @@ class SpellEditorDialog(ctk.CTkToplevel):
         # Configure grid for 3 columns
         classes_frame.grid_columnconfigure((0, 1, 2), weight=1)
         
-        for i, char_class in enumerate(CharacterClass.all_classes()):
+        # Only show spellcasting classes (excludes Barbarian, Fighter, Monk, Rogue)
+        spellcasting_classes = CharacterClass.spellcasting_classes()
+        for i, char_class in enumerate(spellcasting_classes):
             var = ctk.BooleanVar(value=False)
             self.class_vars[char_class] = var
             col = i % 3

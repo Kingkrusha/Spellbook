@@ -26,13 +26,16 @@ class AppSettings:
     warn_too_many_cantrips: bool = True
     warn_wrong_class: bool = True
     warn_spell_too_high_level: bool = True
+    warn_too_many_prepared: bool = True  # Show warning when preparing more spells than allowed
     
     # Comparison mode
     show_comparison_highlights: bool = True
     
     # Character sheet
     auto_calculate_hp: bool = True  # Automatically calculate HP maximum based on class and level
+    auto_calculate_ac: bool = True  # Automatically calculate AC based on armor and DEX
     auto_fill_proficiencies: bool = True  # Automatically fill proficiencies when creating new sheet
+    auto_apply_saving_throws: bool = True  # Automatically apply saving throw proficiencies from starting class
     warn_multiclass_removal: bool = True  # Show warning when removing a multiclass by setting level to 0
     long_rest_hit_dice: str = "all"  # "all", "half", or "none" - how many hit dice to restore on long rest
     
@@ -57,9 +60,10 @@ class AppSettings:
         known_fields = {
             'appearance_mode', 'theme_name', 'use_custom_theme', 'show_spell_added_notification', 
             'show_rest_notification', 'warn_too_many_cantrips',
-            'warn_wrong_class', 'warn_spell_too_high_level',
+            'warn_wrong_class', 'warn_spell_too_high_level', 'warn_too_many_prepared',
             'show_comparison_highlights', 'initial_official_tag_applied',
-            'allow_delete_official_spells', 'auto_calculate_hp', 'auto_fill_proficiencies',
+            'allow_delete_official_spells', 'auto_calculate_hp', 'auto_calculate_ac',
+            'auto_fill_proficiencies', 'auto_apply_saving_throws',
             'warn_multiclass_removal', 'long_rest_hit_dice'
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}

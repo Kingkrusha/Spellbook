@@ -41,6 +41,7 @@ class SettingsView(ctk.CTkFrame):
         self._warn_cantrips_var = ctk.BooleanVar(value=settings_manager.settings.warn_too_many_cantrips)
         self._warn_class_var = ctk.BooleanVar(value=settings_manager.settings.warn_wrong_class)
         self._warn_level_var = ctk.BooleanVar(value=settings_manager.settings.warn_spell_too_high_level)
+        self._warn_prepared_var = ctk.BooleanVar(value=settings_manager.settings.warn_too_many_prepared)
         self._comparison_var = ctk.BooleanVar(value=settings_manager.settings.show_comparison_highlights)
         
         # Apply theme from settings
@@ -187,6 +188,14 @@ class SettingsView(ctk.CTkFrame):
             pady=(10, 0)
         )
         
+        self._create_toggle_row(
+            warnings_content,
+            "Warn when preparing more spells than allowed",
+            self._warn_prepared_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+        
         # === Comparison Mode Section ===
         self._create_section(self.container, "Comparison Mode")
         
@@ -238,6 +247,26 @@ class SettingsView(ctk.CTkFrame):
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
+        # Auto calculate AC
+        self._auto_calc_ac_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.auto_calculate_ac
+        )
+        
+        self._create_toggle_row(
+            charsheet_content,
+            "Automatically calculate armor class",
+            self._auto_calc_ac_var,
+            self._on_setting_change,
+            pady=(15, 0)
+        )
+        
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, AC is calculated from armor and shield selections\nplus DEX modifier and special abilities (like Unarmored Defense).",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
         self._auto_fill_prof_var = ctk.BooleanVar(
             value=self.settings_manager.settings.auto_fill_proficiencies
         )
@@ -252,6 +281,26 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, new character sheets will automatically fill 'Other Proficiencies'\nwith the default proficiencies for the character's class.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+        
+        # Auto apply saving throws
+        self._auto_apply_saves_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.auto_apply_saving_throws
+        )
+        
+        self._create_toggle_row(
+            charsheet_content,
+            "Automatically apply saving throw proficiencies",
+            self._auto_apply_saves_var,
+            self._on_setting_change,
+            pady=(15, 0)
+        )
+        
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, adding a starting class automatically marks its\nsaving throw proficiencies on the character sheet.",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
@@ -472,10 +521,13 @@ class SettingsView(ctk.CTkFrame):
             warn_too_many_cantrips=self._warn_cantrips_var.get(),
             warn_wrong_class=self._warn_class_var.get(),
             warn_spell_too_high_level=self._warn_level_var.get(),
+            warn_too_many_prepared=self._warn_prepared_var.get(),
             show_comparison_highlights=self._comparison_var.get(),
             allow_delete_official_spells=self._allow_delete_official_var.get(),
             auto_calculate_hp=self._auto_calc_hp_var.get(),
+            auto_calculate_ac=self._auto_calc_ac_var.get(),
             auto_fill_proficiencies=self._auto_fill_prof_var.get(),
+            auto_apply_saving_throws=self._auto_apply_saves_var.get(),
             warn_multiclass_removal=self._warn_multiclass_var.get(),
             long_rest_hit_dice=self._hit_dice_rest_var.get()
         )
@@ -530,10 +582,13 @@ class SettingsView(ctk.CTkFrame):
         self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
         self._warn_class_var.set(settings.warn_wrong_class)
         self._warn_level_var.set(settings.warn_spell_too_high_level)
+        self._warn_prepared_var.set(settings.warn_too_many_prepared)
         self._comparison_var.set(settings.show_comparison_highlights)
         self._allow_delete_official_var.set(settings.allow_delete_official_spells)
         self._auto_calc_hp_var.set(settings.auto_calculate_hp)
+        self._auto_calc_ac_var.set(settings.auto_calculate_ac)
         self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
+        self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         
@@ -556,9 +611,12 @@ class SettingsView(ctk.CTkFrame):
         self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
         self._warn_class_var.set(settings.warn_wrong_class)
         self._warn_level_var.set(settings.warn_spell_too_high_level)
+        self._warn_prepared_var.set(settings.warn_too_many_prepared)
         self._comparison_var.set(settings.show_comparison_highlights)
         self._auto_calc_hp_var.set(settings.auto_calculate_hp)
+        self._auto_calc_ac_var.set(settings.auto_calculate_ac)
         self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
+        self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         self._update_theme_editor_visibility()

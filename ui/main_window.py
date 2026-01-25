@@ -365,7 +365,8 @@ class MainWindow(ctk.CTkFrame):
 
         # State
         self._advanced_expanded = False
-        self._current_tab = "spells"
+        self._current_tab = "collections"
+        self._current_collection = None  # Current sub-collection being viewed
         self._selected_tags: List[str] = []
         self._tag_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
         self._selected_sources: List[str] = []
@@ -377,6 +378,7 @@ class MainWindow(ctk.CTkFrame):
         
         # Build UI
         self._create_tab_bar()
+        self._create_collections_view()
         self._create_spells_view()
         self._create_character_sheet_view()
         self._create_settings_view()
@@ -387,7 +389,7 @@ class MainWindow(ctk.CTkFrame):
         
         # Initial refresh
         self._refresh_spell_list()
-        self._show_tab("spells")
+        self._show_tab("collections")
 
     def destroy(self):
         """Clean up listeners to avoid leaks when the main window is destroyed."""
@@ -419,14 +421,14 @@ class MainWindow(ctk.CTkFrame):
         # Get text color for tab buttons
         btn_text = theme.get_current_color('text_primary')
         
-        # Spells tab
-        self.spells_tab_btn = ctk.CTkButton(
-            tabs_container, text="Spells", width=100, height=34,
+        # Collections tab
+        self.collections_tab_btn = ctk.CTkButton(
+            tabs_container, text="Collections", width=100, height=34,
             corner_radius=8,
             text_color=btn_text,
-            command=lambda: self._show_tab("spells")
+            command=lambda: self._show_tab("collections")
         )
-        self.spells_tab_btn.pack(side="left", padx=(0, 5))
+        self.collections_tab_btn.pack(side="left", padx=(0, 5))
         
         # Character Sheets tab
         self.sheets_tab_btn = ctk.CTkButton(
@@ -454,20 +456,29 @@ class MainWindow(ctk.CTkFrame):
         theme = get_theme_manager()
         
         # Reset all tab button styles
-        self.spells_tab_btn.configure(fg_color="transparent")
+        self.collections_tab_btn.configure(fg_color="transparent")
         self.sheets_tab_btn.configure(fg_color="transparent")
         self.settings_tab_btn.configure(fg_color="transparent")
         
         # Hide all views
+        self.collections_view.pack_forget()
         self.spells_view.pack_forget()
         self.character_sheet_view.pack_forget()
         self.settings_view.pack_forget()
+        if hasattr(self, 'classes_view'):
+            self.classes_view.pack_forget()
 
         # Show selected tab
         active_color = theme.get_current_color('accent_primary')
-        if tab_name == "spells":
-            self.spells_tab_btn.configure(fg_color=active_color)
+        if tab_name == "collections":
+            self.collections_tab_btn.configure(fg_color=active_color)
+            self.collections_view.pack(fill="both", expand=True)
+            self._current_collection = None
+        elif tab_name == "spells":
+            # Spells is a sub-view of Collections, but we highlight Collections tab
+            self.collections_tab_btn.configure(fg_color=active_color)
             self.spells_view.pack(fill="both", expand=True)
+            self._current_collection = "spells"
         elif tab_name == "character_sheets":
             self.sheets_tab_btn.configure(fg_color=active_color)
             self.character_sheet_view.pack(fill="both", expand=True)
@@ -491,6 +502,55 @@ class MainWindow(ctk.CTkFrame):
         # Refresh and select the spell
         self._refresh_spell_list()
         self.spell_list.select_spell(spell_name)
+    
+    def _navigate_to_collection(self, collection_key: str):
+        """Navigate to a specific collection from the collections hub."""
+        if collection_key == "spells":
+            self._show_tab("spells")
+        elif collection_key == "classes":
+            self._show_classes_view()
+        # Future collections will be added here
+    
+    def _show_classes_view(self):
+        """Show the classes collection view."""
+        from ui.classes_view import ClassesCollectionView
+        
+        theme = get_theme_manager()
+        
+        # Reset tab button styles
+        self.collections_tab_btn.configure(fg_color="transparent")
+        self.sheets_tab_btn.configure(fg_color="transparent")
+        self.settings_tab_btn.configure(fg_color="transparent")
+        
+        # Highlight collections tab since classes is a sub-view
+        self.collections_tab_btn.configure(fg_color=theme.get_current_color('accent_primary'))
+        
+        # Hide all views
+        self.collections_view.pack_forget()
+        self.spells_view.pack_forget()
+        self.character_sheet_view.pack_forget()
+        self.settings_view.pack_forget()
+        if hasattr(self, 'classes_view'):
+            self.classes_view.pack_forget()
+        
+        # Create or show classes view
+        if not hasattr(self, 'classes_view'):
+            self.classes_view = ClassesCollectionView(
+                self,
+                on_back=lambda: self._show_tab("collections")
+            )
+        
+        self.classes_view.pack(fill="both", expand=True)
+        self._current_collection = "classes"
+    
+    def _create_collections_view(self):
+        """Create the collections hub view."""
+        from ui.collections_view import CollectionsView
+        self.collections_view = CollectionsView(
+            self, 
+            spell_manager=self.spell_manager,
+            on_navigate=self._navigate_to_collection
+        )
     
     def _create_spells_view(self):
         """Create the spells view (main spell browser)."""
@@ -544,7 +604,7 @@ class MainWindow(ctk.CTkFrame):
 
         # Reconfigure key tab/toolbar buttons to pick up new hover/fg colors
         try:
-            self.spells_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
+            self.collections_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
             self.sheets_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
             self.settings_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
         except Exception:
@@ -624,9 +684,19 @@ class MainWindow(ctk.CTkFrame):
         toolbar = ctk.CTkFrame(self.spells_view, fg_color="transparent")
         toolbar.pack(fill="x", padx=15, pady=(15, 10))
 
-        # Left side - Search and filters
+        # Left side - Back button, Search and filters
         left_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
         left_frame.pack(side="left", fill="x", expand=True)
+        
+        # Back to Collections button
+        theme = get_theme_manager()
+        ctk.CTkButton(
+            left_frame, text="← Collections", width=110,
+            fg_color=theme.get_current_color('button_normal'), 
+            hover_color=theme.get_current_color('button_hover'),
+            text_color=theme.get_current_color('text_primary'),
+            command=lambda: self._show_tab("collections")
+        ).pack(side="left", padx=(0, 15))
 
         # Search entry
         search_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
@@ -667,7 +737,6 @@ class MainWindow(ctk.CTkFrame):
         self.class_combo.pack(side="left")
 
         # Advanced filters toggle button
-        theme = get_theme_manager()
         self.advanced_btn = ctk.CTkButton(
             left_frame, text="▼ Filters", width=90,
             fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
@@ -676,21 +745,13 @@ class MainWindow(ctk.CTkFrame):
         )
         self.advanced_btn.pack(side="left")
 
-        # Right side - Action buttons
+        # Right side - New Spell button only
         btn_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
         btn_frame.pack(side="right")
 
         ctk.CTkButton(btn_frame, text="+ New Spell", width=100,
                       text_color=theme.get_current_color('text_primary'),
-                      command=self._on_new_spell).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_frame, text="Import", width=70,
-                      fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
-                      text_color=theme.get_current_color('text_primary'),
-                      command=self._on_import).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_frame, text="Export All", width=80,
-                      fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
-                      text_color=theme.get_current_color('text_primary'),
-                      command=self._on_export_all).pack(side="left")
+                      command=self._on_new_spell).pack(side="left")
     
     def _create_advanced_filters(self):
         """Create the collapsible advanced filters panel."""

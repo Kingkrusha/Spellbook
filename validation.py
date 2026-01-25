@@ -31,6 +31,9 @@ def validate_spell_for_character(
     warnings = []
     class_levels = character.get_class_levels_tuple()
     
+    # Get Eldritch Knight level for spell slot and cantrip calculations
+    ek_level = character.get_eldritch_knight_level()
+    
     # Check if character has Custom class - skip class-related warnings
     has_custom_class = character.has_custom_class
     
@@ -49,7 +52,68 @@ def validate_spell_for_character(
         char_classes = get_character_classes(class_levels)
         spell_classes = spell.classes
         
-        if not any(c in char_classes for c in spell_classes):
+        # Check for Eldritch Knight Fighter subclass - can cast Wizard spells
+        has_eldritch_knight = character.has_eldritch_knight()
+        
+        # Check for Bard's Magical Secrets (level 10+)
+        # Disables ALL class warnings - Bard can learn spells from any class
+        has_magical_secrets = False
+        for char_class, level in class_levels:
+            if char_class == CharacterClass.BARD and level >= 10:
+                has_magical_secrets = True
+                break
+        
+        # Check for Bard subclass features that allow cross-class spells
+        # College of Lore's Magical Discoveries (level 6+) - allows Cleric/Druid/Wizard spells
+        # College of the Moon's Primal Lore (level 3+) - allows Druid spells
+        has_magical_discoveries = False
+        has_primal_lore = False
+        for char_class, level in class_levels:
+            if char_class == CharacterClass.BARD:
+                # Get subclass from character
+                for cl in character.classes:
+                    if cl.character_class == CharacterClass.BARD:
+                        if cl.subclass == "College of Lore" and level >= 6:
+                            has_magical_discoveries = True
+                        elif cl.subclass == "College of the Moon" and level >= 3:
+                            has_primal_lore = True
+                        break
+        
+        # Magical Secrets disables all class warnings
+        if has_magical_secrets:
+            pass  # Skip all class warnings
+        # Eldritch Knight allows Wizard spells
+        elif has_eldritch_knight:
+            if CharacterClass.WIZARD in spell_classes:
+                pass  # Eldritch Knight can cast Wizard spells
+            elif not any(c in char_classes for c in spell_classes):
+                class_names = ", ".join(c.value for c in spell_classes)
+                char_class_names = ", ".join(c.value for c in char_classes)
+                warnings.append(
+                    f"This spell is for {class_names}, but this character is a {char_class_names}."
+                )
+        # Magical Discoveries allows Cleric/Druid/Wizard spells
+        elif has_magical_discoveries:
+            magical_discoveries_classes = {CharacterClass.CLERIC, CharacterClass.DRUID, CharacterClass.WIZARD}
+            if any(c in magical_discoveries_classes for c in spell_classes):
+                pass  # Magical Discoveries allows these spells
+            elif not any(c in char_classes for c in spell_classes):
+                class_names = ", ".join(c.value for c in spell_classes)
+                char_class_names = ", ".join(c.value for c in char_classes)
+                warnings.append(
+                    f"This spell is for {class_names}, but this character is a {char_class_names}."
+                )
+        # Primal Lore allows Druid spells
+        elif has_primal_lore:
+            if CharacterClass.DRUID in spell_classes:
+                pass  # Primal Lore allows Druid spells
+            elif not any(c in char_classes for c in spell_classes):
+                class_names = ", ".join(c.value for c in spell_classes)
+                char_class_names = ", ".join(c.value for c in char_classes)
+                warnings.append(
+                    f"This spell is for {class_names}, but this character is a {char_class_names}."
+                )
+        elif not any(c in char_classes for c in spell_classes):
             class_names = ", ".join(c.value for c in spell_classes)
             char_class_names = ", ".join(c.value for c in char_classes)
             warnings.append(
@@ -62,7 +126,7 @@ def validate_spell_for_character(
             # Use custom max spell level
             max_level = max(character.custom_max_slots.keys()) if character.custom_max_slots else 0
         else:
-            max_level = get_max_spell_level(class_levels)
+            max_level = get_max_spell_level(class_levels, ek_level)
         
         if spell.level > max_level:
             if max_level == 0:
@@ -82,7 +146,7 @@ def validate_spell_for_character(
             # Use custom max cantrips
             max_cantrips = character.custom_max_cantrips
         else:
-            max_cantrips = get_max_cantrips(class_levels)
+            max_cantrips = get_max_cantrips(class_levels, ek_level)
         
         if max_cantrips == 0 and not has_custom_class:
             # Only warn if not a custom class (custom class with 0 means unlimited)
@@ -91,9 +155,13 @@ def validate_spell_for_character(
                 f"cannot learn cantrips."
             )
         elif spell_manager is not None and max_cantrips > 0:
-            # Count current cantrips
+            # Count current cantrips (excluding class feature spells like Mending for Artificer)
+            class_feature_spells = getattr(character, 'class_feature_spells', [])
             current_cantrips = 0
             for known_spell_name in character.known_spells:
+                # Don't count class feature spells against the limit
+                if known_spell_name in class_feature_spells:
+                    continue
                 known_spell = spell_manager.get_spell(known_spell_name)
                 if known_spell and known_spell.level == 0:
                     current_cantrips += 1

@@ -135,6 +135,7 @@ class Spell:
     source: str = ""
     tags: List[str] = field(default_factory=list)
     is_modified: bool = False  # True if an official spell was edited (non-tag/source fields)
+    original_name: str = ""  # For official spells: the original name for restoration matching
     
     @property
     def is_official(self) -> bool:
@@ -166,14 +167,14 @@ class Spell:
     
     @property
     def has_costly_component(self) -> bool:
-        """Check if spell has a material component with gold/silver/copper piece cost."""
-        # Look for patterns like "100 gp", "5+ GP", "1 sp", "worth 50+ GP", etc.
+        """Check if spell has a material component with gold/silver/copper/platinum/electrum cost."""
+        # Look for patterns like "100 gp", "5+ GP", "1 sp", "worth 50+ GP", "500 pp", etc.
         components_lower = self.components.lower()
         # Pattern matches: number followed by optional +, optional whitespace, then currency
-        # Covers: "5+ gp", "50+ gp", "100 gp", "1 sp", "1,000 gp"
-        currency_pattern = r'\d+[,\d]*\+?\s*(?:gp|sp|cp|gold\s*pieces?|silver\s*pieces?|copper\s*pieces?)'
+        # Covers: "5+ gp", "50+ gp", "100 gp", "1 sp", "1,000 gp", "500 pp", "10 ep"
+        currency_pattern = r'\d+[,\d]*\+?\s*(?:gp|sp|cp|pp|ep|gold\s*pieces?|silver\s*pieces?|copper\s*pieces?|platinum\s*pieces?|electrum\s*pieces?)'
         # Also match "worth X" patterns like "worth at least 1 sp"
-        worth_pattern = r'worth\s+(?:at\s+least\s+)?\d+[,\d]*\+?\s*(?:gp|sp|cp)'
+        worth_pattern = r'worth\s+(?:at\s+least\s+)?\d+[,\d]*\+?\s*(?:gp|sp|cp|pp|ep)'
         return bool(re.search(currency_pattern, components_lower) or re.search(worth_pattern, components_lower))
     
     def display_level(self) -> str:

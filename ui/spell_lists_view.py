@@ -7,7 +7,7 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
 from typing import Callable, Optional, List, Dict
-from character import CharacterSpellList
+from character import CharacterSpellList, get_max_prepared_spells
 from character_manager import CharacterManager
 from spell_manager import SpellManager
 from spell import Spell, CharacterClass
@@ -24,7 +24,8 @@ def get_effective_max_slots(character: CharacterSpellList) -> Dict[int, int]:
     if character.has_custom_class and character.custom_max_slots:
         return character.custom_max_slots.copy()
     class_levels = character.get_class_levels_tuple()
-    return get_max_spell_slots(class_levels)
+    ek_level = character.get_eldritch_knight_level()
+    return get_max_spell_slots(class_levels, ek_level)
 
 
 def get_effective_max_cantrips(character: CharacterSpellList) -> int:
@@ -33,7 +34,8 @@ def get_effective_max_cantrips(character: CharacterSpellList) -> int:
         # For custom class, 0 means unlimited (return a large number)
         return character.custom_max_cantrips if character.custom_max_cantrips > 0 else 999
     class_levels = character.get_class_levels_tuple()
-    return get_max_cantrips(class_levels)
+    ek_level = character.get_eldritch_knight_level()
+    return get_max_cantrips(class_levels, ek_level)
 
 
 class CharacterCard(ctk.CTkFrame):
@@ -136,7 +138,8 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                  on_remove_spell: Callable[[str], None],
                  on_spell_click: Optional[Callable[[str], None]] = None,
                  on_character_updated: Optional[Callable[[], None]] = None,
-                 settings_manager: Optional[SettingsManager] = None):
+                 settings_manager: Optional[SettingsManager] = None,
+                 scrollable: bool = True):
         super().__init__(parent, corner_radius=10)
         
         self.spell_manager = spell_manager
@@ -145,6 +148,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         self.on_spell_click = on_spell_click
         self.on_character_updated = on_character_updated
         self.settings_manager = settings_manager or get_settings_manager()
+        self._scrollable = scrollable  # Whether to use scrollable frame
         # Theme manager for dynamic colors
         self.theme = get_theme_manager()
         # Listen for theme changes to update appearance
@@ -187,6 +191,14 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             text_color=text_secondary
         )
         self.count_label.pack(side="right")
+        
+        # Prepared spells count label (for prepared casters)
+        self.prepared_label = ctk.CTkLabel(
+            header, text="",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        )
+        self.prepared_label.pack(side="right", padx=(0, 15))
         
         # Button bar
         self.button_bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -236,8 +248,11 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             text_color=text_secondary
         )
         
-        # Scrollable spell list
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        # Scrollable spell list or regular frame based on setting
+        if self._scrollable:
+            self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        else:
+            self.scroll_frame = ctk.CTkFrame(self, fg_color="transparent")
         
         # Placeholder
         self.placeholder = ctk.CTkLabel(
@@ -448,6 +463,35 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         for level, var in self._arcanum_vars.items():
             var.set(self._current_character.is_mystic_arcanum_available(level))
     
+    def _update_prepared_count(self):
+        """Update the prepared spells count display."""
+        if not self._current_character:
+            self.prepared_label.configure(text="")
+            return
+        
+        max_prepared = get_max_prepared_spells(self._current_character)
+        if max_prepared is None:
+            # Not a prepared caster
+            self.prepared_label.configure(text="")
+            return
+        
+        # Count prepared spells (not including subclass spells)
+        prepared_count = self._current_character.get_prepared_count()
+        
+        # Color code: red if over limit, normal if under
+        theme = get_theme_manager()
+        if prepared_count > max_prepared:
+            color = theme.get_current_color('button_danger')
+        elif prepared_count == max_prepared:
+            color = theme.get_current_color('accent_primary')
+        else:
+            color = theme.get_text_secondary()
+        
+        self.prepared_label.configure(
+            text=f"Prepared: {prepared_count}/{max_prepared}",
+            text_color=color
+        )
+    
     def _toggle_prepared_filter(self):
         """Toggle showing only prepared spells using visibility, not rebuild."""
         self._show_prepared_only = not self._show_prepared_only
@@ -552,6 +596,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             self.placeholder.place(relx=0.5, rely=0.5, anchor="center")
             self.title_label.configure(text="Known Spells")
             self.count_label.configure(text="")
+            self.prepared_label.configure(text="")
             return
         
         self.placeholder.place_forget()
@@ -736,6 +781,9 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         total = sum(len(spells) for spells in spells_by_level.values())
         self.count_label.configure(text=f"{total} spell{'s' if total != 1 else ''}")
         
+        # Update prepared count for prepared casters
+        self._update_prepared_count()
+        
         # Build sections
         for level in sorted(spells_by_level.keys()):
             self._build_level_section(level, spells_by_level[level], max_slots, character)
@@ -882,21 +930,45 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                 text_color=text_secondary
             ).pack(side="left", padx=(0, 4))
         
-        # Prepared checkbox
-        prepared_var = ctk.BooleanVar(value=character.is_prepared(spell.name))
-        self._prepared_vars[spell.name] = prepared_var
+        # Check if this is a subclass spell (always prepared)
+        is_subclass_spell = character.is_subclass_spell(spell.name)
+        is_cantrip = (spell.level == 0)
         
-        prepared_cb = ctk.CTkCheckBox(
-            row, text="", variable=prepared_var, width=20,
-            checkbox_width=16, checkbox_height=16,
-            command=lambda sn=spell.name: self._on_prepared_change(sn)
-        )
-        prepared_cb.pack(side="right", padx=(0, 15))
+        # Only show prepared checkbox for non-cantrip spells
+        if not is_cantrip:
+            # Prepared checkbox
+            prepared_var = ctk.BooleanVar(value=character.is_prepared(spell.name))
+            self._prepared_vars[spell.name] = prepared_var
+            
+            prepared_cb = ctk.CTkCheckBox(
+                row, text="", variable=prepared_var, width=20,
+                checkbox_width=16, checkbox_height=16,
+                command=lambda sn=spell.name: self._on_prepared_change(sn)
+            )
+            prepared_cb.pack(side="right", padx=(0, 15))
+            
+            # Disable checkbox for subclass spells (always prepared)
+            if is_subclass_spell:
+                prepared_cb.configure(state="disabled")
+                prepared_var.set(True)  # Always checked
+                # Add "(Always Prepared)" indicator
+                ctk.CTkLabel(
+                    row, text="★",
+                    font=ctk.CTkFont(size=10),
+                    text_color=self.theme.get_current_color('accent_primary')
+                ).pack(side="right", padx=(0, 2))
+        else:
+            # Cantrips - add small spacer for alignment
+            prepared_var = ctk.BooleanVar(value=True)  # Cantrips always "prepared"
+            self._prepared_vars[spell.name] = prepared_var
+            ctk.CTkFrame(row, width=35, fg_color="transparent").pack(side="right")
         
         # Store row data
         self._level_sections[level]['spells'][spell.name] = {
             'row': row,
-            'prepared_var': prepared_var
+            'prepared_var': prepared_var,
+            'is_subclass_spell': is_subclass_spell,
+            'is_cantrip': is_cantrip
         }
     
     def _on_slot_change(self, level: int):
@@ -924,9 +996,37 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         if var:
             if var.get():
                 self._current_character.prepare_spell(spell_name)
+                # Check if over-prepared and show warning
+                self._check_over_prepared_warning()
             else:
                 self._current_character.unprepare_spell(spell_name)
             self._save_character()
+            # Update prepared count display
+            self._update_prepared_count()
+    
+    def _check_over_prepared_warning(self):
+        """Check if character has too many spells prepared and show warning."""
+        if not self._current_character:
+            return
+        
+        # Check settings
+        settings = get_settings_manager()
+        if not settings.settings.warn_too_many_prepared:
+            return
+        
+        max_prepared = get_max_prepared_spells(self._current_character)
+        if max_prepared is None:
+            return  # Not a prepared caster
+        
+        prepared_count = self._current_character.get_prepared_count()
+        if prepared_count > max_prepared:
+            from tkinter import messagebox
+            messagebox.showwarning(
+                "Too Many Spells Prepared",
+                f"You have {prepared_count} spells prepared, but your maximum is {max_prepared}.\n\n"
+                f"Consider unpreparing some spells.\n\n"
+                f"(You can disable this warning in Settings)"
+            )
     
     def _on_spell_name_click(self, spell_name: str):
         """Handle spell name click."""

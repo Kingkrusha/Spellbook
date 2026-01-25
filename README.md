@@ -61,6 +61,21 @@ A desktop application for managing D&D 5th Edition spells, character sheets, and
 - **Editable Stat Blocks**: Create and edit stat blocks with a dedicated editor
 - **Pre-seeded Data**: Official stat blocks for common summoning spells
 
+### Class & Subclass Management
+- **Class Browser**: Browse all D&D 2024 classes with detailed feature tables
+- **Custom Class Editor**: Create your own homebrew classes with:
+  - Basic info (name, hit die, proficiencies, saving throws, skills)
+  - Spellcasting configuration (full caster, half caster, or custom spell slots)
+  - Level-by-level feature definitions with multiple abilities per level
+  - Custom feature table columns (e.g., Rage Damage, Martial Arts Die)
+  - Trackable class features for the character sheet widget
+- **Custom Subclass Editor**: Create homebrew subclasses with:
+  - Features at any level from the subclass starting level
+  - Integrated spell lists (always prepared subclass spells)
+  - Full description with bold text formatting support
+- **Edit/Delete Custom Content**: Modify or remove your homebrew classes and subclasses
+- **Protected Official Content**: Official D&D classes and subclasses cannot be edited or deleted
+
 ### User Interface
 - **Modern Dark Theme**: Clean, modern UI with customizable themes
 - **Responsive Layout**: Resizable panels with smooth animations
@@ -144,8 +159,12 @@ Spellbook/
 │   ├── character_editor.py # Character create/edit dialog
 │   ├── character_sheet_view.py # Full character sheet interface
 │   ├── settings_view.py    # Settings panel
+│   ├── classes_view.py     # Class browser with feature tables
+│   ├── class_editor.py     # Class and subclass editor dialogs
 │   ├── stat_block_display.py  # Stat block display widget
 │   └── stat_block_editor.py   # Stat block editor dialog
+├── character_class.py      # Class/subclass definitions and manager
+├── classes.json            # Class and subclass data (auto-generated)
 ├── tools/                  # Batch spell import scripts
 ├── requirements.txt        # Python dependencies
 ├── spellbook.db           # SQLite database (created on first run)

@@ -14,11 +14,53 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 4  # Bumped for spell description updates
+    SCHEMA_VERSION = 6  # Bumped for tag normalization
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
     _PROTECTED_TAGS_LOWER = {t.lower() for t in PROTECTED_TAGS}
+    
+    # Tag normalization map for consistent capitalization
+    TAG_NORMALIZATION = {
+        # Spellcasting tags
+        'light': 'Light',
+        'aoe': 'AOE',
+        'buff': 'Buff',
+        'debuff': 'Debuff',
+        'healing': 'Healing',
+        'damage': 'Damage',
+        'utility': 'Utility',
+        'attack': 'Attack',
+        'saving throw': 'Saving Throw',
+        # Damage types
+        'fire': 'Fire',
+        'cold': 'Cold',
+        'lightning': 'Lightning',
+        'thunder': 'Thunder',
+        'acid': 'Acid',
+        'poison': 'Poison',
+        'radiant': 'Radiant',
+        'necrotic': 'Necrotic',
+        'force': 'Force',
+        'psychic': 'Psychic',
+        # Schools
+        'abjuration': 'Abjuration',
+        'conjuration': 'Conjuration',
+        'divination': 'Divination',
+        'enchantment': 'Enchantment',
+        'evocation': 'Evocation',
+        'illusion': 'Illusion',
+        'necromancy': 'Necromancy',
+        'transmutation': 'Transmutation',
+        # Official tags
+        'official': 'Official',
+        'unofficial': 'Unofficial',
+    }
+    
+    @classmethod
+    def normalize_tag(cls, tag: str) -> str:
+        """Normalize a tag to its canonical capitalization."""
+        return cls.TAG_NORMALIZATION.get(tag.lower(), tag)
     
     @classmethod
     def is_protected_tag(cls, tag: str) -> bool:
@@ -213,6 +255,42 @@ class SpellDatabase:
             self._apply_spell_description_updates(cursor)
             cursor.execute("UPDATE schema_version SET version = 4")
             current_version = 4
+        
+        # Migration to version 5: add original_name column for restoration matching
+        if current_version < 5:
+            # Check if column already exists
+            cursor.execute("PRAGMA table_info(spells)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'original_name' not in columns:
+                cursor.execute("ALTER TABLE spells ADD COLUMN original_name TEXT DEFAULT ''")
+                # For existing official spells, set original_name to current name
+                cursor.execute("""
+                    UPDATE spells SET original_name = name 
+                    WHERE id IN (SELECT spell_id FROM spell_tags WHERE tag = 'Official')
+                """)
+            cursor.execute("UPDATE schema_version SET version = 5")
+            current_version = 5
+        
+        # Migration to version 6: normalize tag capitalization
+        if current_version < 6:
+            self._normalize_tags(cursor)
+            cursor.execute("UPDATE schema_version SET version = 6")
+            current_version = 6
+    
+    def _normalize_tags(self, cursor):
+        """Normalize tag capitalization using class-level normalization map."""
+        # Get all unique tags
+        cursor.execute("SELECT DISTINCT tag FROM spell_tags")
+        tags = [row[0] for row in cursor.fetchall()]
+        
+        for tag in tags:
+            normalized = self.TAG_NORMALIZATION.get(tag.lower())
+            if normalized and normalized != tag:
+                # Update the tag
+                cursor.execute(
+                    "UPDATE spell_tags SET tag = ? WHERE tag = ?",
+                    (normalized, tag)
+                )
     
     def _apply_spell_description_updates(self, cursor):
         """Apply updated spell descriptions from PHB 2024 and other sources."""
@@ -345,8 +423,8 @@ class SpellDatabase:
             cursor.execute("""
                 INSERT INTO spells (
                     name, level, casting_time, ritual, range_value, 
-                    components, duration, concentration, description, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    components, duration, concentration, description, source, original_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 spell_data['name'],
                 spell_data['level'],
@@ -357,7 +435,8 @@ class SpellDatabase:
                 spell_data['duration'],
                 1 if spell_data.get('concentration', False) else 0,
                 spell_data.get('description', ''),
-                spell_data.get('source', '')
+                spell_data.get('source', ''),
+                spell_data.get('original_name', '')
             ))
             
             spell_id = cursor.lastrowid
@@ -371,12 +450,13 @@ class SpellDatabase:
                     [(spell_id, cls) for cls in classes]
                 )
             
-            # Insert tags
+            # Insert tags (normalized)
             tags = spell_data.get('tags', [])
             if tags:
+                normalized_tags = [self.normalize_tag(tag) for tag in tags]
                 cursor.executemany(
                     "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
-                    [(spell_id, tag) for tag in tags]
+                    [(spell_id, tag) for tag in normalized_tags]
                 )
             
             return spell_id
@@ -427,13 +507,14 @@ class SpellDatabase:
                     [(spell_id, cls) for cls in classes]
                 )
             
-            # Update tags - delete and re-insert
+            # Update tags - delete and re-insert (normalized)
             cursor.execute("DELETE FROM spell_tags WHERE spell_id = ?", (spell_id,))
             tags = spell_data.get('tags', [])
             if tags:
+                normalized_tags = [self.normalize_tag(tag) for tag in tags]
                 cursor.executemany(
                     "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
-                    [(spell_id, tag) for tag in tags]
+                    [(spell_id, tag) for tag in normalized_tags]
                 )
             
             return cursor.rowcount > 0
@@ -638,6 +719,7 @@ class SpellDatabase:
             'classes': classes,
             'tags': tags,
             'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
+            'original_name': row['original_name'] if 'original_name' in row.keys() else '',
             'created_at': row['created_at'],
             'updated_at': row['updated_at']
         }
@@ -704,6 +786,7 @@ class SpellDatabase:
                 'classes': classes_by_spell.get(spell_id, []),
                 'tags': tags_by_spell.get(spell_id, []),
                 'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
+                'original_name': row['original_name'] if 'original_name' in row.keys() else '',
                 'created_at': row['created_at'],
                 'updated_at': row['updated_at']
             })
@@ -978,12 +1061,13 @@ class SpellDatabase:
                     if cursor.fetchone():
                         continue  # Skip duplicates
                     
-                    # Insert spell
+                    # Insert spell (for official spells, original_name = name)
+                    original_name = spell_data.get('original_name', spell_data['name'])
                     cursor.execute("""
                         INSERT INTO spells (
                             name, level, casting_time, ritual, range_value,
-                            components, duration, concentration, description, source
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            components, duration, concentration, description, source, original_name
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         spell_data['name'],
                         spell_data['level'],
@@ -994,7 +1078,8 @@ class SpellDatabase:
                         spell_data['duration'],
                         1 if spell_data.get('concentration', False) else 0,
                         spell_data.get('description', ''),
-                        spell_data.get('source', '')
+                        spell_data.get('source', ''),
+                        original_name
                     ))
                     
                     spell_id = cursor.lastrowid
@@ -1007,12 +1092,13 @@ class SpellDatabase:
                             [(spell_id, cls) for cls in classes]
                         )
                     
-                    # Insert tags
+                    # Insert tags (normalized)
                     tags = spell_data.get('tags', [])
                     if tags:
+                        normalized_tags = [self.normalize_tag(tag) for tag in tags]
                         cursor.executemany(
                             "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
-                            [(spell_id, tag) for tag in tags]
+                            [(spell_id, tag) for tag in normalized_tags]
                         )
                     
                     inserted += 1

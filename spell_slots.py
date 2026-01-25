@@ -81,15 +81,50 @@ HALF_CASTER_CLASSES = {
     CharacterClass.RANGER,
 }
 
+# Eldritch Knight spell slots by Fighter level (third caster)
+# Format: {fighter_level: {spell_level: num_slots}}
+ELDRITCH_KNIGHT_SLOTS = {
+    3:  {1: 2},
+    4:  {1: 3},
+    5:  {1: 3},
+    6:  {1: 3},
+    7:  {1: 4, 2: 2},
+    8:  {1: 4, 2: 2},
+    9:  {1: 4, 2: 2},
+    10: {1: 4, 2: 3},
+    11: {1: 4, 2: 3},
+    12: {1: 4, 2: 3},
+    13: {1: 4, 2: 3, 3: 2},
+    14: {1: 4, 2: 3, 3: 2},
+    15: {1: 4, 2: 3, 3: 2},
+    16: {1: 4, 2: 3, 3: 3},
+    17: {1: 4, 2: 3, 3: 3},
+    18: {1: 4, 2: 3, 3: 3},
+    19: {1: 4, 2: 3, 3: 3, 4: 1},
+    20: {1: 4, 2: 3, 3: 3, 4: 1},
+}
+
+# Eldritch Knight prepared spells by Fighter level
+ELDRITCH_KNIGHT_PREPARED = {
+    3: 3, 4: 4, 5: 4, 6: 4, 7: 5, 8: 6, 9: 6, 10: 7,
+    11: 8, 12: 8, 13: 9, 14: 10, 15: 10, 16: 11, 17: 11, 18: 11, 19: 12, 20: 13
+}
+
+# Eldritch Knight cantrips by Fighter level
+ELDRITCH_KNIGHT_CANTRIPS = {
+    3: 2, 10: 3  # 2 cantrips at level 3, 3 at level 10
+}
+
 # Custom class is handled separately with user-defined spell slots
 
 
-def calculate_multiclass_caster_level(class_levels: List[Tuple[CharacterClass, int]]) -> int:
+def calculate_multiclass_caster_level(class_levels: List[Tuple[CharacterClass, int]], eldritch_knight_level: int = 0) -> int:
     """
     Calculate the effective caster level for multiclass spell slot calculation.
     
     - Full casters: count full levels
     - Half casters: count half levels (round up)
+    - Third casters (Eldritch Knight): count third levels (round up)
     - Warlock: NOT counted (uses Pact Magic separately)
     
     Returns the effective caster level for the full caster spell slot table.
@@ -102,24 +137,61 @@ def calculate_multiclass_caster_level(class_levels: List[Tuple[CharacterClass, i
         elif char_class in HALF_CASTER_CLASSES:
             # Half casters: round up (e.g., level 1 = 1, level 2 = 1, level 3 = 2)
             total += (level + 1) // 2
-        # Warlock is not counted for multiclass spell slots
+        # Warlock and Fighter (not EK) are not counted for multiclass spell slots
+    
+    # Add Eldritch Knight contribution (third caster)
+    if eldritch_knight_level >= 3:
+        # Third casters: round up (level 3 = 1, level 6 = 2, level 9 = 3, etc.)
+        total += (eldritch_knight_level + 2) // 3
     
     return min(total, 20)  # Cap at 20
 
 
-def get_max_spell_slots(class_levels: List[Tuple[CharacterClass, int]]) -> Dict[int, int]:
+def get_max_spell_slots(class_levels: List[Tuple[CharacterClass, int]], eldritch_knight_level: int = 0) -> Dict[int, int]:
     """
     Get the maximum spell slots for each spell level based on class levels.
     
     Returns a dict of {spell_level: max_slots} for levels 1-9.
     Warlock slots are handled separately.
+    
+    Args:
+        class_levels: List of (class, level) tuples
+        eldritch_knight_level: Fighter level if character has Eldritch Knight subclass
     """
-    caster_level = calculate_multiclass_caster_level(class_levels)
+    caster_level = calculate_multiclass_caster_level(class_levels, eldritch_knight_level)
     
     if caster_level == 0:
+        # Check if only Eldritch Knight (no other casters)
+        if eldritch_knight_level >= 3:
+            return ELDRITCH_KNIGHT_SLOTS.get(eldritch_knight_level, {}).copy()
         return {}
     
     return FULL_CASTER_SLOTS.get(caster_level, {}).copy()
+
+
+def get_eldritch_knight_slots(fighter_level: int) -> Dict[int, int]:
+    """Get spell slots for Eldritch Knight at a given Fighter level."""
+    if fighter_level < 3:
+        return {}
+    return ELDRITCH_KNIGHT_SLOTS.get(min(fighter_level, 20), {}).copy()
+
+
+def get_eldritch_knight_prepared(fighter_level: int) -> int:
+    """Get max prepared spells for Eldritch Knight at a given Fighter level."""
+    if fighter_level < 3:
+        return 0
+    return ELDRITCH_KNIGHT_PREPARED.get(min(fighter_level, 20), 0)
+
+
+def get_eldritch_knight_cantrips(fighter_level: int) -> int:
+    """Get number of cantrips for Eldritch Knight at a given Fighter level."""
+    if fighter_level < 3:
+        return 0
+    cantrips = 0
+    for threshold_level, num_cantrips in sorted(ELDRITCH_KNIGHT_CANTRIPS.items()):
+        if fighter_level >= threshold_level:
+            cantrips = num_cantrips
+    return cantrips
 
 
 def get_warlock_level(class_levels: List[Tuple[CharacterClass, int]]) -> int:
@@ -215,7 +287,7 @@ def get_cantrips_for_class(char_class: CharacterClass, level: int) -> int:
     return cantrips
 
 
-def get_max_cantrips(class_levels: List[Tuple[CharacterClass, int]]) -> int:
+def get_max_cantrips(class_levels: List[Tuple[CharacterClass, int]], eldritch_knight_level: int = 0) -> int:
     """
     Get the maximum number of cantrips for a character.
     Multiclass characters get cantrips from ALL their classes combined.
@@ -223,18 +295,23 @@ def get_max_cantrips(class_levels: List[Tuple[CharacterClass, int]]) -> int:
     total_cantrips = 0
     for char_class, level in class_levels:
         total_cantrips += get_cantrips_for_class(char_class, level)
+    
+    # Add Eldritch Knight cantrips
+    if eldritch_knight_level >= 3:
+        total_cantrips += get_eldritch_knight_cantrips(eldritch_knight_level)
+    
     return total_cantrips
 
 
-def get_max_spell_level(class_levels: List[Tuple[CharacterClass, int]]) -> int:
+def get_max_spell_level(class_levels: List[Tuple[CharacterClass, int]], eldritch_knight_level: int = 0) -> int:
     """
     Get the maximum spell level the character can cast.
     Considers both regular spell slots and warlock pact magic/mystic arcanum.
     """
     max_level = 0
     
-    # Check regular spell slots
-    spell_slots = get_max_spell_slots(class_levels)
+    # Check regular spell slots (including Eldritch Knight)
+    spell_slots = get_max_spell_slots(class_levels, eldritch_knight_level)
     if spell_slots:
         max_level = max(spell_slots.keys())
     

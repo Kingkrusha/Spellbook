@@ -1,51 +1,29 @@
 {
   "characters": [
     {
-      "name": "Bug man",
+      "name": "artificer",
       "classes": [
         {
-          "class": "Fighter",
-          "level": 9
-        },
-        {
-          "class": "Barbarian",
-          "level": 3
-        },
-        {
-          "class": "Sorcerer",
-          "level": 2
-        }
-      ],
-      "known_spells": [],
-      "prepared_spells": [],
-      "current_slots": {},
-      "warlock_slots_current": 0,
-      "mystic_arcanum_used": [],
-      "custom_max_slots": {},
-      "custom_max_cantrips": 0
-    },
-    {
-      "name": "Fizban",
-      "classes": [
-        {
-          "class": "Sorcerer",
-          "level": 20
+          "class": "Artificer",
+          "level": 6,
+          "subclass": ""
         }
       ],
       "known_spells": [
-        "Chill Touch"
+        "Mending"
       ],
-      "prepared_spells": [],
+      "prepared_spells": [
+        "Mending"
+      ],
+      "subclass_spells": [
+        "Mending"
+      ],
+      "class_feature_spells": [
+        "Mending"
+      ],
       "current_slots": {
         "1": 4,
-        "2": 3,
-        "3": 3,
-        "4": 3,
-        "5": 3,
-        "6": 2,
-        "7": 2,
-        "8": 1,
-        "9": 1
+        "2": 3
       },
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
@@ -53,24 +31,311 @@
       "custom_max_cantrips": 0
     },
     {
-      "name": "tim",
+      "name": "Barbarian",
       "classes": [
         {
-          "class": "Wizard",
-          "level": 4
+          "class": "Barbarian",
+          "level": 3,
+          "subclass": "Path of the Berserker"
+        }
+      ],
+      "known_spells": [],
+      "prepared_spells": [],
+      "subclass_spells": [],
+      "class_feature_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "Bard",
+      "classes": [
+        {
+          "class": "Bard",
+          "level": 3,
+          "subclass": ""
+        }
+      ],
+      "known_spells": [],
+      "prepared_spells": [],
+      "subclass_spells": [],
+      "class_feature_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "Cleric",
+      "classes": [
+        {
+          "class": "Cleric",
+          "level": 3,
+          "subclass": "Life Domain"
         }
       ],
       "known_spells": [
-        "Detect Magic",
-        "Magic Missile",
-        "Acid Splash"
+        "Aid",
+        "Bless",
+        "Cure Wounds",
+        "Lesser Restoration"
       ],
       "prepared_spells": [
-        "Detect Magic"
+        "Aid",
+        "Bless",
+        "Cure Wounds",
+        "Lesser Restoration"
+      ],
+      "subclass_spells": [
+        "Aid",
+        "Bless",
+        "Cure Wounds",
+        "Lesser Restoration"
+      ],
+      "class_feature_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "druid",
+      "classes": [
+        {
+          "class": "Druid",
+          "level": 6,
+          "subclass": "Circle of the Land (Polar)"
+        }
+      ],
+      "known_spells": [
+        "Ray of Frost",
+        "Fog Cloud",
+        "Hold Person",
+        "Sleet Storm"
+      ],
+      "prepared_spells": [],
+      "subclass_spells": [
+        "Ray of Frost",
+        "Fog Cloud",
+        "Hold Person",
+        "Sleet Storm"
+      ],
+      "class_feature_spells": [],
+      "current_slots": {
+        "1": 4,
+        "2": 2,
+        "3": 3
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "monk",
+      "classes": [
+        {
+          "class": "Monk",
+          "level": 20,
+          "subclass": "Warrior of the Elements"
+        }
+      ],
+      "known_spells": [
+        "Elementalism"
+      ],
+      "prepared_spells": [],
+      "subclass_spells": [
+        "Elementalism"
+      ],
+      "class_feature_spells": [],
+      "current_slots": {
+        "1": 2
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "Paladin",
+      "classes": [
+        {
+          "class": "Paladin",
+          "level": 4,
+          "subclass": "Oath of the Noble Genie"
+        }
+      ],
+      "known_spells": [
+        "Divine Smite",
+        "Chromatic Orb",
+        "Elementalism",
+        "Thunderous Smite"
+      ],
+      "prepared_spells": [
+        "Divine Smite",
+        "Chromatic Orb",
+        "Elementalism",
+        "Thunderous Smite"
+      ],
+      "subclass_spells": [
+        "Divine Smite",
+        "Chromatic Orb",
+        "Elementalism",
+        "Thunderous Smite"
+      ],
+      "class_feature_spells": [
+        "Divine Smite"
+      ],
+      "current_slots": {
+        "1": 3
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "Ranger",
+      "classes": [
+        {
+          "class": "Ranger",
+          "level": 3,
+          "subclass": "Fey Wanderer"
+        }
+      ],
+      "known_spells": [
+        "Hunter's Mark",
+        "Charm Person"
+      ],
+      "prepared_spells": [
+        "Hunter's Mark",
+        "Charm Person"
+      ],
+      "subclass_spells": [
+        "Hunter's Mark",
+        "Charm Person"
+      ],
+      "class_feature_spells": [
+        "Hunter's Mark"
+      ],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "Rogue",
+      "classes": [
+        {
+          "class": "Rogue",
+          "level": 3,
+          "subclass": "Arcane Trickster"
+        }
+      ],
+      "known_spells": [],
+      "prepared_spells": [],
+      "subclass_spells": [],
+      "class_feature_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "Test",
+      "classes": [
+        {
+          "class": "Artificer",
+          "level": 4,
+          "subclass": "Armorer"
+        }
+      ],
+      "known_spells": [
+        "Mending",
+        "Thunderwave",
+        "Magic Missile"
+      ],
+      "prepared_spells": [],
+      "subclass_spells": [
+        "Magic Missile",
+        "Thunderwave"
+      ],
+      "class_feature_spells": [
+        "Mending"
+      ],
+      "current_slots": {
+        "1": 2
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "test 2",
+      "classes": [
+        {
+          "class": "Fighter",
+          "level": 3,
+          "subclass": "Psi Warrior"
+        }
+      ],
+      "known_spells": [
+        "Chill Touch",
+        "Control Flames",
+        "Burning Hands"
+      ],
+      "prepared_spells": [],
+      "subclass_spells": [],
+      "class_feature_spells": [],
+      "current_slots": {
+        "1": 2
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0
+    },
+    {
+      "name": "test 3",
+      "classes": [
+        {
+          "class": "Cleric",
+          "level": 3,
+          "subclass": "War Domain"
+        }
+      ],
+      "known_spells": [
+        "Guiding Bolt",
+        "Shield of Faith",
+        "Spiritual Weapon",
+        "Mending"
+      ],
+      "prepared_spells": [
+        "Mending"
+      ],
+      "subclass_spells": [
+        "Guiding Bolt",
+        "Magic Weapon",
+        "Shield of Faith",
+        "Spiritual Weapon",
+        "Mending",
+        "Shield",
+        "Thunderwave"
+      ],
+      "class_feature_spells": [
+        "Mending"
       ],
       "current_slots": {
         "1": 4,
-        "2": 3
+        "2": 2,
+        "3": 2
       },
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
