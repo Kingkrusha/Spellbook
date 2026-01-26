@@ -624,18 +624,27 @@ class CharacterSheetView(ctk.CTkFrame):
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
     
     def _create_widgets(self):
-        """Create the main layout."""
+        """Create the main layout using grid for precise control."""
+        # Configure grid weights - row 1 (content) expands, rows 0 and 2 (bars) don't
+        self.grid_rowconfigure(0, weight=0)  # Top bar - fixed height
+        self.grid_rowconfigure(1, weight=1)  # Content - expands
+        self.grid_rowconfigure(2, weight=0)  # Bottom bar - fixed height
+        self.grid_columnconfigure(0, weight=1)  # Full width
+        
         # Top bar with character selector
         self._create_top_bar()
         
         # Main content area (scrollable) - middle section
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.content_frame.pack(fill="both", expand=True)
+        self.content_frame.grid(row=1, column=0, sticky="nsew")
         
         self.content_scroll = ctk.CTkScrollableFrame(
             self.content_frame, fg_color="transparent"
         )
         self.content_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Bottom tab bar - created AFTER content, placed in row 2
+        self._create_bottom_bar()
         
         # Placeholder when no character selected
         self.placeholder = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
@@ -656,9 +665,6 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Spell list content (hidden initially)
         self.spells_content = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
-        
-        # Bottom tab bar
-        self._create_bottom_bar()
     
     def _create_top_bar(self):
         """Create the top bar with character selector."""
@@ -666,8 +672,8 @@ class CharacterSheetView(ctk.CTkFrame):
             self, fg_color=self.theme.get_current_color('bg_secondary'),
             corner_radius=0, height=60
         )
-        top_bar.pack(fill="x")
-        top_bar.pack_propagate(False)
+        top_bar.grid(row=0, column=0, sticky="ew")
+        top_bar.grid_propagate(False)
         
         container = ctk.CTkFrame(top_bar, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=10)
@@ -724,8 +730,8 @@ class CharacterSheetView(ctk.CTkFrame):
             self, fg_color=self.theme.get_current_color('bg_secondary'),
             corner_radius=0, height=50
         )
-        self.bottom_bar.pack(fill="x", side="bottom")
-        self.bottom_bar.pack_propagate(False)
+        self.bottom_bar.grid(row=2, column=0, sticky="ew")
+        self.bottom_bar.grid_propagate(False)
         
         container = ctk.CTkFrame(self.bottom_bar, fg_color="transparent")
         container.pack(expand=True, pady=8)
@@ -1026,21 +1032,25 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # ===== ROW 2: Main content columns =====
         main_row = ctk.CTkFrame(self.sheet_content, fg_color="transparent")
-        main_row.pack(fill="both", expand=True, pady=5)
+        main_row.pack(fill="x", pady=5)
+        
+        # Use grid for the columns to have better control over sizing
+        main_row.grid_columnconfigure(0, weight=0, minsize=270)  # Left column - fixed width
+        main_row.grid_columnconfigure(1, weight=0, minsize=290)  # Middle column - fixed width
+        main_row.grid_columnconfigure(2, weight=1)  # Right column - expands
+        main_row.grid_rowconfigure(0, weight=1)  # Single row expands
         
         # Left column: Ability Scores, Saving Throws, Skills
-        left_col = ctk.CTkFrame(main_row, fg_color="transparent", width=270)
-        left_col.pack(side="left", fill="y", padx=(0, 5))
-        left_col.pack_propagate(False)
+        left_col = ctk.CTkFrame(main_row, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         
         self._create_ability_scores_section(left_col, sheet)
         self._create_saving_throws_section(left_col, sheet)
         self._create_skills_section(left_col, sheet)
         
         # Middle column: Combat stats, Class Features (scrollable), Attacks
-        middle_col = ctk.CTkFrame(main_row, fg_color="transparent", width=290)
-        middle_col.pack(side="left", fill="y", padx=5)
-        middle_col.pack_propagate(False)
+        middle_col = ctk.CTkFrame(main_row, fg_color="transparent")
+        middle_col.grid(row=0, column=1, sticky="nsew", padx=5)
         
         # Create combat section at the top
         self._create_combat_section(middle_col, sheet)
@@ -1058,7 +1068,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Right column: Features & Traits (large), Other Proficiencies, Notes, Personality
         right_col = ctk.CTkFrame(main_row, fg_color="transparent")
-        right_col.pack(side="left", fill="both", expand=True, padx=(5, 0))
+        right_col.grid(row=0, column=2, sticky="nsew", padx=(5, 0))
         
         self._create_features_section(right_col, sheet)
         self._create_proficiencies_section(right_col, sheet)
@@ -3171,10 +3181,13 @@ class CharacterSheetView(ctk.CTkFrame):
                 if settings.auto_calculate_hp:
                     self._auto_update_hp()
             
-            # If DEX, CON, or WIS changed and auto-calc AC is on, recalculate AC
-            if ability in (AbilityScore.DEXTERITY, AbilityScore.CONSTITUTION, AbilityScore.WISDOM):
-                settings = get_settings_manager().settings
-                if settings.auto_calculate_ac:
+            # Recalculate AC when any relevant stat changes
+            # For unarmored defense, this could be DEX + CON, DEX + WIS, DEX + CHA, etc.
+            settings = get_settings_manager().settings
+            if settings.auto_calculate_ac:
+                # Always recalculate if DEX changes (affects all AC)
+                # Or if character has unarmored defense (any stat could affect AC)
+                if ability == AbilityScore.DEXTERITY or self.current_sheet.unarmored_defense:
                     self._recalculate_ac()
     
     def _on_save_change(self, ability: AbilityScore, proficient: bool):
