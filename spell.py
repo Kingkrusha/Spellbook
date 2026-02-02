@@ -136,6 +136,7 @@ class Spell:
     tags: List[str] = field(default_factory=list)
     is_modified: bool = False  # True if an official spell was edited (non-tag/source fields)
     original_name: str = ""  # For official spells: the original name for restoration matching
+    is_legacy: bool = False  # True if this is 2014 (legacy) content
     
     @property
     def is_official(self) -> bool:

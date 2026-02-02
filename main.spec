@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('characters.json', '.'), ('settings.json', '.'), ('custom_theme.json', '.'), ('tools', 'tools')],
+    datas=[('characters.json', '.'), ('settings.json', '.'), ('custom_theme.json', '.'), ('tools', 'tools'), ('lineages.json', '.'), ('feats.json', '.'), ('classes.json', '.'), ('spellbook.db', '.')],
     hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
     hookspath=[],
     hooksconfig={},

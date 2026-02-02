@@ -48,6 +48,11 @@ class CharacterSpellList:
     # Custom class settings (only used when class is CUSTOM)
     custom_max_slots: Dict[int, int] = field(default_factory=dict)  # {spell_level: max_slots}
     custom_max_cantrips: int = 0  # Maximum cantrips for custom class
+    # Feats
+    feats: List[str] = field(default_factory=list)  # Feat names
+    # Lineage
+    lineage: str = ""  # Lineage name
+    hidden_features: List[str] = field(default_factory=list)  # List of hidden feature identifiers
     
     @property
     def primary_class(self) -> Optional[ClassLevel]:
@@ -247,7 +252,10 @@ class CharacterSpellList:
             "warlock_slots_current": self.warlock_slots_current,
             "mystic_arcanum_used": self.mystic_arcanum_used,
             "custom_max_slots": {str(k): v for k, v in self.custom_max_slots.items()},
-            "custom_max_cantrips": self.custom_max_cantrips
+            "custom_max_cantrips": self.custom_max_cantrips,
+            "feats": self.feats,
+            "lineage": self.lineage,
+            "hidden_features": self.hidden_features
         }
     
     @classmethod
@@ -274,7 +282,10 @@ class CharacterSpellList:
             warlock_slots_current=data.get("warlock_slots_current", 0),
             mystic_arcanum_used=data.get("mystic_arcanum_used", []),
             custom_max_slots=custom_max_slots,
-            custom_max_cantrips=data.get("custom_max_cantrips", 0)
+            custom_max_cantrips=data.get("custom_max_cantrips", 0),
+            feats=data.get("feats", []),
+            lineage=data.get("lineage", ""),
+            hidden_features=data.get("hidden_features", [])
         )
 
 

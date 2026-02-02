@@ -1,10 +1,10 @@
 {
   "characters": [
     {
-      "name": "monk",
+      "name": "Fighter",
       "classes": [
         {
-          "class": "Monk",
+          "class": "Fighter",
           "level": 1,
           "subclass": ""
         }
@@ -17,7 +17,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "Human",
+      "hidden_features": []
     }
   ]
 }

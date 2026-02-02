@@ -28,7 +28,12 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [
+        "Alert"
+      ],
+      "lineage": "Elf",
+      "hidden_features": []
     },
     {
       "name": "Barbarian",
@@ -47,7 +52,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "Bard",
@@ -66,7 +74,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "Cleric",
@@ -100,7 +111,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "druid",
@@ -133,7 +147,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "monk",
@@ -158,7 +175,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "monk 2",
@@ -177,7 +197,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "Paladin",
@@ -215,7 +238,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "Ranger",
@@ -245,7 +271,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "Rogue",
@@ -264,7 +293,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "Test",
@@ -294,7 +326,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "test 2",
@@ -319,7 +354,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     },
     {
       "name": "test 3",
@@ -359,7 +397,10 @@
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],
       "custom_max_slots": {},
-      "custom_max_cantrips": 0
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
     }
   ]
 }

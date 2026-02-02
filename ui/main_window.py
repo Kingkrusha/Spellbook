@@ -381,6 +381,7 @@ class MainWindow(ctk.CTkFrame):
         self._create_collections_view()
         self._create_spells_view()
         self._create_character_sheet_view()
+        self._create_feats_view()
         self._create_settings_view()
         self._create_context_menu()
         
@@ -452,8 +453,15 @@ class MainWindow(ctk.CTkFrame):
     
     def _show_tab(self, tab_name: str):
         """Switch to the specified tab."""
-        self._current_tab = tab_name
         theme = get_theme_manager()
+        
+        # If clicking on Collections tab while already in a collection sub-view,
+        # return to that sub-view instead of main collections
+        if tab_name == "collections" and self._current_collection:
+            # Stay on current collection sub-view
+            tab_name = self._current_collection
+        
+        self._current_tab = tab_name
         
         # Reset all tab button styles
         self.collections_tab_btn.configure(fg_color="transparent")
@@ -464,9 +472,12 @@ class MainWindow(ctk.CTkFrame):
         self.collections_view.pack_forget()
         self.spells_view.pack_forget()
         self.character_sheet_view.pack_forget()
+        self.feats_view.pack_forget()
         self.settings_view.pack_forget()
         if hasattr(self, 'classes_view'):
             self.classes_view.pack_forget()
+        if hasattr(self, 'lineages_view'):
+            self.lineages_view.pack_forget()
 
         # Show selected tab
         active_color = theme.get_current_color('accent_primary')
@@ -483,6 +494,21 @@ class MainWindow(ctk.CTkFrame):
             self.sheets_tab_btn.configure(fg_color=active_color)
             self.character_sheet_view.pack(fill="both", expand=True)
             self.character_sheet_view.refresh()
+        elif tab_name == "feats":
+            # Feats is a sub-view of Collections, highlight Collections tab
+            self.collections_tab_btn.configure(fg_color=active_color)
+            self.feats_view.pack(fill="both", expand=True)
+            self._current_collection = "feats"
+        elif tab_name == "classes":
+            # Classes is a sub-view of Collections, highlight Collections tab
+            self.collections_tab_btn.configure(fg_color=active_color)
+            self._show_classes_view_internal()
+            self._current_collection = "classes"
+        elif tab_name == "lineages":
+            # Lineages is a sub-view of Collections, highlight Collections tab
+            self.collections_tab_btn.configure(fg_color=active_color)
+            self._show_lineages_view_internal()
+            self._current_collection = "lineages"
         elif tab_name == "settings":
             self.settings_tab_btn.configure(fg_color=active_color)
             self.settings_view.pack(fill="both", expand=True)
@@ -508,40 +534,48 @@ class MainWindow(ctk.CTkFrame):
         if collection_key == "spells":
             self._show_tab("spells")
         elif collection_key == "classes":
-            self._show_classes_view()
+            self._show_tab("classes")
+        elif collection_key == "feats":
+            self._show_tab("feats")
+        elif collection_key == "lineages":
+            self._show_tab("lineages")
         # Future collections will be added here
     
     def _show_classes_view(self):
-        """Show the classes collection view."""
+        """Show the classes collection view (called from _navigate_to_collection)."""
+        self._show_tab("classes")
+    
+    def _show_classes_view_internal(self):
+        """Internal method to show classes view without modifying tab state."""
         from ui.classes_view import ClassesCollectionView
         
-        theme = get_theme_manager()
-        
-        # Reset tab button styles
-        self.collections_tab_btn.configure(fg_color="transparent")
-        self.sheets_tab_btn.configure(fg_color="transparent")
-        self.settings_tab_btn.configure(fg_color="transparent")
-        
-        # Highlight collections tab since classes is a sub-view
-        self.collections_tab_btn.configure(fg_color=theme.get_current_color('accent_primary'))
-        
-        # Hide all views
-        self.collections_view.pack_forget()
-        self.spells_view.pack_forget()
-        self.character_sheet_view.pack_forget()
-        self.settings_view.pack_forget()
-        if hasattr(self, 'classes_view'):
-            self.classes_view.pack_forget()
-        
-        # Create or show classes view
+        # Create classes view if needed
         if not hasattr(self, 'classes_view'):
             self.classes_view = ClassesCollectionView(
                 self,
-                on_back=lambda: self._show_tab("collections")
+                on_back=self._back_to_collections
             )
         
         self.classes_view.pack(fill="both", expand=True)
-        self._current_collection = "classes"
+    
+    def _show_lineages_view_internal(self):
+        """Internal method to show lineages view without modifying tab state."""
+        from ui.lineages_view import LineagesView
+        
+        # Create lineages view if needed
+        if not hasattr(self, 'lineages_view'):
+            self.lineages_view = LineagesView(
+                self,
+                character_manager=self.character_manager,
+                on_back=self._back_to_collections
+            )
+        
+        self.lineages_view.pack(fill="both", expand=True)
+    
+    def _back_to_collections(self):
+        """Go back to the main collections view."""
+        self._current_collection = None
+        self._show_tab("collections")
     
     def _create_collections_view(self):
         """Create the collections hub view."""
@@ -575,6 +609,15 @@ class MainWindow(ctk.CTkFrame):
             self, self.settings_manager,
             on_appearance_changed=self._on_appearance_changed,
             spell_manager=self.spell_manager
+        )
+    
+    def _create_feats_view(self):
+        """Create the feats view."""
+        from ui.feats_view import FeatsView
+        self.feats_view = FeatsView(
+            self, 
+            character_manager=self.character_manager,
+            on_back=self._back_to_collections
         )
     
     def _on_appearance_changed(self, mode: str):
@@ -695,7 +738,7 @@ class MainWindow(ctk.CTkFrame):
             fg_color=theme.get_current_color('button_normal'), 
             hover_color=theme.get_current_color('button_hover'),
             text_color=theme.get_current_color('text_primary'),
-            command=lambda: self._show_tab("collections")
+            command=self._back_to_collections
         ).pack(side="left", padx=(0, 15))
 
         # Search entry
@@ -1357,8 +1400,9 @@ class MainWindow(ctk.CTkFrame):
             reset_scroll: If True, scroll position resets to top (default True)
         """
         search_text, level_filter, class_filter, advanced = self._get_current_filters()
+        legacy_filter = self.settings_manager.settings.legacy_content_filter
         filtered_spells = self.spell_manager.get_filtered_spells(
-            search_text, level_filter, class_filter, advanced
+            search_text, level_filter, class_filter, advanced, legacy_filter
         )
         self.spell_list.set_spells(filtered_spells, reset_scroll=reset_scroll)
     

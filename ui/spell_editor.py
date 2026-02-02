@@ -325,7 +325,16 @@ class SpellEditorDialog(ctk.CTkToplevel):
             fill="x", pady=(0, 5))
         self.source_entry = ctk.CTkEntry(container, height=35,
                                           placeholder_text="e.g., Player's Handbook")
-        self.source_entry.pack(fill="x", pady=(0, 15))
+        self.source_entry.pack(fill="x", pady=(0, 10))
+        
+        # Legacy content checkbox
+        self.legacy_var = ctk.BooleanVar(value=False)
+        self.legacy_checkbox = ctk.CTkCheckBox(
+            container, text="Legacy Content (2014 Rules)",
+            variable=self.legacy_var,
+            font=ctk.CTkFont(size=12)
+        )
+        self.legacy_checkbox.pack(anchor="w", pady=(0, 15))
         
         # Tags section with selection UI
         tags_header_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -600,6 +609,8 @@ class SpellEditorDialog(ctk.CTkToplevel):
                 self.class_vars[char_class].set(True)
         
         self.source_entry.insert(0, spell.source)
+        # Legacy content checkbox
+        self.legacy_var.set(spell.is_legacy)
         # Filter out protected tags (Official/Unofficial) and populate tag list
         self._selected_tags = [t for t in spell.tags if not is_protected_tag(t)]
         self._refresh_tags_display()
@@ -706,7 +717,8 @@ class SpellEditorDialog(ctk.CTkToplevel):
             description=self.description_text.get("1.0", "end").strip(),
             source=self.source_entry.get().strip(),
             tags=tags,
-            is_modified=is_modified
+            is_modified=is_modified,
+            is_legacy=self.legacy_var.get()
         )
         
         self.destroy()

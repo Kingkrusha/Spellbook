@@ -14,7 +14,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 6  # Bumped for tag normalization
+    SCHEMA_VERSION = 7  # Bumped for is_legacy column
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -276,6 +276,26 @@ class SpellDatabase:
             self._normalize_tags(cursor)
             cursor.execute("UPDATE schema_version SET version = 6")
             current_version = 6
+        
+        # Migration to version 7: add is_legacy column for 2014 content filtering
+        if current_version < 7:
+            # Check if column already exists
+            cursor.execute("PRAGMA table_info(spells)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'is_legacy' not in columns:
+                cursor.execute("ALTER TABLE spells ADD COLUMN is_legacy INTEGER NOT NULL DEFAULT 0")
+                # Mark spells as legacy if their source is NOT one of the 2024 sources
+                # 2024 sources: "Player's Handbook (2024)", "Forgotten Realms - Heroes of Faerun", "Eberron - Forge of the Artificer"
+                cursor.execute("""
+                    UPDATE spells SET is_legacy = 1 
+                    WHERE source NOT IN (
+                        'Player''s Handbook (2024)', 
+                        'Forgotten Realms - Heroes of Faerun', 
+                        'Eberron - Forge of the Artificer'
+                    ) AND source != ''
+                """)
+            cursor.execute("UPDATE schema_version SET version = 7")
+            current_version = 7
     
     def _normalize_tags(self, cursor):
         """Normalize tag capitalization using class-level normalization map."""
@@ -423,8 +443,8 @@ class SpellDatabase:
             cursor.execute("""
                 INSERT INTO spells (
                     name, level, casting_time, ritual, range_value, 
-                    components, duration, concentration, description, source, original_name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    components, duration, concentration, description, source, original_name, is_legacy
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 spell_data['name'],
                 spell_data['level'],
@@ -436,7 +456,8 @@ class SpellDatabase:
                 1 if spell_data.get('concentration', False) else 0,
                 spell_data.get('description', ''),
                 spell_data.get('source', ''),
-                spell_data.get('original_name', '')
+                spell_data.get('original_name', ''),
+                1 if spell_data.get('is_legacy', False) else 0
             ))
             
             spell_id = cursor.lastrowid
@@ -475,13 +496,13 @@ class SpellDatabase:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Update main spell data (including is_modified)
+            # Update main spell data (including is_modified and is_legacy)
             cursor.execute("""
                 UPDATE spells SET
                     name = ?, level = ?, casting_time = ?, ritual = ?,
                     range_value = ?, components = ?, duration = ?,
                     concentration = ?, description = ?, source = ?,
-                    is_modified = ?
+                    is_modified = ?, is_legacy = ?
                 WHERE id = ?
             """, (
                 spell_data['name'],
@@ -495,6 +516,7 @@ class SpellDatabase:
                 spell_data.get('description', ''),
                 spell_data.get('source', ''),
                 1 if spell_data.get('is_modified', False) else 0,
+                1 if spell_data.get('is_legacy', False) else 0,
                 spell_id
             ))
             
@@ -720,6 +742,7 @@ class SpellDatabase:
             'tags': tags,
             'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
             'original_name': row['original_name'] if 'original_name' in row.keys() else '',
+            'is_legacy': bool(row['is_legacy']) if 'is_legacy' in row.keys() else False,
             'created_at': row['created_at'],
             'updated_at': row['updated_at']
         }
@@ -787,6 +810,7 @@ class SpellDatabase:
                 'tags': tags_by_spell.get(spell_id, []),
                 'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
                 'original_name': row['original_name'] if 'original_name' in row.keys() else '',
+                'is_legacy': bool(row['is_legacy']) if 'is_legacy' in row.keys() else False,
                 'created_at': row['created_at'],
                 'updated_at': row['updated_at']
             })

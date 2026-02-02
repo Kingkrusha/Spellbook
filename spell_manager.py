@@ -29,6 +29,9 @@ EXCLUDED_SPELLS: Set[str] = {
 }
 
 
+import shutil
+
+
 class SpellManager:
     """Manages a collection of spells with SQLite database persistence."""
     
@@ -38,6 +41,17 @@ class SpellManager:
     def __init__(self, db_path: Optional[str] = None):
         """Initialize the spell manager with an optional database path."""
         self.db_path = db_path or self.DEFAULT_DB_PATH
+        
+        # If database doesn't exist, try to copy from bundled location
+        if not os.path.exists(self.db_path):
+            bundled_db = get_resource_path(self.DEFAULT_DB_PATH)
+            if bundled_db != self.db_path and os.path.exists(bundled_db):
+                try:
+                    shutil.copy2(bundled_db, self.db_path)
+                    print(f"Copied bundled database to {self.db_path}")
+                except Exception as e:
+                    print(f"Could not copy bundled database: {e}")
+        
         self._db = SpellDatabase(self.db_path)
         self._spells: List[Spell] = []
         self._listeners: List[Callable[[], None]] = []
@@ -82,7 +96,8 @@ class SpellManager:
             'classes': [c.value for c in spell.classes],
             'tags': spell.tags,
             'is_modified': spell.is_modified,
-            'original_name': spell.original_name
+            'original_name': spell.original_name,
+            'is_legacy': spell.is_legacy
         }
     
     def _dict_to_spell(self, data: dict) -> Spell:
@@ -108,7 +123,8 @@ class SpellManager:
             source=data.get('source', ''),
             tags=data.get('tags', []),
             is_modified=data.get('is_modified', False),
-            original_name=data.get('original_name', '')
+            original_name=data.get('original_name', ''),
+            is_legacy=data.get('is_legacy', False)
         )
     
     def load_spells(self) -> bool:
@@ -464,11 +480,18 @@ class SpellManager:
     
     def get_filtered_spells(self, search_text: str = "", level_filter: int = -1,
                             class_filter: Optional[CharacterClass] = None,
-                            advanced: Optional[AdvancedFilters] = None) -> List[Spell]:
+                            advanced: Optional[AdvancedFilters] = None,
+                            legacy_filter: str = "show_all") -> List[Spell]:
         """Return spells matching the given filter criteria.
         
         Uses SQL for most filtering (much faster for large spell collections),
         with Python post-filtering for complex criteria like costly_component and min_range.
+        
+        legacy_filter options:
+            - "show_all": No legacy filtering
+            - "show_unupdated": Show non-legacy + legacy without a non-legacy version
+            - "no_legacy": Only show non-legacy spells
+            - "legacy_only": Only show legacy spells
         """
         # Build SQL filter parameters from advanced filters
         ritual = None
@@ -552,6 +575,20 @@ class SpellManager:
             else:  # EXCLUDE mode
                 # Remove spells from selected sources
                 results = [s for s in results if not any(src in s.source.lower() for src in sources_lower)]
+        
+        # Apply legacy content filter
+        if legacy_filter == "no_legacy":
+            # Only show non-legacy spells
+            results = [s for s in results if not s.is_legacy]
+        elif legacy_filter == "legacy_only":
+            # Only show legacy spells
+            results = [s for s in results if s.is_legacy]
+        elif legacy_filter == "show_unupdated":
+            # Show non-legacy spells + legacy spells that don't have a non-legacy version
+            # Build set of non-legacy spell names for quick lookup
+            non_legacy_names = {s.name.lower() for s in results if not s.is_legacy}
+            results = [s for s in results if not s.is_legacy or s.name.lower() not in non_legacy_names]
+        # "show_all" - no filtering needed
         
         return results
     
@@ -659,6 +696,14 @@ class SpellManager:
         """Get the count of unofficial spells (for export info)."""
         return len([s for s in self._spells if not s.is_official])
     
+    def get_unofficial_sources(self) -> List[str]:
+        """Get list of sources that have unofficial (non-official) spells."""
+        sources = set()
+        for spell in self._spells:
+            if not spell.is_official and spell.source:
+                sources.add(spell.source)
+        return sorted(sources)
+    
     def export_to_text_file(self, file_path: Optional[str] = None) -> bool:
         """
         Export all spells to a text file (useful for backup).
@@ -670,6 +715,84 @@ class SpellManager:
             True if successful
         """
         return self.export_spells(file_path or self.LEGACY_FILE)
+    
+    def export_to_json(self, file_path: str, spells: Optional[List[Spell]] = None) -> int:
+        """
+        Export spells to a JSON file.
+        
+        Args:
+            file_path: Path to export to
+            spells: List of spells to export (None = export all unofficial)
+        
+        Returns:
+            Number of spells exported
+        """
+        import json
+        
+        if spells is None:
+            # Default to unofficial spells only
+            spells = [s for s in self._spells if not s.is_official]
+        
+        try:
+            data = {
+                "spells": [self._spell_to_dict(s) for s in spells]
+            }
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            return len(spells)
+        except Exception as e:
+            print(f"Error exporting spells to JSON: {e}")
+            return 0
+    
+    def import_from_json(self, file_path: str) -> int:
+        """
+        Import spells from a JSON file.
+        
+        Args:
+            file_path: Path to the JSON file
+        
+        Returns:
+            Number of spells imported
+        """
+        import json
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            spells_data = data.get("spells", [])
+            imported_count = 0
+            
+            for spell_dict in spells_data:
+                try:
+                    spell = self._dict_to_spell(spell_dict)
+                    # Add or update the spell
+                    existing = self.get_spell(spell.name)
+                    if existing:
+                        self.update_spell(spell.name, spell)
+                    else:
+                        self.add_spell(spell)
+                    imported_count += 1
+                except Exception as e:
+                    print(f"Error importing spell: {e}")
+                    continue
+            
+            return imported_count
+        except Exception as e:
+            print(f"Error importing from JSON: {e}")
+            return 0
+    
+    def import_from_text_file(self, file_path: str) -> int:
+        """
+        Import spells from a pipe-delimited text file.
+        
+        Args:
+            file_path: Path to the text file
+        
+        Returns:
+            Number of spells imported
+        """
+        return self.import_spells(file_path, replace=False)
     
     def get_spell_count(self) -> int:
         """Get total number of spells."""

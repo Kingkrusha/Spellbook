@@ -278,19 +278,22 @@ def get_hit_dice_for_classes(class_levels: List[Tuple[str, int]]) -> Dict[str, i
     return hit_dice
 
 
-def calculate_hp_maximum(class_levels: List[Tuple[str, int]], con_modifier: int) -> int:
+def calculate_hp_maximum(class_levels: List[Tuple[str, int]], con_modifier: int, feats: Optional[List[str]] = None) -> int:
     """
     Calculate HP maximum based on class levels and constitution modifier.
     First level of primary class gets max roll, subsequent levels get average.
+    Also accounts for the Tough feat which adds 2 HP per character level.
     """
     if not class_levels:
         return 10 + con_modifier
     
     total_hp = 0
     is_first_level = True
+    total_level = 0
     
     for class_name, level in class_levels:
         die_type = CLASS_HIT_DICE.get(class_name, "d8")
+        total_level += level
         
         for lvl in range(level):
             if is_first_level:
@@ -300,6 +303,12 @@ def calculate_hp_maximum(class_levels: List[Tuple[str, int]], con_modifier: int)
             else:
                 # Subsequent levels get average
                 total_hp += HIT_DIE_AVERAGE.get(die_type, 5) + con_modifier
+    
+    # Add Tough feat bonus: 2 HP per character level
+    if feats:
+        feat_names_lower = [f.lower() for f in feats]
+        if "tough" in feat_names_lower:
+            total_hp += 2 * total_level
     
     return max(1, total_hp)
 

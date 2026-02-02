@@ -8,3 +8,4 @@ from .spell_lists_view import SpellListsView
 from .character_sheet_view import CharacterSheetView
 from .collections_view import CollectionsView
 from .class_editor import ClassEditorDialog, SubclassEditorDialog
+from .feats_view import FeatsView

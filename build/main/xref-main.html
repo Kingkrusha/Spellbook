@@ -5889,9 +5889,11 @@ imported by:
   <a target="code" href="///C:/Users/domin/Documents/Spellbook/character.py" type="text/plain"><tt>character</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
-    <a href="#dataclasses">dataclasses</a>
+    <a href="#character_class">character_class</a>
+ &#8226;   <a href="#dataclasses">dataclasses</a>
  &#8226;   <a href="#json">json</a>
  &#8226;   <a href="#spell">spell</a>
+ &#8226;   <a href="#spell_slots">spell_slots</a>
  &#8226;   <a href="#typing">typing</a>
 
   </div>
@@ -5899,7 +5901,33 @@ imports:
 imported by:
     <a href="#character_manager">character_manager</a>
  &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="character_class"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/character_class.py" type="text/plain"><tt>character_class</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#dataclasses">dataclasses</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#character">character</a>
+ &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
 
   </div>
 
@@ -5918,9 +5946,28 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#ui.main_window">ui.main_window</a>
+    <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="character_sheet"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/character_sheet.py" type="text/plain"><tt>character_sheet</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#dataclasses">dataclasses</a>
+ &#8226;   <a href="#enum">enum</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
 
   </div>
 
@@ -6791,7 +6838,14 @@ imported by:
  &#8226;   <a href="#main.py">main.py</a>
  &#8226;   <a href="#theme">theme</a>
  &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
@@ -7989,6 +8043,7 @@ imported by:
     <a href="#seed_stat_blocks">seed_stat_blocks</a>
  &#8226;   <a href="#spell_manager">spell_manager</a>
  &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
 
   </div>
@@ -8020,6 +8075,10 @@ imported by:
  &#8226;   <a href="#_pyrepl.reader">_pyrepl.reader</a>
  &#8226;   <a href="#_pyrepl.readline">_pyrepl.readline</a>
  &#8226;   <a href="#character">character</a>
+ &#8226;   <a href="#character_class">character_class</a>
+ &#8226;   <a href="#character_sheet">character_sheet</a>
+ &#8226;   <a href="#feat">feat</a>
+ &#8226;   <a href="#lineage">lineage</a>
  &#8226;   <a href="#packaging._tokenizer">packaging._tokenizer</a>
  &#8226;   <a href="#pprint">pprint</a>
  &#8226;   <a href="#settings">settings</a>
@@ -11210,6 +11269,7 @@ imported by:
  &#8226;   <a href="#asyncio.sslproto">asyncio.sslproto</a>
  &#8226;   <a href="#asyncio.timeouts">asyncio.timeouts</a>
  &#8226;   <a href="#calendar">calendar</a>
+ &#8226;   <a href="#character_sheet">character_sheet</a>
  &#8226;   <a href="#http">http</a>
  &#8226;   <a href="#inspect">inspect</a>
  &#8226;   <a href="#main.py">main.py</a>
@@ -11267,6 +11327,28 @@ imported by:
 imported by:
     <a href="#_pyrepl.unix_console">_pyrepl.unix_console</a>
  &#8226;   <a href="#subprocess">subprocess</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="feat"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/feat.py" type="text/plain"><tt>feat</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#dataclasses">dataclasses</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
 
   </div>
 
@@ -12738,19 +12820,25 @@ imports:
   <div class="import">
 imported by:
     <a href="#character">character</a>
+ &#8226;   <a href="#character_class">character_class</a>
  &#8226;   <a href="#character_manager">character_manager</a>
  &#8226;   <a href="#customtkinter.windows.widgets.theme.theme_manager">customtkinter.windows.widgets.theme.theme_manager</a>
  &#8226;   <a href="#database">database</a>
+ &#8226;   <a href="#feat">feat</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#json.decoder">json.decoder</a>
  &#8226;   <a href="#json.encoder">json.encoder</a>
  &#8226;   <a href="#json.scanner">json.scanner</a>
+ &#8226;   <a href="#lineage">lineage</a>
  &#8226;   <a href="#settings">settings</a>
  &#8226;   <a href="#setuptools._vendor.importlib_metadata">setuptools._vendor.importlib_metadata</a>
  &#8226;   <a href="#setuptools.config._validate_pyproject.error_reporting">setuptools.config._validate_pyproject.error_reporting</a>
  &#8226;   <a href="#setuptools.msvc">setuptools.msvc</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
  &#8226;   <a href="#stat_block">stat_block</a>
  &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
 
   </div>
 
@@ -12823,6 +12911,28 @@ imported by:
  &#8226;   <a href="#inspect">inspect</a>
  &#8226;   <a href="#main.py">main.py</a>
  &#8226;   <a href="#rlcompleter">rlcompleter</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="lineage"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/lineage.py" type="text/plain"><tt>lineage</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#dataclasses">dataclasses</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
 
   </div>
 
@@ -13000,6 +13110,7 @@ imported by:
  &#8226;   <a href="#setuptools._vendor.more_itertools.more">setuptools._vendor.more_itertools.more</a>
  &#8226;   <a href="#setuptools._vendor.more_itertools.recipes">setuptools._vendor.more_itertools.recipes</a>
  &#8226;   <a href="#statistics">statistics</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
  &#8226;   <a href="#urllib.parse">urllib.parse</a>
 
   </div>
@@ -14136,6 +14247,7 @@ imported by:
  &#8226;   <a href="#asyncio.unix_events">asyncio.unix_events</a>
  &#8226;   <a href="#asyncio.windows_utils">asyncio.windows_utils</a>
  &#8226;   <a href="#bz2">bz2</a>
+ &#8226;   <a href="#character_class">character_class</a>
  &#8226;   <a href="#character_manager">character_manager</a>
  &#8226;   <a href="#concurrent.futures.process">concurrent.futures.process</a>
  &#8226;   <a href="#concurrent.futures.thread">concurrent.futures.thread</a>
@@ -14155,6 +14267,7 @@ imported by:
  &#8226;   <a href="#darkdetect._mac_detect">darkdetect._mac_detect</a>
  &#8226;   <a href="#database">database</a>
  &#8226;   <a href="#email.utils">email.utils</a>
+ &#8226;   <a href="#feat">feat</a>
  &#8226;   <a href="#fnmatch">fnmatch</a>
  &#8226;   <a href="#genericpath">genericpath</a>
  &#8226;   <a href="#getopt">getopt</a>
@@ -14169,6 +14282,7 @@ imported by:
  &#8226;   <a href="#importlib.resources._common">importlib.resources._common</a>
  &#8226;   <a href="#importlib.resources.abc">importlib.resources.abc</a>
  &#8226;   <a href="#inspect">inspect</a>
+ &#8226;   <a href="#lineage">lineage</a>
  &#8226;   <a href="#linecache">linecache</a>
  &#8226;   <a href="#locale">locale</a>
  &#8226;   <a href="#logging">logging</a>
@@ -14284,6 +14398,7 @@ imported by:
  &#8226;   <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
  &#8226;   <a href="#tools.update_spell_descriptions">tools.update_spell_descriptions</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
  &#8226;   <a href="#unittest.loader">unittest.loader</a>
  &#8226;   <a href="#unittest.main">unittest.main</a>
  &#8226;   <a href="#urllib.request">urllib.request</a>
@@ -15380,6 +15495,10 @@ imported by:
  &#8226;   <a href="#tokenize">tokenize</a>
  &#8226;   <a href="#tomllib._re">tomllib._re</a>
  &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#unittest.case">unittest.case</a>
  &#8226;   <a href="#unittest.loader">unittest.loader</a>
@@ -15665,7 +15784,11 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#ui.main_window">ui.main_window</a>
+    <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
 
@@ -19932,6 +20055,7 @@ imported by:
  &#8226;   <a href="#setuptools.archive_util">setuptools.archive_util</a>
  &#8226;   <a href="#setuptools.command.bdist_wheel">setuptools.command.bdist_wheel</a>
  &#8226;   <a href="#setuptools.compat.py311">setuptools.compat.py311</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
  &#8226;   <a href="#tarfile">tarfile</a>
  &#8226;   <a href="#tempfile">tempfile</a>
  &#8226;   <a href="#webbrowser">webbrowser</a>
@@ -20104,7 +20228,10 @@ imported by:
  &#8226;   <a href="#spell_manager">spell_manager</a>
  &#8226;   <a href="#spell_slots">spell_slots</a>
  &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
@@ -20121,15 +20248,20 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#database">database</a>
+ &#8226;   <a href="#json">json</a>
  &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#shutil">shutil</a>
  &#8226;   <a href="#spell">spell</a>
  &#8226;   <a href="#sys">sys</a>
+ &#8226;   <a href="#tools.spell_data">tools.spell_data</a>
  &#8226;   <a href="#typing">typing</a>
 
   </div>
   <div class="import">
 imported by:
-    <a href="#ui.main_window">ui.main_window</a>
+    <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
 
@@ -20148,7 +20280,9 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#ui.main_window">ui.main_window</a>
+    <a href="#character">character</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
  &#8226;   <a href="#validation">validation</a>
 
@@ -20623,6 +20757,7 @@ imported by:
  &#8226;   <a href="#asyncio.windows_utils">asyncio.windows_utils</a>
  &#8226;   <a href="#base64">base64</a>
  &#8226;   <a href="#calendar">calendar</a>
+ &#8226;   <a href="#character_class">character_class</a>
  &#8226;   <a href="#code">code</a>
  &#8226;   <a href="#codecs">codecs</a>
  &#8226;   <a href="#collections">collections</a>
@@ -20670,6 +20805,7 @@ imported by:
  &#8226;   <a href="#encodings.utf_16">encodings.utf_16</a>
  &#8226;   <a href="#encodings.utf_32">encodings.utf_32</a>
  &#8226;   <a href="#enum">enum</a>
+ &#8226;   <a href="#feat">feat</a>
  &#8226;   <a href="#fractions">fractions</a>
  &#8226;   <a href="#ftplib">ftplib</a>
  &#8226;   <a href="#getopt">getopt</a>
@@ -20684,6 +20820,7 @@ imported by:
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#importlib.util">importlib.util</a>
  &#8226;   <a href="#inspect">inspect</a>
+ &#8226;   <a href="#lineage">lineage</a>
  &#8226;   <a href="#linecache">linecache</a>
  &#8226;   <a href="#locale">locale</a>
  &#8226;   <a href="#logging">logging</a>
@@ -21003,7 +21140,14 @@ imports:
   <div class="import">
 imported by:
     <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
@@ -21144,7 +21288,6 @@ imports:
  &#8226;   <a href="#os">os</a>
  &#8226;   <a href="#re">re</a>
  &#8226;   <a href="#sys">sys</a>
- &#8226;   <a href="#tkinter.colorchooser">tkinter.colorchooser</a>
  &#8226;   <a href="#tkinter.commondialog">tkinter.commondialog</a>
  &#8226;   <a href="#tkinter.constants">tkinter.constants</a>
  &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
@@ -21178,7 +21321,6 @@ imported by:
  &#8226;   <a href="#customtkinter.windows.widgets.ctk_textbox">customtkinter.windows.widgets.ctk_textbox</a>
  &#8226;   <a href="#customtkinter.windows.widgets.scaling.scaling_tracker">customtkinter.windows.widgets.scaling.scaling_tracker</a>
  &#8226;   <a href="#main.py">main.py</a>
- &#8226;   <a href="#tkinter.colorchooser">tkinter.colorchooser</a>
  &#8226;   <a href="#tkinter.commondialog">tkinter.commondialog</a>
  &#8226;   <a href="#tkinter.constants">tkinter.constants</a>
  &#8226;   <a href="#tkinter.dialog">tkinter.dialog</a>
@@ -21188,31 +21330,20 @@ imported by:
  &#8226;   <a href="#tkinter.simpledialog">tkinter.simpledialog</a>
  &#8226;   <a href="#tkinter.ttk">tkinter.ttk</a>
  &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
  &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
-
-  </div>
-
-</div>
-
-<div class="node">
-  <a name="tkinter.colorchooser"></a>
-  <a target="code" href="///C:/Program%20Files/WindowsApps/PythonSoftwareFoundation.Python.3.13_3.13.2544.0_x64__qbz5n2kfra8p0/Lib/tkinter/colorchooser.py" type="text/plain"><tt>tkinter.colorchooser</tt></a>
-<span class="moduletype">SourceModule</span>  <div class="import">
-imports:
-    <a href="#tkinter">tkinter</a>
- &#8226;   <a href="#tkinter.commondialog">tkinter.commondialog</a>
-
-  </div>
-  <div class="import">
-imported by:
-    <a href="#tkinter">tkinter</a>
- &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
 
   </div>
 
@@ -21229,7 +21360,6 @@ imports:
   <div class="import">
 imported by:
     <a href="#tkinter">tkinter</a>
- &#8226;   <a href="#tkinter.colorchooser">tkinter.colorchooser</a>
  &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
  &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
 
@@ -21287,6 +21417,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
 
   </div>
@@ -21324,7 +21455,16 @@ imported by:
     <a href="#tkinter">tkinter</a>
  &#8226;   <a href="#tkinter.simpledialog">tkinter.simpledialog</a>
  &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
+ &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
+ &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
  &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
@@ -21534,6 +21674,7 @@ imports:
 imported by:
     <a href="#database">database</a>
  &#8226;   <a href="#main.py">main.py</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
 
   </div>
 
@@ -21846,7 +21987,9 @@ imported by:
  &#8226;   <a href="#_pyrepl.windows_console">_pyrepl.windows_console</a>
  &#8226;   <a href="#asyncio.timeouts">asyncio.timeouts</a>
  &#8226;   <a href="#character">character</a>
+ &#8226;   <a href="#character_class">character_class</a>
  &#8226;   <a href="#character_manager">character_manager</a>
+ &#8226;   <a href="#character_sheet">character_sheet</a>
  &#8226;   <a href="#customtkinter.windows.ctk_input_dialog">customtkinter.windows.ctk_input_dialog</a>
  &#8226;   <a href="#customtkinter.windows.ctk_tk">customtkinter.windows.ctk_tk</a>
  &#8226;   <a href="#customtkinter.windows.ctk_toplevel">customtkinter.windows.ctk_toplevel</a>
@@ -21881,11 +22024,13 @@ imported by:
  &#8226;   <a href="#darkdetect._dummy">darkdetect._dummy</a>
  &#8226;   <a href="#darkdetect._mac_detect">darkdetect._mac_detect</a>
  &#8226;   <a href="#database">database</a>
+ &#8226;   <a href="#feat">feat</a>
  &#8226;   <a href="#functools">functools</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#importlib.metadata._meta">importlib.metadata._meta</a>
  &#8226;   <a href="#importlib.resources._common">importlib.resources._common</a>
  &#8226;   <a href="#importlib.resources.abc">importlib.resources.abc</a>
+ &#8226;   <a href="#lineage">lineage</a>
  &#8226;   <a href="#packaging._elffile">packaging._elffile</a>
  &#8226;   <a href="#packaging._manylinux">packaging._manylinux</a>
  &#8226;   <a href="#packaging._musllinux">packaging._musllinux</a>
@@ -21988,7 +22133,14 @@ imported by:
  &#8226;   <a href="#tomllib._re">tomllib._re</a>
  &#8226;   <a href="#tomllib._types">tomllib._types</a>
  &#8226;   <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
@@ -22156,6 +22308,10 @@ imported by:
 <span class="moduletype">Package</span>  <div class="import">
 imports:
     <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
@@ -22166,7 +22322,14 @@ imports:
   <div class="import">
 imported by:
     <a href="#ui.character_editor">ui.character_editor</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
@@ -22185,7 +22348,9 @@ imported by:
 <span class="moduletype">SourceModule</span>  <div class="import">
 imports:
     <a href="#character">character</a>
+ &#8226;   <a href="#character_class">character_class</a>
  &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#settings">settings</a>
  &#8226;   <a href="#spell">spell</a>
  &#8226;   <a href="#theme">theme</a>
  &#8226;   <a href="#tkinter">tkinter</a>
@@ -22198,6 +22363,173 @@ imports:
 imported by:
     <a href="#ui">ui</a>
  &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.character_sheet_view"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/character_sheet_view.py" type="text/plain"><tt>ui.character_sheet_view</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#character">character</a>
+ &#8226;   <a href="#character_class">character_class</a>
+ &#8226;   <a href="#character_manager">character_manager</a>
+ &#8226;   <a href="#character_sheet">character_sheet</a>
+ &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#feat">feat</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#lineage">lineage</a>
+ &#8226;   <a href="#math">math</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#re">re</a>
+ &#8226;   <a href="#settings">settings</a>
+ &#8226;   <a href="#spell">spell</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
+ &#8226;   <a href="#spell_slots">spell_slots</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
+ &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
+ &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.class_editor"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/class_editor.py" type="text/plain"><tt>ui.class_editor</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#character_class">character_class</a>
+ &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.classes_view"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/classes_view.py" type="text/plain"><tt>ui.classes_view</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#character_class">character_class</a>
+ &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#re">re</a>
+ &#8226;   <a href="#spell_manager">spell_manager</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.main_window">ui.main_window</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.collections_view"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/collections_view.py" type="text/plain"><tt>ui.collections_view</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#character_class">character_class</a>
+ &#8226;   <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#feat">feat</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#lineage">lineage</a>
+ &#8226;   <a href="#spell">spell</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.filedialog">tkinter.filedialog</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.feats_view"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/feats_view.py" type="text/plain"><tt>ui.feats_view</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#feat">feat</a>
+ &#8226;   <a href="#re">re</a>
+ &#8226;   <a href="#settings">settings</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.main_window">ui.main_window</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.lineages_view"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/lineages_view.py" type="text/plain"><tt>ui.lineages_view</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#lineage">lineage</a>
+ &#8226;   <a href="#settings">settings</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.main_window">ui.main_window</a>
 
   </div>
 
@@ -22221,11 +22553,15 @@ imports:
  &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#typing">typing</a>
  &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
+ &#8226;   <a href="#ui.collections_view">ui.collections_view</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
  &#8226;   <a href="#ui.settings_view">ui.settings_view</a>
  &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
  &#8226;   <a href="#ui.spell_editor">ui.spell_editor</a>
  &#8226;   <a href="#ui.spell_list">ui.spell_list</a>
- &#8226;   <a href="#ui.spell_lists_view">ui.spell_lists_view</a>
  &#8226;   <a href="#validation">validation</a>
 
   </div>
@@ -22233,6 +22569,35 @@ imports:
 imported by:
     <a href="#main.py">main.py</a>
  &#8226;   <a href="#ui">ui</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="ui.rich_text_utils"></a>
+  <a target="code" href="///C:/Users/domin/Documents/Spellbook/ui/rich_text_utils.py" type="text/plain"><tt>ui.rich_text_utils</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#customtkinter">customtkinter</a>
+ &#8226;   <a href="#database">database</a>
+ &#8226;   <a href="#re">re</a>
+ &#8226;   <a href="#spell">spell</a>
+ &#8226;   <a href="#theme">theme</a>
+ &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
+ &#8226;   <a href="#typing">typing</a>
+ &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.spell_detail">ui.spell_detail</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.class_editor">ui.class_editor</a>
+ &#8226;   <a href="#ui.feats_view">ui.feats_view</a>
+ &#8226;   <a href="#ui.lineages_view">ui.lineages_view</a>
+ &#8226;   <a href="#ui.stat_block_editor">ui.stat_block_editor</a>
 
   </div>
 
@@ -22247,7 +22612,7 @@ imports:
  &#8226;   <a href="#settings">settings</a>
  &#8226;   <a href="#theme">theme</a>
  &#8226;   <a href="#tkinter">tkinter</a>
- &#8226;   <a href="#tkinter.colorchooser">tkinter.colorchooser</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#typing">typing</a>
  &#8226;   <a href="#ui">ui</a>
 
@@ -22274,6 +22639,7 @@ imports:
  &#8226;   <a href="#stat_block">stat_block</a>
  &#8226;   <a href="#theme">theme</a>
  &#8226;   <a href="#tkinter">tkinter</a>
+ &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#typing">typing</a>
  &#8226;   <a href="#ui">ui</a>
  &#8226;   <a href="#ui.stat_block_display">ui.stat_block_display</a>
@@ -22284,7 +22650,10 @@ imports:
   <div class="import">
 imported by:
     <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
+ &#8226;   <a href="#ui.classes_view">ui.classes_view</a>
  &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
 
   </div>
 
@@ -22358,7 +22727,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#ui">ui</a>
- &#8226;   <a href="#ui.main_window">ui.main_window</a>
+ &#8226;   <a href="#ui.character_sheet_view">ui.character_sheet_view</a>
 
   </div>
 
@@ -22396,6 +22765,7 @@ imports:
  &#8226;   <a href="#tkinter.messagebox">tkinter.messagebox</a>
  &#8226;   <a href="#typing">typing</a>
  &#8226;   <a href="#ui">ui</a>
+ &#8226;   <a href="#ui.rich_text_utils">ui.rich_text_utils</a>
 
   </div>
   <div class="import">

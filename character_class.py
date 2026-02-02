@@ -235,6 +235,8 @@ class SubclassDefinition:
     trackable_features: List[TrackableFeature] = field(default_factory=list)
     source: str = "Player's Handbook"
     is_custom: bool = False
+    # Is this legacy (pre-2024) content?
+    is_legacy: bool = False
     
     def get_features_at_level(self, level: int) -> List[SubclassFeature]:
         """Get subclass features gained at a specific level."""
@@ -260,7 +262,8 @@ class SubclassDefinition:
             "unarmored_defense": self.unarmored_defense,
             "trackable_features": [f.to_dict() for f in self.trackable_features],
             "source": self.source,
-            "is_custom": self.is_custom
+            "is_custom": self.is_custom,
+            "is_legacy": self.is_legacy
         }
     
     @classmethod
@@ -276,7 +279,8 @@ class SubclassDefinition:
             unarmored_defense=data.get("unarmored_defense", ""),
             trackable_features=[TrackableFeature.from_dict(f) for f in data.get("trackable_features", [])],
             source=data.get("source", "Player's Handbook"),
-            is_custom=data.get("is_custom", False)
+            is_custom=data.get("is_custom", False),
+            is_legacy=data.get("is_legacy", False)
         )
 
 
@@ -361,6 +365,9 @@ class CharacterClassDefinition:
     
     # Source book
     source: str = "Player's Handbook"
+    
+    # Is this legacy (pre-2024) content?
+    is_legacy: bool = False
     
     def __post_init__(self):
         """Initialize level progression if not provided."""
@@ -452,7 +459,8 @@ class CharacterClassDefinition:
             class_spells=[ClassSpell.from_dict(s) for s in data.get("class_spells", [])],
             unarmored_defense=data.get("unarmored_defense", ""),
             is_custom=data.get("is_custom", False),
-            source=data.get("source", "Player's Handbook")
+            source=data.get("source", "Player's Handbook"),
+            is_legacy=data.get("is_legacy", False)
         )
         return instance
 
@@ -2030,6 +2038,169 @@ While carrying the map, a target gains the following benefits.
         
         for cls in default_classes:
             self._classes[cls.name] = cls
+    
+    def get_unofficial_classes(self) -> List[CharacterClassDefinition]:
+        """Get all classes that are custom (not official)."""
+        return [c for c in self._classes.values() if c.is_custom]
+    
+    def get_unofficial_subclasses(self) -> List[SubclassDefinition]:
+        """Get all subclasses that are custom (not official)."""
+        subclasses = []
+        for cls in self._classes.values():
+            for sub in cls.subclasses:
+                if sub.is_custom:
+                    subclasses.append(sub)
+        return subclasses
+    
+    def get_unofficial_class_sources(self) -> List[str]:
+        """Get list of sources that have unofficial (custom) classes."""
+        sources = set()
+        for cls in self._classes.values():
+            if cls.is_custom and cls.source:
+                sources.add(cls.source)
+        return sorted(sources)
+    
+    def get_unofficial_subclass_sources(self) -> List[str]:
+        """Get list of sources that have unofficial (custom) subclasses."""
+        sources = set()
+        for cls in self._classes.values():
+            for sub in cls.subclasses:
+                if sub.is_custom and sub.source:
+                    sources.add(sub.source)
+        return sorted(sources)
+    
+    def export_classes_to_json(self, file_path: str, classes: Optional[List[CharacterClassDefinition]] = None) -> int:
+        """
+        Export classes to a JSON file.
+        
+        Args:
+            file_path: Path to export to
+            classes: List of classes to export (None = export all unofficial)
+        
+        Returns:
+            Number of classes exported
+        """
+        if classes is None:
+            classes = self.get_unofficial_classes()
+        
+        try:
+            data = {
+                "classes": {c.name: c.to_dict() for c in classes}
+            }
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            return len(classes)
+        except Exception as e:
+            print(f"Error exporting classes to JSON: {e}")
+            return 0
+    
+    def export_subclasses_to_json(self, file_path: str, subclasses: Optional[List[SubclassDefinition]] = None) -> int:
+        """
+        Export subclasses to a JSON file.
+        
+        Args:
+            file_path: Path to export to
+            subclasses: List of subclasses to export (None = export all unofficial)
+        
+        Returns:
+            Number of subclasses exported
+        """
+        if subclasses is None:
+            subclasses = self.get_unofficial_subclasses()
+        
+        try:
+            data = {
+                "subclasses": [s.to_dict() for s in subclasses]
+            }
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            return len(subclasses)
+        except Exception as e:
+            print(f"Error exporting subclasses to JSON: {e}")
+            return 0
+    
+    def import_classes_from_json(self, file_path: str) -> int:
+        """
+        Import classes from a JSON file.
+        
+        Args:
+            file_path: Path to the JSON file
+        
+        Returns:
+            Number of classes imported
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            classes_data = data.get("classes", {})
+            imported_count = 0
+            
+            for name, class_dict in classes_data.items():
+                try:
+                    class_def = CharacterClassDefinition.from_dict(class_dict)
+                    # Imported classes are always custom
+                    class_def.is_custom = True
+                    self.add_class(class_def)
+                    imported_count += 1
+                except Exception as e:
+                    print(f"Error importing class {name}: {e}")
+                    continue
+            
+            return imported_count
+        except Exception as e:
+            print(f"Error importing from JSON: {e}")
+            return 0
+    
+    def import_subclasses_from_json(self, file_path: str) -> int:
+        """
+        Import subclasses from a JSON file.
+        
+        Args:
+            file_path: Path to the JSON file
+        
+        Returns:
+            Number of subclasses imported
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            subclasses_data = data.get("subclasses", [])
+            imported_count = 0
+            
+            for sub_dict in subclasses_data:
+                try:
+                    subclass = SubclassDefinition.from_dict(sub_dict)
+                    subclass.is_custom = True
+                    
+                    # Find parent class and add subclass
+                    parent_class = self.get_class(subclass.parent_class)
+                    if parent_class:
+                        # Check if subclass already exists
+                        existing = None
+                        for i, existing_sub in enumerate(parent_class.subclasses):
+                            if existing_sub.name.lower() == subclass.name.lower():
+                                existing = i
+                                break
+                        
+                        if existing is not None:
+                            parent_class.subclasses[existing] = subclass
+                        else:
+                            parent_class.subclasses.append(subclass)
+                        imported_count += 1
+                except Exception as e:
+                    print(f"Error importing subclass: {e}")
+                    continue
+            
+            if imported_count > 0:
+                self.save()
+                self._notify_listeners()
+            
+            return imported_count
+        except Exception as e:
+            print(f"Error importing from JSON: {e}")
+            return 0
 
 
 # Singleton instance

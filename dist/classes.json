@@ -88,7 +88,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Path of the Wild Heart",
@@ -132,7 +133,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Path of the World Tree",
@@ -170,7 +172,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Path of the Zealot",
@@ -214,7 +217,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -829,7 +833,8 @@
           "unarmored_defense": "10 + DEX + CHA",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "College of Glamour",
@@ -880,7 +885,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "College of Lore",
@@ -918,7 +924,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "College of the Moon",
@@ -961,7 +968,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "College of Valor",
@@ -1004,7 +1012,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -1935,7 +1944,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Life Domain",
@@ -2046,7 +2056,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Light Domain",
@@ -2157,7 +2168,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Trickery Domain",
@@ -2268,7 +2280,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "War Domain",
@@ -2379,7 +2392,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -3300,7 +3314,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Circle of the Land (Polar)",
@@ -3395,7 +3410,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Circle of the Land (Temperate)",
@@ -3490,7 +3506,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Circle of the Land (Tropical)",
@@ -3585,7 +3602,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Circle of the Moon",
@@ -3680,7 +3698,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Circle of the Sea",
@@ -3791,7 +3810,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Circle of the Stars",
@@ -3869,7 +3889,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -4800,7 +4821,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Champion",
@@ -4850,7 +4872,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Eldritch Knight",
@@ -5052,7 +5075,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Psi Warrior",
@@ -5154,7 +5178,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Banneret",
@@ -5204,7 +5229,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -5829,7 +5855,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Warrior of Shadow",
@@ -5872,7 +5899,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Warrior of the Elements",
@@ -5921,7 +5949,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Warrior of the Open Hand",
@@ -5959,7 +5988,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -6615,7 +6645,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Oath of Glory",
@@ -6700,7 +6731,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Oath of the Ancients",
@@ -6779,7 +6811,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Oath of the Noble Genie",
@@ -6868,7 +6901,8 @@
           "unarmored_defense": "10 + DEX + CHA",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Oath of Vengeance",
@@ -6947,7 +6981,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -7801,7 +7836,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Fey Wanderer",
@@ -7900,7 +7936,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Gloom Stalker",
@@ -7965,7 +8002,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Hunter",
@@ -8009,7 +8047,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Winter Walker",
@@ -8074,7 +8113,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -8894,7 +8934,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Assassin",
@@ -8938,7 +8979,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Scion of the Three",
@@ -9019,7 +9061,8 @@
             }
           ],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Soulknife",
@@ -9121,7 +9164,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Thief",
@@ -9165,7 +9209,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -9786,7 +9831,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Clockwork Sorcery",
@@ -9943,7 +9989,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Draconic Sorcery",
@@ -10054,7 +10101,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Spellfire Sorcery",
@@ -10169,7 +10217,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Wild Magic Sorcery",
@@ -10323,7 +10372,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -11131,7 +11181,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Celestial Patron",
@@ -11263,7 +11314,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Fiend Patron",
@@ -11399,7 +11451,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Great Old One Patron",
@@ -11539,7 +11592,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -12170,7 +12224,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Bladesinger",
@@ -12227,7 +12282,8 @@
             }
           ],
           "source": "Forgotten Realms - Heroes of Faerun",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Diviner",
@@ -12297,7 +12353,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Evoker",
@@ -12341,7 +12398,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Illusionist",
@@ -12407,7 +12465,8 @@
             }
           ],
           "source": "Player's Handbook (2024)",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -13167,7 +13226,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Eberron - Forge of the Artificer",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Armorer",
@@ -13294,7 +13354,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Eberron - Forge of the Artificer",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Artillerist",
@@ -13441,7 +13502,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Eberron - Forge of the Artificer",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Battle Smith",
@@ -13618,7 +13680,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Eberron - Forge of the Artificer",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         },
         {
           "name": "Cartographer",
@@ -13749,7 +13812,8 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Eberron - Forge of the Artificer",
-          "is_custom": false
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {

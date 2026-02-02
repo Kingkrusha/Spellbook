@@ -10,6 +10,7 @@ from character import CharacterSpellList, ClassLevel
 from spell import CharacterClass
 from character_class import get_class_manager
 from theme import get_theme_manager
+from settings import get_settings_manager
 
 
 class ClassLevelRow(ctk.CTkFrame):
@@ -22,13 +23,14 @@ class ClassLevelRow(ctk.CTkFrame):
         self.on_delete = on_delete
         self.is_primary = is_primary
         self.class_manager = get_class_manager()
+        self.settings_manager = get_settings_manager()
         
         # Main row
         main_row = ctk.CTkFrame(self, fg_color="transparent")
         main_row.pack(fill="x")
         
-        # Class dropdown - get all classes from class manager
-        all_class_names = [c.name for c in self.class_manager.classes]
+        # Class dropdown - get all classes from class manager (filtered by legacy setting)
+        all_class_names = self._get_filtered_class_names()
         initial_class = class_level.character_class.value if class_level else (all_class_names[0] if all_class_names else "Wizard")
         self.class_var = ctk.StringVar(value=initial_class)
         class_combo = ctk.CTkComboBox(
@@ -104,13 +106,52 @@ class ClassLevelRow(ctk.CTkFrame):
         """Handle class selection change - update subclass options."""
         self._update_subclass_options()
     
+    def _get_filtered_class_names(self) -> List[str]:
+        """Get class names filtered by legacy setting."""
+        legacy_filter = self.settings_manager.settings.legacy_content_filter
+        all_classes = self.class_manager.classes
+        
+        if legacy_filter == "no_legacy":
+            filtered = [c for c in all_classes if not c.is_legacy]
+        elif legacy_filter == "legacy_only":
+            filtered = [c for c in all_classes if c.is_legacy]
+        elif legacy_filter == "show_unupdated":
+            non_legacy_names = {c.name.lower() for c in all_classes if not c.is_legacy}
+            filtered = [c for c in all_classes if not c.is_legacy or c.name.lower() not in non_legacy_names]
+        else:  # show_all
+            filtered = all_classes
+        
+        return [c.name for c in filtered]
+    
+    def _get_filtered_subclasses(self, class_def) -> List[str]:
+        """Get subclass names filtered by legacy setting."""
+        if not class_def or not class_def.subclasses:
+            return ["(None)"]
+        
+        legacy_filter = self.settings_manager.settings.legacy_content_filter
+        all_subclasses = class_def.subclasses
+        
+        if legacy_filter == "no_legacy":
+            filtered = [s for s in all_subclasses if not s.is_legacy]
+        elif legacy_filter == "legacy_only":
+            filtered = [s for s in all_subclasses if s.is_legacy]
+        elif legacy_filter == "show_unupdated":
+            non_legacy_names = {s.name.lower() for s in all_subclasses if not s.is_legacy}
+            filtered = [s for s in all_subclasses if not s.is_legacy or s.name.lower() not in non_legacy_names]
+        else:  # show_all
+            filtered = all_subclasses
+        
+        return ["(None)"] + [s.name for s in filtered]
+
     def _update_subclass_options(self):
-        """Update subclass dropdown based on selected class."""
+        """Update subclass dropdown based on selected class (filtered by legacy setting)."""
         class_name = self.class_var.get()
         class_def = self.class_manager.get_class(class_name)
         
-        if class_def and class_def.subclasses:
-            subclass_names = ["(None)"] + [s.name for s in class_def.subclasses]
+        # Get filtered subclass names
+        subclass_names = self._get_filtered_subclasses(class_def)
+        
+        if len(subclass_names) > 1:  # More than just "(None)"
             self.subclass_combo.configure(values=subclass_names)
             
             # Preserve existing selection if valid
@@ -377,6 +418,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
         mystic_arcanum_used = []
         custom_max_slots = {}
         custom_max_cantrips = 0
+        feats = []
         
         if self._original_character:
             known_spells = self._original_character.known_spells
@@ -387,6 +429,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
             mystic_arcanum_used = self._original_character.mystic_arcanum_used
             custom_max_slots = self._original_character.custom_max_slots
             custom_max_cantrips = self._original_character.custom_max_cantrips
+            feats = self._original_character.feats
         
         # Create character object
         self.result = CharacterSpellList(
@@ -399,7 +442,8 @@ class CharacterEditorDialog(ctk.CTkToplevel):
             warlock_slots_current=warlock_slots_current,
             mystic_arcanum_used=mystic_arcanum_used,
             custom_max_slots=custom_max_slots,
-            custom_max_cantrips=custom_max_cantrips
+            custom_max_cantrips=custom_max_cantrips,
+            feats=feats
         )
         
         # Update subclass spells based on class/subclass selections

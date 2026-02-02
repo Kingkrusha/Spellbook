@@ -72,8 +72,8 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         self._feature = feature
         
         self.title(title)
-        self.geometry("600x500")
-        self.minsize(500, 400)
+        self.geometry("600x550")
+        self.minsize(500, 450)
         self.resizable(True, True)
         
         self.transient(parent)
@@ -86,11 +86,13 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         
         self.update_idletasks()
         x = parent.winfo_rootx() + (parent.winfo_width() - 600) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 500) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 550) // 2
         self.geometry(f"+{x}+{y}")
     
     def _create_widgets(self):
         """Create dialog widgets."""
+        from ui.rich_text_utils import RichTextEditor
+        
         container = ctk.CTkFrame(self, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=20)
         
@@ -109,14 +111,12 @@ class FeatureEditorDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=13, weight="bold")
         ).pack(fill="x", pady=(0, 5))
         
-        # Tip about bold text
-        ctk.CTkLabel(
-            container, text="Tip: Surround text with *asterisks* to make it bold.",
-            font=ctk.CTkFont(size=11),
-            text_color=self.theme.get_current_color('text_secondary')
-        ).pack(fill="x", pady=(0, 5))
-        
+        # Rich text toolbar
         self.description_text = ctk.CTkTextbox(container, height=180, font=ctk.CTkFont(size=12))
+        self._rich_editor = RichTextEditor(self, self.description_text, self.theme)
+        toolbar = self._rich_editor.create_toolbar(container)
+        toolbar.pack(fill="x", pady=(0, 5))
+        
         self.description_text.pack(fill="both", expand=True, pady=(0, 15))
         
         # Is Subclass Feature checkbox
@@ -1558,6 +1558,8 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
     
     def _create_widgets(self):
         """Create dialog widgets."""
+        from ui.rich_text_utils import RichTextEditor
+        
         container = ctk.CTkFrame(self, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=20)
         
@@ -1579,17 +1581,14 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
         self.title_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Frenzy")
         self.title_entry.pack(fill="x", pady=(0, 15))
         
-        # Description
+        # Description with rich text toolbar
         ctk.CTkLabel(container, text="Description *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
         
-        # Tip about bold text
-        ctk.CTkLabel(
-            container, text="Tip: Surround text with *asterisks* to make it bold.",
-            font=ctk.CTkFont(size=11),
-            text_color=self.theme.get_current_color('text_secondary')
-        ).pack(fill="x", pady=(0, 5))
-        
         self.description_text = ctk.CTkTextbox(container, height=180, font=ctk.CTkFont(size=12))
+        self._rich_editor = RichTextEditor(self, self.description_text, self.theme)
+        toolbar = self._rich_editor.create_toolbar(container)
+        toolbar.pack(fill="x", pady=(0, 5))
+        
         self.description_text.pack(fill="both", expand=True, pady=(0, 15))
         
         # Buttons

@@ -61,6 +61,27 @@ A desktop application for managing D&D 5th Edition spells, character sheets, and
 - **Editable Stat Blocks**: Create and edit stat blocks with a dedicated editor
 - **Pre-seeded Data**: Official stat blocks for common summoning spells
 
+### Lineage (Race) Management
+- **Lineage Browser**: Browse D&D 2024 lineages with detailed trait descriptions
+- **Rich Trait Display**: Markdown tables and clickable spell links in trait descriptions
+- **Custom Lineage Editor**: Create homebrew lineages with:
+  - Name, creature type, size, and speed
+  - Source attribution for homebrew content
+  - Multiple traits with rich text editing
+  - Markdown table support in trait descriptions
+- **Import/Export**: Share custom lineages via JSON files
+- **Protected Official Content**: Official lineages cannot be edited or deleted
+
+### Feat Management
+- **Feat Browser**: Browse feats organized by type (General, Origin, Fighting Style, Epic Boon)
+- **Detailed Feat View**: Full descriptions with prerequisites and spellcasting grants
+- **Custom Feat Editor**: Create homebrew feats with:
+  - Type categorization (auto-populated from existing types)
+  - Prerequisite support
+  - Spellcasting grants (spell lists, spell counts by level, set spells)
+  - Rich text description with table and spell insertion
+- **Character Integration**: Assign feats to characters on the character sheet
+
 ### Class & Subclass Management
 - **Class Browser**: Browse all D&D 2024 classes with detailed feature tables
 - **Custom Class Editor**: Create your own homebrew classes with:
@@ -73,8 +94,16 @@ A desktop application for managing D&D 5th Edition spells, character sheets, and
   - Features at any level from the subclass starting level
   - Integrated spell lists (always prepared subclass spells)
   - Full description with bold text formatting support
+  - Rich text toolbar for inserting tables and spell references
 - **Edit/Delete Custom Content**: Modify or remove your homebrew classes and subclasses
 - **Protected Official Content**: Official D&D classes and subclasses cannot be edited or deleted
+
+### Rich Text Editing
+- **Toolbar for Editors**: All description editors include a formatting toolbar
+- **Table Insertion**: Visual table editor for creating markdown tables
+- **Spell References**: Select spells from database to insert clickable spell links
+- **Bold Formatting**: Quick bold text wrapping with asterisks
+- **Markdown Table Rendering**: Tables in descriptions render with proper column alignment and cell wrapping
 
 ### User Interface
 - **Modern Dark Theme**: Clean, modern UI with customizable themes
@@ -142,6 +171,9 @@ Spellbook/
 ├── character.py            # Character spell list data model
 ├── character_manager.py    # Character persistence (JSON)
 ├── character_sheet.py      # Character sheet data model (abilities, skills, HP, etc.)
+├── character_class.py      # Class/subclass definitions and manager
+├── lineage.py              # Lineage (race) data model and manager
+├── feat.py                 # Feat data model and manager
 ├── spell_slots.py          # Spell slot calculations by class/level
 ├── validation.py           # Spell validation for characters
 ├── settings.py             # Application settings management
@@ -152,21 +184,28 @@ Spellbook/
 ├── ui/
 │   ├── __init__.py
 │   ├── main_window.py      # Main application window
+│   ├── base_widgets.py     # Reusable base UI components
+│   ├── rich_text_utils.py  # Rich text rendering and editing utilities
 │   ├── spell_list.py       # Spell list panel with pagination
 │   ├── spell_detail.py     # Spell detail view and compare
 │   ├── spell_editor.py     # Spell create/edit dialog
 │   ├── spell_lists_view.py # Character spell lists view
 │   ├── character_editor.py # Character create/edit dialog
 │   ├── character_sheet_view.py # Full character sheet interface
-│   ├── settings_view.py    # Settings panel
 │   ├── classes_view.py     # Class browser with feature tables
 │   ├── class_editor.py     # Class and subclass editor dialogs
+│   ├── lineages_view.py    # Lineage browser and editor
+│   ├── feats_view.py       # Feat browser and editor
+│   ├── collections_view.py # Import/export collections view
+│   ├── settings_view.py    # Settings panel
 │   ├── stat_block_display.py  # Stat block display widget
 │   └── stat_block_editor.py   # Stat block editor dialog
-├── character_class.py      # Class/subclass definitions and manager
 ├── classes.json            # Class and subclass data (auto-generated)
+├── lineages.json           # Lineage data (auto-generated)
+├── feats.json              # Feat data (auto-generated)
 ├── tools/                  # Batch spell import scripts
 ├── requirements.txt        # Python dependencies
+├── main.spec               # PyInstaller build specification
 ├── spellbook.db           # SQLite database (created on first run)
 ├── characters.json        # Character data (created on first run)
 ├── character_sheets.json  # Character sheet data (created on first run)

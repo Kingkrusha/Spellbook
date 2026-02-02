@@ -405,6 +405,50 @@ class SettingsView(ctk.CTkFrame):
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
+        # === Legacy Content Section ===
+        self._create_section(self.container, "Legacy Content")
+        
+        legacy_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        legacy_frame.pack(fill="x", pady=(0, 20))
+        
+        legacy_content = ctk.CTkFrame(legacy_frame, fg_color="transparent")
+        legacy_content.pack(fill="x", padx=20, pady=15)
+        
+        ctk.CTkLabel(
+            legacy_content,
+            text="Control how 2014 (legacy) D&D content is displayed:",
+            font=ctk.CTkFont(size=13),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(0, 15))
+        
+        self._legacy_filter_var = ctk.StringVar(
+            value=self.settings_manager.settings.legacy_content_filter
+        )
+        
+        legacy_options = [
+            ("Show All Content", "show_all", "Display both 2014 and 2024 content"),
+            ("Show Unupdated", "show_unupdated", "Show 2024 content, plus 2014 content only if no 2024 version exists"),
+            ("No Legacy Content", "no_legacy", "Hide all 2014 content"),
+            ("Legacy Only", "legacy_only", "Show only 2014 content"),
+        ]
+        
+        for label, value, description in legacy_options:
+            option_frame = ctk.CTkFrame(legacy_content, fg_color="transparent")
+            option_frame.pack(fill="x", pady=2)
+            
+            ctk.CTkRadioButton(
+                option_frame, text=label,
+                variable=self._legacy_filter_var, value=value,
+                command=self._on_setting_change
+            ).pack(side="left")
+            
+            ctk.CTkLabel(
+                option_frame,
+                text=f"  - {description}",
+                font=ctk.CTkFont(size=11),
+                text_color=text_secondary
+            ).pack(side="left", padx=(10, 0))
+        
         # === About Section ===
         self._create_section(self.container, "About")
         
@@ -529,7 +573,8 @@ class SettingsView(ctk.CTkFrame):
             auto_fill_proficiencies=self._auto_fill_prof_var.get(),
             auto_apply_saving_throws=self._auto_apply_saves_var.get(),
             warn_multiclass_removal=self._warn_multiclass_var.get(),
-            long_rest_hit_dice=self._hit_dice_rest_var.get()
+            long_rest_hit_dice=self._hit_dice_rest_var.get(),
+            legacy_content_filter=self._legacy_filter_var.get()
         )
     
     def _on_restore_all_spells(self):
@@ -591,6 +636,7 @@ class SettingsView(ctk.CTkFrame):
         self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
+        self._legacy_filter_var.set(settings.legacy_content_filter)
         
         # Update edit button visibility
         self._update_theme_editor_visibility()
@@ -619,6 +665,7 @@ class SettingsView(ctk.CTkFrame):
         self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
+        self._legacy_filter_var.set(settings.legacy_content_filter)
         self._update_theme_editor_visibility()
 
     def _on_theme_changed(self):

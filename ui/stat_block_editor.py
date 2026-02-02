@@ -18,10 +18,11 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         super().__init__(parent)
         
         self.result: Optional[StatBlockFeature] = None
+        self.theme = get_theme_manager()
         
         self.title(title)
-        self.geometry("500x300")
-        self.minsize(400, 250)
+        self.geometry("500x350")
+        self.minsize(400, 300)
         self.resizable(True, True)
         
         self.transient(parent)
@@ -37,6 +38,8 @@ class FeatureEditorDialog(ctk.CTkToplevel):
     
     def _create_widgets(self, feature: Optional[StatBlockFeature]):
         """Create dialog widgets."""
+        from ui.rich_text_utils import RichTextEditor
+        
         container = ctk.CTkFrame(self, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=20)
         
@@ -45,9 +48,13 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         self.name_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Multiattack")
         self.name_entry.pack(fill="x", pady=(0, 15))
         
-        # Description
+        # Description with rich text toolbar
         ctk.CTkLabel(container, text="Description:", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
         self.desc_text = ctk.CTkTextbox(container, height=100)
+        self._rich_editor = RichTextEditor(self, self.desc_text, self.theme)
+        toolbar = self._rich_editor.create_toolbar(container)
+        toolbar.pack(fill="x", pady=(0, 5))
+        
         self.desc_text.pack(fill="both", expand=True, pady=(0, 15))
         
         # Populate if editing
