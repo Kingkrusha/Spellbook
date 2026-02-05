@@ -4,7 +4,6 @@ A desktop application for managing D&D spells with search, filter, and edit capa
 """
 
 import os
-import sys
 import customtkinter as ctk
 from ui.main_window import MainWindow
 
@@ -16,8 +15,20 @@ except ImportError:
     HAS_PIL = False
 
 
+def run_data_migrations():
+    """Run data migrations to update old data files."""
+    try:
+        from data_migration import run_all_migrations
+        run_all_migrations()
+    except Exception as e:
+        print(f"Data migration warning: {e}")
+
+
 def main():
     """Application entry point."""
+    # Run data migrations before starting the app
+    run_data_migrations()
+    
     # Set appearance and color theme
     ctk.set_appearance_mode("dark")  # "dark", "light", or "system"
     ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"

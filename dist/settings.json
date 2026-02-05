@@ -17,5 +17,8 @@
   "long_rest_hit_dice": "all",
   "allow_delete_official_spells": false,
   "legacy_content_filter": "show_all",
-  "initial_official_tag_applied": true
+  "initial_official_tag_applied": true,
+  "show_legacy_content": true,
+  "auto_backup": true,
+  "_version": 2
 }

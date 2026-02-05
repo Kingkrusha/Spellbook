@@ -467,14 +467,14 @@ class SettingsView(ctk.CTkFrame):
         text_secondary = self.theme_manager.get_text_secondary()
         ctk.CTkLabel(
             about_content,
-            text="A tool for managing D&D 5e spells and character spell lists.",
+            text="A tool for managing D&D 5e spells character sheets and player information.",
             font=ctk.CTkFont(size=13),
             text_color=text_secondary
         ).pack(anchor="w", pady=(5, 0))
         
         ctk.CTkLabel(
             about_content,
-            text="Version 1.1 • Data stored in SQLite database",
+            text="Version 1.3 • Data stored in SQLite database",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
