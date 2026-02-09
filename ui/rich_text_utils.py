@@ -121,18 +121,27 @@ class RichTextRenderer:
         )
     
     def show_spell_popup(self, parent, spell_name: str):
-        """Show a popup dialog for a spell."""
+        """Show a popup dialog for a spell. Shows error message if spell not found."""
         from ui.spell_detail import SpellPopupDialog
         
         spell = self.get_spell(spell_name)
         if spell:
             popup = SpellPopupDialog(parent.winfo_toplevel(), spell)
             popup.focus()
+        else:
+            # Spell not found - show a warning message
+            messagebox.showwarning(
+                "Spell Not Found",
+                f"The spell '{spell_name}' was not found in the database.\n\n"
+                "It may have been removed or renamed.",
+                parent=parent.winfo_toplevel()
+            )
     
     def render_table(self, parent, headers: list, rows: list, 
                      on_spell_click: Optional[Callable[[str], None]] = None):
         """
         Render a table with headers and rows using grid layout.
+        Supports spell links in format [[SpellName]] within cells.
         
         Args:
             parent: Parent widget
@@ -146,23 +155,29 @@ class RichTextRenderer:
         
         col_count = len(headers)
         
-        # Calculate column weights based on content length
+        # Calculate column weights based on content length (for proportional sizing)
         col_weights = []
         for i in range(col_count):
-            max_len = len(headers[i]) if i < len(headers) else 0
+            max_len = len(headers[i]) if i < len(headers) else 5
             for row in rows:
                 if i < len(row):
-                    max_len = max(max_len, len(str(row[i])))
-            col_weights.append(max(1, max_len))
+                    # Strip [[]] from spell links for length calculation
+                    cell_text = str(row[i])
+                    cell_text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', cell_text)
+                    max_len = max(max_len, len(cell_text))
+            col_weights.append(max(5, max_len))
+        
+        # Calculate total weight for minimum widths
+        total_weight = sum(col_weights)
         
         # Configure grid columns with weights for proportional sizing
         for col_idx in range(col_count):
-            table_frame.grid_columnconfigure(col_idx, weight=col_weights[col_idx], uniform="col")
+            table_frame.grid_columnconfigure(col_idx, weight=col_weights[col_idx], uniform="tablecol", minsize=80)
         
         # Header row
         for col_idx, col_name in enumerate(headers):
             header_cell = ctk.CTkFrame(table_frame, fg_color=self.theme.get_current_color('bg_secondary'))
-            header_cell.grid(row=0, column=col_idx, sticky="nsew", padx=(2 if col_idx == 0 else 0, 2), pady=(2, 0))
+            header_cell.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=(2, 1))
             
             ctk.CTkLabel(
                 header_cell, text=col_name,
@@ -172,6 +187,8 @@ class RichTextRenderer:
             ).pack(fill="x", padx=8, pady=6, anchor="w")
         
         # Data rows
+        spell_pattern = r'\[\[([^\]]+)\]\]'
+        
         for row_idx, row_data in enumerate(rows):
             row_bg = "transparent" if row_idx % 2 == 0 else self.theme.get_current_color('bg_secondary')
             
@@ -179,10 +196,16 @@ class RichTextRenderer:
                 cell_text = str(cell)
                 cell_frame = ctk.CTkFrame(table_frame, fg_color=row_bg)
                 cell_frame.grid(row=row_idx + 1, column=col_idx, sticky="nsew", 
-                               padx=(2 if col_idx == 0 else 0, 2), pady=0)
+                               padx=1, pady=0)
                 
-                # Check if cell contains a spell name (for linking)
-                if self.is_spell_name(cell_text):
+                # Check for spell link patterns [[SpellName]] in the cell
+                spell_matches = re.findall(spell_pattern, cell_text)
+                
+                if spell_matches:
+                    # Cell contains spell links - render with clickable spans
+                    self._render_table_cell_with_spells(cell_frame, cell_text, spell_pattern, on_spell_click, parent)
+                elif self.is_spell_name(cell_text.strip()):
+                    # Entire cell is a spell name
                     callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
                     btn = ctk.CTkButton(
                         cell_frame, text=cell_text,
@@ -191,20 +214,74 @@ class RichTextRenderer:
                         hover_color=self.theme.get_current_color('button_hover'),
                         text_color=self.theme.get_current_color('accent_primary'),
                         anchor="w",
-                        height=28,
-                        command=lambda s=cell_text: callback(s)
+                        height=32,
+                        command=lambda s=cell_text.strip(): callback(s)
                     )
-                    btn.pack(fill="x", padx=4, pady=4, anchor="w")
+                    btn.pack(fill="x", padx=6, pady=6, anchor="w")
                 else:
+                    # Plain text cell
                     ctk.CTkLabel(
                         cell_frame, text=cell_text,
                         font=ctk.CTkFont(size=11),
                         anchor="w",
-                        justify="left",
-                        wraplength=200
-                    ).pack(fill="x", padx=8, pady=6, anchor="w")
+                        justify="left"
+                    ).pack(fill="x", padx=8, pady=8, anchor="w")
         
         return table_frame
+    
+    def _render_table_cell_with_spells(self, cell_frame, cell_text: str, spell_pattern: str, 
+                                        on_spell_click: Optional[Callable], parent):
+        """Render a table cell containing spell links."""
+        # Use a Text widget for mixed content
+        text_widget = tk.Text(
+            cell_frame,
+            wrap="word",
+            font=ctk.CTkFont(size=11),
+            bg=self.theme.get_current_color('bg_tertiary'),
+            fg=self.theme.get_current_color('text_primary'),
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            padx=6,
+            pady=6,
+            height=1,
+            cursor="arrow"
+        )
+        
+        # Configure tags
+        text_widget.tag_configure("normal", font=ctk.CTkFont(size=11))
+        
+        parts = re.split(spell_pattern, cell_text)
+        spell_counter = 0
+        
+        for i, part in enumerate(parts):
+            if not part:
+                continue
+            if i % 2 == 1:
+                # This is a spell name
+                spell_tag = f"spell_{spell_counter}"
+                spell_counter += 1
+                text_widget.tag_configure(
+                    spell_tag, 
+                    font=ctk.CTkFont(size=11),
+                    foreground=self.theme.get_current_color('accent_primary'),
+                    underline=True
+                )
+                text_widget.insert("end", part, spell_tag)
+                
+                # Bind click handler
+                callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=part: callback(s))
+                text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
+                text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
+            else:
+                text_widget.insert("end", part, "normal")
+        
+        # Calculate required height
+        content = text_widget.get("1.0", "end").strip()
+        num_lines = max(1, len(content) // 40 + 1)
+        text_widget.configure(state="disabled", height=num_lines)
+        text_widget.pack(fill="x", expand=True)
     
     def render_formatted_text(self, parent, text: str, 
                               on_spell_click: Optional[Callable[[str], None]] = None,
@@ -256,24 +333,44 @@ class RichTextRenderer:
             i += 1
     
     def _render_text_line(self, parent, text: str, on_spell_click: Optional[Callable], wraplength: int):
-        """Render a simple text line."""
-        label = ctk.CTkLabel(
-            parent,
-            text=text,
-            font=ctk.CTkFont(size=12),
-            wraplength=wraplength,
-            justify="left",
-            anchor="w"
-        )
-        label.pack(anchor="w", pady=(2, 2))
+        """Render a simple text line, detecting spell links."""
+        # Check for spell link patterns [[SpellName]]
+        spell_pattern = r'\[\[([^\]]+)\]\]'
+        parts = re.split(spell_pattern, text)
+        
+        if len(parts) == 1:
+            # No spell links - simple label
+            label = ctk.CTkLabel(
+                parent,
+                text=text,
+                font=ctk.CTkFont(size=12),
+                wraplength=wraplength,
+                justify="left",
+                anchor="w"
+            )
+            label.pack(anchor="w", pady=(2, 2))
+        else:
+            # Has spell links - use text widget with clickable links
+            self._render_line_with_spells(parent, parts, on_spell_click, wraplength)
     
     def _render_formatted_line(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
-        """Render a line with bold formatting."""
+        """Render a line with bold formatting and spell links."""
+        # Try to get the proper background color from the parent or theme
+        try:
+            # Try to get color from parent frame first
+            parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
+            if parent_bg is None or parent_bg == 'SystemButtonFace':
+                bg_color = self.theme.get_current_color('bg_primary')
+            else:
+                bg_color = parent_bg
+        except Exception:
+            bg_color = self.theme.get_current_color('bg_primary')
+        
         text_widget = tk.Text(
             parent,
             wrap="word",
             font=ctk.CTkFont(size=12),
-            bg=self.theme.get_current_color('bg_secondary'),
+            bg=bg_color,
             fg=self.theme.get_current_color('text_primary'),
             relief="flat",
             borderwidth=0,
@@ -289,14 +386,106 @@ class RichTextRenderer:
         text_widget.tag_configure("spell", font=ctk.CTkFont(size=12), 
                                   foreground=self.theme.get_current_color('accent_primary'),
                                   underline=True)
+        text_widget.tag_configure("bold_spell", font=ctk.CTkFont(size=12, weight="bold"), 
+                                  foreground=self.theme.get_current_color('accent_primary'),
+                                  underline=True)
+        
+        spell_pattern = r'\[\[([^\]]+)\]\]'
+        spell_counter = 0
         
         # Insert parts with formatting
         for j, part in enumerate(parts):
             if not part:
                 continue
             is_bold = (j % 2 == 1)
-            tag = "bold" if is_bold else "normal"
-            text_widget.insert("end", part, tag)
+            base_tag = "bold" if is_bold else "normal"
+            
+            # Check for spell links within this part
+            spell_parts = re.split(spell_pattern, part)
+            if len(spell_parts) == 1:
+                # No spell links
+                text_widget.insert("end", part, base_tag)
+            else:
+                # Has spell links
+                for k, spell_part in enumerate(spell_parts):
+                    if not spell_part:
+                        continue
+                    if k % 2 == 1:
+                        # This is a spell name
+                        spell_tag = f"spell_{spell_counter}"
+                        spell_counter += 1
+                        tag_style = "bold_spell" if is_bold else "spell"
+                        text_widget.tag_configure(spell_tag, font=ctk.CTkFont(size=12, weight="bold" if is_bold else "normal"),
+                                                  foreground=self.theme.get_current_color('accent_primary'),
+                                                  underline=True)
+                        text_widget.insert("end", spell_part, spell_tag)
+                        
+                        # Bind click handler
+                        callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                        text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: callback(s))
+                        text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
+                        text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
+                    else:
+                        text_widget.insert("end", spell_part, base_tag)
+        
+        # Calculate height
+        total_chars = sum(len(p) for p in parts if p)
+        estimated_lines = max(1, (total_chars // 55) + 1)
+        
+        text_widget.configure(state="disabled", height=estimated_lines)
+        text_widget.pack(fill="x", anchor="w", pady=(2, 2))
+    
+    def _render_line_with_spells(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
+        """Render a line containing spell links [[SpellName]]."""
+        # Try to get the proper background color from the parent or theme
+        try:
+            parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
+            if parent_bg is None or parent_bg == 'SystemButtonFace':
+                bg_color = self.theme.get_current_color('bg_primary')
+            else:
+                bg_color = parent_bg
+        except Exception:
+            bg_color = self.theme.get_current_color('bg_primary')
+        
+        text_widget = tk.Text(
+            parent,
+            wrap="word",
+            font=ctk.CTkFont(size=12),
+            bg=bg_color,
+            fg=self.theme.get_current_color('text_primary'),
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            padx=0,
+            pady=2,
+            cursor="arrow"
+        )
+        
+        # Configure tags
+        text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
+        
+        spell_counter = 0
+        
+        # Insert parts - odd indices are spell names
+        for i, part in enumerate(parts):
+            if not part:
+                continue
+            if i % 2 == 1:
+                # This is a spell name
+                spell_tag = f"spell_{spell_counter}"
+                spell_counter += 1
+                text_widget.tag_configure(spell_tag, font=ctk.CTkFont(size=12),
+                                          foreground=self.theme.get_current_color('accent_primary'),
+                                          underline=True)
+                text_widget.insert("end", part, spell_tag)
+                
+                # Bind click handler
+                callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=part: callback(s))
+                text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
+                text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
+            else:
+                text_widget.insert("end", part, "normal")
         
         # Calculate height
         total_chars = sum(len(p) for p in parts if p)
@@ -320,8 +509,9 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         self.minsize(400, 500)
         self.resizable(True, True)
         
-        self.transient(parent)
-        self.grab_set()
+        # Use winfo_toplevel to get actual toplevel parent
+        toplevel_parent = parent.winfo_toplevel()
+        self.transient(toplevel_parent)
         
         self._all_spells = []
         self._filtered_spells = []
@@ -329,12 +519,16 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         self._create_widgets()
         self._load_spells()
         
-        # Center on parent
+        # Center on parent and ensure visibility
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        x = toplevel_parent.winfo_rootx() + (toplevel_parent.winfo_width() - self.winfo_width()) // 2
+        y = toplevel_parent.winfo_rooty() + (toplevel_parent.winfo_height() - self.winfo_height()) // 2
         self.geometry(f"+{x}+{y}")
         
+        # Ensure dialog appears on top and grabs focus
+        self.lift()
+        self.focus_force()
+        self.grab_set()
         self.search_entry.focus()
     
     def _create_widgets(self):
@@ -521,7 +715,8 @@ class SpellSelectorDialog(ctk.CTkToplevel):
     def _on_select(self):
         """Confirm selection."""
         if self._selected_spell:
-            self.result = self._selected_spell
+            # Format as [[SpellName]] for detection by renderer
+            self.result = f"[[{self._selected_spell}]]"
             self.destroy()
 
 
@@ -539,8 +734,9 @@ class TableEditorDialog(ctk.CTkToplevel):
         self.minsize(500, 400)
         self.resizable(True, True)
         
-        self.transient(parent)
-        self.grab_set()
+        # Use winfo_toplevel to get actual toplevel parent
+        toplevel_parent = parent.winfo_toplevel()
+        self.transient(toplevel_parent)
         
         self._rows_data = []  # List of lists for table data
         
@@ -553,11 +749,16 @@ class TableEditorDialog(ctk.CTkToplevel):
             self._rows_data = [["Header 1", "Header 2"], ["Cell 1", "Cell 2"]]
             self._refresh_table()
         
-        # Center on parent
+        # Center on parent and ensure visibility
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        x = toplevel_parent.winfo_rootx() + (toplevel_parent.winfo_width() - self.winfo_width()) // 2
+        y = toplevel_parent.winfo_rooty() + (toplevel_parent.winfo_height() - self.winfo_height()) // 2
         self.geometry(f"+{x}+{y}")
+        
+        # Ensure dialog appears on top and grabs focus
+        self.lift()
+        self.focus_force()
+        self.grab_set()
     
     def _create_widgets(self):
         """Create dialog widgets."""
@@ -603,6 +804,13 @@ class TableEditorDialog(ctk.CTkToplevel):
             fg_color=self.theme.get_current_color('button_danger'),
             hover_color=self.theme.get_current_color('button_danger_hover'),
             command=self._remove_column
+        ).pack(side="left", padx=(0, 15))
+        
+        ctk.CTkButton(
+            size_frame, text="✨ Insert Spell", width=100,
+            fg_color=self.theme.get_current_color('accent_primary'),
+            hover_color=self.theme.get_current_color('accent_hover'),
+            command=self._insert_spell_to_cell
         ).pack(side="left")
         
         # Table editing area
@@ -667,6 +875,7 @@ class TableEditorDialog(ctk.CTkToplevel):
             widget.destroy()
         
         self._cell_entries = []
+        self._focused_entry = None  # Track currently focused entry
         
         if not self._rows_data:
             return
@@ -690,11 +899,16 @@ class TableEditorDialog(ctk.CTkToplevel):
                 entry.insert(0, cell_value)
                 entry.pack(side="left", padx=2)
                 entry.bind("<KeyRelease>", self._on_cell_changed)
+                entry.bind("<FocusIn>", lambda e, ent=entry: self._on_entry_focus(ent))
                 row_entries.append(entry)
             
             self._cell_entries.append(row_entries)
         
         self._update_preview()
+    
+    def _on_entry_focus(self, entry):
+        """Track the currently focused entry."""
+        self._focused_entry = entry
     
     def _on_cell_changed(self, event=None):
         """Handle cell content change."""
@@ -736,7 +950,8 @@ class TableEditorDialog(ctk.CTkToplevel):
     
     def _update_preview(self):
         """Update the markdown preview."""
-        self._on_cell_changed()  # Ensure data is current
+        # Don't call _on_cell_changed here to avoid recursion
+        # Data is already synchronized when this is called
         
         markdown = self._generate_markdown()
         
@@ -773,6 +988,42 @@ class TableEditorDialog(ctk.CTkToplevel):
         self._on_cell_changed()  # Ensure data is current
         self.result = self._generate_markdown()
         self.destroy()
+    
+    def _insert_spell_to_cell(self):
+        """Open spell selector and insert result into focused cell."""
+        if not hasattr(self, '_focused_entry') or self._focused_entry is None:
+            # No cell is focused, find the first data cell
+            if self._cell_entries and len(self._cell_entries) > 1:
+                self._focused_entry = self._cell_entries[1][0]  # First data cell
+            elif self._cell_entries:
+                self._focused_entry = self._cell_entries[0][0]  # Header cell
+            else:
+                return
+        
+        # Temporarily release grab to allow spell dialog to work
+        self.grab_release()
+        
+        dialog = SpellSelectorDialog(self, "Insert Spell into Cell")
+        self.wait_window(dialog)
+        
+        # Re-grab after dialog closes
+        self.grab_set()
+        
+        if dialog.result:
+            # Insert at cursor position in the entry
+            try:
+                cursor_pos = self._focused_entry.index(tk.INSERT)
+                current_text = self._focused_entry.get()
+                new_text = current_text[:cursor_pos] + dialog.result + current_text[cursor_pos:]
+                self._focused_entry.delete(0, tk.END)
+                self._focused_entry.insert(0, new_text)
+                self._on_cell_changed()
+            except Exception:
+                # Fallback: append to current text
+                current_text = self._focused_entry.get()
+                self._focused_entry.delete(0, tk.END)
+                self._focused_entry.insert(0, current_text + dialog.result)
+                self._on_cell_changed()
 
 
 class RichTextEditor:
@@ -867,7 +1118,314 @@ class RichTextEditor:
         self.text_widget.focus()
 
 
+class DynamicText(ctk.CTkFrame):
+    """
+    A text container that dynamically resizes and re-wraps text to match
+    the width of its parent container. Supports bold text formatting.
+    
+    Usage:
+        dt = DynamicText(parent, theme)
+        dt.set_text("This is **bold** and normal text.")
+        dt.pack(fill="x", expand=True)
+    """
+    
+    def __init__(self, parent, theme=None, on_spell_click=None, font_size: int = 12,
+                 bg_color: Optional[str] = None, min_height: int = 1):
+        self.theme = theme or get_theme_manager()
+        super().__init__(parent, fg_color="transparent")
+        
+        self.on_spell_click = on_spell_click
+        self.font_size = font_size
+        self.min_height = min_height
+        self._text_content = ""
+        self._text_parts = []  # List of (text, is_bold) tuples
+        self._resize_job = None
+        self._bold_pattern = r'\*\*([^*]+)\*\*'  # Default pattern
+        
+        # Store the background color key for theme changes
+        # If it's a theme key like 'bg_primary' or 'bg_secondary', we can look it up later
+        self._bg_color_key = None
+        if bg_color is None:
+            self._bg_color_key = 'bg_primary'
+            bg_color = self.theme.get_current_color('bg_primary')
+        elif bg_color in ('bg_primary', 'bg_secondary', 'bg_tertiary', 'description_bg'):
+            self._bg_color_key = bg_color
+            bg_color = self.theme.get_current_color(bg_color)
+        # If it's a hex color, we just use it as-is (won't change with theme)
+        self._bg_color = bg_color
+        
+        # Create the text widget
+        self.text_widget = tk.Text(
+            self,
+            wrap="word",
+            font=ctk.CTkFont(size=font_size),
+            bg=bg_color,
+            fg=self.theme.get_current_color('text_primary'),
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            padx=0,
+            pady=2,
+            cursor="arrow"
+        )
+        self.text_widget.pack(fill="x", expand=True)
+        
+        # Configure tags
+        self.text_widget.tag_configure("bold", font=ctk.CTkFont(size=font_size, weight="bold"))
+        self.text_widget.tag_configure("normal", font=ctk.CTkFont(size=font_size))
+        self.text_widget.tag_configure(
+            "spell", 
+            font=ctk.CTkFont(size=font_size),
+            foreground=self.theme.get_current_color('accent_primary'),
+            underline=True
+        )
+        
+        # Bind to resize
+        self.bind("<Configure>", self._on_resize)
+        self.theme.add_listener(self._on_theme_changed)
+    
+    def _on_theme_changed(self):
+        """Update colors when theme changes."""
+        # Use stored color key if available, otherwise keep current color
+        if self._bg_color_key:
+            bg = self.theme.get_current_color(self._bg_color_key)
+        else:
+            bg = self._bg_color
+        
+        fg = self.theme.get_current_color('text_primary')
+        accent = self.theme.get_current_color('accent_primary')
+        
+        self.text_widget.configure(bg=bg, fg=fg)
+        self.text_widget.tag_configure("normal", foreground=fg)
+        self.text_widget.tag_configure("bold", foreground=fg)
+        self.text_widget.tag_configure("spell", foreground=accent)
+    
+    def _on_resize(self, event=None):
+        """Handle resize - debounce to avoid excessive updates."""
+        if self._resize_job:
+            self.after_cancel(self._resize_job)
+        self._resize_job = self.after(50, self._do_resize)
+    
+    def _do_resize(self):
+        """Actually perform the resize."""
+        width = self.winfo_width()
+        if width > 20:
+            # Calculate height based on content and width
+            self._update_height(width)
+    
+    def _update_height(self, width: int):
+        """Update text widget height based on content and width."""
+        if not self._text_content:
+            self.text_widget.configure(height=self.min_height)
+            return
+        
+        # Approximate chars per line (assuming ~7-8 pixels per char)
+        chars_per_line = max(1, width // 8)
+        total_chars = len(self._text_content)
+        lines = max(self.min_height, (total_chars // chars_per_line) + 1)
+        
+        # Account for line breaks in the text
+        line_breaks = self._text_content.count('\n')
+        lines += line_breaks
+        
+        self.text_widget.configure(height=lines)
+    
+    def set_text(self, text: str, bold_pattern: str = r'\*\*([^*]+)\*\*'):
+        """
+        Set the text content with bold text and spell link support.
+        
+        Args:
+            text: The text to display
+            bold_pattern: Regex pattern for bold text (default: **text**)
+        """
+        self._text_content = text
+        
+        # Clear existing content
+        self.text_widget.configure(state="normal")
+        self.text_widget.delete("1.0", "end")
+        
+        if not text:
+            self.text_widget.configure(state="disabled", height=self.min_height)
+            return
+        
+        # Parse bold patterns first
+        import re
+        bold_parts = re.split(bold_pattern, text)
+        self._text_parts = []
+        
+        spell_pattern = r'\[\[([^\]]+)\]\]'
+        spell_counter = 0
+        
+        for i, part in enumerate(bold_parts):
+            if not part:
+                continue
+            is_bold = (i % 2 == 1)
+            
+            # Check for spell links within this part
+            spell_parts = re.split(spell_pattern, part)
+            if len(spell_parts) == 1:
+                # No spell links
+                self._text_parts.append((part, is_bold, False))
+                tag = "bold" if is_bold else "normal"
+                self.text_widget.insert("end", part, tag)
+            else:
+                # Has spell links
+                for k, spell_part in enumerate(spell_parts):
+                    if not spell_part:
+                        continue
+                    if k % 2 == 1:
+                        # This is a spell name - make it clickable
+                        spell_tag = f"spell_{spell_counter}"
+                        spell_counter += 1
+                        self.text_widget.tag_configure(
+                            spell_tag, 
+                            font=ctk.CTkFont(size=self.font_size, weight="bold" if is_bold else "normal"),
+                            foreground=self.theme.get_current_color('accent_primary'),
+                            underline=True
+                        )
+                        self.text_widget.insert("end", spell_part, spell_tag)
+                        self._text_parts.append((spell_part, is_bold, True))
+                        
+                        # Bind click handler
+                        if self.on_spell_click:
+                            self.text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: self.on_spell_click(s))
+                        else:
+                            # Default: show spell popup
+                            self.text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: self._default_spell_click(s))
+                        self.text_widget.tag_bind(spell_tag, "<Enter>", lambda e: self.text_widget.config(cursor="hand2"))
+                        self.text_widget.tag_bind(spell_tag, "<Leave>", lambda e: self.text_widget.config(cursor="arrow"))
+                    else:
+                        self._text_parts.append((spell_part, is_bold, False))
+                        tag = "bold" if is_bold else "normal"
+                        self.text_widget.insert("end", spell_part, tag)
+        
+        self.text_widget.configure(state="disabled")
+        
+        # Update height
+        self._on_resize()
+    
+    def _default_spell_click(self, spell_name: str):
+        """Default handler for spell clicks - shows a popup or error if not found."""
+        from ui.spell_detail import SpellPopupDialog
+        from database import SpellDatabase
+        from spell import Spell, CharacterClass
+        
+        db = SpellDatabase()
+        spell_dict = db.get_spell_by_name(spell_name.strip())
+        if not spell_dict:
+            # Spell not found - show a warning message
+            messagebox.showwarning(
+                "Spell Not Found",
+                f"The spell '{spell_name}' was not found in the database.\n\n"
+                "It may have been removed or renamed.",
+                parent=self.winfo_toplevel()
+            )
+            return
+        
+        # Convert dict to Spell object
+        classes = []
+        for class_name in spell_dict.get('classes', []):
+            try:
+                classes.append(CharacterClass.from_string(class_name))
+            except ValueError:
+                pass
+        
+        spell = Spell(
+            name=spell_dict['name'],
+            level=spell_dict['level'],
+            casting_time=spell_dict['casting_time'],
+            ritual=spell_dict.get('ritual', False),
+            range_value=spell_dict['range_value'],
+            components=spell_dict['components'],
+            duration=spell_dict['duration'],
+            concentration=spell_dict.get('concentration', False),
+            classes=classes,
+            description=spell_dict.get('description', ''),
+            source=spell_dict.get('source', ''),
+            tags=spell_dict.get('tags', []),
+            is_modified=spell_dict.get('is_modified', False),
+            original_name=spell_dict.get('original_name', ''),
+            is_legacy=spell_dict.get('is_legacy', False)
+        )
+        
+        popup = SpellPopupDialog(self.winfo_toplevel(), spell)
+        popup.focus()
+    
+    def destroy(self):
+        """Clean up on destruction."""
+        try:
+            self.theme.remove_listener(self._on_theme_changed)
+        except Exception:
+            pass
+        super().destroy()
+
+
+def render_dynamic_text(parent, text: str, theme=None, on_spell_click=None,
+                        font_size: int = 12, bg_color: Optional[str] = None) -> DynamicText:
+    """
+    Convenience function to create a DynamicText widget.
+    
+    Args:
+        parent: Parent widget
+        text: Text to display (supports **bold** markdown)
+        theme: Theme manager (optional)
+        on_spell_click: Callback when a spell name is clicked
+        font_size: Font size (default: 12)
+        bg_color: Background color (optional)
+    
+    Returns:
+        DynamicText widget instance
+    """
+    dt = DynamicText(parent, theme, on_spell_click, font_size, bg_color)
+    dt.set_text(text)
+    return dt
+
+
 # Convenience function for creating a renderer
 def get_rich_text_renderer(theme=None) -> RichTextRenderer:
     """Get a RichTextRenderer instance."""
     return RichTextRenderer(theme)
+
+
+def render_description(parent, text: str, theme=None, wraplength: int = 500,
+                       bold_pattern: str = r'\*\*([^*]+)\*\*') -> ctk.CTkFrame:
+    """
+    Global function for rendering description text with table, spell link, and bold support.
+    
+    This is the standard way to render description text across all editors and views.
+    Supports:
+    - Markdown tables (| col | col |)
+    - Spell links ([[SpellName]])
+    - Bold text (**text** or custom pattern)
+    
+    Args:
+        parent: Parent widget to render into
+        text: Description text to render
+        theme: Optional theme manager
+        wraplength: Maximum width for text wrapping (default: 500)
+        bold_pattern: Regex pattern for bold text (default: **text**)
+    
+    Returns:
+        The container frame containing the rendered description
+    """
+    from theme import get_theme_manager
+    
+    if theme is None:
+        theme = get_theme_manager()
+    
+    # Create container frame
+    container = ctk.CTkFrame(parent, fg_color="transparent")
+    
+    if not text:
+        return container
+    
+    # Render using RichTextRenderer
+    renderer = RichTextRenderer(theme)
+    renderer.render_formatted_text(
+        container, text,
+        on_spell_click=lambda s: renderer.show_spell_popup(container, s),
+        wraplength=wraplength,
+        bold_pattern=bold_pattern
+    )
+    
+    return container

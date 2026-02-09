@@ -375,7 +375,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
                      font=ctk.CTkFont(size=13, weight="bold")).pack(
             fill="x", pady=(0, 5))
         text_secondary = theme.get_text_secondary()
-        ctk.CTkLabel(container, text="Use \\ for paragraph breaks",
+        ctk.CTkLabel(container, text="Use \\ for paragraph breaks. Use [[SpellName]] for spell links.",
                      font=ctk.CTkFont(size=11),
                      text_color=text_secondary).pack(fill="x", pady=(0, 5))
         
@@ -383,6 +383,13 @@ class SpellEditorDialog(ctk.CTkToplevel):
             container, height=150, corner_radius=8,
             font=ctk.CTkFont(size=13)
         )
+        
+        # Add rich text toolbar for tables, spell links, and bold
+        from ui.rich_text_utils import RichTextEditor
+        self._rich_editor = RichTextEditor(self, self.description_text, theme)
+        toolbar = self._rich_editor.create_toolbar(container)
+        toolbar.pack(fill="x", pady=(0, 5))
+        
         self.description_text.pack(fill="both", expand=True, pady=(0, 10))
         
         # Button frame (outside scroll area)

@@ -1071,7 +1071,7 @@
       "character_name": "Barbarian",
       "player_name": "",
       "race": "",
-      "background": "",
+      "background": "Acolyte",
       "alignment": "",
       "experience_points": 0,
       "age": "",
@@ -1119,7 +1119,7 @@
       "shield_bonus": 0,
       "unarmored_defense": "10 + DEX + CON",
       "initiative_bonus": 0,
-      "speed": 30,
+      "speed": 35,
       "base_speed": 30,
       "hit_points": {
         "maximum": 26,

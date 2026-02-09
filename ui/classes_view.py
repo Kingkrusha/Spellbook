@@ -226,17 +226,18 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Core Class Traits section
         self._create_core_traits_section(class_def)
         
-        # Description paragraphs
+        # Description paragraphs with dynamic resizing
         if class_def.description:
+            from ui.rich_text_utils import DynamicText
             desc_frame = ctk.CTkFrame(self.content, fg_color="transparent")
-            desc_frame.pack(fill="x", pady=(0, 20))
+            desc_frame.pack(fill="x", expand=True, pady=(0, 20))
             
-            ctk.CTkLabel(
-                desc_frame, text=class_def.description,
-                font=ctk.CTkFont(size=12),
-                wraplength=750,
-                justify="left"
-            ).pack(anchor="w")
+            dt = DynamicText(
+                desc_frame, self.theme,
+                bg_color='bg_primary'  # Use theme color key
+            )
+            dt.set_text(class_def.description)
+            dt.pack(fill="x", expand=True)
         
         # Feature table header
         table_header = ctk.CTkFrame(self.content, fg_color="transparent")
@@ -674,62 +675,18 @@ class ClassesCollectionView(ctk.CTkFrame):
         """Render a single line/paragraph that may contain *bold* formatting.
         
         Handles inline bold text like *Header.* followed by regular text,
-        all rendered in a single flowing paragraph.
+        all rendered in a single flowing paragraph with dynamic resizing.
         """
-        import re
+        from ui.rich_text_utils import DynamicText
         
-        # Find all *text* patterns for bold
-        pattern = r'\*([^*]+)\*'
-        parts = re.split(pattern, line)
-        
-        if len(parts) == 1:
-            # No formatting found, just render plain text
-            ctk.CTkLabel(
-                parent,
-                text=line,
-                font=ctk.CTkFont(size=12),
-                wraplength=750,
-                justify="left"
-            ).pack(anchor="w", pady=pady)
-        else:
-            # Has formatting - use a Text widget for proper inline rendering with wrapping
-            from tkinter import Text
-            
-            text_widget = Text(
-                parent,
-                wrap="word",
-                font=ctk.CTkFont(size=12),
-                bg=self.theme.get_current_color('bg_primary'),
-                fg=self.theme.get_current_color('text_primary'),
-                relief="flat",
-                borderwidth=0,
-                highlightthickness=0,
-                padx=0,
-                pady=2,
-                cursor="arrow"
-            )
-            
-            # Configure tags for bold and bold-italic
-            text_widget.tag_configure("bold", font=ctk.CTkFont(size=12, weight="bold", slant="italic"))
-            text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
-            
-            # Insert text parts with appropriate formatting
-            for i, part in enumerate(parts):
-                if not part:
-                    continue
-                # Odd indices are the captured groups (bold text)
-                is_bold = (i % 2 == 1)
-                tag = "bold" if is_bold else "normal"
-                text_widget.insert("end", part, tag)
-            
-            # Calculate required height based on content
-            text_widget.update_idletasks()
-            # Estimate lines needed (rough: 90 chars per line at this width)
-            total_chars = sum(len(p) for p in parts if p)
-            estimated_lines = max(1, (total_chars // 90) + 1)
-            
-            text_widget.configure(state="disabled", height=estimated_lines)
-            text_widget.pack(fill="x", anchor="w", pady=pady)
+        # Create DynamicText for flowing, resizable text with bold support
+        dt = DynamicText(
+            parent, self.theme,
+            bg_color='bg_primary'  # Use theme color key
+        )
+        # Use single asterisk pattern for bold (class features use *text* format)
+        dt.set_text(line, bold_pattern=r'\*([^*]+)\*')
+        dt.pack(fill="x", expand=True, pady=pady)
     
     def _create_subclasses_section(self, class_def: CharacterClassDefinition):
         """Create the subclasses section."""
@@ -1027,15 +984,16 @@ class ClassesCollectionView(ctk.CTkFrame):
         name_label.bind("<Button-1>", lambda e: toggle_expand())
         
         # Populate content frame
-        # Description
+        # Description with dynamic resizing
         if subclass.description:
-            ctk.CTkLabel(
-                content_frame, text=subclass.description,
-                font=ctk.CTkFont(size=11),
-                wraplength=700,
-                justify="left",
-                text_color=self.theme.get_current_color('text_secondary')
-            ).pack(anchor="w", pady=(0, 15))
+            from ui.rich_text_utils import DynamicText
+            dt = DynamicText(
+                content_frame, self.theme,
+                font_size=11,
+                bg_color='bg_primary'  # Use theme color key
+            )
+            dt.set_text(subclass.description)
+            dt.pack(fill="x", expand=True, pady=(0, 15))
         
         # Features with full details (like main class features)
         # Note: Subclass spells are displayed in the feature section where they're listed

@@ -1228,16 +1228,22 @@ class CharacterSheetView(ctk.CTkFrame):
         row2 = ctk.CTkFrame(info_frame, fg_color="transparent")
         row2.pack(fill="x", padx=8, pady=(2, 4))
         
-        # Background dropdown
+        # Background dropdown (auto-populated from background manager)
         bg_frame = ctk.CTkFrame(row2, fg_color="transparent")
         bg_frame.pack(side="left", padx=(0, 8))
         ctk.CTkLabel(bg_frame, text="Background", font=ctk.CTkFont(size=9)).pack(anchor="w")
-        self.background_var = ctk.StringVar(value=sheet.background)
+        
+        from background import get_background_manager
+        background_manager = get_background_manager()
+        background_names = ["(None)"] + background_manager.get_background_names()
+        current_background = sheet.background if sheet.background else "(None)"
+        
+        self.background_var = ctk.StringVar(value=current_background)
         bg_combo = ctk.CTkComboBox(
-            bg_frame, width=110, height=24,
-            values=self.BACKGROUND_OPTIONS,
+            bg_frame, width=130, height=24,
+            values=background_names,
             variable=self.background_var,
-            command=lambda _: self._save_field("background", self.background_var.get())
+            command=self._on_background_change
         )
         bg_combo.pack()
         
@@ -1389,6 +1395,16 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Refresh just the features section instead of whole sheet
         self._refresh_lineage_traits_section()
+    
+    def _on_background_change(self, value: str):
+        """Handle background selection change."""
+        sheet = self._require_sheet()
+        if not sheet:
+            return
+        
+        background_name = value if value != "(None)" else ""
+        sheet.background = background_name
+        self.sheet_manager.save()
     
     def _on_class_level_change(self, class_index: int, level_str: str):
         """Handle class level change."""

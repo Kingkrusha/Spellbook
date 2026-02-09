@@ -478,6 +478,8 @@ class MainWindow(ctk.CTkFrame):
             self.classes_view.pack_forget()
         if hasattr(self, 'lineages_view'):
             self.lineages_view.pack_forget()
+        if hasattr(self, 'backgrounds_view'):
+            self.backgrounds_view.pack_forget()
 
         # Show selected tab
         active_color = theme.get_current_color('accent_primary')
@@ -509,6 +511,11 @@ class MainWindow(ctk.CTkFrame):
             self.collections_tab_btn.configure(fg_color=active_color)
             self._show_lineages_view_internal()
             self._current_collection = "lineages"
+        elif tab_name == "backgrounds":
+            # Backgrounds is a sub-view of Collections, highlight Collections tab
+            self.collections_tab_btn.configure(fg_color=active_color)
+            self._show_backgrounds_view_internal()
+            self._current_collection = "backgrounds"
         elif tab_name == "settings":
             self.settings_tab_btn.configure(fg_color=active_color)
             self.settings_view.pack(fill="both", expand=True)
@@ -539,7 +546,8 @@ class MainWindow(ctk.CTkFrame):
             self._show_tab("feats")
         elif collection_key == "lineages":
             self._show_tab("lineages")
-        # Future collections will be added here
+        elif collection_key == "backgrounds":
+            self._show_tab("backgrounds")
     
     def _show_classes_view(self):
         """Show the classes collection view (called from _navigate_to_collection)."""
@@ -571,6 +579,20 @@ class MainWindow(ctk.CTkFrame):
             )
         
         self.lineages_view.pack(fill="both", expand=True)
+    
+    def _show_backgrounds_view_internal(self):
+        """Internal method to show backgrounds view without modifying tab state."""
+        from ui.backgrounds_view import BackgroundsView
+        
+        # Create backgrounds view if needed
+        if not hasattr(self, 'backgrounds_view'):
+            self.backgrounds_view = BackgroundsView(
+                self,
+                character_manager=self.character_manager,
+                on_back=self._back_to_collections
+            )
+        
+        self.backgrounds_view.pack(fill="both", expand=True)
     
     def _back_to_collections(self):
         """Go back to the main collections view."""

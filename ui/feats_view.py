@@ -240,7 +240,7 @@ class FeatDetailPanel(ctk.CTkFrame):
         self.prereq_label = ctk.CTkLabel(
             self.prereq_frame, text="",
             font=ctk.CTkFont(size=12),
-            text_color="#e74c3c",
+            text_color=self.theme.get_current_color('button_danger'),
             wraplength=400,
             justify="left"
         )
@@ -279,9 +279,8 @@ class FeatDetailPanel(ctk.CTkFrame):
         self._desc_widgets = []
     
     def _render_description(self, text: str):
-        """Render description with bold text support (*text* becomes bold)."""
-        import re
-        import tkinter as tk
+        """Render description with bold text support and dynamic resizing."""
+        from ui.rich_text_utils import DynamicText
         
         self._clear_description()
         
@@ -295,68 +294,15 @@ class FeatDetailPanel(ctk.CTkFrame):
             if not paragraph.strip():
                 continue
             
-            # Check for bullet points or list items
-            lines = paragraph.strip().split('\n')
-            
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                
-                # Check if line has bold markers
-                pattern = r'\*([^*]+)\*'
-                parts = re.split(pattern, line)
-                
-                if len(parts) == 1:
-                    # No formatting, use simple label
-                    label = ctk.CTkLabel(
-                        self.desc_frame,
-                        text=line,
-                        font=ctk.CTkFont(size=12),
-                        wraplength=400,
-                        justify="left"
-                    )
-                    label.pack(anchor="w", pady=(2, 2))
-                    self._desc_widgets.append(label)
-                else:
-                    # Has bold text - use Text widget
-                    # Get the actual background color from the parent frame for consistency
-                    # Use a color that works in both light and dark mode
-                    frame_bg = self.scroll_frame._parent_canvas.cget('bg')
-                    
-                    text_widget = tk.Text(
-                        self.desc_frame,
-                        wrap="word",
-                        font=ctk.CTkFont(size=12),
-                        bg=frame_bg,
-                        fg=self.theme.get_current_color('text_primary'),
-                        relief="flat",
-                        borderwidth=0,
-                        highlightthickness=0,
-                        padx=0,
-                        pady=2,
-                        cursor="arrow"
-                    )
-                    
-                    # Configure tags for bold
-                    text_widget.tag_configure("bold", font=ctk.CTkFont(size=12, weight="bold"))
-                    text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
-                    
-                    # Insert parts with formatting
-                    for i, part in enumerate(parts):
-                        if not part:
-                            continue
-                        is_bold = (i % 2 == 1)
-                        tag = "bold" if is_bold else "normal"
-                        text_widget.insert("end", part, tag)
-                    
-                    # Calculate height based on content
-                    total_chars = sum(len(p) for p in parts if p)
-                    estimated_lines = max(1, (total_chars // 50) + 1)
-                    
-                    text_widget.configure(state="disabled", height=estimated_lines)
-                    text_widget.pack(fill="x", anchor="w", pady=(2, 2))
-                    self._desc_widgets.append(text_widget)
+            # Create a DynamicText for this paragraph with single asterisk bold pattern
+            dt = DynamicText(
+                self.desc_frame, self.theme,
+                bg_color='bg_primary'  # Use theme color key for proper theme switching
+            )
+            # Use single asterisk pattern for bold (feats use *text* format)
+            dt.set_text(paragraph.strip(), bold_pattern=r'\*([^*]+)\*')
+            dt.pack(fill="x", expand=True, pady=(2, 2))
+            self._desc_widgets.append(dt)
             
             # Add spacing between paragraphs
             if para_idx < len(paragraphs) - 1:
@@ -451,6 +397,8 @@ class FeatsView(ctk.CTkFrame):
         """Handle theme changes."""
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._update_context_menu_colors()
+        if hasattr(self, 'paned'):
+            self._update_paned_colors()
     
     def _update_context_menu_colors(self):
         """Update context menu colors for theme."""
@@ -474,14 +422,21 @@ class FeatsView(ctk.CTkFrame):
         self.content = ctk.CTkFrame(self, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
-        # Configure grid weights
-        self.content.grid_columnconfigure(0, weight=1, minsize=300)
-        self.content.grid_columnconfigure(1, weight=2, minsize=450)
-        self.content.grid_rowconfigure(0, weight=1)
+        # Create a PanedWindow for resizable panels
+        self.paned = tk.PanedWindow(
+            self.content,
+            orient=tk.HORIZONTAL,
+            sashwidth=8,
+            sashrelief=tk.RAISED,
+            handlesize=0,
+            opaqueresize=False,
+            sashcursor="sb_h_double_arrow"
+        )
+        self.paned.pack(fill="both", expand=True)
+        self._update_paned_colors()
         
         # Left container to hold list or compare panel
-        self.left_container = ctk.CTkFrame(self.content, fg_color="transparent")
-        self.left_container.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        self.left_container = ctk.CTkFrame(self.paned, fg_color="transparent")
         
         # Feat list panel (left)
         self.list_panel = FeatListPanel(
@@ -492,8 +447,19 @@ class FeatsView(ctk.CTkFrame):
         self.list_panel.pack(fill="both", expand=True)
         
         # Feat detail panel (right)
-        self.detail_panel = FeatDetailPanel(self.content)
-        self.detail_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        self.detail_panel = FeatDetailPanel(self.paned)
+        
+        # Add panes with minimum sizes
+        self.paned.add(self.left_container, minsize=280, stretch="always")
+        self.paned.add(self.detail_panel, minsize=400, stretch="always")
+        
+        # Set initial sash position (roughly 1:2 ratio)
+        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
+    
+    def _update_paned_colors(self):
+        """Update PanedWindow sash colors based on current theme."""
+        sash_color = self.theme.get_current_color("pane_sash")
+        self.paned.configure(bg=sash_color)
     
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
@@ -561,8 +527,8 @@ class FeatsView(ctk.CTkFrame):
         self.delete_btn = ctk.CTkButton(
             filter_bar, text="Delete",
             width=80, height=35,
-            fg_color="#c0392b",
-            hover_color="#a93226",
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
             command=self._on_delete_feat
         )
         self.delete_btn.pack(side="right", padx=(0, 5))

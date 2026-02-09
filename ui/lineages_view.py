@@ -82,9 +82,8 @@ class LineageListPanel(ctk.CTkFrame):
         return btn
     
     def _on_lineage_right_click(self, event, index: int):
-        """Handle right-click on a lineage button."""
+        """Handle right-click on a lineage button - show context menu only."""
         if self.on_right_click and 0 <= index < len(self._lineages):
-            self._on_lineage_click(index)
             self.on_right_click(self._lineages[index], event.x_root, event.y_root)
     
     def _on_lineage_click(self, index: int):
@@ -188,7 +187,7 @@ class LineageDetailPanel(ctk.CTkFrame):
         self.name_label = ctk.CTkLabel(
             self.scroll_frame, text="Select a lineage",
             font=ctk.CTkFont(size=24, weight="bold"),
-            wraplength=400
+            wraplength=800
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
         
@@ -238,12 +237,9 @@ class LineageDetailPanel(ctk.CTkFrame):
             font=ctk.CTkFont(size=14, weight="bold")
         )
         
-        self.description_label = ctk.CTkLabel(
-            self.scroll_frame, text="",
-            font=ctk.CTkFont(size=12),
-            wraplength=450,
-            justify="left"
-        )
+        # Description container for rich text rendering
+        self.description_container = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        self._desc_widgets = []
         
         # Traits section
         self.traits_header = ctk.CTkLabel(
@@ -284,7 +280,7 @@ class LineageDetailPanel(ctk.CTkFrame):
         self._trait_widgets.append(trait_frame)
         
         inner = ctk.CTkFrame(trait_frame, fg_color="transparent")
-        inner.pack(fill="x", padx=10, pady=6)
+        inner.pack(fill="x", expand=True, padx=10, pady=6)
         
         # Trait name
         name_label = ctk.CTkLabel(
@@ -294,14 +290,38 @@ class LineageDetailPanel(ctk.CTkFrame):
         )
         name_label.pack(fill="x", anchor="w")
         
-        # Trait description - use global renderer
+        # Trait description with dynamic resizing
         if trait.description:
-            renderer = self._get_renderer()
-            renderer.render_formatted_text(
-                inner, trait.description,
-                on_spell_click=lambda s: renderer.show_spell_popup(self, s),
-                wraplength=450
+            from ui.rich_text_utils import DynamicText
+            dt = DynamicText(
+                inner, self.theme,
+                bg_color='bg_secondary'  # Use theme color key
             )
+            dt.set_text(trait.description)
+            dt.pack(fill="x", expand=True)
+    
+    def _clear_description(self):
+        """Clear all description widgets."""
+        for widget in self._desc_widgets:
+            widget.destroy()
+        self._desc_widgets = []
+    
+    def _render_description(self, text: str):
+        """Render description with bold text and dynamic resizing."""
+        from ui.rich_text_utils import DynamicText
+        
+        self._clear_description()
+        
+        if not text:
+            return
+        
+        dt = DynamicText(
+            self.description_container, self.theme,
+            bg_color='bg_primary'  # Use theme color key
+        )
+        dt.set_text(text)
+        dt.pack(fill="x", expand=True)
+        self._desc_widgets.append(dt)
     
     def show_lineage(self, lineage: Optional[Lineage]):
         """Display details for a lineage."""
@@ -312,7 +332,8 @@ class LineageDetailPanel(ctk.CTkFrame):
             self.source_label.configure(text="")
             self.stats_frame.pack_forget()
             self.desc_header.pack_forget()
-            self.description_label.pack_forget()
+            self._clear_description()
+            self.description_container.pack_forget()
             self.traits_header.pack_forget()
             self.traits_container.pack_forget()
             self._clear_traits()
@@ -339,14 +360,15 @@ class LineageDetailPanel(ctk.CTkFrame):
         self.speed_label.configure(text=f"Speed: {lineage.speed} feet")
         self.stats_frame.pack(fill="x", pady=(0, 15))
         
-        # Description
+        # Description - render with RichTextRenderer for bold and spell popups
         if lineage.description:
             self.desc_header.pack(anchor="w", pady=(10, 5))
-            self.description_label.configure(text=lineage.description)
-            self.description_label.pack(anchor="w", pady=(0, 10))
+            self._render_description(lineage.description)
+            self.description_container.pack(fill="x", pady=(0, 10))
         else:
             self.desc_header.pack_forget()
-            self.description_label.pack_forget()
+            self._clear_description()
+            self.description_container.pack_forget()
         
         # Traits
         self._clear_traits()
@@ -387,6 +409,8 @@ class LineagesView(ctk.CTkFrame):
         """Handle theme changes."""
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._update_context_menu_colors()
+        if hasattr(self, 'paned'):
+            self._update_paned_colors()
     
     def _update_context_menu_colors(self):
         """Update context menu colors for theme."""
@@ -410,14 +434,21 @@ class LineagesView(ctk.CTkFrame):
         self.content = ctk.CTkFrame(self, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
-        # Configure grid weights
-        self.content.grid_columnconfigure(0, weight=1, minsize=300)
-        self.content.grid_columnconfigure(1, weight=2, minsize=450)
-        self.content.grid_rowconfigure(0, weight=1)
+        # Create a PanedWindow for resizable panels
+        self.paned = tk.PanedWindow(
+            self.content,
+            orient=tk.HORIZONTAL,
+            sashwidth=8,
+            sashrelief=tk.RAISED,
+            handlesize=0,
+            opaqueresize=False,
+            sashcursor="sb_h_double_arrow"
+        )
+        self.paned.pack(fill="both", expand=True)
+        self._update_paned_colors()
         
         # Left container to hold list or compare panel
-        self.left_container = ctk.CTkFrame(self.content, fg_color="transparent")
-        self.left_container.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        self.left_container = ctk.CTkFrame(self.paned, fg_color="transparent")
         
         # Lineage list panel (left)
         self.list_panel = LineageListPanel(
@@ -428,8 +459,19 @@ class LineagesView(ctk.CTkFrame):
         self.list_panel.pack(fill="both", expand=True)
         
         # Lineage detail panel (right)
-        self.detail_panel = LineageDetailPanel(self.content)
-        self.detail_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        self.detail_panel = LineageDetailPanel(self.paned)
+        
+        # Add panes with minimum sizes
+        self.paned.add(self.left_container, minsize=280, stretch="always")
+        self.paned.add(self.detail_panel, minsize=400, stretch="always")
+        
+        # Set initial sash position (roughly 1:2 ratio)
+        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
+    
+    def _update_paned_colors(self):
+        """Update PanedWindow sash colors based on current theme."""
+        sash_color = self.theme.get_current_color("pane_sash")
+        self.paned.configure(bg=sash_color)
     
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
@@ -498,8 +540,8 @@ class LineagesView(ctk.CTkFrame):
         self.delete_btn = ctk.CTkButton(
             filter_bar, text="Delete",
             width=80, height=35,
-            fg_color="#c0392b",
-            hover_color="#a93226",
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
             command=self._on_delete_lineage
         )
         self.delete_btn.pack(side="right", padx=(0, 5))
@@ -606,7 +648,7 @@ class LineagesView(ctk.CTkFrame):
         self.detail_panel.show_lineage(lineage)
     
     def _on_lineage_right_click(self, lineage: Lineage, x: int, y: int):
-        """Handle right-click on lineage."""
+        """Handle right-click on lineage - show context menu."""
         self._context_lineage = lineage
         self.context_menu.tk_popup(x, y)
     
@@ -792,8 +834,16 @@ class LineageEditorDialog(ctk.CTkToplevel):
         
         # Description
         ctk.CTkLabel(self.scroll, text="Description:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        
         self.desc_text = ctk.CTkTextbox(self.scroll, height=100)
-        self.desc_text.pack(fill="x", pady=(5, 15))
+        
+        # Add rich text toolbar for description
+        from ui.rich_text_utils import RichTextEditor
+        self._desc_rich_editor = RichTextEditor(self, self.desc_text, self.theme)
+        desc_toolbar = self._desc_rich_editor.create_toolbar(self.scroll)
+        desc_toolbar.pack(fill="x", pady=(5, 5))
+        
+        self.desc_text.pack(fill="x", pady=(0, 15))
         
         # Traits section
         traits_header = ctk.CTkFrame(self.scroll, fg_color="transparent")
@@ -854,8 +904,8 @@ class LineageEditorDialog(ctk.CTkToplevel):
         
         remove_btn = ctk.CTkButton(
             header, text="✕", width=25, height=25,
-            fg_color="#c0392b",
-            hover_color="#a93226",
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
             command=lambda f=frame: self._remove_trait(f)
         )
         remove_btn.pack(side="right")

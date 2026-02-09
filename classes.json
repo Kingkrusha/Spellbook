@@ -46,7 +46,7 @@
         }
       ],
       "starting_gold_alternative": "75 GP",
-      "description": "Barbarians are mighty warriors who are powered by primal forces of the multiverse that manifest as a Rage. More than a mere emotion\u2014and not limited to anger\u2014this Rage is an incarnation of a predator's ferocity, a storm's fury, and a sea's turmoil.\n\nSome Barbarians personify their Rage as a fierce spirit or revered forebear. Others see it as a connection to the pain and anguish of the world, as an impersonal force, or as an expression of their own deepest self. For every Barbarian, their Rage is a power that fuels not just battle frenzy but also uncanny reflexes and feats of strength.",
+      "description": "Barbarians are mighty warriors who are powered by primal forces of the multiverse that manifest as a Rage. More than a mere emotion—and not limited to anger—this Rage is an incarnation of a predator's ferocity, a storm's fury, and a sea's turmoil.\n\nSome Barbarians personify their Rage as a fierce spirit or revered forebear. Others see it as a connection to the pain and anguish of the world, as an impersonal force, or as an expression of their own deepest self. For every Barbarian, their Rage is a power that fuels not just battle frenzy but also uncanny reflexes and feats of strength.",
       "is_spellcaster": false,
       "spellcasting_ability": "",
       "subclass_level": 3,
@@ -227,7 +227,7 @@
           "abilities": [
             {
               "title": "Rage",
-              "description": "You can enter a Rage as a Bonus Action if you aren't wearing Heavy armor. You can enter your Rage a number of times shown for your Barbarian level in the Rages column of the Barbarian Features table. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.\n\n*Damage Resistance.* You have Resistance to Bludgeoning, Piercing, and Slashing damage.\n\n*Rage Damage.* When you make an attack using Strength\u2014with either a weapon or an Unarmed Strike\u2014and deal damage to the target, you gain a bonus to the damage that increases as you gain levels as a Barbarian, as shown in the Rage Damage column of the Barbarian Features table.\n\n*Strength Advantage.* You have Advantage on Strength checks and Strength saving throws.\n\n*No Concentration or Spells.* You can't maintain Concentration, and you can't cast spells.\n\n*Duration.* The Rage lasts until the end of your next turn, and it ends early if you don Heavy armor or have the Incapacitated condition. If your Rage is still active on your next turn, you can extend the Rage for another round by doing one of the following:\n\u2022 Make an attack roll against an enemy.\n\u2022 Force an enemy to make a saving throw.\n\u2022 Take a Bonus Action to extend your Rage.\n\nEach time the Rage is extended, it lasts until the end of your next turn. You can maintain a Rage for up to 10 minutes.",
+              "description": "You can enter a Rage as a Bonus Action if you aren't wearing Heavy armor. You can enter your Rage a number of times shown for your Barbarian level in the Rages column of the Barbarian Features table. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.\n\n*Damage Resistance.* You have Resistance to Bludgeoning, Piercing, and Slashing damage.\n\n*Rage Damage.* When you make an attack using Strength—with either a weapon or an Unarmed Strike—and deal damage to the target, you gain a bonus to the damage that increases as you gain levels as a Barbarian, as shown in the Rage Damage column of the Barbarian Features table.\n\n*Strength Advantage.* You have Advantage on Strength checks and Strength saving throws.\n\n*No Concentration or Spells.* You can't maintain Concentration, and you can't cast spells.\n\n*Duration.* The Rage lasts until the end of your next turn, and it ends early if you don Heavy armor or have the Incapacitated condition. If your Rage is still active on your next turn, you can extend the Rage for another round by doing one of the following:\n• Make an attack roll against an enemy.\n• Force an enemy to make a saving throw.\n• Take a Bonus Action to extend your Rage.\n\nEach time the Rage is extended, it lasts until the end of your next turn. You can maintain a Rage for up to 10 minutes.",
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
@@ -445,7 +445,7 @@
           "abilities": [
             {
               "title": "Brutal Strike",
-              "description": "If you use Reckless Attack, you can forgo any Advantage on one Strength-based attack roll of your choice on your turn. The chosen attack roll mustn't have Disadvantage. If the chosen attack roll hits, the target takes an extra 1d10 damage of the same type dealt by the weapon or Unarmed Strike, and you can cause one Brutal Strike effect of your choice. You have the following effect options.\n\n*Forceful Blow.* The target is pushed 15 feet straight away from you. You can then move up to half your Speed straight toward the target without provoking Opportunity Attacks.\n\n*Hamstring Blow.* The target's Speed is reduced by 15 feet until the start of your next turn. A target can be affected by only one Hamstring Blow at a time\u2014the most recent one.",
+              "description": "If you use Reckless Attack, you can forgo any Advantage on one Strength-based attack roll of your choice on your turn. The chosen attack roll mustn't have Disadvantage. If the chosen attack roll hits, the target takes an extra 1d10 damage of the same type dealt by the weapon or Unarmed Strike, and you can cause one Brutal Strike effect of your choice. You have the following effect options.\n\n*Forceful Blow.* The target is pushed 15 feet straight away from you. You can then move up to half your Speed straight toward the target without provoking Opportunity Attacks.\n\n*Hamstring Blow.* The target's Speed is reduced by 15 feet until the start of your next turn. A target can be affected by only one Hamstring Blow at a time—the most recent one.",
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
@@ -1811,7 +1811,7 @@
         }
       ],
       "starting_gold_alternative": "110 GP",
-      "description": "Clerics draw power from the realms of the gods and harness it to work miracles. Blessed by a deity, a pantheon, or another immortal entity, a Cleric can reach out to the divine magic of the Outer Planes\u2014where gods dwell\u2014and channel it to bolster people and battle foes.\n\nBecause their power is a divine gift, Clerics typically associate themselves with temples dedicated to the deity or other immortal force that unlocked their magic. Harnessing divine magic doesn't rely on specific training, yet Clerics might learn prayers and rites that help them draw on power from the Outer Planes.\n\nNot every member of a temple or shrine is a Cleric. Some priests are called to a simple life of temple service, carrying out their devotion through prayer and rituals, not through magic. Many mortals claim to speak for the gods, but few can marshal the power of those gods the way a Cleric can.",
+      "description": "Clerics draw power from the realms of the gods and harness it to work miracles. Blessed by a deity, a pantheon, or another immortal entity, a Cleric can reach out to the divine magic of the Outer Planes—where gods dwell—and channel it to bolster people and battle foes.\n\nBecause their power is a divine gift, Clerics typically associate themselves with temples dedicated to the deity or other immortal force that unlocked their magic. Harnessing divine magic doesn't rely on specific training, yet Clerics might learn prayers and rites that help them draw on power from the Outer Planes.\n\nNot every member of a temple or shrine is a Cleric. Some priests are called to a simple life of temple service, carrying out their devotion through prayer and rituals, not through magic. Many mortals claim to speak for the gods, but few can marshal the power of those gods the way a Cleric can.",
       "is_spellcaster": true,
       "spellcasting_ability": "WIS",
       "subclass_level": 3,
@@ -2101,7 +2101,7 @@
             {
               "level": 3,
               "title": "Radiance of the Dawn",
-              "description": "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to emit a flash of light in a 30-foot Emanation originating from yourself. Any magical Darkness\u2014such as that created by the Darkness spell\u2014in that area is dispelled. Additionally, each creature of your choice in that area must make a Constitution saving throw, taking Radiant damage equal to 2d10 plus your Cleric level on a failed save or half as much damage on a successful one.",
+              "description": "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to emit a flash of light in a 30-foot Emanation originating from yourself. Any magical Darkness—such as that created by the Darkness spell—in that area is dispelled. Additionally, each creature of your choice in that area must make a Constitution saving throw, taking Radiant damage equal to 2d10 plus your Cleric level on a failed save or half as much damage on a successful one.",
               "tables": []
             },
             {
@@ -4765,7 +4765,7 @@
         }
       ],
       "starting_gold_alternative": "115 GP",
-      "description": "Fighters rule many battlefields. Questing knights, royal champions, elite soldiers, and hardened mercenaries\u2014as Fighters, they all share an unparalleled prowess with weapons and armor. And they are well acquainted with death, both meting it out and defying it.\n\nFighters learn the basics of all combat styles. Every Fighter can swing an axe, fence with a rapier, wield a longsword or a greatsword, and use a bow. Fighters master various weapon techniques, and a well-equipped Fighter always has the right tool at hand for any combat situation. Likewise, a Fighter is adept with shields and every form of armor. Beyond that basic degree of familiarity, each Fighter specializes in a certain style of combat, whether in one of the classic forms described below or in a unique style that they've developed.\n\nThis combination of broad ability and extensive specialization makes Fighters superior combatants everywhere.",
+      "description": "Fighters rule many battlefields. Questing knights, royal champions, elite soldiers, and hardened mercenaries—as Fighters, they all share an unparalleled prowess with weapons and armor. And they are well acquainted with death, both meting it out and defying it.\n\nFighters learn the basics of all combat styles. Every Fighter can swing an axe, fence with a rapier, wield a longsword or a greatsword, and use a bow. Fighters master various weapon techniques, and a well-equipped Fighter always has the right tool at hand for any combat situation. Likewise, a Fighter is adept with shields and every form of armor. Beyond that basic degree of familiarity, each Fighter specializes in a certain style of combat, whether in one of the classic forms described below or in a unique style that they've developed.\n\nThis combination of broad ability and extensive specialization makes Fighters superior combatants everywhere.",
       "is_spellcaster": false,
       "spellcasting_ability": "",
       "subclass_level": 3,
@@ -4860,13 +4860,13 @@
             {
               "level": 15,
               "title": "Superior Critical",
-              "description": "Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18\u201320 on the d20.",
+              "description": "Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18–20 on the d20.",
               "tables": []
             },
             {
               "level": 18,
               "title": "Survivor",
-              "description": "You attain the pinnacle of resilience in battle, giving you these benefits.\n\n*Defy Death.* You have Advantage on Death Saving Throws. Moreover, when you roll 18\u201320 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.\n\n*Heroic Rally.* At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point.",
+              "description": "You attain the pinnacle of resilience in battle, giving you these benefits.\n\n*Defy Death.* You have Advantage on Death Saving Throws. Moreover, when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.\n\n*Heroic Rally.* At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point.",
               "tables": []
             }
           ],
@@ -5188,7 +5188,7 @@
         {
           "name": "Banneret",
           "parent_class": "Fighter",
-          "description": "Bannerets are paragons of valor and leadership who protect the innocent and rally fellow adventurers to the causes of justice and freedom. Many are knights serving in Cormyr, the Silver Marches, Damara, Chessenta, or other lands across Faer\u00fbn. They wander the realms as knights errant, taking the fight against evil beyond their kingdom's borders.\n\nA Banneret relies on judgment, bravery, and fidelity to the code of chivalry to guide them in defeating evildoers. A lone Banneret is a skilled warrior, but when leading a band of allies one of these warriors can transform even a poorly equipped militia into a ferocious war band.",
+          "description": "Bannerets are paragons of valor and leadership who protect the innocent and rally fellow adventurers to the causes of justice and freedom. Many are knights serving in Cormyr, the Silver Marches, Damara, Chessenta, or other lands across Faerûn. They wander the realms as knights errant, taking the fight against evil beyond their kingdom's borders.\n\nA Banneret relies on judgment, bravery, and fidelity to the code of chivalry to guide them in defeating evildoers. A lone Banneret is a skilled warrior, but when leading a band of allies one of these warriors can transform even a poorly equipped militia into a ferocious war band.",
           "features": [
             {
               "level": 3,
@@ -6003,7 +6003,7 @@
           "abilities": [
             {
               "title": "Martial Arts",
-              "description": "Your practice of martial arts gives you mastery of combat styles that use your Unarmed Strike and Monk weapons, which are the following:\n\n\u2022 Simple Melee weapons\n\u2022 Martial Melee weapons that have the Light property\n\nYou gain the following benefits while you are unarmed or wielding only Monk weapons and you aren't wearing armor or wielding a Shield.\n\n*Bonus Unarmed Strike.* You can make an Unarmed Strike as a Bonus Action.\n\n*Martial Arts Die.* You can roll 1d6 in place of the normal damage of your Unarmed Strike or Monk weapons. This die changes as you gain Monk levels, as shown in the Martial Arts column of the Monk Features table.\n\n*Dexterous Attacks.* You can use your Dexterity modifier instead of your Strength modifier for the attack and damage rolls of your Unarmed Strikes and Monk weapons. In addition, when you use the Grapple or Shove option of your Unarmed Strike, you can use your Dexterity modifier instead of your Strength modifier to determine the save DC.",
+              "description": "Your practice of martial arts gives you mastery of combat styles that use your Unarmed Strike and Monk weapons, which are the following:\n\n• Simple Melee weapons\n• Martial Melee weapons that have the Light property\n\nYou gain the following benefits while you are unarmed or wielding only Monk weapons and you aren't wearing armor or wielding a Shield.\n\n*Bonus Unarmed Strike.* You can make an Unarmed Strike as a Bonus Action.\n\n*Martial Arts Die.* You can roll 1d6 in place of the normal damage of your Unarmed Strike or Monk weapons. This die changes as you gain Monk levels, as shown in the Martial Arts column of the Monk Features table.\n\n*Dexterous Attacks.* You can use your Dexterity modifier instead of your Strength modifier for the attack and damage rolls of your Unarmed Strikes and Monk weapons. In addition, when you use the Grapple or Shove option of your Unarmed Strike, you can use your Dexterity modifier instead of your Strength modifier to determine the save DC.",
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
@@ -6577,7 +6577,7 @@
         {
           "name": "Oath of Devotion",
           "parent_class": "Paladin",
-          "description": "The Oath of Devotion binds Paladins to the ideals of Justice and Order. These Paladins meet the archetype of the knight in shining armor. They hold themselves to the highest standards of conduct, and some - for better or worse - hold the rest of the world to the same standards.\n\nMany who swear this oath are devoted to gods of law and good and use their gods' tenets as the measure of personal devotion. Others hold angels as their ideals and incorporate images of angelic wings into their helmets or coats of arms.\n\nThese Paladins share the following tenets:\n\n\u2022 Let your word be your promise.\n\u2022 Protect the weak and never fear to act.\n\u2022 Let your honorable deeds be an example.",
+          "description": "The Oath of Devotion binds Paladins to the ideals of Justice and Order. These Paladins meet the archetype of the knight in shining armor. They hold themselves to the highest standards of conduct, and some - for better or worse - hold the rest of the world to the same standards.\n\nMany who swear this oath are devoted to gods of law and good and use their gods' tenets as the measure of personal devotion. Others hold angels as their ideals and incorporate images of angelic wings into their helmets or coats of arms.\n\nThese Paladins share the following tenets:\n\n• Let your word be your promise.\n• Protect the weak and never fear to act.\n• Let your honorable deeds be an example.",
           "features": [
             {
               "level": 3,
@@ -6657,7 +6657,7 @@
         {
           "name": "Oath of Glory",
           "parent_class": "Paladin",
-          "description": "Paladins who take the Oath of Glory believe they and their companions are destined to achieve glory through deeds of heroism. They train diligently and encourage their companions, so that they're all ready when destiny calls.\n\nThese Paladins share the following tenets:\n\n\u2022 Endeavor to be known by your deeds.\n\u2022 Face hardships with courage.\n\u2022 Inspire others to strive for glory.",
+          "description": "Paladins who take the Oath of Glory believe they and their companions are destined to achieve glory through deeds of heroism. They train diligently and encourage their companions, so that they're all ready when destiny calls.\n\nThese Paladins share the following tenets:\n\n• Endeavor to be known by your deeds.\n• Face hardships with courage.\n• Inspire others to strive for glory.",
           "features": [
             {
               "level": 3,
@@ -6743,7 +6743,7 @@
         {
           "name": "Oath of the Ancients",
           "parent_class": "Paladin",
-          "description": "The Oath of the Ancients is as old as the first elves. Paladins who swear this oath cherish the light; they love the beautiful and life-giving things of the world more than any principles of honor, courage and justice. They often adorn their armor and clothing with images of growing things - leaves, antlers, or flowers - to reflect their commitment to preserving life and light.\n\nThese Paladins share the following tenets:\n\n\u2022 Kindle the light of hope.\n\u2022 Shelter life.\n\u2022 Delight in art and laughter.",
+          "description": "The Oath of the Ancients is as old as the first elves. Paladins who swear this oath cherish the light; they love the beautiful and life-giving things of the world more than any principles of honor, courage and justice. They often adorn their armor and clothing with images of growing things - leaves, antlers, or flowers - to reflect their commitment to preserving life and light.\n\nThese Paladins share the following tenets:\n\n• Kindle the light of hope.\n• Shelter life.\n• Delight in art and laughter.",
           "features": [
             {
               "level": 3,
@@ -6823,7 +6823,7 @@
         {
           "name": "Oath of the Noble Genie",
           "parent_class": "Paladin",
-          "description": "Paladins sworn to the Oath of the Noble Genie revere the forces of the Elemental Planes. Through taking this oath, Paladins draw power from the four different types of genies\u2014dao, masters of earth; djinn, masters of air; efreet, masters of fire; and marids, masters of water. In Faer\u00fbn, many Paladins who swear this oath hail from Calimshan, a land teeming with genies.\n\nPaladins who swear this oath often undertake quests that take them all over the Realms and across the multiverse\u2014including the Elemental Planes. These paladins share the following tenets:\n\n\u2022 Sow the seeds of creation amid the ashes of destruction.\n\u2022 Lead with splendor and grace.\n\u2022 Respect the elements, and fear their wrath.",
+          "description": "Paladins sworn to the Oath of the Noble Genie revere the forces of the Elemental Planes. Through taking this oath, Paladins draw power from the four different types of genies—dao, masters of earth; djinn, masters of air; efreet, masters of fire; and marids, masters of water. In Faerûn, many Paladins who swear this oath hail from Calimshan, a land teeming with genies.\n\nPaladins who swear this oath often undertake quests that take them all over the Realms and across the multiverse—including the Elemental Planes. These paladins share the following tenets:\n\n• Sow the seeds of creation amid the ashes of destruction.\n• Lead with splendor and grace.\n• Respect the elements, and fear their wrath.",
           "features": [
             {
               "level": 3,
@@ -6913,7 +6913,7 @@
         {
           "name": "Oath of Vengeance",
           "parent_class": "Paladin",
-          "description": "The Oath of Vengeance is a solemn commitment to punish those who have committed grievously evil acts. When evil armies slaughter helpless villagers, when a tyrant defies the will of the gods, when a thieves' guild grows too violent, when a dragon rampages through the countryside - at times like these, Paladins arise and swear the Oath of Vengeance to set right what has gone wrong.\n\nThese Paladins share the following tenets:\n\n\u2022 Show the wicked no mercy.\n\u2022 Fight injustice and its causes.\n\u2022 Aid those harmed by injustice.",
+          "description": "The Oath of Vengeance is a solemn commitment to punish those who have committed grievously evil acts. When evil armies slaughter helpless villagers, when a tyrant defies the will of the gods, when a thieves' guild grows too violent, when a dragon rampages through the countryside - at times like these, Paladins arise and swear the Oath of Vengeance to set right what has gone wrong.\n\nThese Paladins share the following tenets:\n\n• Show the wicked no mercy.\n• Fight injustice and its causes.\n• Aid those harmed by injustice.",
           "features": [
             {
               "level": 3,
@@ -7515,7 +7515,7 @@
       "trackable_features": [
         {
           "title": "",
-          "description": "Pool of healing power equal to 5 \u00d7 Paladin level.",
+          "description": "Pool of healing power equal to 5 × Paladin level.",
           "tracked_value": "",
           "has_uses": false,
           "max_uses": 5,
@@ -9127,7 +9127,7 @@
             {
               "level": 3,
               "title": "Psychic Blades",
-              "description": "You can manifest shimmering blades of psychic energy. Whenever you take the Attack action or make an Opportunity Attack, you can manifest a Psychic Blade in your free hand and make the attack with that blade. The magic blade has the following traits:\n\n\u2022 *Weapon Category:* Simple Melee\n\u2022 *Damage on a Hit:* 1d6 Psychic plus the ability modifier used for the attack roll\n\u2022 *Properties:* Finesse, Thrown (range 60/120 feet)\n\u2022 *Mastery:* Vex (you can use this property, and it doesn't count against the number of properties you can use with Weapon Mastery)\n\nThe blade vanishes immediately after it hits or misses its target, and it leaves no mark if it deals damage.\n\nAfter you attack with the blade on your turn, you can make a melee or ranged attack with a second psychic blade as a Bonus Action on the same turn if your other hand is free to create it. The damage die of this bonus attack is 1d4 instead of 1d6.",
+              "description": "You can manifest shimmering blades of psychic energy. Whenever you take the Attack action or make an Opportunity Attack, you can manifest a Psychic Blade in your free hand and make the attack with that blade. The magic blade has the following traits:\n\n• *Weapon Category:* Simple Melee\n• *Damage on a Hit:* 1d6 Psychic plus the ability modifier used for the attack roll\n• *Properties:* Finesse, Thrown (range 60/120 feet)\n• *Mastery:* Vex (you can use this property, and it doesn't count against the number of properties you can use with Weapon Mastery)\n\nThe blade vanishes immediately after it hits or misses its target, and it leaves no mark if it deals damage.\n\nAfter you attack with the blade on your turn, you can make a melee or ranged attack with a second psychic blade as a Bonus Action on the same turn if your other hand is free to create it. The damage die of this bonus attack is 1d4 instead of 1d6.",
               "tables": []
             },
             {
@@ -9846,7 +9846,7 @@
         {
           "name": "Clockwork Sorcery",
           "parent_class": "Sorcerer",
-          "description": "The cosmic force of order has suffused you with magic. That power arises from Mechanus or a realm like it\u2014a plane of existence shaped entirely by clockwork efficiency. You or someone from your lineage might have become entangled in the machinations of modrons, the orderly beings who inhabit Mechanus. Perhaps your ancestor even took part in the Great Modron March. Whatever its origin within you, the power of order can seem strange to others, but for you, it's part of a vast and glorious system.",
+          "description": "The cosmic force of order has suffused you with magic. That power arises from Mechanus or a realm like it—a plane of existence shaped entirely by clockwork efficiency. You or someone from your lineage might have become entangled in the machinations of modrons, the orderly beings who inhabit Mechanus. Perhaps your ancestor even took part in the Great Modron March. Whatever its origin within you, the power of order can seem strange to others, but for you, it's part of a vast and glorious system.",
           "features": [
             {
               "level": 3,
@@ -10398,7 +10398,7 @@
             },
             {
               "title": "Innate Sorcery",
-              "description": "An event in your past left an indelible mark on you, infusing you with simmering magic. As a Bonus Action, you can unleash that magic for 1 minute, during which you gain the following benefits:\n\n\u2022 The spell save DC of your Sorcerer spells increases by 1.\n\u2022 You have Advantage on the attack rolls of Sorcerer spells you cast.\n\nYou can use this feature twice, and you regain all expended uses of it when you finish a Long Rest.",
+              "description": "An event in your past left an indelible mark on you, infusing you with simmering magic. As a Bonus Action, you can unleash that magic for 1 minute, during which you gain the following benefits:\n\n• The spell save DC of your Sorcerer spells increases by 1.\n• You have Advantage on the attack rolls of Sorcerer spells you cast.\n\nYou can use this feature twice, and you regain all expended uses of it when you finish a Long Rest.",
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
@@ -11330,7 +11330,7 @@
         {
           "name": "Fiend Patron",
           "parent_class": "Warlock",
-          "description": "Your pact draws on the Lower Planes, the realms of perdition. You might forge a bargain with a demon lord such as Demogorgon or Orcus; an archdevil such as Asmodeus; or a pit fiend, balor, yugoloth, or night hag that is especially mighty. That patron's aims are evil\u2014the corruption or destruction of all things, ultimately including you\u2014and your path is defined by the extent to which you strive against those aims.",
+          "description": "Your pact draws on the Lower Planes, the realms of perdition. You might forge a bargain with a demon lord such as Demogorgon or Orcus; an archdevil such as Asmodeus; or a pit fiend, balor, yugoloth, or night hag that is especially mighty. That patron's aims are evil—the corruption or destruction of all things, ultimately including you—and your path is defined by the extent to which you strive against those aims.",
           "features": [
             {
               "level": 3,
@@ -11467,7 +11467,7 @@
         {
           "name": "Great Old One Patron",
           "parent_class": "Warlock",
-          "description": "When you choose this subclass, you might bind yourself to an unspeakable being from the Far Realm or an elder god\u2014a being such as Tharizdun, the Chained God; Zargon, the Returner; Hadar, the Dark Hunger; or Great Cthulhu. Or you might invoke several entities without yoking yourself to one. The motives of these beings are incomprehensible, and the Great Old One might be indifferent to your existence. But the secrets you've learned nevertheless allow you to draw strange magic from it.",
+          "description": "When you choose this subclass, you might bind yourself to an unspeakable being from the Far Realm or an elder god—a being such as Tharizdun, the Chained God; Zargon, the Returner; Hadar, the Dark Hunger; or Great Cthulhu. Or you might invoke several entities without yoking yourself to one. The motives of these beings are incomprehensible, and the Great Old One might be indifferent to your existence. But the secrets you've learned nevertheless allow you to draw strange magic from it.",
           "features": [
             {
               "level": 3,
@@ -11619,7 +11619,7 @@
             },
             {
               "title": "Pact Magic",
-              "description": "Through occult ceremony, you have formed a pact with a mysterious entity to gain magical powers. The entity is a voice in the shadows\u2014its identity unclear\u2014but its boon to you is concrete: the ability to cast spells. See chapter 7 for the rules on spellcasting.\n\n*Cantrips.* You know two Warlock cantrips of your choice. Eldritch Blast and Prestidigitation are recommended. Whenever you finish a Long Rest, you can replace one of your cantrips from this feature with another Warlock cantrip of your choice.\n\nWhen you reach Warlock levels 4 and 10, you learn another Warlock cantrip of your choice, as shown in the Cantrips column of the Warlock Features table.\n\n*Spell Slots.* The Warlock Features table shows how many spell slots you have to cast your Warlock spells of levels 1\u20135. The table also shows the level of those slots, all of which are the same level. You regain all expended Pact Magic spell slots when you finish a Short or Long Rest.\n\n*Prepared Spells of Level 1+.* You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Warlock spells. Charm Person and Hex are recommended.\n\nThe number of spells on your list increases as you gain Warlock levels, as shown in the Prepared Spells column of the Warlock Features table. Whenever that number increases, choose additional Warlock spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level no higher than what's shown in the table's Slot Level column for your level.\n\nIf another Warlock feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Warlock spells for you.\n\n*Changing Your Prepared Spells.* Whenever you gain a Warlock level, you can replace one spell on your list with another Warlock spell of an eligible level.\n\n*Spellcasting Ability.* Charisma is the spellcasting ability for your Warlock spells.\n\n*Spellcasting Focus.* You can use an Arcane Focus as a Spellcasting Focus for your Warlock spells.",
+              "description": "Through occult ceremony, you have formed a pact with a mysterious entity to gain magical powers. The entity is a voice in the shadows—its identity unclear—but its boon to you is concrete: the ability to cast spells. See chapter 7 for the rules on spellcasting.\n\n*Cantrips.* You know two Warlock cantrips of your choice. Eldritch Blast and Prestidigitation are recommended. Whenever you finish a Long Rest, you can replace one of your cantrips from this feature with another Warlock cantrip of your choice.\n\nWhen you reach Warlock levels 4 and 10, you learn another Warlock cantrip of your choice, as shown in the Cantrips column of the Warlock Features table.\n\n*Spell Slots.* The Warlock Features table shows how many spell slots you have to cast your Warlock spells of levels 1–5. The table also shows the level of those slots, all of which are the same level. You regain all expended Pact Magic spell slots when you finish a Short or Long Rest.\n\n*Prepared Spells of Level 1+.* You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Warlock spells. Charm Person and Hex are recommended.\n\nThe number of spells on your list increases as you gain Warlock levels, as shown in the Prepared Spells column of the Warlock Features table. Whenever that number increases, choose additional Warlock spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level no higher than what's shown in the table's Slot Level column for your level.\n\nIf another Warlock feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Warlock spells for you.\n\n*Changing Your Prepared Spells.* Whenever you gain a Warlock level, you can replace one spell on your list with another Warlock spell of an eligible level.\n\n*Spellcasting Ability.* Charisma is the spellcasting ability for your Warlock spells.\n\n*Spellcasting Focus.* You can use an Arcane Focus as a Spellcasting Focus for your Warlock spells.",
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
@@ -12187,7 +12187,7 @@
         {
           "name": "Abjurer",
           "parent_class": "Wizard",
-          "description": "Your study of magic is focused on spells that block, banish, or protect\u2014ending harmful effects, banishing evil influences, and protecting the weak. Abjurers are sought when baleful spirits require exorcism, when locations must be guarded against magical spying, and when portals to other planes of existence must be closed. Adventuring parties value Abjurers for the protection they provide against a variety of hostile magic and other attacks.",
+          "description": "Your study of magic is focused on spells that block, banish, or protect—ending harmful effects, banishing evil influences, and protecting the weak. Abjurers are sought when baleful spirits require exorcism, when locations must be guarded against magical spying, and when portals to other planes of existence must be closed. Adventuring parties value Abjurers for the protection they provide against a variety of hostile magic and other attacks.",
           "features": [
             {
               "level": 3,
@@ -12241,7 +12241,7 @@
         {
           "name": "Bladesinger",
           "parent_class": "Wizard",
-          "description": "Bladesingers master a tradition of wizardry that incorporates swordplay and dance. In combat, a Bladesinger uses intricate, elegant maneuvers that fend off harm and allow the Bladesinger to channel magic into devastating attacks and a cunning defense. Many who have observed a Bladesinger at work remember the display as one of the more beautiful experiences in their life\u2014a glorious dance accompanied by a singing blade.\n\nBladesinging is associated with the ancient elven societies that first mastered the art and coined the term. Even today, most Bladesingers still hail from old elven realms, such as Myth Drannor, or from non-elven societies that share land and history with elves, such as the Silver Marches. Wherever they hail from, Bladesingers take their talents all across the Realms to help common people and perform heroic deeds. Most communities greet the arrival of a Bladesinger as a good omen.",
+          "description": "Bladesingers master a tradition of wizardry that incorporates swordplay and dance. In combat, a Bladesinger uses intricate, elegant maneuvers that fend off harm and allow the Bladesinger to channel magic into devastating attacks and a cunning defense. Many who have observed a Bladesinger at work remember the display as one of the more beautiful experiences in their life—a glorious dance accompanied by a singing blade.\n\nBladesinging is associated with the ancient elven societies that first mastered the art and coined the term. Even today, most Bladesingers still hail from old elven realms, such as Myth Drannor, or from non-elven societies that share land and history with elves, such as the Silver Marches. Wherever they hail from, Bladesingers take their talents all across the Realms to help common people and perform heroic deeds. Most communities greet the arrival of a Bladesinger as a good omen.",
           "features": [
             {
               "level": 3,
@@ -13438,7 +13438,7 @@
                     ],
                     [
                       "Hit Points",
-                      "5 \u00d7 your Artificer level (casting Mending on the cannon restores 2d6 Hit Points to it)"
+                      "5 × your Artificer level (casting Mending on the cannon restores 2d6 Hit Points to it)"
                     ],
                     [
                       "Immunities",
@@ -14751,5 +14751,6 @@
       "source": "Eberron - Forge of the Artificer",
       "is_legacy": false
     }
-  }
+  },
+  "_version": 2
 }
