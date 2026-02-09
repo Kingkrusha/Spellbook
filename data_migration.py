@@ -18,6 +18,7 @@ DATA_VERSIONS = {
     "feats": 2,
     "classes": 2,
     "settings": 2,
+    "backgrounds": 1,
 }
 
 
@@ -86,6 +87,7 @@ class DataMigrator:
             "feats": {},
             "classes": {},
             "settings": {},
+            "backgrounds": {},
         }
         self._register_migrations()
     
@@ -182,6 +184,8 @@ class DataMigrator:
             merged = self._merge_feats(user_data, bundled_data)
         elif data_type == "classes":
             merged = self._merge_classes(user_data, bundled_data)
+        elif data_type == "backgrounds":
+            merged = self._merge_backgrounds(user_data, bundled_data)
         else:
             return True  # No merge logic for this type
         
@@ -306,6 +310,50 @@ class DataMigrator:
         result["_version"] = DATA_VERSIONS["classes"]
         return result
     
+    def _merge_backgrounds(self, user_data: Dict, bundled_data: Dict) -> Dict:
+        """Merge backgrounds, preserving user customizations."""
+        user_backgrounds = {b["name"]: b for b in user_data.get("backgrounds", [])}
+        bundled_backgrounds = {b["name"]: b for b in bundled_data.get("backgrounds", [])}
+        
+        merged = []
+        
+        # First, add all user entries
+        for name, background in user_backgrounds.items():
+            if background.get("is_custom", False):
+                # User-created background, always keep
+                merged.append(background)
+            elif name in bundled_backgrounds:
+                # Official background - check if user modified it
+                bundled = bundled_backgrounds[name]
+                if self._background_modified(background, bundled):
+                    # User modified it, keep user version
+                    merged.append(background)
+                else:
+                    # Not modified, use updated bundled version
+                    merged.append(bundled)
+            else:
+                # Official background removed from bundled, keep if user modified
+                merged.append(background)
+        
+        # Add new bundled backgrounds not in user data
+        for name, background in bundled_backgrounds.items():
+            if name not in user_backgrounds:
+                merged.append(background)
+        
+        result = user_data.copy()
+        result["backgrounds"] = sorted(merged, key=lambda b: b.get("name", ""))
+        result["_version"] = DATA_VERSIONS["backgrounds"]
+        return result
+    
+    def _background_modified(self, user: Dict, bundled: Dict) -> bool:
+        """Check if user modified a background from the bundled version."""
+        # Compare key fields that indicate modification
+        fields_to_check = ["description", "skills", "feats", "equipment", "features"]
+        for field in fields_to_check:
+            if user.get(field) != bundled.get(field):
+                return True
+        return False
+    
     # Migration functions
     def _migrate_lineages_v1_to_v2(self, data: Dict) -> Dict:
         """Migrate lineages from v1 to v2 format."""
@@ -363,6 +411,7 @@ def run_all_migrations():
         ("feats.json", "feats"),
         ("classes.json", "classes"),
         ("settings.json", "settings"),
+        ("backgrounds.json", "backgrounds"),
     ]
     
     for filename, data_type in migrations:

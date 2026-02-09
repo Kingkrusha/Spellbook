@@ -248,7 +248,7 @@ class ImportDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             info_frame,
             text="ℹ️ JSON files can contain multiple content types:\n"
-                 "   • Spells, Feats, Classes, Subclasses, Lineages\n"
+                 "   • Spells, Feats, Classes, Subclasses, Lineages, Backgrounds\n"
                  "   • All detected types will be imported automatically\n"
                  "   • Imported content is marked as custom (non-official)",
             font=ctk.CTkFont(size=11),
@@ -356,6 +356,20 @@ class ImportDialog(ctk.CTkToplevel):
                 if count > 0:
                     results.append(f"{count} lineage(s)")
             
+            # Check for backgrounds
+            if "backgrounds" in data:
+                from background import get_background_manager, Background
+                background_manager = get_background_manager()
+                count = 0
+                for bg_data in data["backgrounds"]:
+                    background = Background.from_dict(bg_data)
+                    background.is_custom = True
+                    background.is_official = False
+                    background_manager.add_background(background)
+                    count += 1
+                if count > 0:
+                    results.append(f"{count} background(s)")
+            
             if results:
                 messagebox.showinfo(
                     "Import Complete",
@@ -366,7 +380,7 @@ class ImportDialog(ctk.CTkToplevel):
                 messagebox.showwarning(
                     "No Content Found",
                     "No recognized content types found in the file.\n\n"
-                    "Expected keys: spells, feats, classes, subclasses, lineages",
+                    "Expected keys: spells, feats, classes, subclasses, lineages, backgrounds",
                     parent=self
                 )
                 
@@ -435,7 +449,7 @@ class ExportDialog(ctk.CTkToplevel):
         ctk.CTkLabel(type_frame, text="Content Type:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 10))
         
         self.content_type_var = ctk.StringVar(value="All")
-        content_types = ["All", "Spells", "Feats", "Classes", "Subclasses", "Lineages"]
+        content_types = ["All", "Spells", "Feats", "Classes", "Subclasses", "Lineages", "Backgrounds"]
         
         self.type_combo = ctk.CTkComboBox(
             type_frame, width=200, height=35,
@@ -503,6 +517,7 @@ class ExportDialog(ctk.CTkToplevel):
         from feat import get_feat_manager
         from character_class import get_class_manager
         from lineage import get_lineage_manager
+        from background import get_background_manager
         
         sources = set()
         
@@ -512,6 +527,7 @@ class ExportDialog(ctk.CTkToplevel):
         sources.update(get_class_manager().get_unofficial_class_sources())
         sources.update(get_class_manager().get_unofficial_subclass_sources())
         sources.update(get_lineage_manager().get_unofficial_sources())
+        sources.update(get_background_manager().get_unofficial_sources())
         
         return sorted(sources)
     
@@ -520,6 +536,7 @@ class ExportDialog(ctk.CTkToplevel):
         from feat import get_feat_manager
         from character_class import get_class_manager
         from lineage import get_lineage_manager
+        from background import get_background_manager
         
         content_type = self.content_type_var.get()
         sources = []
@@ -536,6 +553,8 @@ class ExportDialog(ctk.CTkToplevel):
             sources = get_class_manager().get_unofficial_subclass_sources()
         elif content_type == "Lineages":
             sources = get_lineage_manager().get_unofficial_sources()
+        elif content_type == "Backgrounds":
+            sources = get_background_manager().get_unofficial_sources()
         
         source_options = ["All Sources"] + sources
         self.source_combo.configure(values=source_options)
@@ -548,6 +567,7 @@ class ExportDialog(ctk.CTkToplevel):
         from feat import get_feat_manager
         from character_class import get_class_manager
         from lineage import get_lineage_manager
+        from background import get_background_manager
         
         content_type = self.content_type_var.get()
         source = self.source_var.get()
@@ -590,6 +610,12 @@ class ExportDialog(ctk.CTkToplevel):
             if items:
                 counts["Lineages"] = len(items)
         
+        if content_type in ["All", "Backgrounds"]:
+            items = get_background_manager().get_unofficial_backgrounds()
+            items = filter_by_source(items)
+            if items:
+                counts["Backgrounds"] = len(items)
+        
         return counts
     
     def _update_info(self):
@@ -612,6 +638,7 @@ class ExportDialog(ctk.CTkToplevel):
         from feat import get_feat_manager
         from character_class import get_class_manager
         from lineage import get_lineage_manager
+        from background import get_background_manager
         
         counts = self._get_export_counts()
         if not counts:
@@ -678,6 +705,12 @@ class ExportDialog(ctk.CTkToplevel):
                 items = filter_by_source(items)
                 if items:
                     export_data["lineages"] = [l.to_dict() for l in items]
+            
+            if content_type in ["All", "Backgrounds"]:
+                items = get_background_manager().get_unofficial_backgrounds()
+                items = filter_by_source(items)
+                if items:
+                    export_data["backgrounds"] = [b.to_dict() for b in items]
             
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)

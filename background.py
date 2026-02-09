@@ -256,6 +256,18 @@ class BackgroundManager:
             filtered.append(bg.name)
         return filtered
     
+    def get_unofficial_backgrounds(self) -> List[Background]:
+        """Get all unofficial (custom) backgrounds."""
+        return [b for b in self.backgrounds if not b.is_official or b.is_custom]
+    
+    def get_unofficial_sources(self) -> List[str]:
+        """Get all unique sources from unofficial backgrounds."""
+        sources = set()
+        for background in self.backgrounds:
+            if (not background.is_official or background.is_custom) and background.source:
+                sources.add(background.source)
+        return sorted(sources)
+    
     def export_to_json(self, file_path: str, backgrounds: Optional[List[Background]] = None) -> int:
         """Export backgrounds to a JSON file."""
         if backgrounds is None:
