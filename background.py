@@ -118,106 +118,117 @@ class Background:
 
 
 class BackgroundManager:
-    """Manages the collection of backgrounds."""
+    """Manages the collection of backgrounds using SQLite database."""
     
     _instance = None
     
     def __init__(self):
-        self.backgrounds: List[Background] = []
-        self._data_file = self._get_data_file_path()
-        self.load_backgrounds()
+        self._db = None
+        self._backgrounds_cache: Optional[List[Background]] = None
     
-    def _get_data_file_path(self) -> str:
-        """Get the path to the backgrounds data file (user-writable location)."""
-        if getattr(sys, 'frozen', False):
-            base_path = os.path.dirname(sys.executable)
-        else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_path, 'backgrounds.json')
+    @property
+    def db(self):
+        """Get database instance, initializing if needed."""
+        if self._db is None:
+            from database import SpellDatabase
+            self._db = SpellDatabase()
+            self._db.initialize()
+        return self._db
     
-    def _get_bundled_data_path(self) -> str:
-        """Get the path to bundled backgrounds data (for PyInstaller)."""
-        if getattr(sys, 'frozen', False):
-            return os.path.join(sys._MEIPASS, 'backgrounds.json')
-        return self._data_file
+    @property
+    def backgrounds(self) -> List[Background]:
+        """Get all backgrounds, using cache if available."""
+        if self._backgrounds_cache is None:
+            self._reload_cache()
+        return self._backgrounds_cache or []
+    
+    def _reload_cache(self):
+        """Reload backgrounds from database into cache."""
+        self._backgrounds_cache = []
+        for bg_dict in self.db.get_all_backgrounds():
+            self._backgrounds_cache.append(self._dict_to_background(bg_dict))
+    
+    def _invalidate_cache(self):
+        """Invalidate the cache to force reload on next access."""
+        self._backgrounds_cache = None
+    
+    def _dict_to_background(self, data: dict) -> Background:
+        """Convert database dict to Background object."""
+        features = []
+        for f in data.get('features', []):
+            features.append(BackgroundFeature(name=f.get('name', ''), description=f.get('description', '')))
+        
+        return Background(
+            name=data.get('name', ''),
+            source=data.get('source', ''),
+            is_legacy=data.get('is_legacy', False),
+            description=data.get('description', ''),
+            skills=data.get('skills', []),
+            other_proficiencies=data.get('other_proficiencies', []),
+            ability_scores=data.get('ability_scores', []),
+            feats=data.get('feats', []),
+            equipment=data.get('equipment', ''),
+            features=features,
+            is_official=data.get('is_official', True),
+            is_custom=data.get('is_custom', False)
+        )
+    
+    def _background_to_dict(self, background: Background) -> dict:
+        """Convert Background object to dict for database."""
+        return {
+            'name': background.name,
+            'source': background.source,
+            'is_legacy': background.is_legacy,
+            'description': background.description,
+            'skills': background.skills,
+            'other_proficiencies': background.other_proficiencies,
+            'ability_scores': background.ability_scores,
+            'feats': background.feats,
+            'equipment': background.equipment,
+            'features': [{'name': f.name, 'description': f.description} for f in background.features],
+            'is_official': background.is_official,
+            'is_custom': background.is_custom
+        }
     
     def load_backgrounds(self):
-        """Load backgrounds from JSON file."""
-        self.backgrounds = []
-        
-        # First try user file (for modifications)
-        if os.path.exists(self._data_file):
-            try:
-                with open(self._data_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for bg_data in data.get("backgrounds", []):
-                        self.backgrounds.append(Background.from_dict(bg_data))
-                # Sort by name
-                self.backgrounds.sort(key=lambda b: b.name)
-                return
-            except Exception as e:
-                print(f"Error loading backgrounds from user path: {e}")
-        
-        # Try bundled path (for PyInstaller)
-        bundled_path = self._get_bundled_data_path()
-        if bundled_path != self._data_file and os.path.exists(bundled_path):
-            try:
-                with open(bundled_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for bg_data in data.get("backgrounds", []):
-                        self.backgrounds.append(Background.from_dict(bg_data))
-                # Save to user location so modifications can be preserved
-                self.save_backgrounds()
-                return
-            except Exception as e:
-                print(f"Error loading backgrounds from bundled path: {e}")
-        
-        # Sort by name
-        self.backgrounds.sort(key=lambda b: b.name)
+        """Reload backgrounds from database (for compatibility)."""
+        self._invalidate_cache()
     
     def save_backgrounds(self):
-        """Save all backgrounds to JSON file."""
-        data = {
-            "backgrounds": [b.to_dict() for b in self.backgrounds]
-        }
-        
-        try:
-            with open(self._data_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving backgrounds: {e}")
-            raise
+        """No-op for database backend (saves happen immediately)."""
+        pass
     
     def add_background(self, background: Background) -> bool:
         """Add a new background or update existing one."""
-        # Check for existing background with same name
-        for i, existing in enumerate(self.backgrounds):
-            if existing.name.lower() == background.name.lower():
-                self.backgrounds[i] = background
-                self.save_backgrounds()
-                return True
+        existing = self.db.get_background_by_name(background.name)
+        bg_dict = self._background_to_dict(background)
         
-        self.backgrounds.append(background)
-        self.backgrounds.sort(key=lambda b: b.name)
-        self.save_backgrounds()
+        if existing:
+            self.db.update_background(existing['id'], bg_dict)
+        else:
+            self.db.insert_background(bg_dict)
+        
+        self._invalidate_cache()
         return True
     
     def remove_background(self, background_name: str) -> bool:
         """Remove a background by name. Only custom backgrounds can be removed."""
-        for i, background in enumerate(self.backgrounds):
-            if background.name.lower() == background_name.lower():
-                if background.is_official and not background.is_custom:
-                    return False  # Cannot remove official backgrounds
-                del self.backgrounds[i]
-                self.save_backgrounds()
-                return True
-        return False
+        existing = self.db.get_background_by_name(background_name)
+        if not existing:
+            return False
+        
+        if existing.get('is_official') and not existing.get('is_custom'):
+            return False  # Cannot remove official backgrounds
+        
+        result = self.db.delete_background(existing['id'])
+        self._invalidate_cache()
+        return result
     
     def get_background(self, name: str) -> Optional[Background]:
         """Get a background by name."""
-        for background in self.backgrounds:
-            if background.name.lower() == name.lower():
-                return background
+        data = self.db.get_background_by_name(name)
+        if data:
+            return self._dict_to_background(data)
         return None
     
     def get_all_sources(self) -> List[str]:
@@ -241,18 +252,13 @@ class BackgroundManager:
         return [b.name for b in self.backgrounds]
     
     def get_filtered_background_names(self, legacy_filter: str = "show_all") -> List[str]:
-        """Get list of background names filtered by legacy settings.
-        
-        Args:
-            legacy_filter: One of "show_all", "show_unupdated", "no_legacy", "legacy_only"
-        """
+        """Get list of background names filtered by legacy settings."""
         filtered = []
         for bg in self.backgrounds:
             if legacy_filter == "no_legacy" and bg.is_legacy:
                 continue
             elif legacy_filter == "legacy_only" and not bg.is_legacy:
                 continue
-            # "show_all" and "show_unupdated" show everything (unupdated doesn't apply to backgrounds)
             filtered.append(bg.name)
         return filtered
     

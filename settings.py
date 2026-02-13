@@ -46,6 +46,13 @@ class AppSettings:
     # Options: "show_all", "show_unupdated", "no_legacy", "legacy_only"
     legacy_content_filter: str = "show_all"
     
+    # Preload settings - what to load in background after startup
+    preload_classes: bool = True  # Preload class definitions
+    preload_feats: bool = True  # Preload feats
+    preload_lineages: bool = True  # Preload lineages/races
+    preload_backgrounds: bool = True  # Preload backgrounds
+    preload_character_sheets: bool = False  # Preload character sheet data
+    
     # Internal flags (not user-configurable)
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
     
@@ -68,7 +75,9 @@ class AppSettings:
             'show_comparison_highlights', 'initial_official_tag_applied',
             'allow_delete_official_spells', 'auto_calculate_hp', 'auto_calculate_ac',
             'auto_fill_proficiencies', 'auto_apply_saving_throws',
-            'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter'
+            'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter',
+            'preload_classes', 'preload_feats', 'preload_lineages', 'preload_backgrounds',
+            'preload_character_sheets'
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

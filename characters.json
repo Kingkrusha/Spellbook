@@ -58,6 +58,28 @@
       "hidden_features": []
     },
     {
+      "name": "barbarian 2",
+      "classes": [
+        {
+          "class": "Barbarian",
+          "level": 1,
+          "subclass": ""
+        }
+      ],
+      "known_spells": [],
+      "prepared_spells": [],
+      "subclass_spells": [],
+      "class_feature_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
+    },
+    {
       "name": "Bard",
       "classes": [
         {
@@ -177,7 +199,7 @@
       "custom_max_slots": {},
       "custom_max_cantrips": 0,
       "feats": [],
-      "lineage": "",
+      "lineage": "Rimekin",
       "hidden_features": []
     },
     {

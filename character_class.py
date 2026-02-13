@@ -14,7 +14,7 @@ def get_data_path(filename: str) -> str:
     """Get the path to a data file, handling PyInstaller bundled apps."""
     if getattr(sys, 'frozen', False):
         # Running as compiled executable
-        base_path = sys._MEIPASS
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     else:
         # Running as script
         base_path = os.path.dirname(os.path.abspath(__file__))
@@ -466,23 +466,213 @@ class CharacterClassDefinition:
 
 
 class ClassManager:
-    """Manages character class definitions."""
+    """Manages character class definitions using SQLite database."""
     
     DEFAULT_FILE = "classes.json"
     
     def __init__(self, file_path: Optional[str] = None):
-        self.file_path = file_path or self.DEFAULT_FILE
-        self._classes: Dict[str, CharacterClassDefinition] = {}
+        self.file_path = file_path or self.DEFAULT_FILE  # For compatibility
+        self._db = None
+        self._classes_cache: Optional[Dict[str, CharacterClassDefinition]] = None
         self._listeners = []
+    
+    @property
+    def db(self):
+        """Get database instance, initializing if needed."""
+        if self._db is None:
+            from database import SpellDatabase
+            self._db = SpellDatabase()
+            self._db.initialize()
+        return self._db
+    
+    def _invalidate_cache(self):
+        """Invalidate the cache to force reload on next access."""
+        self._classes_cache = None
+    
+    def _reload_cache(self):
+        """Reload classes from database into cache."""
+        self._classes_cache = {}
+        
+        # Load all classes
+        for class_data in self.db.get_all_character_classes():
+            class_def = self._dict_to_class(class_data)
+            self._classes_cache[class_def.name] = class_def
+        
+        # Load and attach subclasses to their parent classes
+        for subclass_data in self.db.get_all_subclasses():
+            subclass_def = self._dict_to_subclass(subclass_data)
+            parent_class_name = subclass_data.get('parent_class', '')
+            if parent_class_name and parent_class_name in self._classes_cache:
+                self._classes_cache[parent_class_name].subclasses.append(subclass_def)
+    
+    def _dict_to_class(self, data: dict) -> CharacterClassDefinition:
+        """Convert database dict to CharacterClassDefinition object."""
+        # Parse levels from class_features
+        levels = {}
+        class_features = data.get('class_features', {})
+        if isinstance(class_features, dict):
+            # Format: {level_str: level_data}
+            for lvl_str, lvl_data in class_features.items():
+                levels[int(lvl_str)] = ClassLevel.from_dict(lvl_data)
+        elif isinstance(class_features, list):
+            # Format: list of feature dicts - group by level
+            for feature in class_features:
+                if isinstance(feature, dict):
+                    lvl = feature.get('level', 1)
+                    # Standard D&D proficiency bonus calculation
+                    prof_bonus = 2 + (lvl - 1) // 4
+                    if lvl not in levels:
+                        levels[lvl] = ClassLevel(level=lvl, abilities=[], proficiency_bonus=prof_bonus)
+                    # Add the feature to this level
+                    if 'name' in feature or 'title' in feature:
+                        ability = ClassAbility(
+                            title=feature.get('title', feature.get('name', '')),
+                            description=feature.get('description', '')
+                        )
+                        levels[lvl].abilities.append(ability)
+        
+        # Parse spellcasting info
+        spellcasting = data.get('spellcasting') or {}
+        
+        # Parse starting equipment options
+        starting_eq_opts = []
+        for opt_data in data.get('starting_equipment', []):
+            if isinstance(opt_data, dict):
+                starting_eq_opts.append(StartingEquipmentOption.from_dict(opt_data))
+        
+        # Parse class spells
+        class_spells = []
+        for spell_data in data.get('class_spells', []):
+            class_spells.append(ClassSpell.from_dict(spell_data))
+        
+        # Parse trackable features
+        trackable_features = []
+        for tf_data in data.get('trackable_features', []):
+            trackable_features.append(TrackableFeature.from_dict(tf_data))
+        
+        return CharacterClassDefinition(
+            name=data.get('name', ''),
+            hit_die=data.get('hit_die', 'd8'),
+            primary_ability=data.get('primary_ability', ''),
+            armor_proficiencies=data.get('armor_proficiencies', []),
+            weapon_proficiencies=data.get('weapon_proficiencies', []),
+            tool_proficiencies=data.get('tool_proficiencies', []),
+            saving_throw_proficiencies=data.get('saving_throws', []),
+            skill_proficiency_choices=data.get('num_skills', 2),
+            skill_proficiency_options=data.get('skill_proficiencies', []),
+            starting_equipment_options=starting_eq_opts,
+            is_spellcaster=spellcasting.get('is_spellcaster', False),
+            spellcasting_ability=spellcasting.get('ability', ''),
+            subclass_level=data.get('subclass_level', 3),
+            subclass_name=data.get('subclass_name', ''),
+            subclasses=[],  # Will be populated separately
+            levels=levels,
+            trackable_features=trackable_features,
+            class_table_columns=data.get('class_table_columns', []),
+            class_spells=class_spells,
+            unarmored_defense=data.get('unarmored_defense', ''),
+            is_custom=data.get('is_custom', False),
+            source=data.get('source', 'Player\'s Handbook'),
+            is_legacy=data.get('is_legacy', False)
+        )
+    
+    def _class_to_dict(self, class_def: CharacterClassDefinition) -> dict:
+        """Convert CharacterClassDefinition to dict for database."""
+        # Convert levels
+        class_features = {}
+        for lvl, level_data in class_def.levels.items():
+            class_features[str(lvl)] = level_data.to_dict()
+        
+        # Spellcasting info
+        spellcasting = {
+            'is_spellcaster': class_def.is_spellcaster,
+            'ability': class_def.spellcasting_ability
+        }
+        
+        return {
+            'name': class_def.name,
+            'hit_die': class_def.hit_die,
+            'primary_ability': class_def.primary_ability,
+            'saving_throws': class_def.saving_throw_proficiencies,
+            'armor_proficiencies': class_def.armor_proficiencies,
+            'weapon_proficiencies': class_def.weapon_proficiencies,
+            'tool_proficiencies': class_def.tool_proficiencies,
+            'skill_proficiencies': class_def.skill_proficiency_options,
+            'num_skills': class_def.skill_proficiency_choices,
+            'starting_equipment': [opt.to_dict() for opt in class_def.starting_equipment_options],
+            'class_features': class_features,
+            'spellcasting': spellcasting,
+            'subclass_name': class_def.subclass_name,
+            'subclass_level': class_def.subclass_level,
+            'source': class_def.source,
+            'is_official': not class_def.is_custom,
+            'is_custom': class_def.is_custom,
+            'is_legacy': class_def.is_legacy,
+            'unarmored_defense': class_def.unarmored_defense,
+            'class_table_columns': class_def.class_table_columns,
+            'trackable_features': [f.to_dict() for f in class_def.trackable_features],
+            'class_spells': [s.to_dict() for s in class_def.class_spells]
+        }
+    
+    def _dict_to_subclass(self, data: dict) -> SubclassDefinition:
+        """Convert database dict to SubclassDefinition object."""
+        features = []
+        for f_data in data.get('features', []):
+            features.append(SubclassFeature.from_dict(f_data))
+        
+        trackable_features = []
+        for tf_data in data.get('trackable_features', []):
+            trackable_features.append(TrackableFeature.from_dict(tf_data))
+        
+        subclass_spells = []
+        for s_data in data.get('subclass_spells', []):
+            subclass_spells.append(SubclassSpell.from_dict(s_data))
+        
+        return SubclassDefinition(
+            name=data.get('name', ''),
+            parent_class=data.get('parent_class', ''),
+            description=data.get('description', ''),
+            features=features,
+            subclass_spells=subclass_spells,
+            armor_proficiencies=data.get('armor_proficiencies', []),
+            weapon_proficiencies=data.get('weapon_proficiencies', []),
+            unarmored_defense=data.get('unarmored_defense', ''),
+            trackable_features=trackable_features,
+            source=data.get('source', 'Player\'s Handbook'),
+            is_custom=data.get('is_custom', False),
+            is_legacy=data.get('is_legacy', False)
+        )
+    
+    def _subclass_to_dict(self, subclass: SubclassDefinition, class_id: int) -> dict:
+        """Convert SubclassDefinition to dict for database."""
+        return {
+            'name': subclass.name,
+            'class_id': class_id,
+            'description': subclass.description,
+            'features': [f.to_dict() for f in subclass.features],
+            'subclass_spells': [s.to_dict() for s in subclass.subclass_spells],
+            'armor_proficiencies': subclass.armor_proficiencies,
+            'weapon_proficiencies': subclass.weapon_proficiencies,
+            'unarmored_defense': subclass.unarmored_defense,
+            'trackable_features': [f.to_dict() for f in subclass.trackable_features],
+            'source': subclass.source,
+            'is_official': not subclass.is_custom,
+            'is_custom': subclass.is_custom,
+            'is_legacy': subclass.is_legacy
+        }
     
     @property
     def classes(self) -> List[CharacterClassDefinition]:
         """Get all class definitions."""
-        return list(self._classes.values())
+        if self._classes_cache is None:
+            self._reload_cache()
+        return list(self._classes_cache.values()) if self._classes_cache else []
     
     def get_class(self, name: str) -> Optional[CharacterClassDefinition]:
         """Get a class definition by name."""
-        return self._classes.get(name)
+        if self._classes_cache is None:
+            self._reload_cache()
+        return self._classes_cache.get(name) if self._classes_cache else None
     
     def add_listener(self, callback):
         """Add a listener for class changes."""
@@ -502,69 +692,88 @@ class ClassManager:
                 print(f"Error notifying class listener: {e}")
     
     def load(self) -> bool:
-        """Load classes from file."""
-        # First try to load from the user's file path
-        if os.path.exists(self.file_path):
-            try:
-                with open(self.file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self._classes = {
-                        name: CharacterClassDefinition.from_dict(class_data)
-                        for name, class_data in data.get("classes", {}).items()
-                    }
-                return True
-            except Exception as e:
-                print(f"Error loading classes from {self.file_path}: {e}")
+        """Load classes from database (or initialize from JSON if needed)."""
+        self._invalidate_cache()
         
-        # If user file doesn't exist, try to load from bundled data (PyInstaller)
-        bundled_path = get_data_path(self.DEFAULT_FILE)
-        if bundled_path != self.file_path and os.path.exists(bundled_path):
-            try:
-                with open(bundled_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self._classes = {
-                        name: CharacterClassDefinition.from_dict(class_data)
-                        for name, class_data in data.get("classes", {}).items()
-                    }
-                # Save to user file path so future modifications are preserved
-                self.save()
-                return True
-            except Exception as e:
-                print(f"Error loading bundled classes: {e}")
+        # If cache is empty after reload, check if we need to initialize
+        if self._classes_cache is None:
+            self._reload_cache()
         
-        # Fall back to generating default classes
-        self._initialize_default_classes()
-        self.save()
+        if not self._classes_cache:
+            # Check for JSON file to migrate
+            if os.path.exists(self.file_path):
+                try:
+                    with open(self.file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        for name, class_data in data.get("classes", {}).items():
+                            class_def = CharacterClassDefinition.from_dict(class_data)
+                            self._save_class_to_db(class_def)
+                    self._invalidate_cache()
+                    return True
+                except Exception as e:
+                    print(f"Error loading classes from {self.file_path}: {e}")
+            
+            # Try bundled path
+            bundled_path = get_data_path(self.DEFAULT_FILE)
+            if bundled_path != self.file_path and os.path.exists(bundled_path):
+                try:
+                    with open(bundled_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        for name, class_data in data.get("classes", {}).items():
+                            class_def = CharacterClassDefinition.from_dict(class_data)
+                            self._save_class_to_db(class_def)
+                    self._invalidate_cache()
+                    return True
+                except Exception as e:
+                    print(f"Error loading bundled classes: {e}")
+            
+            # Fall back to generating default classes
+            self._initialize_default_classes()
+        
         return True
     
+    def _save_class_to_db(self, class_def: CharacterClassDefinition):
+        """Save a class and its subclasses to the database."""
+        class_dict = self._class_to_dict(class_def)
+        existing = self.db.get_class_by_name(class_def.name)
+        
+        if existing:
+            self.db.update_class(existing['id'], class_dict)
+            class_id = existing['id']
+        else:
+            class_id = self.db.insert_class(class_dict)
+        
+        # Save subclasses
+        for subclass in class_def.subclasses:
+            subclass_dict = self._subclass_to_dict(subclass, class_id)
+            subclass_dict['parent_class'] = class_def.name
+            existing_sub = self.db.get_subclass_by_name(subclass.name, class_def.name)
+            if existing_sub:
+                self.db.update_subclass(existing_sub['id'], subclass_dict)
+            else:
+                self.db.insert_subclass(subclass_dict)
+    
     def save(self) -> bool:
-        """Save classes to file."""
-        try:
-            data = {
-                "classes": {
-                    name: cls.to_dict()
-                    for name, cls in self._classes.items()
-                }
-            }
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Error saving classes: {e}")
-            return False
+        """Save is no-op for database backend (saves happen immediately)."""
+        return True
     
     def add_class(self, class_def: CharacterClassDefinition) -> bool:
         """Add or update a class definition."""
-        self._classes[class_def.name] = class_def
-        self.save()
+        self._save_class_to_db(class_def)
+        self._invalidate_cache()
         self._notify_listeners()
         return True
     
     def delete_class(self, name: str) -> bool:
         """Delete a class definition."""
-        if name in self._classes:
-            del self._classes[name]
-            self.save()
+        existing = self.db.get_class_by_name(name)
+        if existing:
+            # Delete associated subclasses first
+            for subclass in self.db.get_subclasses_by_class(name):
+                self.db.delete_subclass(subclass['id'])
+            
+            self.db.delete_class(existing['id'])
+            self._invalidate_cache()
             self._notify_listeners()
             return True
         return False
@@ -2037,16 +2246,25 @@ While carrying the map, a target gains the following benefits.
         ]
         
         for cls in default_classes:
-            self._classes[cls.name] = cls
+            self._save_class_to_db(cls)
+        self._invalidate_cache()
     
     def get_unofficial_classes(self) -> List[CharacterClassDefinition]:
         """Get all classes that are custom (not official)."""
-        return [c for c in self._classes.values() if c.is_custom]
+        if self._classes_cache is None:
+            self._reload_cache()
+        if not self._classes_cache:
+            return []
+        return [c for c in self._classes_cache.values() if c.is_custom]
     
     def get_unofficial_subclasses(self) -> List[SubclassDefinition]:
         """Get all subclasses that are custom (not official)."""
+        if self._classes_cache is None:
+            self._reload_cache()
+        if not self._classes_cache:
+            return []
         subclasses = []
-        for cls in self._classes.values():
+        for cls in self._classes_cache.values():
             for sub in cls.subclasses:
                 if sub.is_custom:
                     subclasses.append(sub)
@@ -2054,16 +2272,24 @@ While carrying the map, a target gains the following benefits.
     
     def get_unofficial_class_sources(self) -> List[str]:
         """Get list of sources that have unofficial (custom) classes."""
+        if self._classes_cache is None:
+            self._reload_cache()
+        if not self._classes_cache:
+            return []
         sources = set()
-        for cls in self._classes.values():
+        for cls in self._classes_cache.values():
             if cls.is_custom and cls.source:
                 sources.add(cls.source)
         return sorted(sources)
     
     def get_unofficial_subclass_sources(self) -> List[str]:
         """Get list of sources that have unofficial (custom) subclasses."""
+        if self._classes_cache is None:
+            self._reload_cache()
+        if not self._classes_cache:
+            return []
         sources = set()
-        for cls in self._classes.values():
+        for cls in self._classes_cache.values():
             for sub in cls.subclasses:
                 if sub.is_custom and sub.source:
                     sources.add(sub.source)
@@ -2174,27 +2400,26 @@ While carrying the map, a target gains the following benefits.
                     subclass = SubclassDefinition.from_dict(sub_dict)
                     subclass.is_custom = True
                     
-                    # Find parent class and add subclass
-                    parent_class = self.get_class(subclass.parent_class)
-                    if parent_class:
+                    # Find parent class in database
+                    parent_class_data = self.db.get_class_by_name(subclass.parent_class)
+                    if parent_class_data:
                         # Check if subclass already exists
-                        existing = None
-                        for i, existing_sub in enumerate(parent_class.subclasses):
-                            if existing_sub.name.lower() == subclass.name.lower():
-                                existing = i
-                                break
+                        existing_sub = self.db.get_subclass_by_name(subclass.name, subclass.parent_class)
                         
-                        if existing is not None:
-                            parent_class.subclasses[existing] = subclass
+                        subclass_dict = self._subclass_to_dict(subclass, parent_class_data['id'])
+                        subclass_dict['parent_class'] = subclass.parent_class
+                        
+                        if existing_sub:
+                            self.db.update_subclass(existing_sub['id'], subclass_dict)
                         else:
-                            parent_class.subclasses.append(subclass)
+                            self.db.insert_subclass(subclass_dict)
                         imported_count += 1
                 except Exception as e:
                     print(f"Error importing subclass: {e}")
                     continue
             
             if imported_count > 0:
-                self.save()
+                self._invalidate_cache()
                 self._notify_listeners()
             
             return imported_count

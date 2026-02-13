@@ -5,11 +5,10 @@ A desktop application for managing D&D spells with search, filter, and edit capa
 
 import os
 import customtkinter as ctk
-from ui.main_window import MainWindow
 
-# Try to import PIL for better icon support
+# Check PIL availability for icon support
 try:
-    from PIL import Image, ImageTk
+    from PIL import Image, ImageTk  # noqa: F401
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -26,50 +25,87 @@ def run_data_migrations():
 
 def main():
     """Application entry point."""
-    # Run data migrations before starting the app
-    run_data_migrations()
+    # Set appearance and color theme first
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
     
-    # Set appearance and color theme
-    ctk.set_appearance_mode("dark")  # "dark", "light", or "system"
-    ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"
-    
-    # Create main window
+    # Create main window (hidden initially)
     root = ctk.CTk()
     root.title("Spellbook")
     root.geometry("1100x750")
     root.minsize(900, 600)
+    root.withdraw()  # Hide until fully loaded
     
     # Set app icon
     base_path = os.path.dirname(__file__)
     icon_png_path = os.path.join(base_path, "Spellbook Icon.png")
     icon_ico_path = os.path.join(base_path, "Spellbook Icon.ico")
     
-    # Try .ico first (best for Windows taskbar)
     if os.path.exists(icon_ico_path):
         try:
             root.iconbitmap(icon_ico_path)
         except Exception:
             pass
     
-    # Also set iconphoto for title bar (PNG via PIL if available)
     if os.path.exists(icon_png_path):
         try:
             if HAS_PIL:
-                img = Image.open(icon_png_path)  # type: ignore[possibly-unbound]
-                icon = ImageTk.PhotoImage(img)  # type: ignore[possibly-unbound]
-                root.iconphoto(True, icon)  # type: ignore[arg-type]
-                root._icon = icon  # type: ignore[attr-defined] - Keep reference to prevent GC
+                from PIL import Image as PILImage, ImageTk as PILImageTk
+                img = PILImage.open(icon_png_path)
+                icon = PILImageTk.PhotoImage(img)
+                root.iconphoto(True, icon)  # type: ignore
+                setattr(root, '_icon', icon)  # Keep reference
             else:
                 from tkinter import PhotoImage
                 icon = PhotoImage(file=icon_png_path)
-                root.iconphoto(True, icon)  # type: ignore[arg-type]
-                root._icon = icon  # type: ignore[attr-defined]
+                root.iconphoto(True, icon)
+                setattr(root, '_icon', icon)  # Keep reference
         except Exception:
             pass
     
-    # Create main application window
-    app = MainWindow(root)
-    app.pack(fill="both", expand=True)
+    # Show splash screen
+    from ui.splash_screen import SplashScreen
+    splash = SplashScreen(root)
+    
+    def load_app():
+        """Load the application in stages with progress updates."""
+        try:
+            # Stage 1: Data migrations
+            splash.update_progress("Running data migrations...", 0.1)
+            root.update()
+            run_data_migrations()
+            
+            # Stage 2: Import main window (triggers module loading)
+            splash.update_progress("Loading modules...", 0.2)
+            root.update()
+            from ui.main_window import MainWindow
+            
+            # Stage 3: Create main window with progress callback
+            splash.update_progress("Initializing database...", 0.3)
+            root.update()
+            
+            app = MainWindow(root, progress_callback=splash.update_progress)
+            app.pack(fill="both", expand=True)
+            
+            # Stage 4: Final setup
+            splash.update_progress("Finalizing...", 1.0)
+            root.update()
+            
+            # Close splash and show main window
+            splash.destroy()
+            root.deiconify()
+            root.lift()
+            root.focus_force()
+            
+        except Exception as e:
+            print(f"Error during startup: {e}")
+            import traceback
+            traceback.print_exc()
+            splash.destroy()
+            root.deiconify()
+    
+    # Schedule loading after splash is displayed
+    root.after(100, load_app)
     
     # Start the application
     root.mainloop()

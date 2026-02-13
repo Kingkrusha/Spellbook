@@ -770,6 +770,10 @@ class FeatsView(ctk.CTkFrame):
     def refresh(self):
         """Refresh the view."""
         self._load_feats()
+    
+    def select_feat(self, name: str) -> bool:
+        """Select a feat by name. Returns True if found."""
+        return self.list_panel.select_feat(name)
 
 
 class FeatEditorDialog(ctk.CTkToplevel):

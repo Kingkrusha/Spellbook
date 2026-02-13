@@ -89,106 +89,113 @@ class Lineage:
 
 
 class LineageManager:
-    """Manages the collection of lineages."""
+    """Manages the collection of lineages using SQLite database."""
     
     _instance = None
     
     def __init__(self):
-        self.lineages: List[Lineage] = []
-        self._data_file = self._get_data_file_path()
-        self.load_lineages()
+        self._db = None
+        self._lineages_cache: Optional[List[Lineage]] = None
     
-    def _get_data_file_path(self) -> str:
-        """Get the path to the lineages data file (user-writable location)."""
-        if getattr(sys, 'frozen', False):
-            base_path = os.path.dirname(sys.executable)
-        else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_path, 'lineages.json')
+    @property
+    def db(self):
+        """Get database instance, initializing if needed."""
+        if self._db is None:
+            from database import SpellDatabase
+            self._db = SpellDatabase()
+            self._db.initialize()
+        return self._db
     
-    def _get_bundled_data_path(self) -> str:
-        """Get the path to bundled lineages data (for PyInstaller)."""
-        if getattr(sys, 'frozen', False):
-            return os.path.join(sys._MEIPASS, 'lineages.json')
-        return self._data_file
+    @property
+    def lineages(self) -> List[Lineage]:
+        """Get all lineages, using cache if available."""
+        if self._lineages_cache is None:
+            self._reload_cache()
+        return self._lineages_cache or []
+    
+    def _reload_cache(self):
+        """Reload lineages from database into cache."""
+        self._lineages_cache = []
+        for lin_dict in self.db.get_all_lineages():
+            self._lineages_cache.append(self._dict_to_lineage(lin_dict))
+    
+    def _invalidate_cache(self):
+        """Invalidate the cache to force reload on next access."""
+        self._lineages_cache = None
+    
+    def _dict_to_lineage(self, data: dict) -> Lineage:
+        """Convert database dict to Lineage object."""
+        traits = []
+        for t in data.get('traits', []):
+            traits.append(LineageTrait(name=t.get('name', ''), description=t.get('description', '')))
+        
+        return Lineage(
+            name=data.get('name', ''),
+            description=data.get('description', ''),
+            creature_type=data.get('creature_type', 'Humanoid'),
+            size=data.get('size', 'Medium'),
+            speed=data.get('speed', 30),
+            traits=traits,
+            source=data.get('source', ''),
+            is_official=data.get('is_official', True),
+            is_custom=data.get('is_custom', False),
+            is_legacy=data.get('is_legacy', False)
+        )
+    
+    def _lineage_to_dict(self, lineage: Lineage) -> dict:
+        """Convert Lineage object to dict for database."""
+        return {
+            'name': lineage.name,
+            'description': lineage.description,
+            'creature_type': lineage.creature_type,
+            'size': lineage.size,
+            'speed': lineage.speed,
+            'traits': [{'name': t.name, 'description': t.description} for t in lineage.traits],
+            'source': lineage.source,
+            'is_official': lineage.is_official,
+            'is_custom': lineage.is_custom,
+            'is_legacy': lineage.is_legacy
+        }
     
     def load_lineages(self):
-        """Load lineages from JSON file."""
-        self.lineages = []
-        
-        # First try user file (for modifications)
-        if os.path.exists(self._data_file):
-            try:
-                with open(self._data_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for lineage_data in data.get("lineages", []):
-                        self.lineages.append(Lineage.from_dict(lineage_data))
-                # Sort by name
-                self.lineages.sort(key=lambda l: l.name)
-                return
-            except Exception as e:
-                print(f"Error loading lineages from user path: {e}")
-        
-        # Try bundled path (for PyInstaller)
-        bundled_path = self._get_bundled_data_path()
-        if bundled_path != self._data_file and os.path.exists(bundled_path):
-            try:
-                with open(bundled_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for lineage_data in data.get("lineages", []):
-                        self.lineages.append(Lineage.from_dict(lineage_data))
-                # Save to user location so modifications can be preserved
-                self.save_lineages()
-                return
-            except Exception as e:
-                print(f"Error loading lineages from bundled path: {e}")
-        
-        # Sort by name
-        self.lineages.sort(key=lambda l: l.name)
+        """Reload lineages from database (for compatibility)."""
+        self._invalidate_cache()
     
     def save_lineages(self):
-        """Save all lineages to JSON file."""
-        data = {
-            "lineages": [l.to_dict() for l in self.lineages]
-        }
-        
-        try:
-            with open(self._data_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Error saving lineages: {e}")
-            raise
+        """No-op for database backend (saves happen immediately)."""
+        pass
     
     def add_lineage(self, lineage: Lineage) -> bool:
         """Add a new lineage or update existing one."""
-        # Check for existing lineage with same name
-        for i, existing in enumerate(self.lineages):
-            if existing.name.lower() == lineage.name.lower():
-                self.lineages[i] = lineage
-                self.save_lineages()
-                return True
+        existing = self.db.get_lineage_by_name(lineage.name)
+        lineage_dict = self._lineage_to_dict(lineage)
         
-        self.lineages.append(lineage)
-        self.lineages.sort(key=lambda l: l.name)
-        self.save_lineages()
+        if existing:
+            self.db.update_lineage(existing['id'], lineage_dict)
+        else:
+            self.db.insert_lineage(lineage_dict)
+        
+        self._invalidate_cache()
         return True
     
     def remove_lineage(self, lineage_name: str) -> bool:
         """Remove a lineage by name. Only custom lineages can be removed."""
-        for i, lineage in enumerate(self.lineages):
-            if lineage.name.lower() == lineage_name.lower():
-                if lineage.is_official and not lineage.is_custom:
-                    return False  # Cannot remove official lineages
-                del self.lineages[i]
-                self.save_lineages()
-                return True
-        return False
+        existing = self.db.get_lineage_by_name(lineage_name)
+        if not existing:
+            return False
+        
+        if existing.get('is_official') and not existing.get('is_custom'):
+            return False  # Cannot remove official lineages
+        
+        result = self.db.delete_lineage(existing['id'])
+        self._invalidate_cache()
+        return result
     
     def get_lineage(self, name: str) -> Optional[Lineage]:
         """Get a lineage by name."""
-        for lineage in self.lineages:
-            if lineage.name.lower() == name.lower():
-                return lineage
+        data = self.db.get_lineage_by_name(name)
+        if data:
+            return self._dict_to_lineage(data)
         return None
     
     def get_all_creature_types(self) -> List[str]:
@@ -217,13 +224,13 @@ class LineageManager:
     
     def get_unofficial_lineages(self) -> List[Lineage]:
         """Get all non-official lineages."""
-        return [l for l in self.lineages if not l.is_official]
+        return [l for l in self.lineages if not l.is_official or l.is_custom]
     
     def get_unofficial_sources(self) -> List[str]:
         """Get sources that have unofficial content."""
         sources = set()
         for lineage in self.lineages:
-            if not lineage.is_official and lineage.source:
+            if (not lineage.is_official or lineage.is_custom) and lineage.source:
                 sources.add(lineage.source)
         return sorted(sources)
     

@@ -12,12 +12,16 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
 - **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic
 - **Stat Blocks**: Attach creature stat blocks to summoning spells
+- **Collections Browser**: Browse official Lineages, Feats, Classes, Subclasses, and Backgrounds with global search
+- **Import/Export**: Import and export custom content (homebrew) as JSON files
 - **Lineages**: Browse and create custom lineages (races) with trait descriptions
 - **Feats**: Browse and create feats with prerequisites and spellcasting grants
 - **Classes & Subclasses**: Browse official content and create homebrew classes with custom features
 - **Backgrounds**: 50+ backgrounds from PHB 2024, Eberron, Sword Coast, and other official sources
 - **Rich Text Editing**: Tables, spell links (`[[Fireball]]`), and bold formatting in all description editors
-- **Theming**: Dark/Light modes
+- **Theming**: Dark/Light modes with customizable themes
+- **SQLite Database**: All content stored in a fast, portable SQLite database with automatic migrations
+- **Splash Screen**: Loading screen with progress indicator during startup
 
 ## Installation
 
@@ -33,8 +37,25 @@ python main.py
 ```bash
 pip install pyinstaller
 pyinstaller main.spec
-# Output: dist/Spellbook.exe
+# Output: dist/spellbook.exe
 ```
+
+## Data Storage
+
+All application data is stored in SQLite database (`spellbook.db`):
+- **Spells**: All official and custom spells with tags and classes
+- **Lineages**: Races with traits and source information
+- **Feats**: Feats with prerequisites and spellcasting grants
+- **Classes**: Class definitions with level features and subclasses
+- **Backgrounds**: Backgrounds with skills, feats, and ability scores
+
+User-specific data stored in JSON files:
+- **characters.json**: Character spell lists
+- **character_sheets.json**: Full character sheets
+- **settings.json**: Application settings
+- **custom_theme.json**: Custom theme configuration
+
+On first run, official content is migrated from bundled JSON files to the database.
 
 ## Configuration
 
@@ -53,12 +74,12 @@ Settings are stored in `settings.json`. Custom themes can be defined in `custom_
 
 ```
 Spellbook/
-├── main.py                 # Application entry point
-├── database.py             # SQLite database with migrations
+├── main.py                 # Application entry point with splash screen
+├── database.py             # SQLite database with schema migrations
 ├── spell.py                # Spell data model and filtering
 ├── spell_manager.py        # Spell CRUD and filtering operations
 ├── character.py            # Character spell list data model
-├── character_manager.py    # Character persistence (JSON)
+├── character_manager.py    # Character spell list persistence (JSON)
 ├── character_sheet.py      # Full character sheet data model
 ├── character_class.py      # Class/subclass definitions and manager
 ├── lineage.py              # Lineage (race) data model and manager
@@ -71,7 +92,11 @@ Spellbook/
 ├── theme.py                # Theme management and color schemes
 ├── data_migration.py       # Data backup and migration utilities
 ├── ui/                     # UI components
-│   ├── main_window.py      # Main application window with tabs
+│   ├── main_window.py      # Main application window with tab navigation
+│   ├── splash_screen.py    # Loading screen shown during startup
+│   ├── tab_bar.py          # Custom tab bar component
+│   ├── global_search.py    # Global search bar for collections
+│   ├── collections_view.py # Collections browser with import/export
 │   ├── spell_list.py       # Paginated spell list panel
 │   ├── spell_detail.py     # Spell detail view with popup
 │   ├── spell_editor.py     # Spell create/edit dialog
@@ -83,10 +108,15 @@ Spellbook/
 │   ├── lineages_view.py    # Lineage browser and editor
 │   ├── feats_view.py       # Feat browser and editor
 │   ├── backgrounds_view.py # Background browser and editor
+│   ├── settings_view.py    # Settings panel with preload options
 │   ├── rich_text_utils.py  # Rich text rendering/editing
 │   ├── stat_block_display.py  # Stat block display widget
 │   └── stat_block_editor.py   # Stat block editor dialog
-├── *.json                  # Data files (created on first run)
+├── tools/                  # Data generation and updates
+│   ├── spell_data.py       # Official spell definitions
+│   ├── stat_block_data.py  # Official stat block definitions
+│   └── update_spell_descriptions.py  # Spell text updates
+├── *.json                  # Bundled official data (migrated to DB on first run)
 └── spellbook.db            # SQLite database (created on first run)
 ```
 
@@ -114,19 +144,20 @@ Spellbook/
 ### Managers
 
 Each content type has a corresponding manager class that handles:
-- Loading/saving data from JSON files
-- CRUD operations
+- Database operations (CRUD via SQLite)
+- Caching for performance
 - Listener pattern for UI updates
+- Import/export to JSON
 
-| Manager | Manages |
-|---------|---------|
-| `SpellManager` | Spells (SQLite) |
-| `CharacterManager` | Character spell lists |
-| `CharacterSheetManager` | Full character sheets |
-| `ClassManager` | Classes and subclasses |
-| `LineageManager` | Lineages |
-| `FeatManager` | Feats |
-| `BackgroundManager` | Backgrounds |
+| Manager | Manages | Storage |
+|---------|---------|---------|
+| `SpellManager` | Spells, tags, classes | SQLite |
+| `FeatManager` | Feats | SQLite |
+| `ClassManager` | Classes and subclasses | SQLite |
+| `LineageManager` | Lineages | SQLite |
+| `BackgroundManager` | Backgrounds | SQLite |
+| `CharacterManager` | Character spell lists | JSON |
+| `CharacterSheetManager` | Full character sheets | JSON |
 
 ## License
 

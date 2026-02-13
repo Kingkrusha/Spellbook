@@ -5,8 +5,18 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('classes.json', '.'), ('feats.json', '.')],
-    hiddenimports=[],
+    # Bundled data files for initial migration (official content JSON files).
+    # User data files (characters.json, settings.json, etc.) are created at runtime.
+    # spellbook.db is created at runtime from bundled JSON + tools/spell_data.py.
+    datas=[
+        ('lineages.json', '.'),
+        ('feats.json', '.'),
+        ('classes.json', '.'),
+        ('backgrounds.json', '.'),
+        ('tools', 'tools'),
+        ('Spellbook Icon.png', '.'),
+    ],
+    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

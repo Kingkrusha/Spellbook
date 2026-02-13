@@ -25,7 +25,7 @@ DATA_VERSIONS = {
 def get_data_path(filename: str) -> str:
     """Get the path to a data file, handling PyInstaller bundling."""
     if getattr(sys, 'frozen', False):
-        return os.path.join(sys._MEIPASS, filename)
+        return os.path.join(getattr(sys, '_MEIPASS', os.path.dirname(sys.executable)), filename)
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 
@@ -402,26 +402,17 @@ class DataMigrator:
 
 
 def run_all_migrations():
-    """Run all data migrations on startup."""
+    """Run all data migrations on startup.
+    
+    Note: Lineages, feats, classes, and backgrounds are now stored in SQLite database.
+    The database migration (_migrate_json_to_database) handles importing from bundled
+    JSON files on first run. This function only handles settings.json now.
+    """
     migrator = DataMigrator()
     
-    # Define files to migrate
-    migrations = [
-        ("lineages.json", "lineages"),
-        ("feats.json", "feats"),
-        ("classes.json", "classes"),
-        ("settings.json", "settings"),
-        ("backgrounds.json", "backgrounds"),
-    ]
-    
-    for filename, data_type in migrations:
-        user_path = get_user_data_path(filename)
-        
-        # First, merge with bundled data (adds new content)
-        migrator.merge_with_bundled(user_path, data_type)
-        
-        # Then, run any format migrations
-        migrator.migrate_file(user_path, data_type)
+    # Only settings still uses JSON - other content is in SQLite
+    settings_path = get_user_data_path("settings.json")
+    migrator.migrate_file(settings_path, "settings")
     
     print("Data migration complete.")
 

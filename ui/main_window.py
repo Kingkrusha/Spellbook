@@ -5,7 +5,7 @@ Main application window for D&D Spellbook (CustomTkinter version).
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox, filedialog
-from typing import List, Optional
+from typing import List, Optional, Dict
 from spell_manager import SpellManager
 from character_manager import CharacterManager
 from spell import Spell, CharacterClass, AdvancedFilters, TagFilterMode, SourceFilterMode
@@ -13,6 +13,7 @@ from settings import SettingsManager, get_settings_manager
 from validation import validate_spell_for_character
 from theme import get_theme_manager
 from ui.character_sheet_view import CharacterSheetView
+from ui.tab_bar import DraggableTabBar
 
 
 class TagFilterDialog(ctk.CTkToplevel):
@@ -317,13 +318,17 @@ class SourceFilterDialog(ctk.CTkToplevel):
 class MainWindow(ctk.CTkFrame):
     """Main application window with tabs, toolbar, and paned layout."""
     
-    def __init__(self, parent):
+    def __init__(self, parent, progress_callback=None):
         super().__init__(parent, fg_color="transparent")
         
+        self._progress_callback = progress_callback
+        
         # Initialize managers
+        self._update_progress("Loading spell database...", 0.35)
         self.spell_manager = SpellManager()
         self.spell_manager.load_spells()
         
+        self._update_progress("Loading characters...", 0.45)
         self.character_manager = CharacterManager()
         self.character_manager.load_characters()
         
@@ -365,8 +370,10 @@ class MainWindow(ctk.CTkFrame):
 
         # State
         self._advanced_expanded = False
-        self._current_tab = "collections"
-        self._current_collection = None  # Current sub-collection being viewed
+        self._current_tab_id: Optional[str] = None  # Current active tab_id
+        self._current_tab_type = "collections"  # Current tab type
+        self._current_collection = None  # Current sub-collection being viewed (for collections tabs)
+        self._tab_views: Dict[str, Dict] = {}  # tab_id -> {type, view, sub_view, current_collection}
         self._selected_tags: List[str] = []
         self._tag_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
         self._selected_sources: List[str] = []
@@ -376,21 +383,99 @@ class MainWindow(ctk.CTkFrame):
         self._filter_debounce_id: Optional[str] = None  # For debouncing filter changes
         self._filter_debounce_delay = 200  # Milliseconds to wait before applying filters
         
-        # Build UI
-        self._create_tab_bar()
+        # Build UI - create views first (without packing), then tab bar at top
+        self._update_progress("Building collections view...", 0.55)
         self._create_collections_view()
+        
+        self._update_progress("Building spells view...", 0.65)
         self._create_spells_view()
+        
+        self._update_progress("Building character sheets...", 0.75)
         self._create_character_sheet_view()
-        self._create_feats_view()
+        
+        # Feats view is lazy-loaded for faster startup
+        self._feats_view_created = False
+        
+        self._update_progress("Building settings...", 0.85)
         self._create_settings_view()
+        
+        self._update_progress("Finalizing UI...", 0.90)
+        self._create_tab_bar()  # Tab bar packs itself at top since views aren't packed yet
         self._create_context_menu()
         
         # Bind spell manager updates
         self.spell_manager.add_listener(self._on_spells_changed)
         
         # Initial refresh
+        self._update_progress("Loading spell list...", 0.95)
         self._refresh_spell_list()
         self._show_tab("collections")
+        
+        # Schedule background preloading after UI is visible
+        self.after(500, self._background_preload)
+    
+    def _update_progress(self, message: str, value: float):
+        """Update startup progress if callback is available."""
+        if self._progress_callback:
+            self._progress_callback(message, value)
+            self.update_idletasks()
+    
+    def _background_preload(self):
+        """Preload data in background based on user settings."""
+        settings = self.settings_manager.settings
+        
+        # Preload classes (triggers ClassManager cache)
+        if settings.preload_classes:
+            try:
+                from character_class import ClassManager
+                cm = ClassManager()
+                _ = cm.classes  # Trigger cache population
+            except Exception as e:
+                print(f"Background preload (classes): {e}")
+        
+        # Preload feats (creates FeatsView)
+        if settings.preload_feats:
+            try:
+                self._ensure_feats_view_created()
+            except Exception as e:
+                print(f"Background preload (feats): {e}")
+        
+        # Preload lineages (creates LineagesView)
+        if settings.preload_lineages:
+            try:
+                if not hasattr(self, 'lineages_view'):
+                    from ui.lineages_view import LineagesView
+                    self.lineages_view = LineagesView(
+                        self,
+                        character_manager=self.character_manager,
+                        on_back=self._back_to_collections
+                    )
+            except Exception as e:
+                print(f"Background preload (lineages): {e}")
+        
+        # Preload backgrounds (creates BackgroundsView)
+        if settings.preload_backgrounds:
+            try:
+                if not hasattr(self, 'backgrounds_view'):
+                    from ui.backgrounds_view import BackgroundsView
+                    self.backgrounds_view = BackgroundsView(
+                        self,
+                        character_manager=self.character_manager,
+                        on_back=self._back_to_collections
+                    )
+            except Exception as e:
+                print(f"Background preload (backgrounds): {e}")
+        
+        # Preload character sheets data
+        if settings.preload_character_sheets:
+            try:
+                # Trigger sheet loading for all characters
+                from ui.character_sheet_view import get_sheet_manager
+                sheet_manager = get_sheet_manager()
+                for char in self.character_manager.characters:
+                    _ = sheet_manager.get_sheet(char.name)
+            except Exception as e:
+                print(f"Background preload (character sheets): {e}")
 
     def destroy(self):
         """Clean up listeners to avoid leaks when the main window is destroyed."""
@@ -409,117 +494,280 @@ class MainWindow(ctk.CTkFrame):
     
     def _create_tab_bar(self):
         """Create the tab bar for switching between views."""
-        theme = get_theme_manager()
-        # Theme-aware tab bar colors
-        tab_bar = ctk.CTkFrame(self, fg_color=theme.get_current_color('tab_bar'), corner_radius=0, height=50)
-        tab_bar.pack(fill="x")
-        tab_bar.pack_propagate(False)
-        
-        # Tab container
-        tabs_container = ctk.CTkFrame(tab_bar, fg_color="transparent")
-        tabs_container.pack(side="left", padx=15, pady=8)
-        
-        # Get text color for tab buttons
-        btn_text = theme.get_current_color('text_primary')
-        
-        # Collections tab
-        self.collections_tab_btn = ctk.CTkButton(
-            tabs_container, text="Collections", width=100, height=34,
-            corner_radius=8,
-            text_color=btn_text,
-            command=lambda: self._show_tab("collections")
+        # Create draggable tab bar
+        self.tab_bar = DraggableTabBar(
+            self,
+            on_tab_selected=self._on_tab_selected,
+            on_tab_created=self._on_tab_created,
+            on_tab_closed=self._on_tab_closed,
+            on_tabs_changed=self._on_tabs_changed
         )
-        self.collections_tab_btn.pack(side="left", padx=(0, 5))
+        self.tab_bar.pack(fill="x")
         
-        # Character Sheets tab
-        self.sheets_tab_btn = ctk.CTkButton(
-            tabs_container, text="Character Sheets", width=130, height=34,
-            corner_radius=8,
-            fg_color="transparent", hover_color=theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=lambda: self._show_tab("character_sheets")
+        # Add default tabs (notify_created=False since we create views manually first)
+        # Collections tab - uses existing self.collections_view
+        collections_tab_id = self.tab_bar.add_tab(
+            tab_type="collections",
+            display_text="Collections",
+            is_closable=False,
+            select=False,
+            notify_created=False
         )
-        self.sheets_tab_btn.pack(side="left", padx=(0, 5))
+        self._tab_views[collections_tab_id] = {
+            'type': 'collections',
+            'view': self.collections_view,
+            'current_collection': None
+        }
         
-        # Settings tab (on the right side)
-        self.settings_tab_btn = ctk.CTkButton(
-            tab_bar, text="⚙ Settings", width=100, height=34,
-            corner_radius=8,
-            fg_color="transparent", hover_color=theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=lambda: self._show_tab("settings")
+        # Character Sheets tab - uses existing self.character_sheet_view
+        self._sheets_tab_id = self.tab_bar.add_tab(
+            tab_type="character_sheets",
+            display_text="Character Sheets",
+            is_closable=False,
+            select=False,
+            notify_created=False
         )
-        self.settings_tab_btn.pack(side="right", padx=15, pady=8)
+        self._tab_views[self._sheets_tab_id] = {
+            'type': 'character_sheets',
+            'view': self.character_sheet_view,
+            'current_collection': None,
+            '_initialized': False
+        }
+        
+        # Settings tab - uses existing self.settings_view
+        settings_tab_id = self.tab_bar.add_tab(
+            tab_type="settings",
+            display_text="⚙ Settings",
+            is_closable=False,
+            is_settings=True,
+            select=False,
+            notify_created=False
+        )
+        self._tab_views[settings_tab_id] = {
+            'type': 'settings',
+            'view': self.settings_view,
+            'current_collection': None
+        }
+        
+        # Select the first tab
+        self.tab_bar.select_tab(collections_tab_id)
+    
+    def _on_tab_created(self, tab_id: str, tab_type: str, is_duplicate: bool):
+        """Handle creation of a new tab - create its view instance."""
+        if tab_type == "collections":
+            # Create a new collections view instance
+            from ui.collections_view import CollectionsView
+            view = CollectionsView(
+                self,
+                spell_manager=self.spell_manager,
+                on_navigate=lambda key, name=None: self._navigate_to_collection_in_tab(tab_id, key, name)
+            )
+            self._tab_views[tab_id] = {
+                'type': 'collections',
+                'view': view,
+                'current_collection': None
+            }
+        elif tab_type == "character_sheets":
+            # Create a new character sheet view instance
+            view = CharacterSheetView(
+                self, self.character_manager,
+                spell_manager=self.spell_manager,
+                on_navigate_to_spell=self._navigate_to_spell,
+                on_character_changed=lambda name, tid=tab_id: self._on_character_changed_in_tab(tid, name)
+            )
+            self._tab_views[tab_id] = {
+                'type': 'character_sheets',
+                'view': view,
+                'current_collection': None,
+                '_initialized': False
+            }
+    
+    def _on_character_changed_in_tab(self, tab_id: str, character_name: str):
+        """Handle character selection in a character sheet tab."""
+        if character_name:
+            tab_name = f"{character_name}'s Sheet"
+        else:
+            tab_name = "Character Sheets"
+        self.tab_bar.update_tab_text(tab_id, tab_name)
+    
+    def _on_tab_closed(self, tab_id: str):
+        """Handle tab closure - destroy its view."""
+        if tab_id in self._tab_views:
+            view_info = self._tab_views[tab_id]
+            try:
+                view_info['view'].destroy()
+            except Exception:
+                pass
+            del self._tab_views[tab_id]
+    
+    def _on_tab_selected(self, tab_id: str, tab_type: str):
+        """Handle tab selection from the tab bar."""
+        self._show_tab_by_id(tab_id)
+    
+    def _on_tabs_changed(self):
+        """Handle tabs being added, removed, or reordered."""
+        # Could be used for persisting tab state if needed
+        pass
     
     def _show_tab(self, tab_name: str):
-        """Switch to the specified tab."""
-        theme = get_theme_manager()
+        """Compatibility method to show a tab by type name.
         
-        # If clicking on Collections tab while already in a collection sub-view,
-        # return to that sub-view instead of main collections
-        if tab_name == "collections" and self._current_collection:
-            # Stay on current collection sub-view
-            tab_name = self._current_collection
+        For sub-views like 'spells', 'classes', etc., this navigates
+        within the current collections tab.
+        """
+        # Check if this is a sub-view of collections
+        sub_views = ['spells', 'classes', 'feats', 'lineages', 'backgrounds']
         
-        self._current_tab = tab_name
-        
-        # Reset all tab button styles
-        self.collections_tab_btn.configure(fg_color="transparent")
-        self.sheets_tab_btn.configure(fg_color="transparent")
-        self.settings_tab_btn.configure(fg_color="transparent")
-        
-        # Hide all views
-        self.collections_view.pack_forget()
-        self.spells_view.pack_forget()
-        self.character_sheet_view.pack_forget()
-        self.feats_view.pack_forget()
-        self.settings_view.pack_forget()
-        if hasattr(self, 'classes_view'):
-            self.classes_view.pack_forget()
-        if hasattr(self, 'lineages_view'):
-            self.lineages_view.pack_forget()
-        if hasattr(self, 'backgrounds_view'):
-            self.backgrounds_view.pack_forget()
+        if tab_name in sub_views:
+            # Navigate within current collections tab
+            if self._current_tab_id and self._current_tab_id in self._tab_views:
+                if self._tab_views[self._current_tab_id]['type'] == 'collections':
+                    self._navigate_to_collection_in_tab(self._current_tab_id, tab_name)
+                    return
+            # Find first collections tab
+            for tab_id, view_info in self._tab_views.items():
+                if view_info['type'] == 'collections':
+                    self.tab_bar.select_tab(tab_id)
+                    self._navigate_to_collection_in_tab(tab_id, tab_name)
+                    return
+        else:
+            # Find tab of matching type
+            for tab_id, view_info in self._tab_views.items():
+                if view_info['type'] == tab_name:
+                    self.tab_bar.select_tab(tab_id)
+                    return
 
-        # Show selected tab
-        active_color = theme.get_current_color('accent_primary')
-        if tab_name == "collections":
-            self.collections_tab_btn.configure(fg_color=active_color)
-            self.collections_view.pack(fill="both", expand=True)
-            self._current_collection = None
-        elif tab_name == "spells":
-            # Spells is a sub-view of Collections, but we highlight Collections tab
-            self.collections_tab_btn.configure(fg_color=active_color)
+    def _show_tab_by_id(self, tab_id: str):
+        """Switch to the specified tab by its ID."""
+        if tab_id not in self._tab_views:
+            return
+        
+        # Skip if already on this tab
+        if tab_id == self._current_tab_id:
+            return
+        
+        # Hide only the previously visible view (not all views)
+        if self._current_tab_id and self._current_tab_id in self._tab_views:
+            prev_info = self._tab_views[self._current_tab_id]
+            try:
+                prev_info['view'].pack_forget()
+            except Exception:
+                pass
+            # Hide any sub-views that were visible for the previous tab
+            prev_col = prev_info.get('current_collection')
+            if prev_col:
+                self._hide_collection_sub_view(prev_col)
+            # Clean up search bar if switching away from collections tab
+            if prev_info.get('type') == 'collections':
+                if hasattr(prev_info['view'], 'search_bar'):
+                    prev_info['view'].search_bar.cleanup()
+        
+        # Update state
+        self._current_tab_id = tab_id
+        view_info = self._tab_views[tab_id]
+        self._current_tab_type = view_info['type']
+        self._current_collection = view_info.get('current_collection')
+        
+        # Show the selected tab's view
+        if view_info['type'] == 'settings':
+            view_info['view'].pack(fill="both", expand=True)
+            view_info['view'].refresh_from_settings()
+        elif view_info['type'] == 'character_sheets':
+            view_info['view'].pack(fill="both", expand=True)
+            # Only refresh if this is the first time showing or marked dirty
+            if not view_info.get('_initialized'):
+                view_info['view'].refresh()
+                view_info['_initialized'] = True
+        else:
+            # Collections or its sub-views
+            current_col = view_info.get('current_collection')
+            if current_col is None:
+                view_info['view'].pack(fill="both", expand=True)
+            else:
+                self._show_collection_sub_view(current_col)
+    
+    def _hide_collection_sub_view(self, collection_key: str):
+        """Hide a collection sub-view."""
+        if collection_key == "spells" and hasattr(self, 'spells_view'):
+            self.spells_view.pack_forget()
+        elif collection_key == "classes" and hasattr(self, 'classes_view'):
+            self.classes_view.pack_forget()
+        elif collection_key == "feats" and hasattr(self, 'feats_view'):
+            self.feats_view.pack_forget()
+        elif collection_key == "lineages" and hasattr(self, 'lineages_view'):
+            self.lineages_view.pack_forget()
+        elif collection_key == "backgrounds" and hasattr(self, 'backgrounds_view'):
+            self.backgrounds_view.pack_forget()
+    
+    def _navigate_to_collection_in_tab(self, tab_id: str, collection_key: str, item_name: Optional[str] = None):
+        """Navigate to a collection within a specific tab."""
+        if tab_id not in self._tab_views:
+            return
+        
+        view_info = self._tab_views[tab_id]
+        view_info['current_collection'] = collection_key
+        
+        # Clean up search bar before navigating
+        if hasattr(view_info['view'], 'search_bar'):
+            view_info['view'].search_bar.cleanup()
+        
+        # Hide the collections hub view
+        view_info['view'].pack_forget()
+        
+        # Update tab name to reflect content
+        self._update_tab_name_for_collection(tab_id, collection_key, item_name)
+        
+        # Show the appropriate sub-view
+        self._show_collection_sub_view(collection_key, item_name)
+    
+    def _update_tab_name_for_collection(self, tab_id: str, collection_key: str, item_name: Optional[str] = None):
+        """Update the tab name based on the collection being viewed."""
+        name_map = {
+            'spells': 'Spells',
+            'feats': 'Feats',
+            'lineages': 'Lineages',
+            'backgrounds': 'Backgrounds',
+            'classes': 'Classes'
+        }
+        
+        if item_name and collection_key == 'classes':
+            # For specific class, use the class name
+            tab_name = item_name
+        else:
+            tab_name = name_map.get(collection_key, 'Collections')
+        
+        self.tab_bar.update_tab_text(tab_id, tab_name)
+    
+    def _show_collection_sub_view(self, collection_key: str, item_name: Optional[str] = None):
+        """Show a collection sub-view (spells, classes, etc.)."""
+        if collection_key == "spells":
             self.spells_view.pack(fill="both", expand=True)
-            self._current_collection = "spells"
-        elif tab_name == "character_sheets":
-            self.sheets_tab_btn.configure(fg_color=active_color)
-            self.character_sheet_view.pack(fill="both", expand=True)
-            self.character_sheet_view.refresh()
-        elif tab_name == "feats":
-            # Feats is a sub-view of Collections, highlight Collections tab
-            self.collections_tab_btn.configure(fg_color=active_color)
-            self.feats_view.pack(fill="both", expand=True)
-            self._current_collection = "feats"
-        elif tab_name == "classes":
-            # Classes is a sub-view of Collections, highlight Collections tab
-            self.collections_tab_btn.configure(fg_color=active_color)
+            if item_name:
+                self.after(100, lambda: self.spell_list.select_spell(item_name))
+        elif collection_key == "classes":
             self._show_classes_view_internal()
-            self._current_collection = "classes"
-        elif tab_name == "lineages":
-            # Lineages is a sub-view of Collections, highlight Collections tab
-            self.collections_tab_btn.configure(fg_color=active_color)
+            if item_name:
+                # Longer delay for classes/subclasses - view needs time to fully render
+                self.after(300, lambda: self._select_class_item(item_name))
+        elif collection_key == "feats":
+            self._ensure_feats_view_created()
+            self.feats_view.pack(fill="both", expand=True)
+            if item_name:
+                self.after(150, lambda: self._select_feat_item(item_name))
+        elif collection_key == "lineages":
             self._show_lineages_view_internal()
-            self._current_collection = "lineages"
-        elif tab_name == "backgrounds":
-            # Backgrounds is a sub-view of Collections, highlight Collections tab
-            self.collections_tab_btn.configure(fg_color=active_color)
+            if item_name:
+                self.after(150, lambda: self._select_lineage_item(item_name))
+        elif collection_key == "backgrounds":
             self._show_backgrounds_view_internal()
-            self._current_collection = "backgrounds"
-        elif tab_name == "settings":
-            self.settings_tab_btn.configure(fg_color=active_color)
-            self.settings_view.pack(fill="both", expand=True)
-            self.settings_view.refresh_from_settings()
+            if item_name:
+                self.after(150, lambda: self._select_background_item(item_name))
+    
+    def _ensure_feats_view_created(self):
+        """Create feats view if not already created (lazy loading)."""
+        if not self._feats_view_created:
+            self._create_feats_view()
+            self._feats_view_created = True
     
     def _navigate_to_spell(self, spell_name: str):
         """Navigate to the spells tab and select a specific spell."""
@@ -536,18 +784,39 @@ class MainWindow(ctk.CTkFrame):
         self._refresh_spell_list()
         self.spell_list.select_spell(spell_name)
     
-    def _navigate_to_collection(self, collection_key: str):
-        """Navigate to a specific collection from the collections hub."""
-        if collection_key == "spells":
-            self._show_tab("spells")
-        elif collection_key == "classes":
-            self._show_tab("classes")
-        elif collection_key == "feats":
-            self._show_tab("feats")
-        elif collection_key == "lineages":
-            self._show_tab("lineages")
-        elif collection_key == "backgrounds":
-            self._show_tab("backgrounds")
+    def _navigate_to_collection(self, collection_key: str, item_name: Optional[str] = None):
+        """Navigate to a specific collection from the collections hub.
+        
+        Args:
+            collection_key: The collection to navigate to (spells, classes, etc.)
+            item_name: Optional name of a specific item to open in that collection
+        """
+        # Navigate within the current tab
+        if self._current_tab_id:
+            self._navigate_to_collection_in_tab(self._current_tab_id, collection_key, item_name)
+        else:
+            # Fallback: show collection sub-view directly
+            self._show_collection_sub_view(collection_key, item_name)
+    
+    def _select_class_item(self, name: str):
+        """Select a class or subclass in the classes view."""
+        if hasattr(self, 'classes_view') and hasattr(self.classes_view, 'select_class'):
+            self.classes_view.select_class(name)
+    
+    def _select_feat_item(self, name: str):
+        """Select a feat in the feats view."""
+        if hasattr(self, 'feats_view') and hasattr(self.feats_view, 'select_feat'):
+            self.feats_view.select_feat(name)
+    
+    def _select_lineage_item(self, name: str):
+        """Select a lineage in the lineages view."""
+        if hasattr(self, 'lineages_view') and hasattr(self.lineages_view, 'select_lineage'):
+            self.lineages_view.select_lineage(name)
+    
+    def _select_background_item(self, name: str):
+        """Select a background in the backgrounds view."""
+        if hasattr(self, 'backgrounds_view') and hasattr(self.backgrounds_view, 'select_background'):
+            self.backgrounds_view.select_background(name)
     
     def _show_classes_view(self):
         """Show the classes collection view (called from _navigate_to_collection)."""
@@ -595,9 +864,31 @@ class MainWindow(ctk.CTkFrame):
         self.backgrounds_view.pack(fill="both", expand=True)
     
     def _back_to_collections(self):
-        """Go back to the main collections view."""
+        """Go back to the main collections view within the current tab."""
+        # Get the current tab
+        if not self._current_tab_id or self._current_tab_id not in self._tab_views:
+            return
+        
+        view_info = self._tab_views[self._current_tab_id]
+        
+        # Only process collections tabs
+        if view_info['type'] != 'collections':
+            return
+        
+        # Hide any current sub-views
+        current_col = view_info.get('current_collection')
+        if current_col:
+            self._hide_collection_sub_view(current_col)
+        
+        # Reset the current collection state
+        view_info['current_collection'] = None
         self._current_collection = None
-        self._show_tab("collections")
+        
+        # Reset tab name to "Collections"
+        self.tab_bar.update_tab_text(self._current_tab_id, "Collections")
+        
+        # Show the collections hub view for this tab
+        view_info['view'].pack(fill="both", expand=True)
     
     def _create_collections_view(self):
         """Create the collections hub view."""
@@ -618,11 +909,18 @@ class MainWindow(ctk.CTkFrame):
     
     def _create_character_sheet_view(self):
         """Create the character sheet view."""
+        # Note: _sheets_tab_id is set later in _create_tab_bar
         self.character_sheet_view = CharacterSheetView(
             self, self.character_manager,
             spell_manager=self.spell_manager,
-            on_navigate_to_spell=self._navigate_to_spell
+            on_navigate_to_spell=self._navigate_to_spell,
+            on_character_changed=self._on_main_character_changed
         )
+    
+    def _on_main_character_changed(self, name: str):
+        """Handle character change in the main (original) character sheet tab."""
+        if hasattr(self, '_sheets_tab_id') and self._sheets_tab_id:
+            self._on_character_changed_in_tab(self._sheets_tab_id, name)
     
     def _create_settings_view(self):
         """Create the settings view."""
@@ -667,11 +965,10 @@ class MainWindow(ctk.CTkFrame):
         except Exception:
             pass
 
-        # Reconfigure key tab/toolbar buttons to pick up new hover/fg colors
+        # Reconfigure tab bar colors
         try:
-            self.collections_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
-            self.sheets_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
-            self.settings_tab_btn.configure(hover_color=theme.get_current_color('button_hover'))
+            if hasattr(self, 'tab_bar'):
+                self.tab_bar.update_colors()
         except Exception:
             pass
 
@@ -723,6 +1020,13 @@ class MainWindow(ctk.CTkFrame):
             if hasattr(self, 'spell_detail'):
                 # SpellDetailPanel provides its own description color updater
                 self.spell_detail._update_description_colors()
+        except Exception:
+            pass
+        
+        # Update collections view search bar
+        try:
+            if hasattr(self, 'collections_view') and hasattr(self.collections_view, 'search_bar'):
+                self.collections_view.search_bar.update_colors()
         except Exception:
             pass
     

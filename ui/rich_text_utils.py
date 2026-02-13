@@ -1195,9 +1195,13 @@ class DynamicText(ctk.CTkFrame):
         fg = self.theme.get_current_color('text_primary')
         accent = self.theme.get_current_color('accent_primary')
         
-        self.text_widget.configure(bg=bg, fg=fg)
-        self.text_widget.tag_configure("normal", foreground=fg)
-        self.text_widget.tag_configure("bold", foreground=fg)
+        # Handle theme color which can be a string or tuple
+        bg_color = bg[1] if isinstance(bg, tuple) else bg
+        fg_color = fg[1] if isinstance(fg, tuple) else fg
+        
+        self.text_widget.configure(bg=bg_color, fg=fg_color)  # type: ignore
+        self.text_widget.tag_configure("normal", foreground=fg_color)
+        self.text_widget.tag_configure("bold", foreground=fg_color)
         self.text_widget.tag_configure("spell", foreground=accent)
     
     def _on_resize(self, event=None):
@@ -1287,8 +1291,9 @@ class DynamicText(ctk.CTkFrame):
                         self._text_parts.append((spell_part, is_bold, True))
                         
                         # Bind click handler
-                        if self.on_spell_click:
-                            self.text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: self.on_spell_click(s))
+                        click_handler = self.on_spell_click
+                        if click_handler:
+                            self.text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part, h=click_handler: h(s))
                         else:
                             # Default: show spell popup
                             self.text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: self._default_spell_click(s))

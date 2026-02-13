@@ -755,6 +755,10 @@ class LineagesView(ctk.CTkFrame):
     def refresh(self):
         """Refresh the lineage list."""
         self._load_lineages()
+    
+    def select_lineage(self, name: str) -> bool:
+        """Select a lineage by name. Returns True if found."""
+        return self.list_panel.select_lineage(name)
 
 
 class LineageEditorDialog(ctk.CTkToplevel):

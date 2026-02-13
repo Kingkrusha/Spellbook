@@ -35,6 +35,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         self.theme = get_theme_manager()
         self.class_manager = get_class_manager()
         self.current_class: Optional[CharacterClassDefinition] = None
+        # Track subclass cards for navigation: {subclass_name: (card_widget, toggle_func, expanded_state)}
+        self._subclass_cards: dict = {}
+        # Pending subclass to select after class page loads
+        self._pending_subclass: Optional[str] = None
+        self._class_loaded: bool = False
         
         self._create_widgets()
         
@@ -157,6 +162,103 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Reset scroll position to top
         self.content_scroll._parent_canvas.yview_moveto(0)
     
+    def select_class(self, name: str) -> bool:
+        """Public method to select a class or subclass by name. Returns True if found.
+        
+        For subclasses, format can be:
+        - "Subclass Name (Parent Class)" - from global search
+        - Just "Subclass Name" - will search all classes
+        """
+        # First check if it's a regular class
+        class_def = self.class_manager.get_class(name)
+        if class_def:
+            self._select_class(name)
+            return True
+        
+        # Check if this is a subclass - format: "Subclass Name (Parent Class)"
+        subclass_name = name
+        parent_class_name = None
+        
+        if "(" in name and name.endswith(")"):
+            # Extract subclass name and parent class from format "Subclass (Class)"
+            parts = name.rsplit(" (", 1)
+            if len(parts) == 2:
+                subclass_name = parts[0]
+                parent_class_name = parts[1].rstrip(")")
+        
+        # Find the subclass
+        for class_def in self.class_manager.classes:
+            # If we know the parent class, only search that class
+            if parent_class_name and class_def.name != parent_class_name:
+                continue
+            
+            for subclass in class_def.subclasses:
+                if subclass.name.lower() == subclass_name.lower():
+                    # Found it! Set pending subclass and select the parent class
+                    self._pending_subclass = subclass.name
+                    self._class_loaded = False
+                    self._select_class(class_def.name)
+                    # Start polling for the subclass card to be ready
+                    self._wait_for_subclass_card()
+                    return True
+        
+        return False
+    
+    def _wait_for_subclass_card(self, attempts: int = 0):
+        """Poll for the subclass card to be registered, then expand and scroll to it."""
+        if not self._pending_subclass:
+            return
+        
+        # Always wait at least 2 iterations to let Tkinter render the view
+        # This ensures the UI is actually visible before we try to scroll
+        min_attempts = 2
+        
+        # Check if the card is registered AND we've waited minimum time
+        if self._pending_subclass in self._subclass_cards and self._class_loaded and attempts >= min_attempts:
+            # Force a full update to ensure everything is rendered
+            self.update_idletasks()
+            self.update()
+            
+            subclass_name = self._pending_subclass
+            self._pending_subclass = None
+            self._expand_and_scroll_to_subclass(subclass_name)
+        elif attempts < 30:  # Max ~3 seconds of polling (30 * 100ms)
+            # Keep polling
+            self.after(100, lambda: self._wait_for_subclass_card(attempts + 1))
+        else:
+            # Give up after max attempts
+            self._pending_subclass = None
+    
+    def _expand_and_scroll_to_subclass(self, subclass_name: str):
+        """Expand a subclass card and scroll to it."""
+        # Ensure widgets are ready
+        self.update_idletasks()
+        
+        if subclass_name in self._subclass_cards:
+            card, toggle_func, expanded_state = self._subclass_cards[subclass_name]
+            
+            # Expand if collapsed
+            if not expanded_state.get("is_expanded", False):
+                toggle_func()
+            
+            # Scroll to the card
+            self.update_idletasks()
+            try:
+                # Get card position relative to the scrollable frame
+                card_y = card.winfo_y()
+                canvas = self.content_scroll._parent_canvas
+                canvas_height = canvas.winfo_height()
+                scroll_region = canvas.cget('scrollregion')
+                
+                if scroll_region:
+                    region_parts = scroll_region.split()
+                    total_height = float(region_parts[3]) if len(region_parts) > 3 else 1
+                    # Calculate scroll position to put subclass at top of view
+                    scroll_pos = max(0, min(1, card_y / total_height))
+                    canvas.yview_moveto(scroll_pos)
+            except Exception:
+                pass
+    
     def _open_class_editor(self, class_def: Optional[CharacterClassDefinition] = None):
         """Open the class editor dialog."""
         dialog = ClassEditorDialog(self, class_def, on_save=self._on_class_saved)
@@ -196,9 +298,13 @@ class ClassesCollectionView(ctk.CTkFrame):
     
     def _display_class(self, class_def: CharacterClassDefinition):
         """Display the class information with feature table."""
-        # Clear content
+        # Mark as loading
+        self._class_loaded = False
+        
+        # Clear content and subclass tracking
         for widget in self.content.winfo_children():
             widget.destroy()
+        self._subclass_cards.clear()
         
         # Header with class name and "Class Details"
         header_frame = ctk.CTkFrame(self.content, fg_color="transparent")
@@ -256,6 +362,9 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         # Subclasses section (always show so user can add subclasses)
         self._create_subclasses_section(class_def)
+        
+        # Mark as fully loaded (for pending subclass selection)
+        self._class_loaded = True
     
     def _create_core_traits_section(self, class_def: CharacterClassDefinition):
         """Create the Core Class Traits table like in the PHB."""
@@ -776,17 +885,24 @@ class ClassesCollectionView(ctk.CTkFrame):
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
         
-        # Collapsible content frame (hidden initially)
-        content_frame = ctk.CTkFrame(card, fg_color="transparent")
-        expanded_state = {"is_expanded": False}
+        # Lazy loading: content_frame and content created on first expand
+        expanded_state = {"is_expanded": False, "content_created": False, "content_frame": None}
         
         def toggle_expand():
             if expanded_state["is_expanded"]:
-                content_frame.pack_forget()
+                # Collapse
+                if expanded_state["content_frame"]:
+                    expanded_state["content_frame"].pack_forget()
                 expand_indicator.configure(text="▶")
                 expanded_state["is_expanded"] = False
             else:
-                content_frame.pack(fill="x", padx=15, pady=(0, 15))
+                # Expand - create content on first expand
+                if not expanded_state["content_created"]:
+                    content_frame = ctk.CTkFrame(card, fg_color="transparent")
+                    expanded_state["content_frame"] = content_frame
+                    self._populate_land_circle_content(content_frame, variants, template)
+                    expanded_state["content_created"] = True
+                expanded_state["content_frame"].pack(fill="x", padx=15, pady=(0, 15))
                 expand_indicator.configure(text="▼")
                 expanded_state["is_expanded"] = True
         
@@ -795,6 +911,12 @@ class ClassesCollectionView(ctk.CTkFrame):
         expand_indicator.bind("<Button-1>", lambda e: toggle_expand())
         name_label.bind("<Button-1>", lambda e: toggle_expand())
         
+        # Register all Circle of the Land variants for navigation
+        for variant in variants:
+            self._subclass_cards[variant.name] = (card, toggle_expand, expanded_state)
+    
+    def _populate_land_circle_content(self, content_frame, variants, template):
+        """Populate Circle of the Land content frame."""
         # Shared description for Circle of the Land
         shared_description = "Druids of the Circle of the Land are mystics and sages who safeguard ancient knowledge and rites through a vast oral tradition. These Druids meet within sacred circles of trees or standing stones to whisper primal secrets in Druidic. The circle's wisest members preside as the chief priests of communities that hold to the Old Faith and serve as advisors to the rulers of those folk.\n\nAs a member of this circle, your magic is influenced by the land where you were initiated into the circle's mysterious rites. Choose your land type from the options below."
         ctk.CTkLabel(
@@ -963,18 +1085,24 @@ class ClassesCollectionView(ctk.CTkFrame):
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
         
-        # Collapsible content frame (hidden initially)
-        content_frame = ctk.CTkFrame(card, fg_color="transparent")
-        # Use a simple boolean in closure scope instead of dynamic attribute
-        expanded_state = {"is_expanded": False}
+        # Lazy loading: content_frame and content created on first expand
+        expanded_state = {"is_expanded": False, "content_created": False, "content_frame": None}
         
         def toggle_expand():
             if expanded_state["is_expanded"]:
-                content_frame.pack_forget()
+                # Collapse
+                if expanded_state["content_frame"]:
+                    expanded_state["content_frame"].pack_forget()
                 expand_indicator.configure(text="▶")
                 expanded_state["is_expanded"] = False
             else:
-                content_frame.pack(fill="x", padx=15, pady=(0, 15))
+                # Expand - create content on first expand
+                if not expanded_state["content_created"]:
+                    content_frame = ctk.CTkFrame(card, fg_color="transparent")
+                    expanded_state["content_frame"] = content_frame
+                    self._populate_subclass_content(content_frame, subclass)
+                    expanded_state["content_created"] = True
+                expanded_state["content_frame"].pack(fill="x", padx=15, pady=(0, 15))
                 expand_indicator.configure(text="▼")
                 expanded_state["is_expanded"] = True
         
@@ -983,20 +1111,23 @@ class ClassesCollectionView(ctk.CTkFrame):
         expand_indicator.bind("<Button-1>", lambda e: toggle_expand())
         name_label.bind("<Button-1>", lambda e: toggle_expand())
         
-        # Populate content frame
+        # Register the subclass card for navigation
+        self._subclass_cards[subclass.name] = (card, toggle_expand, expanded_state)
+    
+    def _populate_subclass_content(self, content_frame, subclass):
+        """Populate a subclass content frame with description and features."""
         # Description with dynamic resizing
         if subclass.description:
             from ui.rich_text_utils import DynamicText
             dt = DynamicText(
                 content_frame, self.theme,
                 font_size=11,
-                bg_color='bg_primary'  # Use theme color key
+                bg_color='bg_primary'
             )
             dt.set_text(subclass.description)
             dt.pack(fill="x", expand=True, pady=(0, 15))
         
-        # Features with full details (like main class features)
-        # Note: Subclass spells are displayed in the feature section where they're listed
+        # Features with full details
         for feature in subclass.features:
             self._create_subclass_feature_detail(content_frame, feature)
     

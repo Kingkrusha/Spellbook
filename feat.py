@@ -118,7 +118,7 @@ def get_data_path(filename: str) -> str:
     """Get the path to a data file, handling PyInstaller bundling."""
     if getattr(sys, 'frozen', False):
         # Running as compiled exe
-        base_path = sys._MEIPASS
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     else:
         # Running as script
         base_path = os.path.dirname(os.path.abspath(__file__))
@@ -126,15 +126,13 @@ def get_data_path(filename: str) -> str:
 
 
 class FeatManager:
-    """Manages the feat database."""
+    """Manages the feat database using SQLite."""
     
-    DEFAULT_FILE = "feats.json"
     _instance: Optional['FeatManager'] = None
     
-    def __init__(self, file_path: Optional[str] = None):
-        self.file_path = file_path or self.DEFAULT_FILE
-        self._feats: List[Feat] = []
-        self._loaded = False
+    def __init__(self):
+        self._db = None
+        self._feats_cache: Optional[List[Feat]] = None
     
     @classmethod
     def get_instance(cls) -> 'FeatManager':
@@ -144,83 +142,81 @@ class FeatManager:
         return cls._instance
     
     @property
+    def db(self):
+        """Get database instance, initializing if needed."""
+        if self._db is None:
+            from database import SpellDatabase
+            self._db = SpellDatabase()
+            self._db.initialize()
+        return self._db
+    
+    @property
     def feats(self) -> List[Feat]:
-        """Get all feats, loading if necessary."""
-        if not self._loaded:
-            self.load()
-        return self._feats
+        """Get all feats, using cache if available."""
+        if self._feats_cache is None:
+            self._reload_cache()
+        return self._feats_cache or []
+    
+    def _reload_cache(self):
+        """Reload feats from database into cache."""
+        self._feats_cache = []
+        for feat_dict in self.db.get_all_feats():
+            self._feats_cache.append(self._dict_to_feat(feat_dict))
+    
+    def _invalidate_cache(self):
+        """Invalidate the cache to force reload on next access."""
+        self._feats_cache = None
+    
+    def _dict_to_feat(self, data: dict) -> Feat:
+        """Convert database dict to Feat object."""
+        return Feat(
+            name=data.get('name', ''),
+            type=data.get('type', ''),
+            is_spellcasting=data.get('is_spellcasting', False),
+            spell_lists=data.get('spell_lists', []),
+            spells_num=data.get('spells_num', {}),
+            has_prereq=data.get('has_prereq', False),
+            prereq=data.get('prereq', ''),
+            set_spells=data.get('set_spells', []),
+            description=data.get('description', ''),
+            source=data.get('source', ''),
+            is_official=data.get('is_official', True),
+            is_custom=data.get('is_custom', False),
+            is_legacy=data.get('is_legacy', False)
+        )
+    
+    def _feat_to_dict(self, feat: Feat) -> dict:
+        """Convert Feat object to dict for database."""
+        return {
+            'name': feat.name,
+            'type': feat.type,
+            'is_spellcasting': feat.is_spellcasting,
+            'spell_lists': feat.spell_lists,
+            'spells_num': {str(k): v for k, v in feat.spells_num.items()},
+            'has_prereq': feat.has_prereq,
+            'prereq': feat.prereq,
+            'set_spells': feat.set_spells,
+            'description': feat.description,
+            'source': feat.source,
+            'is_official': feat.is_official,
+            'is_custom': feat.is_custom,
+            'is_legacy': feat.is_legacy
+        }
     
     def load(self) -> bool:
-        """Load feats from file."""
-        # First try user file path (for modifications)
-        if os.path.exists(self.file_path):
-            try:
-                with open(self.file_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self._feats = [Feat.from_dict(fd) for fd in data.get("feats", [])]
-                    self._loaded = True
-                    return True
-            except Exception as e:
-                print(f"Error loading feats from user path: {e}")
-        
-        # Try bundled path (for PyInstaller)
-        bundled_path = get_data_path(self.DEFAULT_FILE)
-        if bundled_path != self.file_path and os.path.exists(bundled_path):
-            try:
-                with open(bundled_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self._feats = [Feat.from_dict(fd) for fd in data.get("feats", [])]
-                    self._loaded = True
-                    # Save to user path so modifications are preserved
-                    self.save()
-                    return True
-            except Exception as e:
-                print(f"Error loading feats from bundled path: {e}")
-        
-        # Initialize with defaults if no file exists
-        self._initialize_default_feats()
-        self._loaded = True
-        self.save()
+        """Reload feats from database (for compatibility)."""
+        self._invalidate_cache()
         return True
     
-    def _initialize_default_feats(self):
-        """Initialize with a basic set of default feats."""
-        self._feats = [
-            # This will be populated from feats.json
-            # Adding a few examples as fallback
-            Feat(
-                name="Alert",
-                type="",
-                description="You gain a +5 bonus to initiative. You can't be surprised while you are conscious. Other creatures don't gain advantage on attack rolls against you as a result of being unseen by you.",
-            ),
-            Feat(
-                name="Magic Initiate",
-                type="",
-                is_spellcasting=True,
-                spell_lists=["Bard", "Cleric", "Druid", "Sorcerer", "Warlock", "Wizard"],
-                spells_num={0: 2, 1: 1},
-                description="Choose a class: bard, cleric, druid, sorcerer, warlock, or wizard. You learn two cantrips of your choice from that class's spell list. In addition, choose one 1st-level spell to learn from that same list. You can cast this spell at its lowest level once per long rest without expending a spell slot.",
-            ),
-        ]
-    
     def save(self) -> bool:
-        """Save feats to file."""
-        try:
-            data = {
-                "feats": [feat.to_dict() for feat in self._feats]
-            }
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"Error saving feats: {e}")
-            return False
+        """No-op for database backend (saves happen immediately)."""
+        return True
     
     def get_feat(self, name: str) -> Optional[Feat]:
         """Get a feat by name."""
-        for feat in self.feats:
-            if feat.name.lower() == name.lower():
-                return feat
+        data = self.db.get_feat_by_name(name)
+        if data:
+            return self._dict_to_feat(data)
         return None
     
     def get_feats_by_type(self, feat_type: str) -> List[Feat]:
@@ -232,32 +228,41 @@ class FeatManager:
         return [f for f in self.feats if f.is_spellcasting]
     
     def add_feat(self, feat: Feat) -> bool:
-        """Add a new feat."""
-        if self.get_feat(feat.name):
-            return False  # Already exists
-        self._feats.append(feat)
-        self.save()
+        """Add a new feat or update existing."""
+        existing = self.db.get_feat_by_name(feat.name)
+        feat_dict = self._feat_to_dict(feat)
+        
+        if existing:
+            self.db.update_feat(existing['id'], feat_dict)
+        else:
+            self.db.insert_feat(feat_dict)
+        
+        self._invalidate_cache()
         return True
     
     def update_feat(self, name: str, updated_feat: Feat) -> bool:
         """Update an existing feat."""
-        for i, feat in enumerate(self._feats):
-            if feat.name.lower() == name.lower():
-                self._feats[i] = updated_feat
-                self.save()
-                return True
-        return False
+        existing = self.db.get_feat_by_name(name)
+        if not existing:
+            return False
+        
+        feat_dict = self._feat_to_dict(updated_feat)
+        result = self.db.update_feat(existing['id'], feat_dict)
+        self._invalidate_cache()
+        return result
     
     def delete_feat(self, name: str) -> bool:
         """Delete a feat by name."""
-        for i, feat in enumerate(self._feats):
-            if feat.name.lower() == name.lower():
-                if not feat.is_custom:
-                    return False  # Can't delete official feats
-                del self._feats[i]
-                self.save()
-                return True
-        return False
+        existing = self.db.get_feat_by_name(name)
+        if not existing:
+            return False
+        
+        if not existing.get('is_custom'):
+            return False  # Can't delete official feats
+        
+        result = self.db.delete_feat(existing['id'])
+        self._invalidate_cache()
+        return result
     
     def search_feats(self, query: str, feat_type: Optional[str] = None) -> List[Feat]:
         """Search feats by name or description."""
@@ -297,27 +302,17 @@ class FeatManager:
         """Get list of sources that have unofficial (non-official) feats."""
         sources = set()
         for feat in self.feats:
-            if not feat.is_official and feat.source:
+            if (not feat.is_official or feat.is_custom) and feat.source:
                 sources.add(feat.source)
         return sorted(sources)
     
     def get_unofficial_feats(self) -> List[Feat]:
         """Get all feats that are not official."""
-        return [f for f in self.feats if not f.is_official]
+        return [f for f in self.feats if not f.is_official or f.is_custom]
     
     def export_to_json(self, file_path: str, feats: Optional[List[Feat]] = None) -> int:
-        """
-        Export feats to a JSON file.
-        
-        Args:
-            file_path: Path to export to
-            feats: List of feats to export (None = export all unofficial)
-        
-        Returns:
-            Number of feats exported
-        """
+        """Export feats to a JSON file."""
         if feats is None:
-            # Default to unofficial feats only
             feats = self.get_unofficial_feats()
         
         try:
@@ -332,15 +327,7 @@ class FeatManager:
             return 0
     
     def import_from_json(self, file_path: str) -> int:
-        """
-        Import feats from a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file
-        
-        Returns:
-            Number of feats imported
-        """
+        """Import feats from a JSON file."""
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -354,13 +341,7 @@ class FeatManager:
                     # Imported feats are always custom and unofficial
                     feat.is_custom = True
                     feat.is_official = False
-                    
-                    # Add or update the feat
-                    existing = self.get_feat(feat.name)
-                    if existing:
-                        self.update_feat(feat.name, feat)
-                    else:
-                        self.add_feat(feat)
+                    self.add_feat(feat)
                     imported_count += 1
                 except Exception as e:
                     print(f"Error importing feat: {e}")

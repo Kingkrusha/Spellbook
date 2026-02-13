@@ -44,6 +44,13 @@ class SettingsView(ctk.CTkFrame):
         self._warn_prepared_var = ctk.BooleanVar(value=settings_manager.settings.warn_too_many_prepared)
         self._comparison_var = ctk.BooleanVar(value=settings_manager.settings.show_comparison_highlights)
         
+        # Preload variables
+        self._preload_classes_var = ctk.BooleanVar(value=settings_manager.settings.preload_classes)
+        self._preload_feats_var = ctk.BooleanVar(value=settings_manager.settings.preload_feats)
+        self._preload_lineages_var = ctk.BooleanVar(value=settings_manager.settings.preload_lineages)
+        self._preload_backgrounds_var = ctk.BooleanVar(value=settings_manager.settings.preload_backgrounds)
+        self._preload_sheets_var = ctk.BooleanVar(value=settings_manager.settings.preload_character_sheets)
+        
         # Apply theme from settings
         theme_name = getattr(settings_manager.settings, 'theme_name', None)
         if theme_name is None:
@@ -449,6 +456,71 @@ class SettingsView(ctk.CTkFrame):
                 text_color=text_secondary
             ).pack(side="left", padx=(10, 0))
         
+        # === Loading Options Section ===
+        self._create_section(self.container, "Loading Options")
+        
+        loading_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        loading_frame.pack(fill="x", pady=(0, 20))
+        
+        loading_content = ctk.CTkFrame(loading_frame, fg_color="transparent")
+        loading_content.pack(fill="x", padx=20, pady=15)
+        
+        ctk.CTkLabel(
+            loading_content,
+            text="Preloading data in the background after startup can reduce loading times when\n"
+                 "navigating to different sections, but may increase startup time and memory usage.\n"
+                 "Enable preloading for collections you use frequently.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+        
+        self._create_toggle_row(
+            loading_content,
+            "Preload Classes",
+            self._preload_classes_var,
+            self._on_setting_change
+        )
+        
+        self._create_toggle_row(
+            loading_content,
+            "Preload Feats",
+            self._preload_feats_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+        
+        self._create_toggle_row(
+            loading_content,
+            "Preload Lineages",
+            self._preload_lineages_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+        
+        self._create_toggle_row(
+            loading_content,
+            "Preload Backgrounds",
+            self._preload_backgrounds_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+        
+        self._create_toggle_row(
+            loading_content,
+            "Preload Character Sheet Data",
+            self._preload_sheets_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+        
+        ctk.CTkLabel(
+            loading_content,
+            text="Changes take effect on next app restart.",
+            font=ctk.CTkFont(size=11),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(15, 0))
+        
         # === About Section ===
         self._create_section(self.container, "About")
         
@@ -474,7 +546,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             about_content,
-            text="Version 1.4 • Data stored in SQLite database",
+            text="Version 1.5 • Data stored in SQLite database",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
@@ -574,7 +646,12 @@ class SettingsView(ctk.CTkFrame):
             auto_apply_saving_throws=self._auto_apply_saves_var.get(),
             warn_multiclass_removal=self._warn_multiclass_var.get(),
             long_rest_hit_dice=self._hit_dice_rest_var.get(),
-            legacy_content_filter=self._legacy_filter_var.get()
+            legacy_content_filter=self._legacy_filter_var.get(),
+            preload_classes=self._preload_classes_var.get(),
+            preload_feats=self._preload_feats_var.get(),
+            preload_lineages=self._preload_lineages_var.get(),
+            preload_backgrounds=self._preload_backgrounds_var.get(),
+            preload_character_sheets=self._preload_sheets_var.get()
         )
     
     def _on_restore_all_spells(self):
@@ -666,6 +743,11 @@ class SettingsView(ctk.CTkFrame):
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         self._legacy_filter_var.set(settings.legacy_content_filter)
+        self._preload_classes_var.set(settings.preload_classes)
+        self._preload_feats_var.set(settings.preload_feats)
+        self._preload_lineages_var.set(settings.preload_lineages)
+        self._preload_backgrounds_var.set(settings.preload_backgrounds)
+        self._preload_sheets_var.set(settings.preload_character_sheets)
         self._update_theme_editor_visibility()
 
     def _on_theme_changed(self):

@@ -579,13 +579,14 @@ class CharacterSheetView(ctk.CTkFrame):
     ]
     
     def __init__(self, parent, character_manager: CharacterManager,
-                 spell_manager=None, on_navigate_to_spell=None):
+                 spell_manager=None, on_navigate_to_spell=None, on_character_changed=None):
         self.theme = get_theme_manager()
         super().__init__(parent, fg_color=self.theme.get_current_color('bg_primary'))
         
         self.character_manager = character_manager
         self.spell_manager = spell_manager
         self.on_navigate_to_spell = on_navigate_to_spell
+        self.on_character_changed = on_character_changed  # Callback when character changes
         self.sheet_manager = get_sheet_manager()
         self.current_character: Optional[CharacterSpellList] = None
         self.current_sheet: Optional[CharacterSheet] = None
@@ -943,6 +944,10 @@ class CharacterSheetView(ctk.CTkFrame):
                 self.current_sheet = self.sheet_manager.get_or_create_sheet(name, char)
                 self._update_spell_tab_visibility()
                 self._show_character_sheet()
+                
+                # Notify parent of character change
+                if self.on_character_changed:
+                    self.on_character_changed(name)
                 break
     
     def _show_placeholder(self):
@@ -3597,8 +3602,10 @@ class CharacterSheetView(ctk.CTkFrame):
                 break
         
         # If has spellcasting feat, notify parent to show spells tab
-        if has_spellcasting_feat and hasattr(self, 'on_spellcasting_feat_changed'):
-            self.on_spellcasting_feat_changed(True)
+        if has_spellcasting_feat:
+            callback = getattr(self, 'on_spellcasting_feat_changed', None)
+            if callback:
+                callback(True)
 
     def _create_proficiencies_section(self, parent, sheet: CharacterSheet):
         """Create the other proficiencies & languages section."""

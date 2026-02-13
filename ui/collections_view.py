@@ -7,12 +7,13 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from typing import Optional, Callable
 from theme import get_theme_manager
+from ui.global_search import GlobalSearchBar
 
 
 class CollectionsView(ctk.CTkFrame):
     """Main collections hub with buttons for different content types."""
     
-    def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[[str], None]] = None):
+    def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[..., None]] = None):
         super().__init__(parent, fg_color="transparent")
         
         self.spell_manager = spell_manager
@@ -55,6 +56,13 @@ class CollectionsView(ctk.CTkFrame):
             hover_color=self.theme.get_current_color('button_hover'),
             command=self._on_export
         ).pack(side="left", padx=5)
+        
+        # Global search bar
+        self.search_bar = GlobalSearchBar(
+            self.container,
+            on_result_selected=self._on_search_result_selected
+        )
+        self.search_bar.pack(fill="x", pady=(0, 15))
         
         # Description
         ctk.CTkLabel(
@@ -163,8 +171,30 @@ class CollectionsView(ctk.CTkFrame):
     
     def _navigate_to(self, collection_key: str):
         """Navigate to a specific collection."""
+        # Clean up search bar before navigating
+        if hasattr(self, 'search_bar'):
+            self.search_bar.cleanup()
         if self.on_navigate:
             self.on_navigate(collection_key)
+    
+    def _on_search_result_selected(self, section: str, name: str, result_id: int):
+        """Handle selection of a search result."""
+        # Map section names to navigation keys
+        section_map = {
+            'Spells': 'spells',
+            'Feats': 'feats', 
+            'Lineages': 'lineages',
+            'Classes': 'classes',
+            'Subclasses': 'classes',  # Subclasses navigate to classes
+            'Backgrounds': 'backgrounds'
+        }
+        
+        nav_key = section_map.get(section, section.lower())
+        
+        # Navigate with the item name to open
+        if self.on_navigate:
+            # Pass the name as a second argument for the view to open
+            self.on_navigate(nav_key, name)
     
     def _on_import(self):
         """Handle import button click."""
@@ -291,12 +321,13 @@ class ImportDialog(ctk.CTkToplevel):
             if "spells" in data and self.spell_manager:
                 count = 0
                 for spell_data in data["spells"]:
-                    from spell import Spell
-                    spell = Spell.from_dict(spell_data)
-                    spell.is_custom = True
-                    spell.is_official = False
-                    self.spell_manager.add_spell(spell)
-                    count += 1
+                    try:
+                        spell = self.spell_manager._dict_to_spell(spell_data)
+                        spell.is_custom = True
+                        self.spell_manager.add_spell(spell)
+                        count += 1
+                    except Exception as e:
+                        print(f"Error importing spell: {e}")
                 if count > 0:
                     results.append(f"{count} spell(s)")
             
@@ -322,7 +353,7 @@ class ImportDialog(ctk.CTkToplevel):
                     from character_class import CharacterClassDefinition
                     cls = CharacterClassDefinition.from_dict(class_data)
                     cls.is_custom = True
-                    cls.is_official = False
+                    # is_official is derived from is_custom in the database
                     class_manager.add_class(cls)
                     count += 1
                 if count > 0:
@@ -336,9 +367,13 @@ class ImportDialog(ctk.CTkToplevel):
                     from character_class import SubclassDefinition
                     subclass = SubclassDefinition.from_dict(subclass_data)
                     subclass.is_custom = True
-                    subclass.is_official = False
-                    class_manager.add_subclass(subclass)
-                    count += 1
+                    # is_official is derived from is_custom in the database
+                    # Find parent class and add subclass
+                    parent_class = class_manager.get_class(subclass.parent_class)
+                    if parent_class:
+                        parent_class.subclasses.append(subclass)
+                        class_manager.add_class(parent_class)  # Re-save to include new subclass
+                        count += 1
                 if count > 0:
                     results.append(f"{count} subclass(es)")
             

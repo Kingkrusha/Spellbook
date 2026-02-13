@@ -441,22 +441,36 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self._desc_widgets = []
     
     def _render_description(self, text: str):
-        """Render description with table and spell link support."""
+        """Render description with dynamic resizing and bold text support."""
+        from ui.rich_text_utils import DynamicText
+        
         self._clear_description()
         
         if not text:
             return
         
-        desc_container = ctk.CTkFrame(self.description_container, fg_color="transparent")
-        desc_container.pack(fill="x", expand=True)
-        self._desc_widgets.append(desc_container)
+        # Split by paragraphs (double newlines)
+        paragraphs = text.split('\n\n')
         
-        renderer = self._get_renderer()
-        renderer.render_formatted_text(
-            desc_container, text,
-            on_spell_click=lambda s: renderer.show_spell_popup(desc_container, s),
-            wraplength=500
-        )
+        for para_idx, paragraph in enumerate(paragraphs):
+            if not paragraph.strip():
+                continue
+            
+            # Create a DynamicText for this paragraph with single asterisk bold pattern
+            dt = DynamicText(
+                self.description_container, self.theme,
+                bg_color='bg_primary'  # Use theme color key for proper theme switching
+            )
+            # Use single asterisk pattern for bold
+            dt.set_text(paragraph.strip(), bold_pattern=r'\*([^*]+)\*')
+            dt.pack(fill="x", expand=True, pady=(2, 2))
+            self._desc_widgets.append(dt)
+            
+            # Add spacing between paragraphs
+            if para_idx < len(paragraphs) - 1:
+                spacer = ctk.CTkLabel(self.description_container, text="", height=5)
+                spacer.pack()
+                self._desc_widgets.append(spacer)
     
     def show_background(self, background: Optional[Background]):
         """Display details for a background."""
@@ -949,6 +963,10 @@ class BackgroundsView(ctk.CTkFrame):
     def refresh(self):
         """Refresh the background list."""
         self._load_backgrounds()
+    
+    def select_background(self, name: str) -> bool:
+        """Select a background by name. Returns True if found."""
+        return self.list_panel.select_background(name)
 
 
 class BackgroundEditorDialog(ctk.CTkToplevel):

@@ -5,6 +5,7 @@ Handles database creation, migrations, and spell persistence.
 
 import sqlite3
 import os
+import sys
 import json
 from typing import List, Optional, Tuple
 from contextlib import contextmanager
@@ -14,7 +15,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 7  # Bumped for is_legacy column
+    SCHEMA_VERSION = 9  # Bumped to fix class_features_json migration (use levels field)
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -99,7 +100,7 @@ class SpellDatabase:
                 )
             """)
             
-            # Main spells table
+            # Main spells table (includes all columns from migrations)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS spells (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,6 +115,8 @@ class SpellDatabase:
                     description TEXT,
                     source TEXT,
                     is_modified INTEGER NOT NULL DEFAULT 0,
+                    original_name TEXT DEFAULT '',
+                    is_legacy INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -181,10 +184,17 @@ class SpellDatabase:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spell_tags_tag ON spell_tags(tag)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_stat_blocks_spell_id ON stat_blocks(spell_id)")
             
+            # Create content tables (lineages, feats, backgrounds, classes)
+            self._create_content_tables(cursor)
+            
+            # Track if this is a fresh database (for initial data population)
+            is_fresh_db = False
+            
             # Set schema version if not exists
             cursor.execute("SELECT version FROM schema_version LIMIT 1")
             if cursor.fetchone() is None:
                 cursor.execute("INSERT INTO schema_version (version) VALUES (?)", (self.SCHEMA_VERSION,))
+                is_fresh_db = True
             
             # Create trigger for updated_at
             cursor.execute("""
@@ -195,8 +205,13 @@ class SpellDatabase:
                 END
             """)
             
-            # Run migrations
+            # Run migrations (for upgrading existing databases)
             self._run_migrations(conn)
+            
+            # If this is a fresh database, populate content tables from JSON
+            if is_fresh_db:
+                print("Populating content tables from bundled JSON files...")
+                self._migrate_json_to_database(cursor)
     
     def _run_migrations(self, conn):
         """Run schema migrations if needed."""
@@ -296,6 +311,363 @@ class SpellDatabase:
                 """)
             cursor.execute("UPDATE schema_version SET version = 7")
             current_version = 7
+        
+        # Migration to version 8: add content tables (lineages, feats, backgrounds, classes)
+        if current_version < 8:
+            self._create_content_tables(cursor)
+            self._migrate_json_to_database(cursor)
+            cursor.execute("UPDATE schema_version SET version = 8")
+            current_version = 8
+        
+        # Migration to version 9: fix class_features_json (was using wrong field name)
+        if current_version < 9:
+            self._remigrate_class_features(cursor)
+            cursor.execute("UPDATE schema_version SET version = 9")
+            current_version = 9
+    
+    def _create_content_tables(self, cursor):
+        """Create tables for lineages, feats, backgrounds, and classes."""
+        # Lineages table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lineages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                description TEXT DEFAULT '',
+                creature_type TEXT DEFAULT 'Humanoid',
+                size TEXT DEFAULT 'Medium',
+                speed INTEGER DEFAULT 30,
+                traits_json TEXT DEFAULT '[]',
+                source TEXT DEFAULT '',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                is_legacy INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lineages_name ON lineages(name)")
+        
+        # Feats table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS feats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                type TEXT DEFAULT '',
+                is_spellcasting INTEGER NOT NULL DEFAULT 0,
+                spell_lists_json TEXT DEFAULT '[]',
+                spells_num_json TEXT DEFAULT '{}',
+                has_prereq INTEGER NOT NULL DEFAULT 0,
+                prereq TEXT DEFAULT '',
+                set_spells_json TEXT DEFAULT '[]',
+                description TEXT DEFAULT '',
+                source TEXT DEFAULT '',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                is_legacy INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_feats_name ON feats(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_feats_type ON feats(type)")
+        
+        # Backgrounds table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS backgrounds (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                source TEXT DEFAULT '',
+                is_legacy INTEGER NOT NULL DEFAULT 0,
+                description TEXT DEFAULT '',
+                skills_json TEXT DEFAULT '[]',
+                other_proficiencies_json TEXT DEFAULT '[]',
+                ability_scores_json TEXT DEFAULT '[]',
+                feats_json TEXT DEFAULT '[]',
+                equipment TEXT DEFAULT '',
+                features_json TEXT DEFAULT '[]',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_backgrounds_name ON backgrounds(name)")
+        
+        # Classes table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS classes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                hit_die INTEGER NOT NULL DEFAULT 8,
+                primary_ability TEXT DEFAULT '',
+                saving_throws_json TEXT DEFAULT '[]',
+                armor_proficiencies_json TEXT DEFAULT '[]',
+                weapon_proficiencies_json TEXT DEFAULT '[]',
+                tool_proficiencies_json TEXT DEFAULT '[]',
+                skill_proficiencies_json TEXT DEFAULT '[]',
+                num_skills INTEGER DEFAULT 2,
+                starting_equipment_json TEXT DEFAULT '[]',
+                class_features_json TEXT DEFAULT '[]',
+                spellcasting_json TEXT DEFAULT 'null',
+                subclass_name TEXT DEFAULT '',
+                subclass_level INTEGER DEFAULT 3,
+                source TEXT DEFAULT '',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                is_legacy INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_classes_name ON classes(name)")
+        
+        # Subclasses table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS subclasses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL COLLATE NOCASE,
+                class_id INTEGER NOT NULL,
+                description TEXT DEFAULT '',
+                features_json TEXT DEFAULT '[]',
+                source TEXT DEFAULT '',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                is_legacy INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+                UNIQUE(name, class_id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_subclasses_name ON subclasses(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_subclasses_class_id ON subclasses(class_id)")
+    
+    def _migrate_json_to_database(self, cursor):
+        """Migrate data from JSON files to database tables."""
+        import os
+        import sys
+        
+        def get_json_path(filename):
+            # For bundled PyInstaller app, look in _MEIPASS for bundled JSON files
+            if getattr(sys, 'frozen', False):
+                base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+            else:
+                base = os.path.dirname(os.path.abspath(__file__))
+            return os.path.join(base, filename)
+        
+        # Migrate lineages
+        lineages_path = get_json_path('lineages.json')
+        if os.path.exists(lineages_path):
+            try:
+                with open(lineages_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for lin in data.get('lineages', []):
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO lineages 
+                        (name, description, creature_type, size, speed, traits_json, source, is_official, is_custom, is_legacy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        lin.get('name', ''),
+                        lin.get('description', ''),
+                        lin.get('creature_type', 'Humanoid'),
+                        lin.get('size', 'Medium'),
+                        lin.get('speed', 30),
+                        json.dumps(lin.get('traits', [])),
+                        lin.get('source', ''),
+                        1 if lin.get('is_official', True) else 0,
+                        1 if lin.get('is_custom', False) else 0,
+                        1 if lin.get('is_legacy', False) else 0
+                    ))
+                print(f"Migrated {len(data.get('lineages', []))} lineages to database")
+            except Exception as e:
+                print(f"Error migrating lineages: {e}")
+        
+        # Migrate feats
+        feats_path = get_json_path('feats.json')
+        if os.path.exists(feats_path):
+            try:
+                with open(feats_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for feat in data.get('feats', []):
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO feats 
+                        (name, type, is_spellcasting, spell_lists_json, spells_num_json, has_prereq, prereq, 
+                         set_spells_json, description, source, is_official, is_custom, is_legacy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        feat.get('name', ''),
+                        feat.get('type', ''),
+                        1 if feat.get('is_spellcasting', False) else 0,
+                        json.dumps(feat.get('spell_lists', [])),
+                        json.dumps(feat.get('spells_num', {})),
+                        1 if feat.get('has_prereq', False) else 0,
+                        feat.get('prereq', ''),
+                        json.dumps(feat.get('set_spells', [])),
+                        feat.get('description', ''),
+                        feat.get('source', ''),
+                        1 if feat.get('is_official', True) else 0,
+                        1 if feat.get('is_custom', False) else 0,
+                        1 if feat.get('is_legacy', False) else 0
+                    ))
+                print(f"Migrated {len(data.get('feats', []))} feats to database")
+            except Exception as e:
+                print(f"Error migrating feats: {e}")
+        
+        # Migrate backgrounds
+        backgrounds_path = get_json_path('backgrounds.json')
+        if os.path.exists(backgrounds_path):
+            try:
+                with open(backgrounds_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for bg in data.get('backgrounds', []):
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO backgrounds 
+                        (name, source, is_legacy, description, skills_json, other_proficiencies_json,
+                         ability_scores_json, feats_json, equipment, features_json, is_official, is_custom)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        bg.get('name', ''),
+                        bg.get('source', ''),
+                        1 if bg.get('is_legacy', False) else 0,
+                        bg.get('description', ''),
+                        json.dumps(bg.get('skills', [])),
+                        json.dumps(bg.get('other_proficiencies', [])),
+                        json.dumps(bg.get('ability_scores', [])),
+                        json.dumps(bg.get('feats', [])),
+                        bg.get('equipment', ''),
+                        json.dumps(bg.get('features', [])),
+                        1 if bg.get('is_official', True) else 0,
+                        1 if bg.get('is_custom', False) else 0
+                    ))
+                print(f"Migrated {len(data.get('backgrounds', []))} backgrounds to database")
+            except Exception as e:
+                print(f"Error migrating backgrounds: {e}")
+        
+        # Migrate classes
+        classes_path = get_json_path('classes.json')
+        if os.path.exists(classes_path):
+            try:
+                with open(classes_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                classes_data = data.get('classes', {})
+                for class_name, cls in classes_data.items():
+                    # Build spellcasting info from JSON fields
+                    spellcasting_info = None
+                    if cls.get('is_spellcaster', False):
+                        spellcasting_info = {
+                            'is_spellcaster': True,
+                            'ability': cls.get('spellcasting_ability', '')
+                        }
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO classes 
+                        (name, hit_die, primary_ability, saving_throws_json, armor_proficiencies_json,
+                         weapon_proficiencies_json, tool_proficiencies_json, skill_proficiencies_json,
+                         num_skills, starting_equipment_json, class_features_json, spellcasting_json,
+                         subclass_name, subclass_level, source, is_official, is_custom, is_legacy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        class_name,
+                        cls.get('hit_die', 'd8'),
+                        cls.get('primary_ability', ''),
+                        json.dumps(cls.get('saving_throw_proficiencies', [])),
+                        json.dumps(cls.get('armor_proficiencies', [])),
+                        json.dumps(cls.get('weapon_proficiencies', [])),
+                        json.dumps(cls.get('tool_proficiencies', [])),
+                        json.dumps(cls.get('skill_proficiency_options', [])),
+                        cls.get('skill_proficiency_choices', 2),
+                        json.dumps(cls.get('starting_equipment_options', [])),
+                        json.dumps(cls.get('levels', {})),
+                        json.dumps(spellcasting_info) if spellcasting_info else 'null',
+                        cls.get('subclass_name', ''),
+                        cls.get('subclass_level', 3),
+                        cls.get('source', ''),
+                        1 if cls.get('is_official', True) else 0,
+                        1 if cls.get('is_custom', False) else 0,
+                        1 if cls.get('is_legacy', False) else 0
+                    ))
+                    
+                    # Get the class ID for subclasses
+                    cursor.execute("SELECT id FROM classes WHERE name = ? COLLATE NOCASE", (class_name,))
+                    row = cursor.fetchone()
+                    if row:
+                        class_id = row[0]
+                        # Migrate subclasses
+                        for subclass in cls.get('subclasses', []):
+                            # Store all subclass data in features_json
+                            features_data = {
+                                'features': subclass.get('features', []),
+                                'subclass_spells': subclass.get('subclass_spells', []),
+                                'armor_proficiencies': subclass.get('armor_proficiencies', []),
+                                'weapon_proficiencies': subclass.get('weapon_proficiencies', []),
+                                'unarmored_defense': subclass.get('unarmored_defense', ''),
+                                'trackable_features': subclass.get('trackable_features', [])
+                            }
+                            cursor.execute("""
+                                INSERT OR IGNORE INTO subclasses 
+                                (name, class_id, description, features_json, source, is_official, is_custom, is_legacy)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                subclass.get('name', ''),
+                                class_id,
+                                subclass.get('description', ''),
+                                json.dumps(features_data),
+                                subclass.get('source', ''),
+                                1 if subclass.get('is_official', True) else 0,
+                                1 if subclass.get('is_custom', False) else 0,
+                                1 if subclass.get('is_legacy', False) else 0
+                            ))
+                print(f"Migrated {len(classes_data)} classes to database")
+            except Exception as e:
+                print(f"Error migrating classes: {e}")
+    
+    def _remigrate_class_features(self, cursor):
+        """Re-migrate class_features_json from JSON file to fix incorrect field mapping."""
+        def get_json_path(filename):
+            if getattr(sys, 'frozen', False):
+                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            return os.path.join(base_path, filename)
+        
+        classes_path = get_json_path('classes.json')
+        if os.path.exists(classes_path):
+            try:
+                with open(classes_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                classes_data = data.get('classes', {})
+                updated_count = 0
+                for class_name, cls in classes_data.items():
+                    # Build spellcasting info from JSON fields
+                    spellcasting_info = None
+                    if cls.get('is_spellcaster', False):
+                        spellcasting_info = {
+                            'is_spellcaster': True,
+                            'ability': cls.get('spellcasting_ability', '')
+                        }
+                    # Update the class with correct levels data
+                    cursor.execute("""
+                        UPDATE classes SET 
+                            class_features_json = ?,
+                            saving_throws_json = ?,
+                            skill_proficiencies_json = ?,
+                            num_skills = ?,
+                            starting_equipment_json = ?,
+                            spellcasting_json = ?
+                        WHERE name = ? COLLATE NOCASE
+                    """, (
+                        json.dumps(cls.get('levels', {})),
+                        json.dumps(cls.get('saving_throw_proficiencies', [])),
+                        json.dumps(cls.get('skill_proficiency_options', [])),
+                        cls.get('skill_proficiency_choices', 2),
+                        json.dumps(cls.get('starting_equipment_options', [])),
+                        json.dumps(spellcasting_info) if spellcasting_info else 'null',
+                        class_name
+                    ))
+                    if cursor.rowcount > 0:
+                        updated_count += 1
+                print(f"Re-migrated class features for {updated_count} classes")
+            except Exception as e:
+                print(f"Error re-migrating class features: {e}")
     
     def _normalize_tags(self, cursor):
         """Normalize tag capitalization using class-level normalization map."""
@@ -1310,4 +1682,656 @@ class SpellDatabase:
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT spell_id FROM stat_blocks")
             return [row['spell_id'] for row in cursor.fetchall()]
+    
+    # ==================== LINEAGE METHODS ====================
+    
+    def get_all_lineages(self) -> List[dict]:
+        """Get all lineages from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM lineages ORDER BY name")
+            return [self._row_to_lineage_dict(row) for row in cursor.fetchall()]
+    
+    def get_lineage_by_name(self, name: str) -> Optional[dict]:
+        """Get a lineage by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM lineages WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_lineage_dict(row) if row else None
+    
+    def insert_lineage(self, lineage_data: dict) -> int:
+        """Insert a new lineage."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO lineages (name, description, creature_type, size, speed, traits_json, 
+                                      source, is_official, is_custom, is_legacy)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                lineage_data['name'],
+                lineage_data.get('description', ''),
+                lineage_data.get('creature_type', 'Humanoid'),
+                lineage_data.get('size', 'Medium'),
+                lineage_data.get('speed', 30),
+                json.dumps(lineage_data.get('traits', [])),
+                lineage_data.get('source', ''),
+                1 if lineage_data.get('is_official', True) else 0,
+                1 if lineage_data.get('is_custom', False) else 0,
+                1 if lineage_data.get('is_legacy', False) else 0
+            ))
+            return cursor.lastrowid or 0
+    
+    def update_lineage(self, lineage_id: int, lineage_data: dict) -> bool:
+        """Update an existing lineage."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE lineages SET name = ?, description = ?, creature_type = ?, size = ?, 
+                speed = ?, traits_json = ?, source = ?, is_official = ?, is_custom = ?, is_legacy = ?,
+                updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                lineage_data['name'],
+                lineage_data.get('description', ''),
+                lineage_data.get('creature_type', 'Humanoid'),
+                lineage_data.get('size', 'Medium'),
+                lineage_data.get('speed', 30),
+                json.dumps(lineage_data.get('traits', [])),
+                lineage_data.get('source', ''),
+                1 if lineage_data.get('is_official', True) else 0,
+                1 if lineage_data.get('is_custom', False) else 0,
+                1 if lineage_data.get('is_legacy', False) else 0,
+                lineage_id
+            ))
+            return cursor.rowcount > 0
+    
+    def delete_lineage(self, lineage_id: int) -> bool:
+        """Delete a lineage by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM lineages WHERE id = ?", (lineage_id,))
+            return cursor.rowcount > 0
+    
+    def _row_to_lineage_dict(self, row) -> dict:
+        """Convert a database row to a lineage dictionary."""
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'description': row['description'] or '',
+            'creature_type': row['creature_type'] or 'Humanoid',
+            'size': row['size'] or 'Medium',
+            'speed': row['speed'] or 30,
+            'traits': json.loads(row['traits_json']) if row['traits_json'] else [],
+            'source': row['source'] or '',
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+            'is_legacy': bool(row['is_legacy'])
+        }
+    
+    # ==================== FEAT METHODS ====================
+    
+    def get_all_feats(self) -> List[dict]:
+        """Get all feats from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM feats ORDER BY name")
+            return [self._row_to_feat_dict(row) for row in cursor.fetchall()]
+    
+    def get_feat_by_name(self, name: str) -> Optional[dict]:
+        """Get a feat by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM feats WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_feat_dict(row) if row else None
+    
+    def insert_feat(self, feat_data: dict) -> int:
+        """Insert a new feat."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO feats (name, type, is_spellcasting, spell_lists_json, spells_num_json,
+                                   has_prereq, prereq, set_spells_json, description, source,
+                                   is_official, is_custom, is_legacy)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                feat_data['name'],
+                feat_data.get('type', ''),
+                1 if feat_data.get('is_spellcasting', False) else 0,
+                json.dumps(feat_data.get('spell_lists', [])),
+                json.dumps(feat_data.get('spells_num', {})),
+                1 if feat_data.get('has_prereq', False) else 0,
+                feat_data.get('prereq', ''),
+                json.dumps(feat_data.get('set_spells', [])),
+                feat_data.get('description', ''),
+                feat_data.get('source', ''),
+                1 if feat_data.get('is_official', True) else 0,
+                1 if feat_data.get('is_custom', False) else 0,
+                1 if feat_data.get('is_legacy', False) else 0
+            ))
+            return cursor.lastrowid or 0
+    
+    def update_feat(self, feat_id: int, feat_data: dict) -> bool:
+        """Update an existing feat."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE feats SET name = ?, type = ?, is_spellcasting = ?, spell_lists_json = ?,
+                spells_num_json = ?, has_prereq = ?, prereq = ?, set_spells_json = ?, description = ?,
+                source = ?, is_official = ?, is_custom = ?, is_legacy = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                feat_data['name'],
+                feat_data.get('type', ''),
+                1 if feat_data.get('is_spellcasting', False) else 0,
+                json.dumps(feat_data.get('spell_lists', [])),
+                json.dumps(feat_data.get('spells_num', {})),
+                1 if feat_data.get('has_prereq', False) else 0,
+                feat_data.get('prereq', ''),
+                json.dumps(feat_data.get('set_spells', [])),
+                feat_data.get('description', ''),
+                feat_data.get('source', ''),
+                1 if feat_data.get('is_official', True) else 0,
+                1 if feat_data.get('is_custom', False) else 0,
+                1 if feat_data.get('is_legacy', False) else 0,
+                feat_id
+            ))
+            return cursor.rowcount > 0
+    
+    def delete_feat(self, feat_id: int) -> bool:
+        """Delete a feat by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM feats WHERE id = ?", (feat_id,))
+            return cursor.rowcount > 0
+    
+    def _row_to_feat_dict(self, row) -> dict:
+        """Convert a database row to a feat dictionary."""
+        spells_num_raw = json.loads(row['spells_num_json']) if row['spells_num_json'] else {}
+        spells_num = {int(k): v for k, v in spells_num_raw.items()} if spells_num_raw else {}
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'type': row['type'] or '',
+            'is_spellcasting': bool(row['is_spellcasting']),
+            'spell_lists': json.loads(row['spell_lists_json']) if row['spell_lists_json'] else [],
+            'spells_num': spells_num,
+            'has_prereq': bool(row['has_prereq']),
+            'prereq': row['prereq'] or '',
+            'set_spells': json.loads(row['set_spells_json']) if row['set_spells_json'] else [],
+            'description': row['description'] or '',
+            'source': row['source'] or '',
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+            'is_legacy': bool(row['is_legacy'])
+        }
+    
+    # ==================== BACKGROUND METHODS ====================
+    
+    def get_all_backgrounds(self) -> List[dict]:
+        """Get all backgrounds from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM backgrounds ORDER BY name")
+            return [self._row_to_background_dict(row) for row in cursor.fetchall()]
+    
+    def get_background_by_name(self, name: str) -> Optional[dict]:
+        """Get a background by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM backgrounds WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_background_dict(row) if row else None
+    
+    def insert_background(self, bg_data: dict) -> int:
+        """Insert a new background."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO backgrounds (name, source, is_legacy, description, skills_json,
+                                         other_proficiencies_json, ability_scores_json, feats_json,
+                                         equipment, features_json, is_official, is_custom)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                bg_data['name'],
+                bg_data.get('source', ''),
+                1 if bg_data.get('is_legacy', False) else 0,
+                bg_data.get('description', ''),
+                json.dumps(bg_data.get('skills', [])),
+                json.dumps(bg_data.get('other_proficiencies', [])),
+                json.dumps(bg_data.get('ability_scores', [])),
+                json.dumps(bg_data.get('feats', [])),
+                bg_data.get('equipment', ''),
+                json.dumps(bg_data.get('features', [])),
+                1 if bg_data.get('is_official', True) else 0,
+                1 if bg_data.get('is_custom', False) else 0
+            ))
+            return cursor.lastrowid or 0
+    
+    def update_background(self, bg_id: int, bg_data: dict) -> bool:
+        """Update an existing background."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE backgrounds SET name = ?, source = ?, is_legacy = ?, description = ?,
+                skills_json = ?, other_proficiencies_json = ?, ability_scores_json = ?, feats_json = ?,
+                equipment = ?, features_json = ?, is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                bg_data['name'],
+                bg_data.get('source', ''),
+                1 if bg_data.get('is_legacy', False) else 0,
+                bg_data.get('description', ''),
+                json.dumps(bg_data.get('skills', [])),
+                json.dumps(bg_data.get('other_proficiencies', [])),
+                json.dumps(bg_data.get('ability_scores', [])),
+                json.dumps(bg_data.get('feats', [])),
+                bg_data.get('equipment', ''),
+                json.dumps(bg_data.get('features', [])),
+                1 if bg_data.get('is_official', True) else 0,
+                1 if bg_data.get('is_custom', False) else 0,
+                bg_id
+            ))
+            return cursor.rowcount > 0
+    
+    def delete_background(self, bg_id: int) -> bool:
+        """Delete a background by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM backgrounds WHERE id = ?", (bg_id,))
+            return cursor.rowcount > 0
+    
+    def _row_to_background_dict(self, row) -> dict:
+        """Convert a database row to a background dictionary."""
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'source': row['source'] or '',
+            'is_legacy': bool(row['is_legacy']),
+            'description': row['description'] or '',
+            'skills': json.loads(row['skills_json']) if row['skills_json'] else [],
+            'other_proficiencies': json.loads(row['other_proficiencies_json']) if row['other_proficiencies_json'] else [],
+            'ability_scores': json.loads(row['ability_scores_json']) if row['ability_scores_json'] else [],
+            'feats': json.loads(row['feats_json']) if row['feats_json'] else [],
+            'equipment': row['equipment'] or '',
+            'features': json.loads(row['features_json']) if row['features_json'] else [],
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom'])
+        }
+    
+    # ==================== CLASS METHODS ====================
+    
+    def get_all_character_classes(self) -> List[dict]:
+        """Get all character classes from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM classes ORDER BY name")
+            classes = []
+            for row in cursor.fetchall():
+                cls_dict = self._row_to_class_dict(row)
+                # Get subclasses for this class
+                cursor.execute("SELECT * FROM subclasses WHERE class_id = ? ORDER BY name", (row['id'],))
+                cls_dict['subclasses'] = [self._row_to_subclass_dict(sub_row) for sub_row in cursor.fetchall()]
+                classes.append(cls_dict)
+            return classes
+    
+    def get_class_by_name(self, name: str) -> Optional[dict]:
+        """Get a class by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM classes WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            if row:
+                cls_dict = self._row_to_class_dict(row)
+                cursor.execute("SELECT * FROM subclasses WHERE class_id = ? ORDER BY name", (row['id'],))
+                cls_dict['subclasses'] = [self._row_to_subclass_dict(sub_row) for sub_row in cursor.fetchall()]
+                return cls_dict
+            return None
+    
+    def insert_class(self, class_data: dict) -> int:
+        """Insert a new class."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO classes (name, hit_die, primary_ability, saving_throws_json,
+                                     armor_proficiencies_json, weapon_proficiencies_json,
+                                     tool_proficiencies_json, skill_proficiencies_json,
+                                     num_skills, starting_equipment_json, class_features_json,
+                                     spellcasting_json, subclass_name, subclass_level, source,
+                                     is_official, is_custom, is_legacy)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                class_data['name'],
+                class_data.get('hit_die', 8),
+                class_data.get('primary_ability', ''),
+                json.dumps(class_data.get('saving_throws', [])),
+                json.dumps(class_data.get('armor_proficiencies', [])),
+                json.dumps(class_data.get('weapon_proficiencies', [])),
+                json.dumps(class_data.get('tool_proficiencies', [])),
+                json.dumps(class_data.get('skill_proficiencies', [])),
+                class_data.get('num_skills', 2),
+                json.dumps(class_data.get('starting_equipment', [])),
+                json.dumps(class_data.get('class_features', [])),
+                json.dumps(class_data.get('spellcasting')) if class_data.get('spellcasting') else 'null',
+                class_data.get('subclass_name', ''),
+                class_data.get('subclass_level', 3),
+                class_data.get('source', ''),
+                1 if class_data.get('is_official', True) else 0,
+                1 if class_data.get('is_custom', False) else 0,
+                1 if class_data.get('is_legacy', False) else 0
+            ))
+            return cursor.lastrowid or 0
+    
+    def update_class(self, class_id: int, class_data: dict) -> bool:
+        """Update an existing class."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE classes SET name = ?, hit_die = ?, primary_ability = ?, saving_throws_json = ?,
+                armor_proficiencies_json = ?, weapon_proficiencies_json = ?, tool_proficiencies_json = ?,
+                skill_proficiencies_json = ?, num_skills = ?, starting_equipment_json = ?,
+                class_features_json = ?, spellcasting_json = ?, subclass_name = ?, subclass_level = ?,
+                source = ?, is_official = ?, is_custom = ?, is_legacy = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                class_data['name'],
+                class_data.get('hit_die', 8),
+                class_data.get('primary_ability', ''),
+                json.dumps(class_data.get('saving_throws', [])),
+                json.dumps(class_data.get('armor_proficiencies', [])),
+                json.dumps(class_data.get('weapon_proficiencies', [])),
+                json.dumps(class_data.get('tool_proficiencies', [])),
+                json.dumps(class_data.get('skill_proficiencies', [])),
+                class_data.get('num_skills', 2),
+                json.dumps(class_data.get('starting_equipment', [])),
+                json.dumps(class_data.get('class_features', [])),
+                json.dumps(class_data.get('spellcasting')) if class_data.get('spellcasting') else 'null',
+                class_data.get('subclass_name', ''),
+                class_data.get('subclass_level', 3),
+                class_data.get('source', ''),
+                1 if class_data.get('is_official', True) else 0,
+                1 if class_data.get('is_custom', False) else 0,
+                1 if class_data.get('is_legacy', False) else 0,
+                class_id
+            ))
+            return cursor.rowcount > 0
+    
+    def delete_class(self, class_id: int) -> bool:
+        """Delete a class by ID (cascades to subclasses)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM classes WHERE id = ?", (class_id,))
+            return cursor.rowcount > 0
+    
+    def _row_to_class_dict(self, row) -> dict:
+        """Convert a database row to a class dictionary."""
+        spellcasting = None
+        if row['spellcasting_json'] and row['spellcasting_json'] != 'null':
+            spellcasting = json.loads(row['spellcasting_json'])
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'hit_die': row['hit_die'] or 8,
+            'primary_ability': row['primary_ability'] or '',
+            'saving_throws': json.loads(row['saving_throws_json']) if row['saving_throws_json'] else [],
+            'armor_proficiencies': json.loads(row['armor_proficiencies_json']) if row['armor_proficiencies_json'] else [],
+            'weapon_proficiencies': json.loads(row['weapon_proficiencies_json']) if row['weapon_proficiencies_json'] else [],
+            'tool_proficiencies': json.loads(row['tool_proficiencies_json']) if row['tool_proficiencies_json'] else [],
+            'skill_proficiencies': json.loads(row['skill_proficiencies_json']) if row['skill_proficiencies_json'] else [],
+            'num_skills': row['num_skills'] or 2,
+            'starting_equipment': json.loads(row['starting_equipment_json']) if row['starting_equipment_json'] else [],
+            'class_features': json.loads(row['class_features_json']) if row['class_features_json'] else [],
+            'spellcasting': spellcasting,
+            'subclass_name': row['subclass_name'] or '',
+            'subclass_level': row['subclass_level'] or 3,
+            'source': row['source'] or '',
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+            'is_legacy': bool(row['is_legacy']),
+            'subclasses': []  # Filled by get_all_classes or get_class_by_name
+        }
+    
+    def _row_to_subclass_dict(self, row) -> dict:
+        """Convert a database row to a subclass dictionary."""
+        # features_json contains all subclass data
+        features_data = json.loads(row['features_json']) if row['features_json'] else {}
+        
+        # Handle both old format (list of features) and new format (dict with multiple fields)
+        if isinstance(features_data, list):
+            features = features_data
+            subclass_spells = []
+            armor_proficiencies = []
+            weapon_proficiencies = []
+            unarmored_defense = ''
+            trackable_features = []
+        else:
+            features = features_data.get('features', [])
+            subclass_spells = features_data.get('subclass_spells', [])
+            armor_proficiencies = features_data.get('armor_proficiencies', [])
+            weapon_proficiencies = features_data.get('weapon_proficiencies', [])
+            unarmored_defense = features_data.get('unarmored_defense', '')
+            trackable_features = features_data.get('trackable_features', [])
+        
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'class_id': row['class_id'],
+            'description': row['description'] or '',
+            'features': features,
+            'subclass_spells': subclass_spells,
+            'armor_proficiencies': armor_proficiencies,
+            'weapon_proficiencies': weapon_proficiencies,
+            'unarmored_defense': unarmored_defense,
+            'trackable_features': trackable_features,
+            'source': row['source'] or '',
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+            'is_legacy': bool(row['is_legacy'])
+        }
+    
+    # ==================== SUBCLASS METHODS ====================
+    
+    def get_subclasses_for_class(self, class_id: int) -> List[dict]:
+        """Get all subclasses for a class."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM subclasses WHERE class_id = ? ORDER BY name", (class_id,))
+            return [self._row_to_subclass_dict(row) for row in cursor.fetchall()]
+    
+    def insert_subclass(self, subclass_data: dict) -> int:
+        """Insert a new subclass. class_id must be in subclass_data."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Store all subclass data in features_json
+            features_data = {
+                'features': subclass_data.get('features', []),
+                'subclass_spells': subclass_data.get('subclass_spells', []),
+                'armor_proficiencies': subclass_data.get('armor_proficiencies', []),
+                'weapon_proficiencies': subclass_data.get('weapon_proficiencies', []),
+                'unarmored_defense': subclass_data.get('unarmored_defense', ''),
+                'trackable_features': subclass_data.get('trackable_features', [])
+            }
+            cursor.execute("""
+                INSERT INTO subclasses (name, class_id, description, features_json, source,
+                                        is_official, is_custom, is_legacy)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                subclass_data['name'],
+                subclass_data['class_id'],
+                subclass_data.get('description', ''),
+                json.dumps(features_data),
+                subclass_data.get('source', ''),
+                1 if subclass_data.get('is_official', True) else 0,
+                1 if subclass_data.get('is_custom', False) else 0,
+                1 if subclass_data.get('is_legacy', False) else 0
+            ))
+            return cursor.lastrowid or 0
+    
+    def update_subclass(self, subclass_id: int, subclass_data: dict) -> bool:
+        """Update an existing subclass."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # Store all subclass data in features_json
+            features_data = {
+                'features': subclass_data.get('features', []),
+                'subclass_spells': subclass_data.get('subclass_spells', []),
+                'armor_proficiencies': subclass_data.get('armor_proficiencies', []),
+                'weapon_proficiencies': subclass_data.get('weapon_proficiencies', []),
+                'unarmored_defense': subclass_data.get('unarmored_defense', ''),
+                'trackable_features': subclass_data.get('trackable_features', [])
+            }
+            cursor.execute("""
+                UPDATE subclasses SET name = ?, description = ?, features_json = ?, source = ?,
+                is_official = ?, is_custom = ?, is_legacy = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                subclass_data['name'],
+                subclass_data.get('description', ''),
+                json.dumps(features_data),
+                subclass_data.get('source', ''),
+                1 if subclass_data.get('is_official', True) else 0,
+                1 if subclass_data.get('is_custom', False) else 0,
+                1 if subclass_data.get('is_legacy', False) else 0,
+                subclass_id
+            ))
+            return cursor.rowcount > 0
+    
+    def delete_subclass(self, subclass_id: int) -> bool:
+        """Delete a subclass by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM subclasses WHERE id = ?", (subclass_id,))
+            return cursor.rowcount > 0
+    
+    def get_all_subclasses(self) -> List[dict]:
+        """Get all subclasses with their parent class name."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT s.*, c.name as parent_class 
+                FROM subclasses s 
+                JOIN classes c ON s.class_id = c.id 
+                ORDER BY s.name
+            """)
+            results = []
+            for row in cursor.fetchall():
+                sub_dict = self._row_to_subclass_dict(row)
+                sub_dict['parent_class'] = row['parent_class']
+                results.append(sub_dict)
+            return results
+    
+    def get_subclass_by_name(self, name: str, parent_class_name: str) -> Optional[dict]:
+        """Get a subclass by name and parent class name."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT s.*, c.name as parent_class 
+                FROM subclasses s 
+                JOIN classes c ON s.class_id = c.id 
+                WHERE s.name = ? AND c.name = ?
+            """, (name, parent_class_name))
+            row = cursor.fetchone()
+            if row:
+                sub_dict = self._row_to_subclass_dict(row)
+                sub_dict['parent_class'] = row['parent_class']
+                return sub_dict
+            return None
+    
+    def get_subclasses_by_class(self, class_name: str) -> List[dict]:
+        """Get all subclasses for a class by class name."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT s.*, c.name as parent_class 
+                FROM subclasses s 
+                JOIN classes c ON s.class_id = c.id 
+                WHERE c.name = ?
+                ORDER BY s.name
+            """, (class_name,))
+            results = []
+            for row in cursor.fetchall():
+                sub_dict = self._row_to_subclass_dict(row)
+                sub_dict['parent_class'] = row['parent_class']
+                results.append(sub_dict)
+            return results
+    
+    # ==================== GLOBAL SEARCH ====================
+    
+    def global_search(self, query: str, limit: int = 50) -> List[dict]:
+        """
+        Search across all content types by name.
+        Returns list of dicts with 'name', 'section', and 'id'.
+        """
+        if not query or len(query) < 1:
+            return []
+        
+        results = []
+        search_pattern = f"%{query}%"
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Search spells
+            cursor.execute("""
+                SELECT id, name FROM spells 
+                WHERE name LIKE ? COLLATE NOCASE 
+                ORDER BY name LIMIT ?
+            """, (search_pattern, limit))
+            for row in cursor.fetchall():
+                results.append({'id': row['id'], 'name': row['name'], 'section': 'Spells'})
+            
+            # Search lineages
+            cursor.execute("""
+                SELECT id, name FROM lineages 
+                WHERE name LIKE ? COLLATE NOCASE 
+                ORDER BY name LIMIT ?
+            """, (search_pattern, limit))
+            for row in cursor.fetchall():
+                results.append({'id': row['id'], 'name': row['name'], 'section': 'Lineages'})
+            
+            # Search feats
+            cursor.execute("""
+                SELECT id, name FROM feats 
+                WHERE name LIKE ? COLLATE NOCASE 
+                ORDER BY name LIMIT ?
+            """, (search_pattern, limit))
+            for row in cursor.fetchall():
+                results.append({'id': row['id'], 'name': row['name'], 'section': 'Feats'})
+            
+            # Search backgrounds
+            cursor.execute("""
+                SELECT id, name FROM backgrounds 
+                WHERE name LIKE ? COLLATE NOCASE 
+                ORDER BY name LIMIT ?
+            """, (search_pattern, limit))
+            for row in cursor.fetchall():
+                results.append({'id': row['id'], 'name': row['name'], 'section': 'Backgrounds'})
+            
+            # Search classes
+            cursor.execute("""
+                SELECT id, name FROM classes 
+                WHERE name LIKE ? COLLATE NOCASE 
+                ORDER BY name LIMIT ?
+            """, (search_pattern, limit))
+            for row in cursor.fetchall():
+                results.append({'id': row['id'], 'name': row['name'], 'section': 'Classes'})
+            
+            # Search subclasses
+            cursor.execute("""
+                SELECT s.id, s.name, c.name as class_name FROM subclasses s
+                JOIN classes c ON s.class_id = c.id
+                WHERE s.name LIKE ? COLLATE NOCASE 
+                ORDER BY s.name LIMIT ?
+            """, (search_pattern, limit))
+            for row in cursor.fetchall():
+                results.append({
+                    'id': row['id'], 
+                    'name': f"{row['name']} ({row['class_name']})", 
+                    'section': 'Subclasses'
+                })
+        
+        # Sort by name and limit total results
+        results.sort(key=lambda x: x['name'].lower())
+        return results[:limit]
 
