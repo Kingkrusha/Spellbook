@@ -1099,7 +1099,7 @@ class MainWindow(ctk.CTkFrame):
         ctk.CTkLabel(class_frame, text="Class:", font=ctk.CTkFont(size=13)).pack(
             side="left", padx=(0, 8))
         self.class_var = ctk.StringVar(value="All")
-        class_options = ["All"] + [c.value for c in CharacterClass.all_classes()]
+        class_options = ["All"] + CharacterClass.all_class_names_with_custom()
         self.class_combo = ctk.CTkComboBox(class_frame, variable=self.class_var,
                                            values=class_options, width=110,
                                            command=lambda x: self._on_filter_changed(immediate=True))
@@ -1642,12 +1642,9 @@ class MainWindow(ctk.CTkFrame):
         else:
             level_filter = int(level_str)
         
-        # Class filter
+        # Class filter - use class name string directly (for custom class support)
         class_str = self.class_var.get()
-        if class_str == "All":
-            class_filter = None
-        else:
-            class_filter = CharacterClass.from_string(class_str)
+        class_name_filter = "" if class_str == "All" else class_str
         
         # Build advanced filters
         advanced = AdvancedFilters()
@@ -1717,7 +1714,7 @@ class MainWindow(ctk.CTkFrame):
         advanced.tags_filter = self._selected_tags.copy()
         advanced.tags_filter_mode = self._tag_filter_mode
         
-        return search_text, level_filter, class_filter, advanced
+        return search_text, level_filter, class_name_filter, advanced
     
     def _refresh_spell_list(self, reset_scroll: bool = True):
         """Refresh the spell list with current filters.
@@ -1725,10 +1722,10 @@ class MainWindow(ctk.CTkFrame):
         Args:
             reset_scroll: If True, scroll position resets to top (default True)
         """
-        search_text, level_filter, class_filter, advanced = self._get_current_filters()
+        search_text, level_filter, class_name_filter, advanced = self._get_current_filters()
         legacy_filter = self.settings_manager.settings.legacy_content_filter
         filtered_spells = self.spell_manager.get_filtered_spells(
-            search_text, level_filter, class_filter, advanced, legacy_filter
+            search_text, level_filter, class_name_filter, advanced, legacy_filter
         )
         self.spell_list.set_spells(filtered_spells, reset_scroll=reset_scroll)
     
@@ -1737,7 +1734,7 @@ class MainWindow(ctk.CTkFrame):
         Uses debouncing to avoid excessive database queries during typing.
         
         Args:
-            immediate: If True, apply filters immediately without debouncing
+            immediate: If True, apply filters with minimal delay (for dropdowns)
         """
         # Cancel any pending debounced call
         if self._filter_debounce_id is not None:
@@ -1745,8 +1742,8 @@ class MainWindow(ctk.CTkFrame):
             self._filter_debounce_id = None
         
         if immediate:
-            # Apply immediately (for dropdown selections, etc.)
-            self._refresh_spell_list()
+            # Apply with minimal delay to allow UI to update first
+            self._filter_debounce_id = self.after(10, self._apply_debounced_filter)
         else:
             # Debounce text input to avoid excessive queries
             self._filter_debounce_id = self.after(
@@ -1758,6 +1755,16 @@ class MainWindow(ctk.CTkFrame):
         """Apply the filter after debounce delay."""
         self._filter_debounce_id = None
         self._refresh_spell_list()
+    
+    def refresh_class_filter(self):
+        """Refresh the class filter dropdown to include newly imported custom classes."""
+        if hasattr(self, 'class_combo'):
+            current_value = self.class_var.get()
+            class_options = ["All"] + CharacterClass.all_class_names_with_custom()
+            self.class_combo.configure(values=class_options)
+            # Preserve current selection if still valid
+            if current_value not in class_options:
+                self.class_var.set("All")
     
     def _on_spells_changed(self):
         """Called when the spell collection changes."""

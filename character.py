@@ -14,11 +14,17 @@ class ClassLevel:
     character_class: CharacterClass
     level: int
     subclass: str = ""  # Name of the subclass (e.g., "Path of the Berserker")
+    custom_class_name: str = ""  # Name of the actual class when character_class is CUSTOM
     
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
+        # For custom classes, store the actual class name
+        if self.character_class == CharacterClass.CUSTOM and self.custom_class_name:
+            class_name = self.custom_class_name
+        else:
+            class_name = self.character_class.value
         return {
-            "class": self.character_class.value,
+            "class": class_name,
             "level": self.level,
             "subclass": self.subclass
         }
@@ -26,11 +32,24 @@ class ClassLevel:
     @classmethod
     def from_dict(cls, data: dict) -> "ClassLevel":
         """Create from dictionary."""
+        class_name = data["class"]
+        char_class = CharacterClass.from_string(class_name)
+        custom_name = ""
+        # If from_string returns CUSTOM but the name wasn't "Custom", store the original name
+        if char_class == CharacterClass.CUSTOM and class_name.upper() != "CUSTOM":
+            custom_name = class_name
         return cls(
-            character_class=CharacterClass.from_string(data["class"]),
+            character_class=char_class,
             level=data["level"],
-            subclass=data.get("subclass", "")
+            subclass=data.get("subclass", ""),
+            custom_class_name=custom_name
         )
+    
+    def get_class_name(self) -> str:
+        """Get the display name of the class."""
+        if self.character_class == CharacterClass.CUSTOM and self.custom_class_name:
+            return self.custom_class_name
+        return self.character_class.value
 
 
 @dataclass

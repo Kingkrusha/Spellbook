@@ -179,7 +179,8 @@ class FeatureEditorDialog(ctk.CTkToplevel):
 class LevelFeaturesEditorDialog(ctk.CTkToplevel):
     """Dialog for editing features at a specific level."""
     
-    def __init__(self, parent, level: int, features: List[ClassAbility], class_specific: Dict[str, str]):
+    def __init__(self, parent, level: int, features: List[ClassAbility], class_specific: Dict[str, str],
+                 has_subclass_feature: bool = False):
         super().__init__(parent)
         
         self.theme = get_theme_manager()
@@ -187,10 +188,11 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         self._level = level
         self._features = list(features)  # Copy
         self._class_specific = dict(class_specific)  # Copy
+        self._has_subclass_feature = has_subclass_feature
         
         self.title(f"Edit Level {level} Features")
-        self.geometry("700x600")
-        self.minsize(600, 500)
+        self.geometry("700x650")
+        self.minsize(600, 550)
         self.resizable(True, True)
         
         self.transient(parent)
@@ -201,7 +203,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         
         self.update_idletasks()
         x = parent.winfo_rootx() + (parent.winfo_width() - 700) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 600) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 650) // 2
         self.geometry(f"+{x}+{y}")
     
     def _create_widgets(self):
@@ -228,10 +230,28 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
             command=self._add_feature
         ).pack(side="right")
         
+        # Subclass Feature toggle
+        subclass_frame = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
+        subclass_frame.pack(fill="x", pady=(0, 10))
+        
+        self.has_subclass_var = ctk.BooleanVar(value=self._has_subclass_feature)
+        ctk.CTkCheckBox(
+            subclass_frame, text="This level has a Subclass Feature",
+            variable=self.has_subclass_var,
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(padx=15, pady=10, anchor="w")
+        
+        ctk.CTkLabel(
+            subclass_frame,
+            text="Check this if subclasses gain features at this level (e.g., levels 3, 6, 10, 14 for most classes)",
+            font=ctk.CTkFont(size=11),
+            text_color=self.theme.get_current_color('text_secondary')
+        ).pack(padx=15, pady=(0, 10), anchor="w")
+        
         # Features list
         self.features_frame = ctk.CTkScrollableFrame(
             container, fg_color=self.theme.get_current_color('bg_secondary'),
-            corner_radius=8, height=300
+            corner_radius=8, height=250
         )
         self.features_frame.pack(fill="both", expand=True, pady=(0, 15))
         
@@ -386,7 +406,8 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         
         self.result = {
             "features": self._features,
-            "class_specific": self._class_specific
+            "class_specific": self._class_specific,
+            "has_subclass_feature": self.has_subclass_var.get()
         }
         self.destroy()
 
@@ -524,6 +545,14 @@ class TrackableFeatureEditorDialog(ctk.CTkToplevel):
 class ClassEditorDialog(ctk.CTkToplevel):
     """Dialog for creating or editing a character class."""
     
+    # All D&D 5e Skills
+    ALL_SKILLS = [
+        "Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception",
+        "History", "Insight", "Intimidation", "Investigation", "Medicine",
+        "Nature", "Perception", "Performance", "Persuasion", "Religion",
+        "Sleight of Hand", "Stealth", "Survival"
+    ]
+    
     def __init__(self, parent, class_def: Optional[CharacterClassDefinition] = None, on_save: Optional[Callable] = None):
         super().__init__(parent)
         
@@ -537,6 +566,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self._level_data: Dict[int, Dict] = {}
         self._trackable_features: List[TrackableFeature] = []
         self._custom_columns: List[str] = []
+        self._subclass_levels: set = set()  # Levels that have subclass features
         
         if class_def:
             # Copy existing data
@@ -545,6 +575,10 @@ class ClassEditorDialog(ctk.CTkToplevel):
                     "features": list(level_obj.abilities),
                     "class_specific": dict(level_obj.class_specific)
                 }
+                # Check if this level has subclass features
+                for ability in level_obj.abilities:
+                    if ability.is_subclass_feature:
+                        self._subclass_levels.add(lvl)
             self._trackable_features = list(class_def.trackable_features)
             self._custom_columns = list(class_def.class_table_columns)
         else:
@@ -582,12 +616,14 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.tabview.add("Level Features")
         self.tabview.add("Class Features Widget")
         self.tabview.add("Custom Columns")
+        self.tabview.add("Column Values")
         
         self._create_basic_info_tab()
         self._create_spellcasting_tab()
         self._create_level_features_tab()
         self._create_class_features_tab()
         self._create_custom_columns_tab()
+        self._create_column_values_tab()
         
         # Button frame
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -671,13 +707,48 @@ class ClassEditorDialog(ctk.CTkToplevel):
         skill_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         skill_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(skill_frame, text="Skill Choices:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(skill_frame, text="Number of Skill Choices:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
         self.skill_choices_entry = ctk.CTkEntry(skill_frame, width=60, height=35, placeholder_text="2")
         self.skill_choices_entry.pack(side="left", padx=(10, 0))
         
-        ctk.CTkLabel(scroll, text="Skill Options (comma-separated)", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
-        self.skill_options_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Acrobatics, Athletics, Intimidation")
-        self.skill_options_entry.pack(fill="x", pady=(0, 15))
+        # Skill Options - Checkboxes
+        ctk.CTkLabel(scroll, text="Available Skill Options", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        
+        skill_options_frame = ctk.CTkFrame(scroll, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
+        skill_options_frame.pack(fill="x", pady=(0, 5))
+        
+        # Select All / Clear All buttons
+        skill_btn_frame = ctk.CTkFrame(skill_options_frame, fg_color="transparent")
+        skill_btn_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkButton(
+            skill_btn_frame, text="Select All", width=80, height=25,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._select_all_skills
+        ).pack(side="left", padx=(0, 5))
+        
+        ctk.CTkButton(
+            skill_btn_frame, text="Clear All", width=80, height=25,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._clear_all_skills
+        ).pack(side="left")
+        
+        # Skills grid (3 columns)
+        skills_grid = ctk.CTkFrame(skill_options_frame, fg_color="transparent")
+        skills_grid.pack(fill="x", padx=10, pady=(0, 10))
+        skills_grid.grid_columnconfigure((0, 1, 2), weight=1)
+        
+        self.skill_vars = {}
+        for idx, skill in enumerate(self.ALL_SKILLS):
+            var = ctk.BooleanVar(value=False)
+            self.skill_vars[skill] = var
+            cb = ctk.CTkCheckBox(skills_grid, text=skill, variable=var, width=150,
+                                 font=ctk.CTkFont(size=11))
+            cb.grid(row=idx // 3, column=idx % 3, sticky="w", padx=5, pady=2)
         
         # Subclass Level
         subclass_frame = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -696,9 +767,16 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.subclass_name_entry = ctk.CTkEntry(subclass_frame, width=200, height=35, placeholder_text="e.g., Martial Archetype")
         self.subclass_name_entry.pack(side="left", padx=(10, 0))
         
-        # Description
+        # Description with rich text toolbar
         ctk.CTkLabel(scroll, text="Description", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        
+        from ui.rich_text_utils import RichTextEditor
+        
         self.description_text = ctk.CTkTextbox(scroll, height=120, font=ctk.CTkFont(size=12))
+        self._class_desc_rich_editor = RichTextEditor(self, self.description_text, self.theme)
+        class_desc_toolbar = self._class_desc_rich_editor.create_toolbar(scroll)
+        class_desc_toolbar.pack(fill="x", pady=(0, 5))
+        
         self.description_text.pack(fill="x", pady=(0, 15))
         
         # Source
@@ -836,19 +914,46 @@ class ClassEditorDialog(ctk.CTkToplevel):
             if col not in data["class_specific"]:
                 data["class_specific"][col] = "-"
         
+        # Check if this level has subclass features
+        has_subclass = level in self._subclass_levels
+        
         dialog = LevelFeaturesEditorDialog(
             self, level,
             data["features"],
-            data["class_specific"]
+            data["class_specific"],
+            has_subclass_feature=has_subclass
         )
         self.wait_window(dialog)
         
         if dialog.result:
-            self._level_data[level] = dialog.result
-            # Update button color to show it has features
-            if dialog.result["features"]:
+            self._level_data[level] = {
+                "features": dialog.result["features"],
+                "class_specific": dialog.result["class_specific"]
+            }
+            
+            # Update subclass levels tracking
+            if dialog.result.get("has_subclass_feature", False):
+                self._subclass_levels.add(level)
+            else:
+                self._subclass_levels.discard(level)
+            
+            # Update button color to show it has features or subclass features
+            has_features = bool(dialog.result["features"])
+            has_sub = dialog.result.get("has_subclass_feature", False)
+            
+            if has_features or has_sub:
+                if has_sub:
+                    # Special color for subclass feature levels
+                    self.level_buttons[level].configure(
+                        fg_color=self.theme.get_current_color('button_success')
+                    )
+                else:
+                    self.level_buttons[level].configure(
+                        fg_color=self.theme.get_current_color('accent_primary')
+                    )
+            else:
                 self.level_buttons[level].configure(
-                    fg_color=self.theme.get_current_color('accent_primary')
+                    fg_color=self.theme.get_current_color('bg_secondary')
                 )
     
     def _create_class_features_tab(self):
@@ -1053,6 +1158,10 @@ class ClassEditorDialog(ctk.CTkToplevel):
             if lvl not in self._level_data:
                 self._level_data[lvl] = {"features": [], "class_specific": {}}
             self._level_data[lvl]["class_specific"][name] = "-"
+        
+        # Refresh column values if that tab exists
+        if hasattr(self, '_column_values_frame'):
+            self._refresh_column_values()
     
     def _delete_column(self, idx: int):
         """Delete a column."""
@@ -1066,7 +1175,165 @@ class ClassEditorDialog(ctk.CTkToplevel):
                     del self._level_data[lvl]["class_specific"][col_name]
             
             self._refresh_columns()
+            
+            # Refresh column values tab
+            if hasattr(self, '_column_values_frame'):
+                self._refresh_column_values()
     
+    def _select_all_skills(self):
+        """Select all skill checkboxes."""
+        for var in self.skill_vars.values():
+            var.set(True)
+    
+    def _clear_all_skills(self):
+        """Clear all skill checkboxes."""
+        for var in self.skill_vars.values():
+            var.set(False)
+    
+    def _create_column_values_tab(self):
+        """Create the column values editor tab - allows editing all level values at once."""
+        tab = self.tabview.tab("Column Values")
+        
+        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        scroll.pack(fill="both", expand=True)
+        
+        ctk.CTkLabel(
+            scroll, text="Column Values by Level",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(fill="x", pady=(0, 5))
+        
+        ctk.CTkLabel(
+            scroll,
+            text="Set values for each custom column across all levels. This is easier than editing each level individually.",
+            font=ctk.CTkFont(size=12),
+            text_color=self.theme.get_current_color('text_secondary')
+        ).pack(fill="x", pady=(0, 15))
+        
+        # Container for column value editors
+        self._column_values_frame = ctk.CTkFrame(
+            scroll, fg_color=self.theme.get_current_color('bg_secondary'),
+            corner_radius=8
+        )
+        self._column_values_frame.pack(fill="both", expand=True)
+        
+        self._column_value_entries = {}  # {column_name: {level: entry}}
+        self._refresh_column_values()
+    
+    def _refresh_column_values(self):
+        """Refresh the column values editor."""
+        for widget in self._column_values_frame.winfo_children():
+            widget.destroy()
+        
+        self._column_value_entries = {}
+        
+        if not self._custom_columns:
+            ctk.CTkLabel(
+                self._column_values_frame,
+                text="No custom columns defined. Add columns in the 'Custom Columns' tab first.",
+                font=ctk.CTkFont(size=12),
+                text_color=self.theme.get_current_color('text_secondary')
+            ).pack(padx=15, pady=15)
+            return
+        
+        # Create a section for each column
+        for col_name in self._custom_columns:
+            self._create_column_value_section(col_name)
+    
+    def _create_column_value_section(self, col_name: str):
+        """Create a section for editing a single column's values across all levels."""
+        section = ctk.CTkFrame(self._column_values_frame, fg_color="transparent")
+        section.pack(fill="x", padx=10, pady=10)
+        
+        # Column header
+        header = ctk.CTkFrame(section, fg_color="transparent")
+        header.pack(fill="x", pady=(0, 5))
+        
+        ctk.CTkLabel(
+            header, text=col_name,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=self.theme.get_current_color('accent_primary')
+        ).pack(side="left")
+        
+        # Fill pattern helper
+        fill_frame = ctk.CTkFrame(header, fg_color="transparent")
+        fill_frame.pack(side="right")
+        
+        ctk.CTkLabel(fill_frame, text="Fill:", font=ctk.CTkFont(size=11)).pack(side="left", padx=(0, 5))
+        
+        fill_entry = ctk.CTkEntry(fill_frame, width=60, height=25, placeholder_text="value")
+        fill_entry.pack(side="left", padx=(0, 5))
+        
+        ctk.CTkButton(
+            fill_frame, text="Fill All", width=60, height=25,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=lambda c=col_name, e=fill_entry: self._fill_all_column_values(c, e.get())
+        ).pack(side="left")
+        
+        # Grid of level inputs (4 columns x 5 rows)
+        grid_frame = ctk.CTkFrame(section, fg_color="transparent")
+        grid_frame.pack(fill="x", pady=5)
+        
+        self._column_value_entries[col_name] = {}
+        
+        for lvl in range(1, 21):
+            row = (lvl - 1) % 5
+            col = (lvl - 1) // 5
+            
+            cell = ctk.CTkFrame(grid_frame, fg_color="transparent")
+            cell.grid(row=row, column=col, padx=5, pady=2, sticky="w")
+            
+            ctk.CTkLabel(cell, text=f"L{lvl}:", font=ctk.CTkFont(size=11), width=30).pack(side="left")
+            
+            # Get current value
+            current_val = "-"
+            if lvl in self._level_data:
+                current_val = self._level_data[lvl].get("class_specific", {}).get(col_name, "-")
+            
+            entry = ctk.CTkEntry(cell, width=60, height=25)
+            entry.insert(0, current_val)
+            entry.pack(side="left")
+            
+            # Bind to save on change
+            entry.bind("<FocusOut>", lambda e, c=col_name, l=lvl: self._save_column_value(c, l))
+            entry.bind("<Return>", lambda e, c=col_name, l=lvl: self._save_column_value(c, l))
+            
+            self._column_value_entries[col_name][lvl] = entry
+        
+        # Separator
+        ctk.CTkFrame(
+            section, height=1,
+            fg_color=self.theme.get_current_color('border')
+        ).pack(fill="x", pady=(10, 0))
+    
+    def _save_column_value(self, col_name: str, level: int):
+        """Save a column value from the entry."""
+        if col_name in self._column_value_entries and level in self._column_value_entries[col_name]:
+            entry = self._column_value_entries[col_name][level]
+            value = entry.get().strip() or "-"
+            
+            if level not in self._level_data:
+                self._level_data[level] = {"features": [], "class_specific": {}}
+            
+            self._level_data[level]["class_specific"][col_name] = value
+    
+    def _fill_all_column_values(self, col_name: str, value: str):
+        """Fill all levels with the same value for a column."""
+        value = value.strip() or "-"
+        
+        for lvl in range(1, 21):
+            if lvl not in self._level_data:
+                self._level_data[lvl] = {"features": [], "class_specific": {}}
+            
+            self._level_data[lvl]["class_specific"][col_name] = value
+            
+            # Update entry
+            if col_name in self._column_value_entries and lvl in self._column_value_entries[col_name]:
+                entry = self._column_value_entries[col_name][lvl]
+                entry.delete(0, "end")
+                entry.insert(0, value)
+
     def _populate_from_class(self, class_def: CharacterClassDefinition):
         """Populate all fields from an existing class."""
         self.name_entry.insert(0, class_def.name)
@@ -1083,7 +1350,10 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.tool_entry.insert(0, ", ".join(class_def.tool_proficiencies))
         
         self.skill_choices_entry.insert(0, str(class_def.skill_proficiency_choices))
-        self.skill_options_entry.insert(0, ", ".join(class_def.skill_proficiency_options))
+        # Set skill checkboxes
+        for skill in class_def.skill_proficiency_options:
+            if skill in self.skill_vars:
+                self.skill_vars[skill].set(True)
         
         self.subclass_level_var.set(str(class_def.subclass_level))
         self.subclass_name_entry.insert(0, class_def.subclass_name)
@@ -1099,14 +1369,26 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         # Update level buttons
         for lvl, data in self._level_data.items():
-            if data["features"]:
-                self.level_buttons[lvl].configure(
-                    fg_color=self.theme.get_current_color('accent_primary')
-                )
+            has_features = bool(data["features"])
+            has_sub = lvl in self._subclass_levels
+            
+            if has_features or has_sub:
+                if has_sub:
+                    self.level_buttons[lvl].configure(
+                        fg_color=self.theme.get_current_color('button_success')
+                    )
+                else:
+                    self.level_buttons[lvl].configure(
+                        fg_color=self.theme.get_current_color('accent_primary')
+                    )
         
         # Refresh trackable features and columns
         self._refresh_trackable_features()
         self._refresh_columns()
+        
+        # Refresh column values tab if it's been created
+        if hasattr(self, '_column_values_frame'):
+            self._refresh_column_values()
     
     def _on_save_class(self):
         """Save the class."""
@@ -1133,9 +1415,24 @@ class ClassEditorDialog(ctk.CTkToplevel):
             
             prof_bonus = 2 + (lvl - 1) // 4
             
+            # Get features and add subclass feature placeholder if this level has one
+            features = list(data["features"])
+            
+            # If this level has subclass feature, add a placeholder
+            if lvl in self._subclass_levels:
+                # Check if there's already a subclass feature placeholder
+                has_subclass_placeholder = any(f.is_subclass_feature for f in features)
+                if not has_subclass_placeholder:
+                    subclass_name = self.subclass_name_entry.get().strip() or "Subclass"
+                    features.append(ClassAbility(
+                        title=f"{subclass_name} feature",
+                        description="Feature granted by your chosen subclass.",
+                        is_subclass_feature=True
+                    ))
+            
             levels[lvl] = ClassLevel(
                 level=lvl,
-                abilities=data["features"],
+                abilities=features,
                 proficiency_bonus=prof_bonus,
                 spell_slots=spell_slots,
                 class_specific=data["class_specific"]
@@ -1153,7 +1450,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             tool_proficiencies=[p.strip() for p in self.tool_entry.get().split(",") if p.strip()],
             saving_throw_proficiencies=saving_throws,
             skill_proficiency_choices=int(self.skill_choices_entry.get() or "2"),
-            skill_proficiency_options=[s.strip() for s in self.skill_options_entry.get().split(",") if s.strip()],
+            skill_proficiency_options=[skill for skill, var in self.skill_vars.items() if var.get()],
             description=self.description_text.get("1.0", "end-1c").strip(),
             is_spellcaster=is_caster,
             spellcasting_ability=self.spell_ability_var.get() if is_caster else "",
@@ -1278,7 +1575,14 @@ class SubclassEditorDialog(ctk.CTkToplevel):
         
         # Description
         ctk.CTkLabel(scroll, text="Description", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        
+        from ui.rich_text_utils import RichTextEditor
+        
         self.description_text = ctk.CTkTextbox(scroll, height=150, font=ctk.CTkFont(size=12))
+        self._desc_rich_editor = RichTextEditor(self, self.description_text, self.theme)
+        desc_toolbar = self._desc_rich_editor.create_toolbar(scroll)
+        desc_toolbar.pack(fill="x", pady=(0, 5))
+        
         self.description_text.pack(fill="x", pady=(0, 15))
         
         # Source

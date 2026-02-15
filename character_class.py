@@ -268,12 +268,23 @@ class SubclassDefinition:
     
     @classmethod
     def from_dict(cls, data: dict) -> "SubclassDefinition":
+        # Handle subclass_spells as either list of strings or list of dicts
+        raw_spells = data.get("subclass_spells", [])
+        subclass_spells = []
+        for s in raw_spells:
+            if isinstance(s, str):
+                # Just a spell name string - convert to SubclassSpell
+                subclass_spells.append(SubclassSpell(spell_name=s, level_gained=1))
+            else:
+                # Dict format - use from_dict
+                subclass_spells.append(SubclassSpell.from_dict(s))
+        
         return cls(
             name=data.get("name", ""),
             parent_class=data.get("parent_class", ""),
             description=data.get("description", ""),
             features=[SubclassFeature.from_dict(f) for f in data.get("features", [])],
-            subclass_spells=[SubclassSpell.from_dict(s) for s in data.get("subclass_spells", [])],
+            subclass_spells=subclass_spells,
             armor_proficiencies=data.get("armor_proficiencies", []),
             weapon_proficiencies=data.get("weapon_proficiencies", []),
             unarmored_defense=data.get("unarmored_defense", ""),
@@ -357,6 +368,10 @@ class CharacterClassDefinition:
     # Class feature spells - always prepared, don't count against limit (e.g., Divine Smite, Find Steed for Paladin)
     class_spells: List[ClassSpell] = field(default_factory=list)
     
+    # Spell list - names of spells this class can cast (for import/export)
+    # When importing a class, these spells will have this class added to their allowed classes
+    spell_list: List[str] = field(default_factory=list)
+    
     # Special AC calculation (e.g., Barbarian Unarmored Defense, Monk Unarmored Defense)
     unarmored_defense: str = ""  # e.g., "10 + DEX + CON" for Barbarian, "10 + DEX + WIS" for Monk
     
@@ -422,6 +437,7 @@ class CharacterClassDefinition:
             "trackable_features": [f.to_dict() for f in self.trackable_features],
             "class_table_columns": self.class_table_columns,
             "class_spells": [s.to_dict() for s in self.class_spells],
+            "spell_list": self.spell_list,
             "unarmored_defense": self.unarmored_defense,
             "is_custom": self.is_custom,
             "source": self.source
@@ -433,6 +449,17 @@ class CharacterClassDefinition:
         levels = {}
         for k, v in levels_data.items():
             levels[int(k)] = ClassLevel.from_dict(v)
+        
+        # Handle class_spells as either list of strings or list of dicts
+        raw_class_spells = data.get("class_spells", [])
+        class_spells = []
+        for s in raw_class_spells:
+            if isinstance(s, str):
+                # Just a spell name string - convert to ClassSpell
+                class_spells.append(ClassSpell(spell_name=s, level_gained=1))
+            else:
+                # Dict format - use from_dict
+                class_spells.append(ClassSpell.from_dict(s))
         
         instance = cls(
             name=data.get("name", "Unknown"),
@@ -456,7 +483,8 @@ class CharacterClassDefinition:
             levels=levels,
             trackable_features=[TrackableFeature.from_dict(f) for f in data.get("trackable_features", [])],
             class_table_columns=data.get("class_table_columns", []),
-            class_spells=[ClassSpell.from_dict(s) for s in data.get("class_spells", [])],
+            class_spells=class_spells,
+            spell_list=data.get("spell_list", []),
             unarmored_defense=data.get("unarmored_defense", ""),
             is_custom=data.get("is_custom", False),
             source=data.get("source", "Player's Handbook"),
@@ -493,10 +521,18 @@ class ClassManager:
         """Reload classes from database into cache."""
         self._classes_cache = {}
         
+        # Clear and re-register custom classes with CharacterClass enum
+        from spell import CharacterClass
+        CharacterClass.clear_custom_classes()
+        
         # Load all classes
         for class_data in self.db.get_all_character_classes():
             class_def = self._dict_to_class(class_data)
             self._classes_cache[class_def.name] = class_def
+            
+            # Register custom classes with the CharacterClass enum
+            if class_def.is_custom:
+                CharacterClass.register_custom_class(class_def.name)
         
         # Load and attach subclasses to their parent classes
         for subclass_data in self.db.get_all_subclasses():
@@ -773,6 +809,10 @@ class ClassManager:
                 self.db.delete_subclass(subclass['id'])
             
             self.db.delete_class(existing['id'])
+            
+            # Remove class from all spells' allowed classes
+            self.db.remove_class_from_all_spells(name)
+            
             self._invalidate_cache()
             self._notify_listeners()
             return True

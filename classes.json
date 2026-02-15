@@ -1107,6 +1107,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Bard College",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 2,
@@ -1203,7 +1209,14 @@
         },
         "6": {
           "level": 6,
-          "abilities": [],
+          "abilities": [
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
+            }
+          ],
           "proficiency_bonus": 3,
           "cantrips_known": 3,
           "spells_known": 10,
@@ -1475,7 +1488,14 @@
         },
         "14": {
           "level": 14,
-          "abilities": [],
+          "abilities": [
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
+            }
+          ],
           "proficiency_bonus": 5,
           "cantrips_known": 4,
           "spells_known": 17,
@@ -2720,6 +2740,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 4,
@@ -2855,6 +2881,12 @@
               "description": "The option you chose for Blessed Strikes grows more powerful.\n\n*Divine Strike.* The extra damage of your Divine Strike increases to 2d8.\n\n*Potent Spellcasting.* When you cast a Cleric cantrip and deal damage to a creature with it, you can give vitality to yourself or another creature within 60 feet of yourself, granting a number of Temporary Hit Points equal to twice your Wisdom modifier.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -4022,6 +4054,12 @@
               "description": "You gain a Druid subclass of your choice. The Circle of the Land, Circle of the Moon, Circle of the Sea, and Circle of the Stars subclasses are detailed after this class's description. A subclass is a specialization that grants you features at certain Druid levels. For the rest of your career, you gain each of your subclass's features that are of your Druid level or lower.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Circle",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -6079,6 +6117,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Monastic Tradition",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 2,
@@ -6165,6 +6209,12 @@
               "description": "You gain a feature from your Monk subclass.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -6282,6 +6332,12 @@
               "description": "You gain a feature from your Monk subclass.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -6414,6 +6470,12 @@
               "description": "You gain a feature from your Monk subclass.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -7075,6 +7137,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Sacred Oath",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 2,
@@ -7175,6 +7243,12 @@
               "description": "You gain a feature from your Paladin subclass.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -7368,6 +7442,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 5,
@@ -7492,6 +7572,12 @@
               "description": "You gain a feature from your Paladin subclass.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Subclass Feature",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -8200,6 +8286,12 @@
               "description": "You gain a Ranger Subclass of your choice. The Beast Master, Fey Wanderer, Gloom Stalker and Hunter subclasses are detailed after this class's description. A Subclass is a specialization that grants you features at certain Ranger levels. For the rest of your career, you gain each of your subclass's features that are of your Ranger level or lower.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Ranger Conclave",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -9298,6 +9390,12 @@
               "description": "As a Bonus Action, you give yourself Advantage on your next attack roll on your current turn. You can use this feature only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Rogue Subclass",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],
@@ -10493,6 +10591,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Sorcerer Subclass",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 2,
@@ -11623,6 +11727,12 @@
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
+            },
+            {
+              "title": "Warlock Subclass",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
+              "tables": []
             }
           ],
           "proficiency_bonus": 2,
@@ -12526,6 +12636,12 @@
               "description": "While studying magic, you also specialized in another field of study. Choose one of the following skills in which you have proficiency: Arcana, History, Investigation, Medicine, Nature, or Religion. You have Expertise in the chosen skill.",
               "is_subclass_feature": false,
               "subclass_name": "",
+              "tables": []
+            },
+            {
+              "title": "Wizard Subclass",
+              "description": "Feature granted by your chosen subclass.",
+              "is_subclass_feature": true,
               "tables": []
             }
           ],

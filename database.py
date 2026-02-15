@@ -15,7 +15,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 9  # Bumped to fix class_features_json migration (use levels field)
+    SCHEMA_VERSION = 11  # Fix missing subclass feature placeholders for Bard and other classes
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -324,6 +324,18 @@ class SpellDatabase:
             self._remigrate_class_features(cursor)
             cursor.execute("UPDATE schema_version SET version = 9")
             current_version = 9
+        
+        # Migration to version 10: add missing class columns
+        if current_version < 10:
+            self._add_class_columns_v10(cursor)
+            cursor.execute("UPDATE schema_version SET version = 10")
+            current_version = 10
+        
+        # Migration to version 11: fix missing subclass feature placeholders
+        if current_version < 11:
+            self._fix_subclass_features_v11(cursor)
+            cursor.execute("UPDATE schema_version SET version = 11")
+            current_version = 11
     
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
@@ -411,6 +423,10 @@ class SpellDatabase:
                 spellcasting_json TEXT DEFAULT 'null',
                 subclass_name TEXT DEFAULT '',
                 subclass_level INTEGER DEFAULT 3,
+                class_table_columns_json TEXT DEFAULT '[]',
+                trackable_features_json TEXT DEFAULT '[]',
+                class_spells_json TEXT DEFAULT '[]',
+                unarmored_defense TEXT DEFAULT '',
                 source TEXT DEFAULT '',
                 is_official INTEGER NOT NULL DEFAULT 1,
                 is_custom INTEGER NOT NULL DEFAULT 0,
@@ -563,8 +579,9 @@ class SpellDatabase:
                         (name, hit_die, primary_ability, saving_throws_json, armor_proficiencies_json,
                          weapon_proficiencies_json, tool_proficiencies_json, skill_proficiencies_json,
                          num_skills, starting_equipment_json, class_features_json, spellcasting_json,
-                         subclass_name, subclass_level, source, is_official, is_custom, is_legacy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         subclass_name, subclass_level, class_table_columns_json, trackable_features_json,
+                         class_spells_json, unarmored_defense, source, is_official, is_custom, is_legacy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         class_name,
                         cls.get('hit_die', 'd8'),
@@ -580,6 +597,10 @@ class SpellDatabase:
                         json.dumps(spellcasting_info) if spellcasting_info else 'null',
                         cls.get('subclass_name', ''),
                         cls.get('subclass_level', 3),
+                        json.dumps(cls.get('class_table_columns', [])),
+                        json.dumps(cls.get('trackable_features', [])),
+                        json.dumps(cls.get('class_spells', [])),
+                        cls.get('unarmored_defense', ''),
                         cls.get('source', ''),
                         1 if cls.get('is_official', True) else 0,
                         1 if cls.get('is_custom', False) else 0,
@@ -668,6 +689,91 @@ class SpellDatabase:
                 print(f"Re-migrated class features for {updated_count} classes")
             except Exception as e:
                 print(f"Error re-migrating class features: {e}")
+    
+    def _add_class_columns_v10(self, cursor):
+        """Add missing class columns (class_table_columns, trackable_features, class_spells, unarmored_defense)."""
+        # Add the missing columns if they don't exist
+        cursor.execute("PRAGMA table_info(classes)")
+        existing_columns = {col[1] for col in cursor.fetchall()}
+        
+        columns_to_add = [
+            ("class_table_columns_json", "TEXT DEFAULT '[]'"),
+            ("trackable_features_json", "TEXT DEFAULT '[]'"),
+            ("class_spells_json", "TEXT DEFAULT '[]'"),
+            ("unarmored_defense", "TEXT DEFAULT ''"),
+        ]
+        
+        for col_name, col_def in columns_to_add:
+            if col_name not in existing_columns:
+                cursor.execute(f"ALTER TABLE classes ADD COLUMN {col_name} {col_def}")
+        
+        # Now populate the new columns from JSON file
+        def get_json_path(filename):
+            if getattr(sys, 'frozen', False):
+                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            return os.path.join(base_path, filename)
+        
+        classes_path = get_json_path('classes.json')
+        if os.path.exists(classes_path):
+            try:
+                with open(classes_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                classes_data = data.get('classes', {})
+                updated_count = 0
+                for class_name, cls in classes_data.items():
+                    cursor.execute("""
+                        UPDATE classes SET 
+                            class_table_columns_json = ?,
+                            trackable_features_json = ?,
+                            class_spells_json = ?,
+                            unarmored_defense = ?
+                        WHERE name = ? COLLATE NOCASE
+                    """, (
+                        json.dumps(cls.get('class_table_columns', [])),
+                        json.dumps(cls.get('trackable_features', [])),
+                        json.dumps(cls.get('class_spells', [])),
+                        cls.get('unarmored_defense', ''),
+                        class_name
+                    ))
+                    if cursor.rowcount > 0:
+                        updated_count += 1
+                print(f"Updated {updated_count} classes with missing column data")
+            except Exception as e:
+                print(f"Error updating class columns: {e}")
+    
+    def _fix_subclass_features_v11(self, cursor):
+        """Fix missing subclass feature placeholders for Bard and other classes."""
+        def get_json_path(filename):
+            if getattr(sys, 'frozen', False):
+                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            return os.path.join(base_path, filename)
+        
+        classes_path = get_json_path('classes.json')
+        if os.path.exists(classes_path):
+            try:
+                with open(classes_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                classes_data = data.get('classes', {})
+                updated_count = 0
+                for class_name, cls in classes_data.items():
+                    # Update class_features_json with the corrected levels data
+                    cursor.execute("""
+                        UPDATE classes SET 
+                            class_features_json = ?
+                        WHERE name = ? COLLATE NOCASE
+                    """, (
+                        json.dumps(cls.get('levels', {})),
+                        class_name
+                    ))
+                    if cursor.rowcount > 0:
+                        updated_count += 1
+                print(f"Fixed subclass features for {updated_count} classes")
+            except Exception as e:
+                print(f"Error fixing subclass features: {e}")
     
     def _normalize_tags(self, cursor):
         """Normalize tag capitalization using class-level normalization map."""
@@ -926,6 +1032,63 @@ class SpellDatabase:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM spells WHERE name = ? COLLATE NOCASE", (name,))
             return cursor.rowcount > 0
+    
+    def add_class_to_spells(self, class_name: str, spell_names: List[str]) -> int:
+        """
+        Add a class to the allowed classes list of specified spells.
+        This does NOT mark the spells as modified (for custom class imports).
+        
+        Args:
+            class_name: The class name to add (e.g., "Witch")
+            spell_names: List of spell names to add the class to
+        
+        Returns:
+            Number of spells updated
+        """
+        if not spell_names:
+            return 0
+        
+        updated_count = 0
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            for spell_name in spell_names:
+                # Get spell ID
+                cursor.execute("SELECT id FROM spells WHERE name = ? COLLATE NOCASE", (spell_name,))
+                row = cursor.fetchone()
+                
+                if row:
+                    spell_id = row['id']
+                    # Check if class already exists for this spell
+                    cursor.execute(
+                        "SELECT 1 FROM spell_classes WHERE spell_id = ? AND class_name = ?",
+                        (spell_id, class_name)
+                    )
+                    if not cursor.fetchone():
+                        # Add the class to the spell
+                        cursor.execute(
+                            "INSERT INTO spell_classes (spell_id, class_name) VALUES (?, ?)",
+                            (spell_id, class_name)
+                        )
+                        updated_count += 1
+        
+        return updated_count
+    
+    def remove_class_from_all_spells(self, class_name: str) -> int:
+        """
+        Remove a class from all spells' allowed classes list.
+        Used when deleting a custom class.
+        
+        Args:
+            class_name: The class name to remove
+        
+        Returns:
+            Number of spells updated
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM spell_classes WHERE class_name = ?", (class_name,))
+            return cursor.rowcount
     
     def get_spell_by_id(self, spell_id: int) -> Optional[dict]:
         """Get a spell by its ID."""
@@ -1998,9 +2161,11 @@ class SpellDatabase:
                                      armor_proficiencies_json, weapon_proficiencies_json,
                                      tool_proficiencies_json, skill_proficiencies_json,
                                      num_skills, starting_equipment_json, class_features_json,
-                                     spellcasting_json, subclass_name, subclass_level, source,
-                                     is_official, is_custom, is_legacy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                     spellcasting_json, subclass_name, subclass_level,
+                                     class_table_columns_json, trackable_features_json,
+                                     class_spells_json, unarmored_defense,
+                                     source, is_official, is_custom, is_legacy)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 class_data['name'],
                 class_data.get('hit_die', 8),
@@ -2016,6 +2181,10 @@ class SpellDatabase:
                 json.dumps(class_data.get('spellcasting')) if class_data.get('spellcasting') else 'null',
                 class_data.get('subclass_name', ''),
                 class_data.get('subclass_level', 3),
+                json.dumps(class_data.get('class_table_columns', [])),
+                json.dumps(class_data.get('trackable_features', [])),
+                json.dumps(class_data.get('class_spells', [])),
+                class_data.get('unarmored_defense', ''),
                 class_data.get('source', ''),
                 1 if class_data.get('is_official', True) else 0,
                 1 if class_data.get('is_custom', False) else 0,
@@ -2032,7 +2201,9 @@ class SpellDatabase:
                 armor_proficiencies_json = ?, weapon_proficiencies_json = ?, tool_proficiencies_json = ?,
                 skill_proficiencies_json = ?, num_skills = ?, starting_equipment_json = ?,
                 class_features_json = ?, spellcasting_json = ?, subclass_name = ?, subclass_level = ?,
-                source = ?, is_official = ?, is_custom = ?, is_legacy = ?, updated_at = CURRENT_TIMESTAMP
+                class_table_columns_json = ?, trackable_features_json = ?, class_spells_json = ?,
+                unarmored_defense = ?, source = ?, is_official = ?, is_custom = ?, is_legacy = ?,
+                updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
                 class_data['name'],
@@ -2049,6 +2220,10 @@ class SpellDatabase:
                 json.dumps(class_data.get('spellcasting')) if class_data.get('spellcasting') else 'null',
                 class_data.get('subclass_name', ''),
                 class_data.get('subclass_level', 3),
+                json.dumps(class_data.get('class_table_columns', [])),
+                json.dumps(class_data.get('trackable_features', [])),
+                json.dumps(class_data.get('class_spells', [])),
+                class_data.get('unarmored_defense', ''),
                 class_data.get('source', ''),
                 1 if class_data.get('is_official', True) else 0,
                 1 if class_data.get('is_custom', False) else 0,
@@ -2069,6 +2244,37 @@ class SpellDatabase:
         spellcasting = None
         if row['spellcasting_json'] and row['spellcasting_json'] != 'null':
             spellcasting = json.loads(row['spellcasting_json'])
+        
+        # Handle new columns that might not exist in older databases
+        class_table_columns = []
+        trackable_features = []
+        class_spells = []
+        unarmored_defense = ''
+        
+        # Try to access new columns, fall back to defaults if they don't exist
+        try:
+            if row['class_table_columns_json']:
+                class_table_columns = json.loads(row['class_table_columns_json'])
+        except (KeyError, IndexError):
+            pass
+        
+        try:
+            if row['trackable_features_json']:
+                trackable_features = json.loads(row['trackable_features_json'])
+        except (KeyError, IndexError):
+            pass
+        
+        try:
+            if row['class_spells_json']:
+                class_spells = json.loads(row['class_spells_json'])
+        except (KeyError, IndexError):
+            pass
+        
+        try:
+            unarmored_defense = row['unarmored_defense'] or ''
+        except (KeyError, IndexError):
+            pass
+        
         return {
             'id': row['id'],
             'name': row['name'],
@@ -2085,6 +2291,10 @@ class SpellDatabase:
             'spellcasting': spellcasting,
             'subclass_name': row['subclass_name'] or '',
             'subclass_level': row['subclass_level'] or 3,
+            'class_table_columns': class_table_columns,
+            'trackable_features': trackable_features,
+            'class_spells': class_spells,
+            'unarmored_defense': unarmored_defense,
             'source': row['source'] or '',
             'is_official': bool(row['is_official']),
             'is_custom': bool(row['is_custom']),

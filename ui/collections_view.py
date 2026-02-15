@@ -9,6 +9,112 @@ from typing import Optional, Callable
 from theme import get_theme_manager
 from ui.global_search import GlobalSearchBar
 
+class ImportProgressSplash(ctk.CTkToplevel):
+    """Progress splash screen shown during content import."""
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        
+        self.theme = get_theme_manager()
+        
+        # Configure window
+        self.title("Importing...")
+        self.geometry("400x200")
+        self.resizable(False, False)
+        
+        # Remove window decorations for cleaner look
+        self.overrideredirect(True)
+        
+        # Center on parent
+        self.transient(parent)
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 400) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 200) // 2
+        self.geometry(f"400x200+{x}+{y}")
+        
+        # Keep on top
+        self.attributes("-topmost", True)
+        self.grab_set()
+        
+        self._create_widgets()
+        self.lift()
+        self.update()
+    
+    def _create_widgets(self):
+        """Create splash screen widgets."""
+        bg_color = self.theme.get_current_color('bg_secondary')
+        
+        self.container = ctk.CTkFrame(self, fg_color=bg_color, corner_radius=12)
+        self.container.pack(fill="both", expand=True, padx=2, pady=2)
+        
+        # Add border effect
+        border_frame = ctk.CTkFrame(
+            self.container, 
+            fg_color=self.theme.get_current_color('bg_primary'),
+            corner_radius=10
+        )
+        border_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        
+        # Title
+        self.title_label = ctk.CTkLabel(
+            border_frame,
+            text="📥 Importing Content",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        self.title_label.pack(pady=(25, 15))
+        
+        # Status message
+        self.status_label = ctk.CTkLabel(
+            border_frame,
+            text="Preparing import...",
+            font=ctk.CTkFont(size=12),
+            text_color=self.theme.get_text_secondary()
+        )
+        self.status_label.pack(pady=(0, 12))
+        
+        # Progress bar
+        self.progress = ctk.CTkProgressBar(
+            border_frame,
+            width=320,
+            height=12,
+            progress_color=self.theme.get_current_color('accent_primary'),
+            fg_color=self.theme.get_current_color('bg_tertiary'),
+            corner_radius=6
+        )
+        self.progress.pack(pady=(0, 15))
+        self.progress.set(0)
+        
+        # Item counter
+        self.count_label = ctk.CTkLabel(
+            border_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=self.theme.get_text_secondary()
+        )
+        self.count_label.pack(pady=(0, 10))
+    
+    def set_status(self, message: str):
+        """Update the status message."""
+        self.status_label.configure(text=message)
+        self.update()
+    
+    def set_progress(self, value: float):
+        """Set progress bar value (0.0 to 1.0)."""
+        self.progress.set(value)
+        self.update()
+    
+    def set_count(self, current: int, total: int, item_type: str = "items"):
+        """Update the item counter."""
+        self.count_label.configure(text=f"{current} / {total} {item_type}")
+        self.update()
+    
+    def update_progress(self, message: str, value: float, current: int = 0, total: int = 0, item_type: str = ""):
+        """Update status, progress, and optionally count."""
+        self.set_status(message)
+        self.set_progress(value)
+        if total > 0:
+            self.set_count(current, total, item_type)
+        self.update()
 
 class CollectionsView(ctk.CTkFrame):
     """Main collections hub with buttons for different content types."""
@@ -41,6 +147,24 @@ class CollectionsView(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         btn_frame.pack(side="right")
         
+        # Character sheet import/export
+        ctk.CTkButton(
+            btn_frame, text="📋 Char Export",
+            width=110,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._on_character_export
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            btn_frame, text="📋 Char Import",
+            width=110,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._on_character_import
+        ).pack(side="left", padx=5)
+        
+        # Content import/export
         ctk.CTkButton(
             btn_frame, text="📥 Import",
             width=100,
@@ -199,8 +323,159 @@ class CollectionsView(ctk.CTkFrame):
     def _on_import(self):
         """Handle import button click."""
         # Show import options dialog
-        dialog = ImportDialog(self.winfo_toplevel(), self.spell_manager)
+        dialog = ImportDialog(
+            self.winfo_toplevel(), 
+            self.spell_manager,
+            on_import_complete=self._on_import_complete
+        )
         dialog.grab_set()
+    
+    def _on_import_complete(self):
+        """Handle post-import refresh of all views and managers."""
+        # Reload all managers to pick up new content
+        from character_class import get_class_manager
+        from feat import get_feat_manager
+        from lineage import get_lineage_manager
+        
+        # Reload class manager (which also updates CharacterClass custom classes)
+        class_manager = get_class_manager()
+        class_manager.load()
+        
+        # Reload feat manager
+        feat_manager = get_feat_manager()
+        feat_manager.load()
+        
+        # Reload lineage manager
+        lineage_manager = get_lineage_manager()
+        lineage_manager.load_lineages()
+        
+        # Reload spell manager if available
+        if self.spell_manager:
+            self.spell_manager.load_spells()
+        
+        # Try to refresh the main window's class filter dropdown
+        try:
+            main_window = self.winfo_toplevel()
+            if hasattr(main_window, 'refresh_class_filter'):
+                main_window.refresh_class_filter()
+        except Exception:
+            pass
+    
+    def _on_character_export(self):
+        """Handle character sheet export button click."""
+        dialog = CharacterSheetExportDialog(self.winfo_toplevel())
+        dialog.grab_set()
+    
+    def _on_character_import(self):
+        """Handle character sheet import button click."""
+        file_path = filedialog.askopenfilename(
+            title="Import Character Sheets",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            parent=self
+        )
+        
+        if not file_path:
+            return
+        
+        import json
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            if "character_sheets" not in data and "sheets" not in data:
+                messagebox.showerror(
+                    "Invalid File",
+                    "This file does not contain character sheet data.",
+                    parent=self
+                )
+                return
+            
+            # Get sheets data (support both formats)
+            sheets_data = data.get("character_sheets", data.get("sheets", {}))
+            
+            if not sheets_data:
+                messagebox.showinfo("No Data", "No character sheets found in file.", parent=self)
+                return
+            
+            # Import character sheets with missing content validation
+            from ui.character_sheet_view import get_sheet_manager
+            from character_manager import CharacterManager
+            
+            sheet_manager = get_sheet_manager()
+            char_manager = CharacterManager()
+            char_manager.load_characters()
+            
+            imported = 0
+            warnings = []
+            
+            for name, sheet_data in sheets_data.items():
+                try:
+                    from character_sheet import CharacterSheet
+                    sheet = CharacterSheet.from_dict(sheet_data)
+                    
+                    # Check if character spell list exists
+                    char_exists = char_manager.get_character(name) is not None
+                    if not char_exists:
+                        warnings.append(f"'{name}': No matching character spell list found")
+                    
+                    # Import the sheet
+                    sheet_manager.update_sheet(name, sheet)
+                    imported += 1
+                except Exception as e:
+                    warnings.append(f"'{name}': Import error - {e}")
+            
+            # Import character spell lists if present
+            spell_lists_data = data.get("character_spell_lists", [])
+            spell_list_imported = 0
+            
+            for char_data in spell_lists_data:
+                try:
+                    from character import CharacterSpellList
+                    char = CharacterSpellList.from_dict(char_data)
+                    
+                    # Validate class references
+                    from character_class import get_class_manager
+                    class_manager = get_class_manager()
+                    
+                    for cl in char.classes:
+                        class_name = cl.character_class.value if hasattr(cl.character_class, 'value') else str(cl.character_class)
+                        if not class_manager.get_class(class_name):
+                            warnings.append(f"'{char.name}': Class '{class_name}' not found in system")
+                    
+                    # Validate spell references
+                    if self.spell_manager:
+                        for spell_name in char.known_spells + char.prepared_spells:
+                            if not self.spell_manager._db.get_spell_by_name(spell_name):
+                                warnings.append(f"'{char.name}': Spell '{spell_name}' not found")
+                    
+                    # Add or update character
+                    if char_manager.get_character(char.name):
+                        char_manager.update_character(char.name, char)
+                    else:
+                        char_manager.add_character(char)
+                    spell_list_imported += 1
+                except Exception as e:
+                    warnings.append(f"Character spell list error: {e}")
+            
+            # Show results
+            msg = f"Successfully imported {imported} character sheet(s)"
+            if spell_list_imported > 0:
+                msg += f" and {spell_list_imported} character spell list(s)"
+            msg += "."
+            
+            if warnings:
+                msg += f"\n\nWarnings ({len(warnings)}):\n"
+                msg += "\n".join(warnings[:10])  # Show first 10 warnings
+                if len(warnings) > 10:
+                    msg += f"\n... and {len(warnings) - 10} more"
+                messagebox.showwarning("Import Complete with Warnings", msg, parent=self)
+            else:
+                messagebox.showinfo("Import Complete", msg, parent=self)
+                
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Invalid JSON", f"Failed to parse file:\n{e}", parent=self)
+        except Exception as e:
+            messagebox.showerror("Import Error", f"Failed to import:\n{e}", parent=self)
     
     def _on_export(self):
         """Handle export button click."""
@@ -212,21 +487,22 @@ class CollectionsView(ctk.CTkFrame):
 class ImportDialog(ctk.CTkToplevel):
     """Dialog for importing content with auto-detection."""
     
-    def __init__(self, parent, spell_manager=None):
+    def __init__(self, parent, spell_manager=None, on_import_complete: Optional[Callable] = None):
         super().__init__(parent)
         
         self.spell_manager = spell_manager
+        self.on_import_complete = on_import_complete
         self.theme = get_theme_manager()
         
         self.title("Import Content")
-        self.geometry("500x350")
+        self.geometry("500x420")
         self.resizable(False, False)
         
         # Center on parent
         self.transient(parent)
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 350) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 420) // 2
         self.geometry(f"+{x}+{y}")
         
         self._create_widgets()
@@ -296,7 +572,7 @@ class ImportDialog(ctk.CTkToplevel):
         ).pack(pady=(20, 0))
     
     def _import_json(self):
-        """Import content from a JSON file with auto-detection."""
+        """Import content from a JSON file with auto-detection and progress tracking."""
         import json
         from feat import get_feat_manager
         from character_class import get_class_manager
@@ -315,109 +591,240 @@ class ImportDialog(ctk.CTkToplevel):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            results = []
-            
-            # Check for spells
-            if "spells" in data and self.spell_manager:
-                count = 0
-                for spell_data in data["spells"]:
-                    try:
-                        spell = self.spell_manager._dict_to_spell(spell_data)
-                        spell.is_custom = True
-                        self.spell_manager.add_spell(spell)
-                        count += 1
-                    except Exception as e:
-                        print(f"Error importing spell: {e}")
-                if count > 0:
-                    results.append(f"{count} spell(s)")
-            
-            # Check for feats
+            # Calculate total items for progress
+            total_items = 0
+            if "spells" in data:
+                total_items += len(data["spells"])
             if "feats" in data:
-                feat_manager = get_feat_manager()
-                count = 0
-                for feat_data in data["feats"]:
-                    from feat import Feat
-                    feat = Feat.from_dict(feat_data)
-                    feat.is_custom = True
-                    feat.is_official = False
-                    feat_manager.add_feat(feat)
-                    count += 1
-                if count > 0:
-                    results.append(f"{count} feat(s)")
-            
-            # Check for classes
+                total_items += len(data["feats"])
             if "classes" in data:
-                class_manager = get_class_manager()
-                count = 0
-                for class_data in data["classes"]:
-                    from character_class import CharacterClassDefinition
-                    cls = CharacterClassDefinition.from_dict(class_data)
-                    cls.is_custom = True
-                    # is_official is derived from is_custom in the database
-                    class_manager.add_class(cls)
-                    count += 1
-                if count > 0:
-                    results.append(f"{count} class(es)")
-            
-            # Check for subclasses
+                total_items += len(data["classes"])
             if "subclasses" in data:
-                class_manager = get_class_manager()
-                count = 0
-                for subclass_data in data["subclasses"]:
-                    from character_class import SubclassDefinition
-                    subclass = SubclassDefinition.from_dict(subclass_data)
-                    subclass.is_custom = True
-                    # is_official is derived from is_custom in the database
-                    # Find parent class and add subclass
-                    parent_class = class_manager.get_class(subclass.parent_class)
-                    if parent_class:
-                        parent_class.subclasses.append(subclass)
-                        class_manager.add_class(parent_class)  # Re-save to include new subclass
-                        count += 1
-                if count > 0:
-                    results.append(f"{count} subclass(es)")
-            
-            # Check for lineages
+                total_items += len(data["subclasses"])
             if "lineages" in data:
-                lineage_manager = get_lineage_manager()
-                count = 0
-                for lineage_data in data["lineages"]:
-                    from lineage import Lineage
-                    lineage = Lineage.from_dict(lineage_data)
-                    lineage.is_custom = True
-                    lineage.is_official = False
-                    lineage_manager.add_lineage(lineage)
-                    count += 1
-                if count > 0:
-                    results.append(f"{count} lineage(s)")
-            
-            # Check for backgrounds
+                total_items += len(data["lineages"])
             if "backgrounds" in data:
-                from background import get_background_manager, Background
-                background_manager = get_background_manager()
-                count = 0
-                for bg_data in data["backgrounds"]:
-                    background = Background.from_dict(bg_data)
-                    background.is_custom = True
-                    background.is_official = False
-                    background_manager.add_background(background)
-                    count += 1
-                if count > 0:
-                    results.append(f"{count} background(s)")
+                total_items += len(data["backgrounds"])
             
-            if results:
-                messagebox.showinfo(
-                    "Import Complete",
-                    f"Successfully imported:\n• " + "\n• ".join(results),
-                    parent=self
-                )
-            else:
+            if total_items == 0:
                 messagebox.showwarning(
                     "No Content Found",
                     "No recognized content types found in the file.\n\n"
                     "Expected keys: spells, feats, classes, subclasses, lineages, backgrounds",
                     parent=self
                 )
+                return
+            
+            # Show progress splash
+            progress_splash = ImportProgressSplash(self)
+            current_item = 0
+            results = []
+            import_warnings = []  # Track missing references
+            
+            try:
+                # Import classes FIRST (so custom class names are registered for spells)
+                if "classes" in data:
+                    class_manager = get_class_manager()
+                    class_count = 0
+                    spells_updated = 0
+                    class_total = len(data["classes"])
+                    for i, class_data in enumerate(data["classes"]):
+                        from character_class import CharacterClassDefinition
+                        cls = CharacterClassDefinition.from_dict(class_data)
+                        cls.is_custom = True
+                        class_manager.add_class(cls)
+                        class_count += 1
+                        
+                        # Register custom class name with CharacterClass enum
+                        from spell import CharacterClass
+                        CharacterClass.register_custom_class(cls.name)
+                        
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing class: {class_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, class_total, "classes"
+                        )
+                    
+                    if class_count > 0:
+                        results.append(f"{class_count} class(es)")
+                
+                # Import subclasses SECOND
+                if "subclasses" in data:
+                    class_manager = get_class_manager()
+                    subclass_count = 0
+                    subclass_total = len(data["subclasses"])
+                    for i, subclass_data in enumerate(data["subclasses"]):
+                        from character_class import SubclassDefinition
+                        subclass = SubclassDefinition.from_dict(subclass_data)
+                        subclass.is_custom = True
+                        parent_class = class_manager.get_class(subclass.parent_class)
+                        if parent_class:
+                            # Check for missing subclass spells
+                            if self.spell_manager and subclass.subclass_spells:
+                                for spell in subclass.subclass_spells:
+                                    spell_name = spell.spell_name if hasattr(spell, 'spell_name') else str(spell)
+                                    if not self.spell_manager._db.get_spell_by_name(spell_name):
+                                        import_warnings.append(f"Subclass '{subclass.name}': Spell '{spell_name}' not found")
+                            
+                            parent_class.subclasses.append(subclass)
+                            class_manager.add_class(parent_class)
+                            subclass_count += 1
+                        else:
+                            import_warnings.append(f"Subclass '{subclass.name}': Parent class '{subclass.parent_class}' not found")
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing subclass: {subclass_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, subclass_total, "subclasses"
+                        )
+                    if subclass_count > 0:
+                        results.append(f"{subclass_count} subclass(es)")
+                
+                # Import spells THIRD (after classes are registered) - using bulk import
+                if "spells" in data and self.spell_manager:
+                    spell_total = len(data["spells"])
+                    
+                    # Convert all spell dicts to Spell objects first
+                    spells_to_add = []
+                    for i, spell_data in enumerate(data["spells"]):
+                        try:
+                            spell = self.spell_manager._dict_to_spell(spell_data)
+                            spells_to_add.append(spell)
+                        except Exception as e:
+                            print(f"Error converting spell: {e}")
+                        # Update progress every 20 spells during conversion
+                        if (i + 1) % 20 == 0 or i == spell_total - 1:
+                            progress_splash.update_progress(
+                                f"Preparing spell {i + 1} of {spell_total}...",
+                                current_item / total_items,
+                                i + 1, spell_total, "spells"
+                            )
+                    
+                    # Bulk add with progress callback
+                    def spell_progress(current, total):
+                        progress_splash.update_progress(
+                            f"Saving spells to database ({current}/{total})...",
+                            (current_item + current) / total_items,
+                            current, total, "spells"
+                        )
+                    
+                    spell_count = self.spell_manager.bulk_add_spells(spells_to_add, spell_progress)
+                    current_item += spell_total
+                    
+                    if spell_count > 0:
+                        results.append(f"{spell_count} spell(s)")
+                
+                # Now add class spell lists to existing spells
+                if "classes" in data:
+                    class_manager = get_class_manager()
+                    spells_updated = 0
+                    for class_data in data["classes"]:
+                        cls = class_manager.get_class(class_data.get('name', ''))
+                        if cls and cls.spell_list:
+                            from database import SpellDatabase
+                            db = SpellDatabase()
+                            
+                            # Check for missing spells before linking
+                            if self.spell_manager:
+                                for spell_name in cls.spell_list:
+                                    if not self.spell_manager._db.get_spell_by_name(spell_name):
+                                        import_warnings.append(f"Class '{cls.name}' spell list: '{spell_name}' not found")
+                            
+                            updated = db.add_class_to_spells(cls.name, cls.spell_list)
+                            spells_updated += updated
+                    
+                    if spells_updated > 0:
+                        results.append(f"({spells_updated} spells linked to classes)")
+                        if self.spell_manager:
+                            self.spell_manager.load_spells()
+                
+                # Import feats
+                if "feats" in data:
+                    feat_manager = get_feat_manager()
+                    feat_count = 0
+                    feat_total = len(data["feats"])
+                    for i, feat_data in enumerate(data["feats"]):
+                        from feat import Feat
+                        feat = Feat.from_dict(feat_data)
+                        feat.is_custom = True
+                        feat.is_official = False
+                        feat_manager.add_feat(feat)
+                        feat_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing feat: {feat_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, feat_total, "feats"
+                        )
+                    if feat_count > 0:
+                        results.append(f"{feat_count} feat(s)")
+                
+                # Import lineages
+                if "lineages" in data:
+                    lineage_manager = get_lineage_manager()
+                    lineage_count = 0
+                    lineage_total = len(data["lineages"])
+                    for i, lineage_data in enumerate(data["lineages"]):
+                        from lineage import Lineage
+                        lineage = Lineage.from_dict(lineage_data)
+                        lineage.is_custom = True
+                        lineage.is_official = False
+                        lineage_manager.add_lineage(lineage)
+                        lineage_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing lineage: {lineage_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, lineage_total, "lineages"
+                        )
+                    if lineage_count > 0:
+                        results.append(f"{lineage_count} lineage(s)")
+                
+                # Import backgrounds
+                if "backgrounds" in data:
+                    from background import get_background_manager, Background
+                    background_manager = get_background_manager()
+                    bg_count = 0
+                    bg_total = len(data["backgrounds"])
+                    for i, bg_data in enumerate(data["backgrounds"]):
+                        background = Background.from_dict(bg_data)
+                        background.is_custom = True
+                        background.is_official = False
+                        background_manager.add_background(background)
+                        bg_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing background: {bg_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, bg_total, "backgrounds"
+                        )
+                    if bg_count > 0:
+                        results.append(f"{bg_count} background(s)")
+                
+                # Complete
+                progress_splash.update_progress("Import complete!", 1.0)
+                
+            finally:
+                progress_splash.destroy()
+            
+            if results:
+                msg = f"Successfully imported:\n• " + "\n• ".join(results)
+                
+                if import_warnings:
+                    msg += f"\n\nWarnings ({len(import_warnings)}):\n"
+                    # Deduplicate and limit warnings
+                    unique_warnings = list(dict.fromkeys(import_warnings))
+                    msg += "\n".join(unique_warnings[:10])
+                    if len(unique_warnings) > 10:
+                        msg += f"\n... and {len(unique_warnings) - 10} more"
+                    messagebox.showwarning("Import Complete with Warnings", msg, parent=self)
+                else:
+                    messagebox.showinfo("Import Complete", msg, parent=self)
+                
+                # Trigger post-import refresh callback
+                if self.on_import_complete:
+                    self.on_import_complete()
                 
         except Exception as e:
             messagebox.showerror("Import Error", f"Failed to import content:\n{e}", parent=self)
@@ -764,3 +1171,232 @@ class ExportDialog(ctk.CTkToplevel):
             
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export content:\n{e}", parent=self)
+
+
+class CharacterSheetExportDialog(ctk.CTkToplevel):
+    """Dialog for exporting character sheets with selection."""
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        
+        self.theme = get_theme_manager()
+        
+        self.title("Export Character Sheets")
+        self.geometry("500x550")
+        self.resizable(False, False)
+        
+        # Center on parent
+        self.transient(parent)
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 550) // 2
+        self.geometry(f"+{x}+{y}")
+        
+        self._selected_chars = {}  # character_name -> BooleanVar
+        self._create_widgets()
+    
+    def _create_widgets(self):
+        """Create export dialog UI."""
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(
+            container, text="Export Character Sheets",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(anchor="w", pady=(0, 10))
+        
+        ctk.CTkLabel(
+            container,
+            text="Select characters to export. Both character sheet and spell list data will be included.",
+            font=ctk.CTkFont(size=12),
+            text_color=self.theme.get_text_secondary(),
+            wraplength=460
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Select All / Deselect All buttons
+        select_frame = ctk.CTkFrame(container, fg_color="transparent")
+        select_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkButton(
+            select_frame, text="Select All", width=100, height=30,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._select_all
+        ).pack(side="left", padx=(0, 10))
+        
+        ctk.CTkButton(
+            select_frame, text="Deselect All", width=100, height=30,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._deselect_all
+        ).pack(side="left")
+        
+        # Character selection list
+        list_frame = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
+        list_frame.pack(fill="both", expand=True, pady=(0, 15))
+        
+        # Scrollable area
+        self.scroll_frame = ctk.CTkScrollableFrame(
+            list_frame, fg_color="transparent",
+            height=250
+        )
+        self.scroll_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Load characters
+        from character_manager import CharacterManager
+        from ui.character_sheet_view import get_sheet_manager
+        
+        char_manager = CharacterManager()
+        char_manager.load_characters()
+        sheet_manager = get_sheet_manager()
+        
+        characters = char_manager.characters
+        
+        if not characters:
+            ctk.CTkLabel(
+                self.scroll_frame, text="No characters found.",
+                text_color=self.theme.get_text_secondary()
+            ).pack(pady=20)
+        else:
+            for char in characters:
+                var = ctk.BooleanVar(value=True)  # Default to selected
+                self._selected_chars[char.name] = var
+                
+                # Check if sheet exists
+                sheet_exists = sheet_manager.get_sheet(char.name) is not None
+                
+                char_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+                char_frame.pack(fill="x", pady=2)
+                
+                cb = ctk.CTkCheckBox(
+                    char_frame, text=char.name,
+                    variable=var,
+                    command=self._update_count
+                )
+                cb.pack(side="left", padx=5)
+                
+                # Class info
+                if char.classes:
+                    class_info = ", ".join([f"{cl.character_class.value} {cl.level}" for cl in char.classes])
+                    ctk.CTkLabel(
+                        char_frame, text=f"({class_info})",
+                        text_color=self.theme.get_text_secondary(),
+                        font=ctk.CTkFont(size=11)
+                    ).pack(side="left", padx=5)
+                
+                # Sheet status
+                status_text = "✓ Sheet" if sheet_exists else "○ No sheet"
+                status_color = self.theme.get_current_color('success') if sheet_exists else self.theme.get_text_secondary()
+                ctk.CTkLabel(
+                    char_frame, text=status_text,
+                    text_color=status_color,
+                    font=ctk.CTkFont(size=10)
+                ).pack(side="right", padx=10)
+        
+        # Count label
+        self.count_label = ctk.CTkLabel(
+            container, text="",
+            font=ctk.CTkFont(size=12)
+        )
+        self.count_label.pack(anchor="w", pady=(0, 15))
+        self._update_count()
+        
+        # Buttons
+        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
+        btn_frame.pack(fill="x")
+        
+        ctk.CTkButton(
+            btn_frame, text="📤 Export Selected",
+            width=150, height=40,
+            fg_color=self.theme.get_current_color('accent_primary'),
+            hover_color=self.theme.get_current_color('accent_secondary'),
+            command=self._export
+        ).pack(side="left")
+        
+        ctk.CTkButton(
+            btn_frame, text="Cancel",
+            width=100, height=40,
+            fg_color="transparent",
+            hover_color=self.theme.get_current_color('bg_tertiary'),
+            command=self.destroy
+        ).pack(side="right")
+    
+    def _select_all(self):
+        """Select all characters."""
+        for var in self._selected_chars.values():
+            var.set(True)
+        self._update_count()
+    
+    def _deselect_all(self):
+        """Deselect all characters."""
+        for var in self._selected_chars.values():
+            var.set(False)
+        self._update_count()
+    
+    def _update_count(self):
+        """Update the selection count label."""
+        selected = sum(1 for var in self._selected_chars.values() if var.get())
+        total = len(self._selected_chars)
+        self.count_label.configure(text=f"Selected: {selected} of {total} character(s)")
+    
+    def _export(self):
+        """Export selected characters."""
+        selected_names = [name for name, var in self._selected_chars.items() if var.get()]
+        
+        if not selected_names:
+            messagebox.showwarning("No Selection", "Please select at least one character to export.", parent=self)
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Export Character Sheets",
+            defaultextension=".json",
+            initialfile="character_sheets_export.json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            parent=self
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            import json
+            from character_manager import CharacterManager
+            from ui.character_sheet_view import get_sheet_manager
+            
+            char_manager = CharacterManager()
+            char_manager.load_characters()
+            sheet_manager = get_sheet_manager()
+            
+            export_data = {
+                "character_sheets": {},
+                "character_spell_lists": []
+            }
+            
+            sheets_exported = 0
+            spell_lists_exported = 0
+            
+            for name in selected_names:
+                # Export character spell list
+                char = char_manager.get_character(name)
+                if char:
+                    export_data["character_spell_lists"].append(char.to_dict())
+                    spell_lists_exported += 1
+                
+                # Export character sheet
+                sheet = sheet_manager.get_sheet(name)
+                if sheet:
+                    export_data["character_sheets"][name] = sheet.to_dict()
+                    sheets_exported += 1
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+            
+            messagebox.showinfo(
+                "Export Complete",
+                f"Successfully exported:\n• {spell_lists_exported} character spell list(s)\n• {sheets_exported} character sheet(s)",
+                parent=self
+            )
+            self.destroy()
+            
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export:\n{e}", parent=self)

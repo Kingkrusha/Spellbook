@@ -10,7 +10,9 @@
         }
       ],
       "known_spells": [
-        "Mending"
+        "Mending",
+        "Alarm",
+        "Aid"
       ],
       "prepared_spells": [
         "Mending"
@@ -23,7 +25,7 @@
       ],
       "current_slots": {
         "1": 4,
-        "2": 3
+        "2": 2
       },
       "warlock_slots_current": 0,
       "mystic_arcanum_used": [],

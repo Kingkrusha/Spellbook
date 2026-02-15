@@ -15,6 +15,10 @@ from settings import get_settings_manager
 class LineageListPanel(ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting lineages."""
     
+    # Batch size for progressive loading - smaller batches = smoother UI
+    BATCH_SIZE = 15
+    BATCH_DELAY_MS = 5  # Milliseconds between batches
+    
     def __init__(self, parent, on_select: Callable[[Optional[Lineage]], None],
                  on_right_click: Optional[Callable[[Lineage, int, int], None]] = None):
         super().__init__(parent, corner_radius=10)
@@ -24,6 +28,7 @@ class LineageListPanel(ctk.CTkFrame):
         self._lineages: List[Lineage] = []
         self._selected_index: Optional[int] = None
         self._lineage_buttons: List[ctk.CTkButton] = []
+        self._pending_after_id: Optional[str] = None  # Track pending after() calls
         self.theme = get_theme_manager()
         
         self._create_widgets()
@@ -102,9 +107,46 @@ class LineageListPanel(ctk.CTkFrame):
         else:
             self.on_select(None)
     
+    def _update_lineage_button(self, btn: ctk.CTkButton, lineage: Lineage, index: int):
+        """Update an existing button with new lineage data."""
+        display_name = lineage.name
+        if lineage.is_custom:
+            display_name = f"* {display_name}"
+        
+        btn.configure(
+            text=display_name,
+            fg_color=("transparent" if index != self._selected_index 
+                      else self.theme.get_current_color('accent_primary')),
+            command=lambda i=index: self._on_lineage_click(i)
+        )
+        
+        # Rebind right-click events with new index
+        if self.on_right_click:
+            btn.unbind("<Button-3>")
+            btn.bind("<Button-3>", lambda e, i=index: self._on_lineage_right_click(e, i))
+            for child in btn.winfo_children():
+                child.unbind("<Button-3>")
+                child.bind("<Button-3>", lambda e, i=index: self._on_lineage_right_click(e, i))
+    
+    def _cancel_pending_load(self):
+        """Cancel any pending progressive load operation."""
+        if self._pending_after_id is not None:
+            try:
+                self.after_cancel(self._pending_after_id)
+            except Exception:
+                pass
+            self._pending_after_id = None
+    
     def set_lineages(self, lineages: List[Lineage], reset_scroll: bool = True, 
                      preserve_selection: Optional[str] = None):
-        """Update the list of lineages."""
+        """Update the list of lineages.
+        
+        Uses progressive loading to prevent UI freezing - processes buttons
+        in batches with UI updates between batches.
+        """
+        # Cancel any pending progressive load
+        self._cancel_pending_load()
+        
         self._lineages = lineages
         
         # Find preserved selection
@@ -116,25 +158,56 @@ class LineageListPanel(ctk.CTkFrame):
                     break
         
         self._selected_index = new_selected_index
+        self._preserve_selection_name = preserve_selection
         
-        # Clear existing buttons
-        for btn in self._lineage_buttons:
-            btn.destroy()
-        self._lineage_buttons = []
-        
-        # Create new buttons
-        for i, lineage in enumerate(lineages):
-            btn = self._create_lineage_button(lineage, i)
-            self._lineage_buttons.append(btn)
-        
-        # Update count
+        # Update count immediately
         self.count_label.configure(text=f"{len(lineages)} lineage{'s' if len(lineages) != 1 else ''}")
         
-        # Restore selection if found
-        if new_selected_index is not None:
-            self._on_lineage_click(new_selected_index)
-        elif reset_scroll and self.scroll_frame.winfo_children():
-            self.scroll_frame._parent_canvas.yview_moveto(0)
+        # Reset scroll position to top
+        if reset_scroll and self.scroll_frame.winfo_children():
+            try:
+                self.scroll_frame._parent_canvas.yview_moveto(0)
+            except Exception:
+                pass
+        
+        # Start progressive loading from index 0
+        self._load_lineages_batch(0)
+    
+    def _load_lineages_batch(self, start_index: int):
+        """Load a batch of lineage buttons progressively."""
+        if not self.winfo_exists():
+            return
+        
+        current_button_count = len(self._lineage_buttons)
+        new_lineage_count = len(self._lineages)
+        end_index = min(start_index + self.BATCH_SIZE, new_lineage_count)
+        
+        # Process this batch
+        for i in range(start_index, end_index):
+            if i < current_button_count:
+                # Reuse existing button - make sure it's visible
+                btn = self._lineage_buttons[i]
+                self._update_lineage_button(btn, self._lineages[i], i)
+                # Re-pack if it was previously hidden
+                if not btn.winfo_ismapped():
+                    btn.pack(fill="x", pady=2)
+            else:
+                # Create new button
+                btn = self._create_lineage_button(self._lineages[i], i)
+                self._lineage_buttons.append(btn)
+        
+        # If we've processed all lineages, hide excess buttons (don't destroy)
+        if end_index >= new_lineage_count:
+            # Hide excess buttons instead of destroying them
+            for i in range(new_lineage_count, current_button_count):
+                self._lineage_buttons[i].pack_forget()
+            # Restore selection if found
+            if self._selected_index is not None:
+                self._on_lineage_click(self._selected_index)
+            self._pending_after_id = None
+        else:
+            # Schedule next batch
+            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_lineages_batch(end_index))
     
     def _refresh_buttons(self):
         """Refresh button colors after theme change."""
@@ -399,6 +472,10 @@ class LineagesView(ctk.CTkFrame):
         self._compare_lineage: Optional[Lineage] = None
         self._context_lineage: Optional[Lineage] = None
         
+        # Debouncing for filter changes
+        self._filter_debounce_id: Optional[str] = None
+        self._filter_debounce_delay = 150  # ms for text input
+        
         self._create_widgets()
         self._create_context_menu()
         self._create_compare_panel()
@@ -491,7 +568,7 @@ class LineagesView(ctk.CTkFrame):
         
         # Search box
         self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._apply_filters())
+        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
         
         search_entry = ctk.CTkEntry(
             filter_bar, width=250, height=35,
@@ -508,7 +585,7 @@ class LineagesView(ctk.CTkFrame):
             filter_bar, width=150, height=35,
             values=["All Sizes"],
             variable=self.size_var,
-            command=lambda _: self._apply_filters(),
+            command=lambda _: self._on_filter_changed(immediate=True),
             state="readonly"
         )
         self.size_combo.pack(side="left", padx=(0, 15))
@@ -521,7 +598,7 @@ class LineagesView(ctk.CTkFrame):
             filter_bar, width=150, height=35,
             values=["All Types"],
             variable=self.type_var,
-            command=lambda _: self._apply_filters(),
+            command=lambda _: self._on_filter_changed(immediate=True),
             state="readonly"
         )
         self.type_combo.pack(side="left", padx=(0, 15))
@@ -596,7 +673,18 @@ class LineagesView(ctk.CTkFrame):
         """Load all lineages from manager."""
         self._all_lineages = self.lineage_manager.lineages.copy()
         self._update_filter_options()
-        self._apply_filters()
+        self._on_filter_changed(immediate=True)
+    
+    def _on_filter_changed(self, immediate: bool = False):
+        """Called when any filter value changes with debouncing."""
+        if self._filter_debounce_id is not None:
+            self.after_cancel(self._filter_debounce_id)
+            self._filter_debounce_id = None
+        
+        if immediate:
+            self._filter_debounce_id = self.after(10, self._apply_filters)
+        else:
+            self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
     
     def _update_filter_options(self):
         """Update filter dropdown options based on loaded lineages."""

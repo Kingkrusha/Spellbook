@@ -1259,7 +1259,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
             ).pack(side="left", fill="x", expand=True)
         
         # Classes section
-        if spell.classes:
+        if spell.classes or spell.class_names:
             classes_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
             classes_frame.pack(fill="x", pady=(0, 12))
             
@@ -1269,7 +1269,8 @@ class SpellPopupDialog(ctk.CTkToplevel):
                 anchor="w"
             ).pack(side="left")
             
-            classes_text = ", ".join(c.value for c in spell.classes)
+            # Use get_class_names() to include custom class names
+            classes_text = ", ".join(spell.get_class_names())
             ctk.CTkLabel(
                 classes_frame, text=classes_text,
                 font=ctk.CTkFont(size=12),

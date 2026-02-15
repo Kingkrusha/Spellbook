@@ -15,6 +15,10 @@ from settings import get_settings_manager
 class FeatListPanel(ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting feats."""
     
+    # Batch size for progressive loading - smaller batches = smoother UI
+    BATCH_SIZE = 15
+    BATCH_DELAY_MS = 5  # Milliseconds between batches
+    
     def __init__(self, parent, on_select: Callable[[Optional[Feat]], None],
                  on_right_click: Optional[Callable[[Feat, int, int], None]] = None):
         super().__init__(parent, corner_radius=10)
@@ -24,6 +28,7 @@ class FeatListPanel(ctk.CTkFrame):
         self._feats: List[Feat] = []
         self._selected_index: Optional[int] = None
         self._feat_buttons: List[ctk.CTkButton] = []
+        self._pending_after_id: Optional[str] = None  # Track pending after() calls
         self.theme = get_theme_manager()
         
         self._create_widgets()
@@ -121,20 +126,62 @@ class FeatListPanel(ctk.CTkFrame):
         if 0 <= index < len(self._feats):
             self.on_select(self._feats[index])
     
+    def _update_feat_button(self, btn: ctk.CTkButton, feat: Feat, index: int):
+        """Update an existing button with new feat data."""
+        display_name = feat.name
+        if feat.is_custom:
+            display_name = f"* {display_name}"
+        
+        indicators = []
+        if feat.type:
+            indicators.append(feat.type)
+        if feat.is_spellcasting:
+            indicators.append("✨")
+        
+        if indicators:
+            indicator_text = f"  ({', '.join(indicators)})"
+        else:
+            indicator_text = ""
+        
+        btn.configure(
+            text=f"{display_name}{indicator_text}",
+            fg_color=("transparent" if index != self._selected_index 
+                      else self.theme.get_current_color('accent_primary')),
+            command=lambda i=index: self._on_feat_click(i)
+        )
+        
+        # Rebind right-click events with new index
+        if self.on_right_click:
+            btn.unbind("<Button-3>")
+            btn.bind("<Button-3>", lambda e, i=index: self._on_feat_right_click(e, i))
+            for child in btn.winfo_children():
+                child.unbind("<Button-3>")
+                child.bind("<Button-3>", lambda e, i=index: self._on_feat_right_click(e, i))
+    
+    def _cancel_pending_load(self):
+        """Cancel any pending progressive load operation."""
+        if self._pending_after_id is not None:
+            try:
+                self.after_cancel(self._pending_after_id)
+            except Exception:
+                pass
+            self._pending_after_id = None
+    
     def set_feats(self, feats: List[Feat], reset_scroll: bool = True):
-        """Set the list of feats to display."""
+        """Set the list of feats to display.
+        
+        Uses progressive loading to prevent UI freezing - processes buttons
+        in batches with UI updates between batches.
+        """
+        # Cancel any pending progressive load
+        self._cancel_pending_load()
+        
         # Remember current selection name
         current_name = None
         if self._selected_index is not None and self._selected_index < len(self._feats):
             current_name = self._feats[self._selected_index].name
         
         self._feats = feats
-        self._selected_index = None
-        
-        # Clear existing buttons
-        for btn in self._feat_buttons:
-            btn.destroy()
-        self._feat_buttons = []
         
         # Find new index for previously selected feat
         new_selected_index = None
@@ -144,19 +191,53 @@ class FeatListPanel(ctk.CTkFrame):
                     new_selected_index = i
                     break
         
-        # Create new buttons
-        for i, feat in enumerate(feats):
-            btn = self._create_feat_button(feat, i)
-            self._feat_buttons.append(btn)
+        self._selected_index = new_selected_index
         
-        # Update count
+        # Update count immediately
         self.count_label.configure(text=f"{len(feats)} feat{'s' if len(feats) != 1 else ''}")
         
-        # Restore selection if found
-        if new_selected_index is not None:
-            self._on_feat_click(new_selected_index)
-        elif reset_scroll and self.scroll_frame.winfo_children():
-            self.scroll_frame._parent_canvas.yview_moveto(0)
+        # Reset scroll position to top
+        if reset_scroll and self.scroll_frame.winfo_children():
+            try:
+                self.scroll_frame._parent_canvas.yview_moveto(0)
+            except Exception:
+                pass
+        
+        # Start progressive loading from index 0
+        self._load_feats_batch(0)
+    
+    def _load_feats_batch(self, start_index: int):
+        """Load a batch of feat buttons progressively."""
+        if not self.winfo_exists():
+            return
+        
+        current_button_count = len(self._feat_buttons)
+        new_feat_count = len(self._feats)
+        end_index = min(start_index + self.BATCH_SIZE, new_feat_count)
+        
+        # Process this batch
+        for i in range(start_index, end_index):
+            if i < current_button_count:
+                # Reuse existing button - make sure it's visible
+                btn = self._feat_buttons[i]
+                self._update_feat_button(btn, self._feats[i], i)
+                # Re-pack if it was previously hidden
+                if not btn.winfo_ismapped():
+                    btn.pack(fill="x", pady=2)
+            else:
+                # Create new button
+                btn = self._create_feat_button(self._feats[i], i)
+                self._feat_buttons.append(btn)
+        
+        # If we've processed all feats, hide excess buttons (don't destroy)
+        if end_index >= new_feat_count:
+            # Hide excess buttons instead of destroying them
+            for i in range(new_feat_count, current_button_count):
+                self._feat_buttons[i].pack_forget()
+            self._pending_after_id = None
+        else:
+            # Schedule next batch
+            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_feats_batch(end_index))
     
     def _refresh_buttons(self):
         """Refresh button colors after theme change."""
@@ -383,6 +464,10 @@ class FeatsView(ctk.CTkFrame):
         self._compare_feat: Optional[Feat] = None
         self._context_feat: Optional[Feat] = None
         
+        # Debouncing for filter changes
+        self._filter_debounce_id: Optional[str] = None
+        self._filter_debounce_delay = 150  # ms for text input
+        
         self._create_widgets()
         self._create_context_menu()
         self._create_compare_panel()
@@ -479,7 +564,7 @@ class FeatsView(ctk.CTkFrame):
         
         # Search box
         self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._apply_filters())
+        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
         
         search_entry = ctk.CTkEntry(
             filter_bar, width=250, height=35,
@@ -499,7 +584,7 @@ class FeatsView(ctk.CTkFrame):
             filter_bar, width=180, height=35,
             values=type_options,
             variable=self.type_var,
-            command=lambda _: self._apply_filters(),
+            command=lambda _: self._on_filter_changed(immediate=True),
             state="readonly"
         )
         self.type_combo.pack(side="left", padx=(0, 15))
@@ -509,7 +594,7 @@ class FeatsView(ctk.CTkFrame):
         self.spellcasting_check = ctk.CTkCheckBox(
             filter_bar, text="Spellcasting Only",
             variable=self.spellcasting_var,
-            command=self._apply_filters
+            command=lambda: self._on_filter_changed(immediate=True)
         )
         self.spellcasting_check.pack(side="left", padx=(0, 15))
         
@@ -669,7 +754,18 @@ class FeatsView(ctk.CTkFrame):
         all_types = self.feat_manager.get_all_types()
         type_options = ["All Types"] + [t if t else "General" for t in all_types]
         self.type_combo.configure(values=type_options)
-        self._apply_filters()
+        self._on_filter_changed(immediate=True)
+    
+    def _on_filter_changed(self, immediate: bool = False):
+        """Called when any filter value changes with debouncing."""
+        if self._filter_debounce_id is not None:
+            self.after_cancel(self._filter_debounce_id)
+            self._filter_debounce_id = None
+        
+        if immediate:
+            self._filter_debounce_id = self.after(10, self._apply_filters)
+        else:
+            self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
     
     def _apply_filters(self):
         """Apply current filters to the feat list."""

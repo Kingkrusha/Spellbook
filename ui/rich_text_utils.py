@@ -11,6 +11,68 @@ from typing import Optional, List, Callable, Tuple
 from theme import get_theme_manager
 
 
+def preprocess_html_to_markdown(text: str) -> str:
+    """
+    Convert HTML-style formatting to markdown formatting.
+    Supports legacy HTML tags from import files.
+    
+    Conversions:
+    - <b>text</b> -> **text**
+    - <i>text</i> -> *text*
+    - <spell>Name</spell> -> [[Name]]
+    - <table>...</table> -> markdown tables
+    """
+    if not text:
+        return text
+    
+    # Convert bold: <b>text</b> -> **text**
+    text = re.sub(r'<b>([^<]+)</b>', r'**\1**', text)
+    
+    # Convert italic: <i>text</i> -> *text*
+    text = re.sub(r'<i>([^<]+)</i>', r'*\1*', text)
+    
+    # Convert spell links: <spell>Name</spell> -> [[Name]]
+    text = re.sub(r'<spell>([^<]+)</spell>', r'[[\1]]', text)
+    
+    # Convert HTML tables to markdown tables
+    def convert_table(match):
+        table_html = match.group(0)
+        # Extract headers
+        headers = re.findall(r'<th>([^<]*)</th>', table_html)
+        # Extract rows - handle varying column counts
+        rows = []
+        for row_match in re.finditer(r'<tr><td>(.*?)</td></tr>', table_html):
+            cells = re.findall(r'<td>([^<]*)</td>|([^<]+)(?=</td>|$)', row_match.group(0))
+            row = []
+            for cell in re.findall(r'<td>(.*?)</td>', row_match.group(0)):
+                row.append(cell)
+            if row:
+                rows.append(row)
+        
+        # Also try simpler 2-column extraction
+        if not rows:
+            row_matches = re.findall(r'<tr><td>([^<]*)</td><td>([^<]*)</td></tr>', table_html)
+            rows = [list(r) for r in row_matches]
+        
+        if not headers or not rows:
+            return table_html  # Return unchanged if parsing fails
+        
+        lines = []
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+        for row in rows:
+            # Pad row if needed
+            while len(row) < len(headers):
+                row.append("")
+            lines.append("| " + " | ".join(row[:len(headers)]) + " |")
+        
+        return "\n".join(lines)
+    
+    text = re.sub(r'<table>.*?</table>', convert_table, text, flags=re.DOTALL)
+    
+    return text
+
+
 class RichTextRenderer:
     """
     Utility class for rendering rich text with markdown formatting, tables, and spell links.
@@ -283,6 +345,13 @@ class RichTextRenderer:
         text_widget.configure(state="disabled", height=num_lines)
         text_widget.pack(fill="x", expand=True)
     
+    def _preprocess_html_to_markdown(self, text: str) -> str:
+        """
+        Convert HTML-style formatting to markdown formatting.
+        Uses the standalone function for consistency.
+        """
+        return preprocess_html_to_markdown(text)
+    
     def render_formatted_text(self, parent, text: str, 
                               on_spell_click: Optional[Callable[[str], None]] = None,
                               wraplength: int = 480,
@@ -292,11 +361,14 @@ class RichTextRenderer:
         
         Args:
             parent: Parent widget to render into
-            text: Text to render (may contain markdown)
+            text: Text to render (may contain markdown or HTML tags)
             on_spell_click: Optional callback when a spell name is clicked
             wraplength: Maximum width for text wrapping
             bold_pattern: Regex pattern for bold text (default: **text**)
         """
+        # Preprocess HTML tags to markdown
+        text = self._preprocess_html_to_markdown(text)
+        
         lines = text.split('\n')
         i = 0
         
@@ -1243,6 +1315,9 @@ class DynamicText(ctk.CTkFrame):
             bold_pattern: Regex pattern for bold text (default: **text**)
         """
         self._text_content = text
+        
+        # Preprocess HTML tags to markdown
+        text = preprocess_html_to_markdown(text)
         
         # Clear existing content
         self.text_widget.configure(state="normal")

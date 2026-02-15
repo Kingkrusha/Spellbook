@@ -13,6 +13,10 @@ from theme import get_theme_manager
 class SpellListPanel(ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting spells."""
     
+    # Batch size for progressive loading - smaller batches = smoother UI
+    BATCH_SIZE = 15
+    BATCH_DELAY_MS = 5  # Milliseconds between batches
+    
     def __init__(self, parent, on_select: Callable[[Optional[Spell]], None],
                  on_right_click: Optional[Callable[[Spell, int, int], None]] = None):
         super().__init__(parent, corner_radius=10)
@@ -22,6 +26,7 @@ class SpellListPanel(ctk.CTkFrame):
         self._spells: List[Spell] = []
         self._selected_index: Optional[int] = None
         self._spell_buttons: List[ctk.CTkButton] = []
+        self._pending_after_id: Optional[str] = None  # Track pending after() calls
         
         self._create_widgets()
         # Register theme listener so this panel updates live when theme changes
@@ -125,25 +130,69 @@ class SpellListPanel(ctk.CTkFrame):
         if 0 <= index < len(self._spells):
             self.on_select(self._spells[index])
     
+    def _update_spell_button(self, btn: ctk.CTkButton, spell: Spell, index: int):
+        """Update an existing button with new spell data."""
+        theme = get_theme_manager()
+        
+        # Build display text with indicators
+        display_name = spell.display_name
+        indicators = []
+        if spell.ritual:
+            indicators.append("R")
+        if spell.concentration:
+            indicators.append("C")
+        
+        if indicators:
+            indicator_text = f"  ({', '.join(indicators)})"
+        else:
+            indicator_text = ""
+        
+        # Update button properties
+        btn.configure(
+            text=f"{display_name}{indicator_text}",
+            fg_color=("transparent" if index != self._selected_index 
+                      else theme.get_current_color('accent_primary')),
+            command=lambda i=index: self._on_spell_click(i)
+        )
+        
+        # Rebind right-click events with new index
+        if self.on_right_click:
+            btn.unbind("<Button-3>")
+            btn.bind("<Button-3>", lambda e, i=index: self._on_spell_right_click(e, i))
+            for child in btn.winfo_children():
+                child.unbind("<Button-3>")
+                child.bind("<Button-3>", lambda e, i=index: self._on_spell_right_click(e, i))
+    
+    def _cancel_pending_load(self):
+        """Cancel any pending progressive load operation."""
+        if self._pending_after_id is not None:
+            try:
+                self.after_cancel(self._pending_after_id)
+            except Exception:
+                pass
+            self._pending_after_id = None
+    
     def set_spells(self, spells: List[Spell], reset_scroll: bool = True):
         """Set the list of spells to display.
+        
+        Uses progressive loading to prevent UI freezing - processes buttons
+        in batches with UI updates between batches.
         
         Args:
             spells: List of spells to display
             reset_scroll: If True, scroll position resets to top
         """
+        # Cancel any pending progressive load
+        self._cancel_pending_load()
+        
+        theme = get_theme_manager()
+        
         # Remember current selection name
         current_name = None
         if self._selected_index is not None and self._selected_index < len(self._spells):
             current_name = self._spells[self._selected_index].name
         
         self._spells = spells
-        self._selected_index = None
-        
-        # Clear existing buttons
-        for btn in self._spell_buttons:
-            btn.destroy()
-        self._spell_buttons = []
         
         # Find new index for previously selected spell
         new_selected_index = None
@@ -155,17 +204,10 @@ class SpellListPanel(ctk.CTkFrame):
         
         self._selected_index = new_selected_index
         
-        # Create new buttons
-        for i, spell in enumerate(spells):
-            btn = self._create_spell_button(spell, i)
-            self._spell_buttons.append(btn)
-        
-        # Update count
+        # Update count immediately
         count = len(spells)
         self.count_label.configure(text=f"{count} spell{'s' if count != 1 else ''}")
-        # Refresh count label color in case theme changed
         try:
-            theme = get_theme_manager()
             self.count_label.configure(text_color=theme.get_text_secondary())
         except Exception:
             pass
@@ -174,8 +216,42 @@ class SpellListPanel(ctk.CTkFrame):
         if reset_scroll:
             self.scroll_to_top()
         
-        # Don't notify if selection was lost due to filtering
-        # The detail panel should keep showing the current spell
+        # Start progressive loading from index 0
+        self._load_spells_batch(0)
+    
+    def _load_spells_batch(self, start_index: int):
+        """Load a batch of spell buttons progressively."""
+        if not self.winfo_exists():
+            return
+        
+        theme = get_theme_manager()
+        current_button_count = len(self._spell_buttons)
+        new_spell_count = len(self._spells)
+        end_index = min(start_index + self.BATCH_SIZE, new_spell_count)
+        
+        # Process this batch
+        for i in range(start_index, end_index):
+            if i < current_button_count:
+                # Reuse existing button - make sure it's visible
+                btn = self._spell_buttons[i]
+                self._update_spell_button(btn, self._spells[i], i)
+                # Re-pack if it was previously hidden
+                if not btn.winfo_ismapped():
+                    btn.pack(fill="x", pady=2)
+            else:
+                # Create new button
+                btn = self._create_spell_button(self._spells[i], i)
+                self._spell_buttons.append(btn)
+        
+        # If we've processed all spells, hide excess buttons (don't destroy)
+        if end_index >= new_spell_count:
+            # Hide excess buttons instead of destroying them
+            for i in range(new_spell_count, current_button_count):
+                self._spell_buttons[i].pack_forget()
+            self._pending_after_id = None
+        else:
+            # Schedule next batch
+            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_spells_batch(end_index))
     
     def select_spell(self, name: str) -> bool:
         """Select a spell by name. Returns True if found."""
@@ -237,7 +313,8 @@ class SpellListPanel(ctk.CTkFrame):
             pass
 
     def destroy(self):
-        """Clean up theme listener when panel is destroyed."""
+        """Clean up theme listener and pending operations when panel is destroyed."""
+        self._cancel_pending_load()
         try:
             if hasattr(self, '_theme') and self._theme:
                 self._theme.remove_listener(self._on_theme_changed)

@@ -27,17 +27,48 @@ class CharacterClass(Enum):
     
     @classmethod
     def from_string(cls, value: str) -> "CharacterClass":
-        """Convert a string to CharacterClass enum."""
-        value = value.strip().upper()
+        """Convert a string to CharacterClass enum.
+        
+        Returns CUSTOM for any class not in the enum (custom/imported classes).
+        """
+        value_upper = value.strip().upper()
         for member in cls:
-            if member.name == value or member.value.upper() == value:
+            if member.name == value_upper or member.value.upper() == value_upper:
                 return member
-        raise ValueError(f"Unknown character class: {value}")
+        # For custom classes (like imported ones), return CUSTOM
+        # The actual class name is stored separately
+        return cls.CUSTOM
+    
+    @classmethod
+    def register_custom_class(cls, class_name: str):
+        """Register a custom class name for inclusion in all_classes_with_custom()."""
+        if class_name not in _custom_class_names and class_name not in [c.value for c in cls]:
+            _custom_class_names.append(class_name)
+    
+    @classmethod
+    def clear_custom_classes(cls):
+        """Clear all registered custom classes (used for reload)."""
+        _custom_class_names.clear()
+    
+    @classmethod
+    def get_custom_class_names(cls) -> List[str]:
+        """Get list of registered custom class names."""
+        return _custom_class_names.copy()
     
     @classmethod
     def all_classes(cls) -> List["CharacterClass"]:
         """Return all character classes in order."""
         return list(cls)
+    
+    @classmethod
+    def all_class_names_with_custom(cls) -> List[str]:
+        """Return all class names including registered custom classes."""
+        base_names = [c.value for c in cls if c != cls.CUSTOM]
+        # Add custom class names (avoiding duplicates)
+        for name in _custom_class_names:
+            if name not in base_names:
+                base_names.append(name)
+        return base_names
     
     @classmethod
     def spellcasting_classes(cls) -> List["CharacterClass"]:
@@ -50,6 +81,10 @@ class CharacterClass(Enum):
         non_casters = {CharacterClass.BARBARIAN, CharacterClass.FIGHTER, 
                        CharacterClass.MONK, CharacterClass.ROGUE}
         return self not in non_casters
+
+
+# Module-level storage for dynamically registered custom class names
+_custom_class_names: List[str] = []
 
 
 class TagFilterMode(Enum):
@@ -131,12 +166,23 @@ class Spell:
     duration: str
     concentration: bool
     classes: List[CharacterClass] = field(default_factory=list)
+    class_names: List[str] = field(default_factory=list)  # Original class name strings (for custom classes)
     description: str = ""
     source: str = ""
     tags: List[str] = field(default_factory=list)
     is_modified: bool = False  # True if an official spell was edited (non-tag/source fields)
     original_name: str = ""  # For official spells: the original name for restoration matching
     is_legacy: bool = False  # True if this is 2014 (legacy) content
+    
+    def __post_init__(self):
+        """Ensure class_names is populated from classes if empty."""
+        if not self.class_names and self.classes:
+            # Populate class_names from the enum values for backward compatibility
+            self.class_names = [c.value for c in self.classes if c != CharacterClass.CUSTOM]
+    
+    def get_class_names(self) -> List[str]:
+        """Get all class names including custom classes."""
+        return self.class_names.copy() if self.class_names else [c.value for c in self.classes]
     
     @property
     def is_official(self) -> bool:
@@ -249,9 +295,26 @@ class Spell:
         return self.duration
     
     def display_classes(self) -> str:
-        """Return comma-separated list of class names, sorted alphabetically and capitalized."""
-        sorted_classes = sorted(self.classes, key=lambda c: c.value.lower())
-        return ", ".join(c.value.capitalize() for c in sorted_classes)
+        """Return comma-separated list of class names that exist in the system.
+        
+        Only displays classes that are either standard CharacterClass enum values
+        or registered custom classes. Classes stored in class_names that don't
+        exist in the system yet are hidden until that class is imported.
+        """
+        # Get the list of valid class names in the system
+        valid_classes = CharacterClass.all_class_names_with_custom()
+        valid_classes_lower = [c.lower() for c in valid_classes]
+        
+        # Filter class_names to only include classes that exist in the system
+        class_names = self.get_class_names()
+        displayed_classes = [
+            name for name in class_names 
+            if name.lower() in valid_classes_lower
+        ]
+        
+        # Sort alphabetically and capitalize
+        sorted_classes = sorted(displayed_classes, key=lambda c: c.lower())
+        return ", ".join(c.capitalize() for c in sorted_classes)
     
     def display_description(self) -> str:
         """Return description with paragraph breaks converted to newlines."""
@@ -346,6 +409,7 @@ class Spell:
     
     def matches_filter(self, search_text: str = "", level_filter: int = -1, 
                        class_filter: Optional[CharacterClass] = None,
+                       class_name_filter: str = "",
                        advanced: Optional[AdvancedFilters] = None) -> bool:
         """Check if spell matches the given filter criteria."""
         # Search text filter (case-insensitive)
@@ -360,9 +424,16 @@ class Spell:
         if level_filter >= 0 and self.level != level_filter:
             return False
         
-        # Class filter (None means all classes)
-        if class_filter is not None and class_filter not in self.classes:
-            return False
+        # Class filter - check both enum values and class name strings
+        if class_name_filter:
+            # Use class name string for filtering (supports custom classes)
+            class_names = self.get_class_names()
+            if class_name_filter not in class_names:
+                return False
+        elif class_filter is not None:
+            # Fall back to enum-based filtering
+            if class_filter not in self.classes:
+                return False
         
         # Advanced filters
         if advanced:

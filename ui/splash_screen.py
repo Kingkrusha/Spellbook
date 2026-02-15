@@ -126,3 +126,79 @@ class SplashScreen(ctk.CTkToplevel):
         """Update both status and progress."""
         self.set_status(message)
         self.set_progress(value)
+
+
+class ClosingSplash(ctk.CTkToplevel):
+    """Splash screen shown during application shutdown."""
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        
+        # Configure window
+        self.title("Closing Spellbook...")
+        self.geometry("350x150")
+        self.resizable(False, False)
+        
+        # Remove window decorations
+        self.overrideredirect(True)
+        
+        # Center on screen
+        self.update_idletasks()
+        width = 350
+        height = 150
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Keep on top
+        self.attributes("-topmost", True)
+        
+        # Create UI
+        self._create_widgets()
+        
+        # Force display
+        self.lift()
+        self.update()
+    
+    def _create_widgets(self):
+        """Create closing splash widgets."""
+        # Main container
+        container = ctk.CTkFrame(self, fg_color=("#1a1a2e", "#1a1a2e"), corner_radius=0)
+        container.pack(fill="both", expand=True)
+        
+        # Title
+        ctk.CTkLabel(
+            container,
+            text="Spellbook",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#ffffff"
+        ).pack(pady=(25, 10))
+        
+        # Status
+        self.status_label = ctk.CTkLabel(
+            container,
+            text="Saving and closing...",
+            font=ctk.CTkFont(size=12),
+            text_color="#808080"
+        )
+        self.status_label.pack(pady=(0, 15))
+        
+        # Indeterminate-style progress (animated bar)
+        self.progress = ctk.CTkProgressBar(
+            container,
+            width=250,
+            height=6,
+            progress_color="#3b8ed0",
+            fg_color="#2b2b3e",
+            mode="indeterminate"
+        )
+        self.progress.pack(pady=(0, 10))
+        self.progress.start()
+    
+    def set_status(self, message: str):
+        """Update status message."""
+        try:
+            self.status_label.configure(text=message)
+            self.update()
+        except Exception:
+            pass

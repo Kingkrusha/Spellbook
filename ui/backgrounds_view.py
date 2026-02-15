@@ -15,6 +15,10 @@ from settings import get_settings_manager
 class BackgroundListPanel(ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting backgrounds."""
     
+    # Batch size for progressive loading - smaller batches = smoother UI
+    BATCH_SIZE = 15
+    BATCH_DELAY_MS = 5  # Milliseconds between batches
+    
     def __init__(self, parent, on_select: Callable[[Optional[Background]], None],
                  on_right_click: Optional[Callable[[Background, int, int], None]] = None):
         super().__init__(parent, corner_radius=10)
@@ -24,6 +28,7 @@ class BackgroundListPanel(ctk.CTkFrame):
         self._backgrounds: List[Background] = []
         self._selected_index: Optional[int] = None
         self._background_buttons: List[ctk.CTkButton] = []
+        self._pending_after_id: Optional[str] = None  # Track pending after() calls
         self.theme = get_theme_manager()
         
         self._create_widgets()
@@ -102,9 +107,46 @@ class BackgroundListPanel(ctk.CTkFrame):
         else:
             self.on_select(None)
     
+    def _update_background_button(self, btn: ctk.CTkButton, background: Background, index: int):
+        """Update an existing button with new background data."""
+        display_name = background.name
+        if background.is_custom:
+            display_name = f"* {display_name}"
+        
+        btn.configure(
+            text=display_name,
+            fg_color=("transparent" if index != self._selected_index 
+                      else self.theme.get_current_color('accent_primary')),
+            command=lambda i=index: self._on_background_click(i)
+        )
+        
+        # Rebind right-click events with new index
+        if self.on_right_click:
+            btn.unbind("<Button-3>")
+            btn.bind("<Button-3>", lambda e, i=index: self._on_background_right_click(e, i))
+            for child in btn.winfo_children():
+                child.unbind("<Button-3>")
+                child.bind("<Button-3>", lambda e, i=index: self._on_background_right_click(e, i))
+    
+    def _cancel_pending_load(self):
+        """Cancel any pending progressive load operation."""
+        if self._pending_after_id is not None:
+            try:
+                self.after_cancel(self._pending_after_id)
+            except Exception:
+                pass
+            self._pending_after_id = None
+    
     def set_backgrounds(self, backgrounds: List[Background], reset_scroll: bool = True, 
                         preserve_selection: Optional[str] = None):
-        """Update the list of backgrounds."""
+        """Update the list of backgrounds.
+        
+        Uses progressive loading to prevent UI freezing - processes buttons
+        in batches with UI updates between batches.
+        """
+        # Cancel any pending progressive load
+        self._cancel_pending_load()
+        
         self._backgrounds = backgrounds
         
         # Find preserved selection
@@ -117,24 +159,54 @@ class BackgroundListPanel(ctk.CTkFrame):
         
         self._selected_index = new_selected_index
         
-        # Clear existing buttons
-        for btn in self._background_buttons:
-            btn.destroy()
-        self._background_buttons = []
-        
-        # Create new buttons
-        for i, background in enumerate(backgrounds):
-            btn = self._create_background_button(background, i)
-            self._background_buttons.append(btn)
-        
-        # Update count
+        # Update count immediately
         self.count_label.configure(text=f"{len(backgrounds)} background{'s' if len(backgrounds) != 1 else ''}")
         
-        # Restore selection if found
-        if new_selected_index is not None:
-            self._on_background_click(new_selected_index)
-        elif reset_scroll and self.scroll_frame.winfo_children():
-            self.scroll_frame._parent_canvas.yview_moveto(0)
+        # Reset scroll position to top
+        if reset_scroll and self.scroll_frame.winfo_children():
+            try:
+                self.scroll_frame._parent_canvas.yview_moveto(0)
+            except Exception:
+                pass
+        
+        # Start progressive loading from index 0
+        self._load_backgrounds_batch(0)
+    
+    def _load_backgrounds_batch(self, start_index: int):
+        """Load a batch of background buttons progressively."""
+        if not self.winfo_exists():
+            return
+        
+        current_button_count = len(self._background_buttons)
+        new_background_count = len(self._backgrounds)
+        end_index = min(start_index + self.BATCH_SIZE, new_background_count)
+        
+        # Process this batch
+        for i in range(start_index, end_index):
+            if i < current_button_count:
+                # Reuse existing button - make sure it's visible
+                btn = self._background_buttons[i]
+                self._update_background_button(btn, self._backgrounds[i], i)
+                # Re-pack if it was previously hidden
+                if not btn.winfo_ismapped():
+                    btn.pack(fill="x", pady=2)
+            else:
+                # Create new button
+                btn = self._create_background_button(self._backgrounds[i], i)
+                self._background_buttons.append(btn)
+        
+        # If we've processed all backgrounds, hide excess buttons (don't destroy)
+        if end_index >= new_background_count:
+            # Hide excess buttons instead of destroying them
+            for i in range(new_background_count, current_button_count):
+                self._background_buttons[i].pack_forget()
+            # Restore selection if found
+            if self._selected_index is not None:
+                self._on_background_click(self._selected_index)
+            self._pending_after_id = None
+        else:
+            # Schedule next batch
+            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_backgrounds_batch(end_index))
     
     def _refresh_buttons(self):
         """Refresh button colors after theme change."""
@@ -617,6 +689,10 @@ class BackgroundsView(ctk.CTkFrame):
         self._compare_background: Optional[Background] = None
         self._context_background: Optional[Background] = None
         
+        # Debouncing for filter changes
+        self._filter_debounce_id: Optional[str] = None
+        self._filter_debounce_delay = 150  # ms for text input
+        
         self._create_widgets()
         self._create_context_menu()
         self._create_compare_panel()
@@ -709,7 +785,7 @@ class BackgroundsView(ctk.CTkFrame):
         
         # Search box
         self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._apply_filters())
+        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
         
         search_entry = ctk.CTkEntry(
             filter_bar, width=250, height=35,
@@ -726,7 +802,7 @@ class BackgroundsView(ctk.CTkFrame):
             filter_bar, width=180, height=35,
             values=["All Sources"],
             variable=self.source_var,
-            command=lambda _: self._apply_filters(),
+            command=lambda _: self._on_filter_changed(immediate=True),
             state="readonly"
         )
         self.source_combo.pack(side="left", padx=(0, 15))
@@ -801,7 +877,18 @@ class BackgroundsView(ctk.CTkFrame):
         """Load all backgrounds from manager."""
         self._all_backgrounds = self.background_manager.backgrounds.copy()
         self._update_filter_options()
-        self._apply_filters()
+        self._on_filter_changed(immediate=True)
+    
+    def _on_filter_changed(self, immediate: bool = False):
+        """Called when any filter value changes with debouncing."""
+        if self._filter_debounce_id is not None:
+            self.after_cancel(self._filter_debounce_id)
+            self._filter_debounce_id = None
+        
+        if immediate:
+            self._filter_debounce_id = self.after(10, self._apply_filters)
+        else:
+            self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
     
     def _update_filter_options(self):
         """Update filter dropdown options based on loaded backgrounds."""

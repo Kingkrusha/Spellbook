@@ -1564,22 +1564,34 @@ class CharacterSheetView(ctk.CTkFrame):
         """Show dialog to add a new class (multiclass)."""
         character = self._require_character()
         
-        # Get classes not already taken
-        taken_classes = {cl.character_class for cl in character.classes}
-        available = [c for c in CharacterClass.all_classes() if c not in taken_classes and c != CharacterClass.CUSTOM]
+        # Get class names not already taken - use class_manager for all classes including custom
+        class_manager = get_class_manager()
+        taken_class_names = {cl.get_class_name() for cl in character.classes}
+        available_class_names = [c.name for c in class_manager.classes 
+                                  if c.name not in taken_class_names and c.name != "Custom"]
         
-        if not available:
+        if not available_class_names:
             messagebox.showinfo("No Classes Available", "Character already has all available classes.")
             return
         
-        dialog = AddClassDialog(self, available)
+        dialog = AddClassDialog(self, available_class_names)
         self.wait_window(dialog)
         
         if dialog.result:
             # Check if this is the first class (starting class)
             is_first_class = len(character.classes) == 0
             
-            character.add_class(dialog.result, 1)
+            # Handle result - it's now a class name string
+            char_class = CharacterClass.from_string(dialog.result)
+            custom_name = dialog.result if char_class == CharacterClass.CUSTOM else ""
+            
+            from character import ClassLevel
+            new_class_level = ClassLevel(
+                character_class=char_class,
+                level=1,
+                custom_class_name=custom_name
+            )
+            character.classes.append(new_class_level)
             
             # Apply class feature spells (e.g., Mending for Artificer)
             from character import update_subclass_spells
@@ -1587,7 +1599,7 @@ class CharacterSheetView(ctk.CTkFrame):
             
             # If this is the first class and auto-apply saving throws is enabled
             if is_first_class and get_settings_manager().settings.auto_apply_saving_throws:
-                self._apply_class_features(dialog.result.value)
+                self._apply_class_features(dialog.result)
             
             self.character_manager.save_characters()
             self._update_spell_tab_visibility()
@@ -4330,12 +4342,14 @@ class NewCharacterDialog(ctk.CTkToplevel):
         name_entry.pack(fill="x", pady=(0, 15))
         name_entry.focus()
         
-        # Class selection
+        # Class selection - get class names from class manager
         ctk.CTkLabel(container, text="Starting Class:").pack(anchor="w")
         self.class_var = ctk.StringVar(value="Fighter")
+        class_manager = get_class_manager()
+        class_names = [c.name for c in class_manager.classes if c.name != "Custom"]
         class_combo = ctk.CTkComboBox(
             container, width=300,
-            values=[c.value for c in CharacterClass.all_classes() if c != CharacterClass.CUSTOM],
+            values=class_names,
             variable=self.class_var
         )
         class_combo.pack(fill="x", pady=(0, 15))
@@ -4380,10 +4394,19 @@ class NewCharacterDialog(ctk.CTkToplevel):
         except ValueError:
             level = 1
         
-        # Create character
-        char_class = CharacterClass.from_string(self.class_var.get())
+        # Create character with proper custom class handling
+        class_name = self.class_var.get()
+        char_class = CharacterClass.from_string(class_name)
+        custom_name = class_name if char_class == CharacterClass.CUSTOM else ""
+        
         character = CharacterSpellList(name=name)
-        character.add_class(char_class, level)
+        from character import ClassLevel
+        class_level = ClassLevel(
+            character_class=char_class,
+            level=level,
+            custom_class_name=custom_name
+        )
+        character.classes.append(class_level)
         
         # Apply class feature spells (e.g., Mending for Artificer)
         from character import update_subclass_spells
@@ -4397,11 +4420,11 @@ class NewCharacterDialog(ctk.CTkToplevel):
 class AddClassDialog(ctk.CTkToplevel):
     """Dialog for adding a new class (multiclassing)."""
     
-    def __init__(self, parent, available_classes: List[CharacterClass]):
+    def __init__(self, parent, available_class_names: List[str]):
         super().__init__(parent)
         
-        self.available_classes = available_classes
-        self.result: Optional[CharacterClass] = None
+        self.available_class_names = available_class_names
+        self.result: Optional[str] = None  # Returns class name string
         self.theme = get_theme_manager()
         
         self.title("Add Class")
@@ -4429,10 +4452,10 @@ class AddClassDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=14)
         ).pack(anchor="w", pady=(0, 10))
         
-        self.class_var = ctk.StringVar(value=self.available_classes[0].value if self.available_classes else "")
+        self.class_var = ctk.StringVar(value=self.available_class_names[0] if self.available_class_names else "")
         class_combo = ctk.CTkComboBox(
             container, width=260,
-            values=[c.value for c in self.available_classes],
+            values=self.available_class_names,
             variable=self.class_var
         )
         class_combo.pack(fill="x", pady=(0, 20))
@@ -4458,7 +4481,7 @@ class AddClassDialog(ctk.CTkToplevel):
     def _on_add(self):
         class_name = self.class_var.get()
         if class_name:
-            self.result = CharacterClass.from_string(class_name)
+            self.result = class_name
         self.destroy()
 
 

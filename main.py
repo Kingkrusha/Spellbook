@@ -36,6 +36,54 @@ def main():
     root.minsize(900, 600)
     root.withdraw()  # Hide until fully loaded
     
+    # Track if we're currently closing
+    closing = [False]
+    app_ref: list = [None]  # Will hold reference to MainWindow
+    
+    def on_closing():
+        """Handle window close with splash screen."""
+        if closing[0]:
+            return  # Already closing
+        closing[0] = True
+        
+        # Show closing splash
+        from ui.splash_screen import ClosingSplash
+        splash = ClosingSplash(root)
+        
+        def do_cleanup():
+            """Perform actual cleanup."""
+            try:
+                splash.set_status("Saving data...")
+                root.update()
+                
+                # Destroy the main app window first
+                if app_ref[0]:
+                    try:
+                        app_ref[0].destroy()
+                    except Exception:
+                        pass
+                
+                splash.set_status("Closing...")
+                root.update()
+                
+            except Exception:
+                pass
+            finally:
+                # Stop progress animation and destroy
+                try:
+                    splash.progress.stop()
+                    splash.destroy()
+                except Exception:
+                    pass
+                root.quit()
+                root.destroy()
+        
+        # Schedule cleanup after splash is shown
+        root.after(50, do_cleanup)
+    
+    # Override window close protocol
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    
     # Set app icon
     base_path = os.path.dirname(__file__)
     icon_png_path = os.path.join(base_path, "Spellbook Icon.png")
@@ -86,6 +134,7 @@ def main():
             
             app = MainWindow(root, progress_callback=splash.update_progress)
             app.pack(fill="both", expand=True)
+            app_ref[0] = app  # Store reference for cleanup
             
             # Stage 4: Final setup
             splash.update_progress("Finalizing...", 1.0)
