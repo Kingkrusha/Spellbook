@@ -438,7 +438,7 @@ class CollectionsView(ctk.CTkFrame):
                     class_manager = get_class_manager()
                     
                     for cl in char.classes:
-                        class_name = cl.character_class.value if hasattr(cl.character_class, 'value') else str(cl.character_class)
+                        class_name = cl.get_class_name() if hasattr(cl, 'get_class_name') else (cl.character_class.value if hasattr(cl.character_class, 'value') else str(cl.character_class))
                         if not class_manager.get_class(class_name):
                             warnings.append(f"'{char.name}': Class '{class_name}' not found in system")
                     
@@ -855,14 +855,15 @@ class ExportDialog(ctk.CTkToplevel):
         self.theme = get_theme_manager()
         
         self.title("Export Content")
-        self.geometry("500x450")
-        self.resizable(False, False)
+        self.geometry("500x500")
+        self.minsize(500, 450)
+        self.resizable(True, True)
         
         # Center on parent
         self.transient(parent)
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 450) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 500) // 2
         self.geometry(f"+{x}+{y}")
         
         self._create_widgets()
@@ -1062,6 +1063,10 @@ class ExportDialog(ctk.CTkToplevel):
     
     def _update_info(self):
         """Update the info label with export preview."""
+        # Guard against being called before info_label is created
+        if not hasattr(self, 'info_label'):
+            return
+        
         counts = self._get_export_counts()
         
         if not counts:
@@ -1277,7 +1282,7 @@ class CharacterSheetExportDialog(ctk.CTkToplevel):
                 
                 # Class info
                 if char.classes:
-                    class_info = ", ".join([f"{cl.character_class.value} {cl.level}" for cl in char.classes])
+                    class_info = ", ".join([f"{cl.get_class_name()} {cl.level}" for cl in char.classes])
                     ctk.CTkLabel(
                         char_frame, text=f"({class_info})",
                         text_color=self.theme.get_text_secondary(),

@@ -1099,7 +1099,7 @@ class MainWindow(ctk.CTkFrame):
         ctk.CTkLabel(class_frame, text="Class:", font=ctk.CTkFont(size=13)).pack(
             side="left", padx=(0, 8))
         self.class_var = ctk.StringVar(value="All")
-        class_options = ["All"] + CharacterClass.all_class_names_with_custom()
+        class_options = ["All"] + CharacterClass.spellcasting_class_names()
         self.class_combo = ctk.CTkComboBox(class_frame, variable=self.class_var,
                                            values=class_options, width=110,
                                            command=lambda x: self._on_filter_changed(immediate=True))
@@ -1760,7 +1760,7 @@ class MainWindow(ctk.CTkFrame):
         """Refresh the class filter dropdown to include newly imported custom classes."""
         if hasattr(self, 'class_combo'):
             current_value = self.class_var.get()
-            class_options = ["All"] + CharacterClass.all_class_names_with_custom()
+            class_options = ["All"] + CharacterClass.spellcasting_class_names()
             self.class_combo.configure(values=class_options)
             # Preserve current selection if still valid
             if current_value not in class_options:

@@ -22,5 +22,8 @@
   "preload_lineages": true,
   "preload_backgrounds": true,
   "preload_character_sheets": false,
-  "initial_official_tag_applied": true
+  "initial_official_tag_applied": true,
+  "show_legacy_content": true,
+  "auto_backup": true,
+  "_version": 2
 }

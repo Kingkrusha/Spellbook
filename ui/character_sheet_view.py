@@ -84,7 +84,7 @@ class CharacterSheetManager:
                     
                     class_manager = get_class_manager()
                     # Use first class (starting class) for saving throws
-                    first_class = character.classes[0].character_class.value
+                    first_class = character.classes[0].get_class_name()
                     class_def = class_manager.get_class(first_class)
                     
                     if class_def:
@@ -604,7 +604,7 @@ class CharacterSheetView(ctk.CTkFrame):
             return 0
         
         for cl in self.current_character.classes:
-            if cl.character_class.value == "Bard" and cl.level >= 2:
+            if cl.get_class_name() == "Bard" and cl.level >= 2:
                 return self.current_sheet.proficiency_bonus // 2
         return 0
     
@@ -852,7 +852,7 @@ class CharacterSheetView(ctk.CTkFrame):
             class_manager = get_class_manager()
             for cl in self.current_character.classes:
                 if cl.subclass:
-                    class_def = class_manager.get_class(cl.character_class.value)
+                    class_def = class_manager.get_class(cl.get_class_name())
                     if class_def:
                         for subclass_def in class_def.subclasses:
                             if subclass_def.name == cl.subclass and subclass_def.subclass_spells:
@@ -1009,7 +1009,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Auto-fill on new sheet creation if setting enabled
         settings = get_settings_manager().settings
         if settings.auto_fill_proficiencies and not sheet.other_proficiencies:
-            class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+            class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
             default_profs = get_default_proficiencies(class_levels)
             if default_profs:
                 default_profs += "\n\nLanguages: Common"
@@ -1023,7 +1023,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Auto-calculate HP maximum if new sheet or changed
         if settings.auto_calculate_hp:
-            class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+            class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
             con_mod = sheet.ability_scores.modifier(AbilityScore.CONSTITUTION)
             calculated_hp = calculate_hp_maximum(class_levels, con_mod, self.current_character.feats)
             # Only update if it looks like a fresh sheet (default HP)
@@ -1036,7 +1036,7 @@ class CharacterSheetView(ctk.CTkFrame):
             class_manager = get_class_manager()
             # Check all classes for unarmored defense (first one found wins)
             for cl in self.current_character.classes:
-                class_def = class_manager.get_class(cl.character_class.value)
+                class_def = class_manager.get_class(cl.get_class_name())
                 if class_def and class_def.unarmored_defense:
                     sheet.unarmored_defense = class_def.unarmored_defense
                     break
@@ -1165,7 +1165,7 @@ class CharacterSheetView(ctk.CTkFrame):
             cl_row.pack(side="left", padx=(0, 8))
             
             # Class name label
-            ctk.CTkLabel(cl_row, text=cl.character_class.value, 
+            ctk.CTkLabel(cl_row, text=cl.get_class_name(), 
                         font=ctk.CTkFont(size=11)).pack(side="left")
             
             # Level entry
@@ -1181,7 +1181,7 @@ class CharacterSheetView(ctk.CTkFrame):
             self.class_level_widgets.append((cl.character_class, level_var))
             
             # Check if subclass selection should be shown
-            class_def = class_manager.get_class(cl.character_class.value)
+            class_def = class_manager.get_class(cl.get_class_name())
             if class_def and class_def.subclasses and cl.level >= class_def.subclass_level:
                 # Get filtered subclass options based on legacy setting
                 subclass_names = self._get_filtered_subclasses(class_def)
@@ -1322,7 +1322,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         class_manager = get_class_manager()
         class_level = character.classes[class_index]
-        class_def = class_manager.get_class(class_level.character_class.value)
+        class_def = class_manager.get_class(class_level.get_class_name())
         
         # Get old subclass definition to potentially remove its grants
         old_subclass_name = class_level.subclass
@@ -1433,7 +1433,7 @@ class CharacterSheetView(ctk.CTkFrame):
                     # Show warning dialog
                     result = messagebox.askyesno(
                         "Remove Multiclass",
-                        f"Setting {class_to_remove.character_class.value} to level 0 will remove this class "
+                        f"Setting {class_to_remove.get_class_name()} to level 0 will remove this class "
                         f"from the character.\n\nThis will also remove any class-specific features and "
                         f"spells associated with this class.\n\nAre you sure you want to continue?",
                         icon='warning'
@@ -1483,7 +1483,7 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         
         removed_class = character.classes[class_index]
-        class_name = removed_class.character_class.value
+        class_name = removed_class.get_class_name()
         
         # Remove the class
         del character.classes[class_index]
@@ -1541,7 +1541,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if not self.current_sheet or not self.current_character:
             return
         
-        class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+        class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
         hit_dice = get_hit_dice_for_classes(class_levels)
         
         # Update total
@@ -2015,7 +2015,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if armor_type == ArmorType.NONE and shield_bonus == 0:
             class_manager = get_class_manager()
             for class_level in self.current_character.classes:
-                if class_level.character_class.value == "Monk":
+                if class_level.get_class_name() == "Monk":
                     # Get Monk class definition
                     monk_class = class_manager.get_class("Monk")
                     if monk_class and monk_class.levels:
@@ -2108,7 +2108,7 @@ class CharacterSheetView(ctk.CTkFrame):
         ctk.CTkLabel(dice_header, text="Hit Dice:", font=ctk.CTkFont(size=10, weight="bold")).pack(side="left")
         
         # Get hit dice from character classes
-        class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+        class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
         hit_dice = get_hit_dice_for_classes(class_levels)
         
         # Initialize hit_dice_by_type if not set
@@ -2180,7 +2180,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if not self.current_sheet or not self.current_character:
             return
         
-        class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+        class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
         con_mod = self.current_sheet.ability_scores.modifier(AbilityScore.CONSTITUTION)
         
         new_max = calculate_hp_maximum(class_levels, con_mod, self.current_character.feats)
@@ -2211,7 +2211,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 
                 # Update hit die type based on primary class
                 if self.current_character.classes:
-                    primary_class = self.current_character.classes[0].character_class.value
+                    primary_class = self.current_character.classes[0].get_class_name()
                     self.current_sheet.hit_points.hit_die_type = CLASS_HIT_DICE.get(primary_class, "d8")
                 
                 self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
@@ -2632,10 +2632,21 @@ class CharacterSheetView(ctk.CTkFrame):
         if not self.current_character or not self.current_character.classes:
             return
         
-        # Don't show for Custom class alone
-        non_custom_classes = [cl for cl in self.current_character.classes 
-                             if cl.character_class != CharacterClass.CUSTOM]
-        if not non_custom_classes:
+        # Get classes that have features to show
+        # Include both built-in classes AND imported classes (which have CUSTOM enum but have definitions)
+        class_manager = get_class_manager()
+        classes_with_features = []
+        for cl in self.current_character.classes:
+            class_name = cl.get_class_name()
+            # Check if this class has a definition (either built-in or imported)
+            class_def = class_manager.get_class(class_name)
+            if class_def:
+                classes_with_features.append(cl)
+            # Also include built-in classes that aren't custom
+            elif cl.character_class != CharacterClass.CUSTOM:
+                classes_with_features.append(cl)
+        
+        if not classes_with_features:
             return
         
         self._create_section_header(parent, "CLASS FEATURES")
@@ -2650,20 +2661,21 @@ class CharacterSheetView(ctk.CTkFrame):
         self._feature_use_widgets = {}
         
         # Create widget for each class (multiclass shows multiple)
-        for class_level in non_custom_classes:
+        for class_level in classes_with_features:
             char_class = class_level.character_class
+            class_name = class_level.get_class_name()
             level = class_level.level
             subclass = class_level.subclass
             
-            self._create_single_class_feature_widget(features_frame, char_class, level, sheet, subclass)
+            self._create_single_class_feature_widget(features_frame, char_class, class_name, level, sheet, subclass)
     
-    def _create_single_class_feature_widget(self, parent, char_class: CharacterClass, level: int, sheet: CharacterSheet, subclass_name: str = ""):
+    def _create_single_class_feature_widget(self, parent, char_class: CharacterClass, class_name: str, level: int, sheet: CharacterSheet, subclass_name: str = ""):
         """Create feature tracking widget for a single class."""
         class_frame = ctk.CTkFrame(parent, fg_color="transparent")
         class_frame.pack(fill="x", padx=8, pady=6)
         
         # Class name header (include subclass if set)
-        header_text = f"{char_class.value} {level}"
+        header_text = f"{class_name} {level}"
         if subclass_name:
             header_text += f" ({subclass_name})"
         ctk.CTkLabel(
@@ -2683,19 +2695,19 @@ class CharacterSheetView(ctk.CTkFrame):
         
         if char_class == CharacterClass.BARBARIAN:
             features = self._get_barbarian_features(level)
-            self._create_feature_use_stat(stats_row, char_class, "Rages", features["rages"], sheet)
+            self._create_feature_use_stat(stats_row, class_name, "Rages", features["rages"], sheet)
             self._create_feature_display_stat(stats_row, "Rage Dmg", features["rage_damage"])
         
         elif char_class == CharacterClass.BARD:
             cha_mod = sheet.ability_scores.modifier(AbilityScore.CHARISMA)
             features = self._get_bard_features(level, cha_mod)
-            self._create_feature_use_stat(stats_row, char_class, "Inspiration", features["uses"], sheet)
+            self._create_feature_use_stat(stats_row, class_name, "Inspiration", features["uses"], sheet)
             self._create_feature_display_stat(stats_row, "Die", features["die"])
         
         elif char_class == CharacterClass.CLERIC:
             features = self._get_cleric_features(level)
             if features["channel_divinity"] > 0:
-                self._create_feature_use_stat(stats_row, char_class, "Channel Divinity", features["channel_divinity"], sheet)
+                self._create_feature_use_stat(stats_row, class_name, "Channel Divinity", features["channel_divinity"], sheet)
         
         elif char_class == CharacterClass.DRUID:
             features = self._get_druid_features(level, subclass_name)
@@ -2703,32 +2715,32 @@ class CharacterSheetView(ctk.CTkFrame):
                 if features["wild_shape_uses"] == "∞":
                     self._create_feature_display_stat(stats_row, "Wild Shape", "∞")
                 else:
-                    self._create_feature_use_stat(stats_row, char_class, "Wild Shape", features["wild_shape_uses"], sheet)
+                    self._create_feature_use_stat(stats_row, class_name, "Wild Shape", features["wild_shape_uses"], sheet)
             self._create_feature_display_stat(stats_row, "Max CR", features["max_cr"])
         
         elif char_class == CharacterClass.FIGHTER:
             features = self._get_fighter_features(level)
-            self._create_feature_use_stat(stats_row, char_class, "Second Wind", features["second_wind"], sheet)
+            self._create_feature_use_stat(stats_row, class_name, "Second Wind", features["second_wind"], sheet)
             if features["action_surge"] > 0:
-                self._create_feature_use_stat(stats_row, char_class, "Action Surge", features["action_surge"], sheet)
+                self._create_feature_use_stat(stats_row, class_name, "Action Surge", features["action_surge"], sheet)
             if features["indomitable"] > 0:
-                self._create_feature_use_stat(stats_row, char_class, "Indomitable", features["indomitable"], sheet)
+                self._create_feature_use_stat(stats_row, class_name, "Indomitable", features["indomitable"], sheet)
         
         elif char_class == CharacterClass.MONK:
             features = self._get_monk_features(level)
             if features["focus_points"] > 0:
-                self._create_feature_use_stat(stats_row, char_class, "Focus Points", features["focus_points"], sheet)
+                self._create_feature_use_stat(stats_row, class_name, "Focus Points", features["focus_points"], sheet)
             self._create_feature_display_stat(stats_row, "Martial Arts", features["martial_arts_die"])
         
         elif char_class == CharacterClass.PALADIN:
             features = self._get_paladin_features(level)
             if features["channel_divinity"] > 0:
-                self._create_feature_use_stat(stats_row, char_class, "Channel Divinity", features["channel_divinity"], sheet)
-            self._create_feature_use_stat(stats_row, char_class, "Lay on Hands", features["lay_on_hands"], sheet, suffix=" HP")
+                self._create_feature_use_stat(stats_row, class_name, "Channel Divinity", features["channel_divinity"], sheet)
+            self._create_feature_use_stat(stats_row, class_name, "Lay on Hands", features["lay_on_hands"], sheet, suffix=" HP")
         
         elif char_class == CharacterClass.RANGER:
             features = self._get_ranger_features(level)
-            self._create_feature_use_stat(stats_row, char_class, "Favored Enemy", features["favored_enemy_uses"], sheet)
+            self._create_feature_use_stat(stats_row, class_name, "Favored Enemy", features["favored_enemy_uses"], sheet)
         
         elif char_class == CharacterClass.ROGUE:
             features = self._get_rogue_features(level)
@@ -2737,7 +2749,7 @@ class CharacterSheetView(ctk.CTkFrame):
         elif char_class == CharacterClass.SORCERER:
             features = self._get_sorcerer_features(level)
             if features["sorcery_points"] > 0:
-                self._create_feature_use_stat(stats_row, char_class, "Sorcery Points", features["sorcery_points"], sheet)
+                self._create_feature_use_stat(stats_row, class_name, "Sorcery Points", features["sorcery_points"], sheet)
         
         elif char_class == CharacterClass.WARLOCK:
             features = self._get_warlock_features(level)
@@ -2745,7 +2757,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         elif char_class == CharacterClass.WIZARD:
             features = self._get_wizard_features(level)
-            self._create_feature_use_stat(stats_row, char_class, "Arcane Recovery", features["arcane_recovery"], sheet, suffix=" lvls")
+            self._create_feature_use_stat(stats_row, class_name, "Arcane Recovery", features["arcane_recovery"], sheet, suffix=" lvls")
         
         elif char_class == CharacterClass.ARTIFICER:
             features = self._get_artificer_features(level)
@@ -2754,19 +2766,19 @@ class CharacterSheetView(ctk.CTkFrame):
             # Flash of Genius at level 7+ (INT modifier uses, minimum 1)
             if level >= 7:
                 int_mod = max(1, sheet.ability_scores.modifier(AbilityScore.INTELLIGENCE))
-                self._create_feature_use_stat(stats_row, char_class, "Flash of Genius", int_mod, sheet)
+                self._create_feature_use_stat(stats_row, class_name, "Flash of Genius", int_mod, sheet)
         
         # Add trackable features from class definition (like Flash of Genius for Artificer)
-        self._add_definition_trackable_features(stats_row, char_class, level, sheet, subclass_name)
+        self._add_definition_trackable_features(stats_row, class_name, level, sheet, subclass_name)
     
-    def _add_definition_trackable_features(self, parent, char_class: CharacterClass, level: int, sheet: CharacterSheet, subclass_name: str = ""):
+    def _add_definition_trackable_features(self, parent, class_name: str, level: int, sheet: CharacterSheet, subclass_name: str = ""):
         """Add trackable features from class and subclass definitions.
         
         Note: Features that are already handled in the hardcoded class sections
         should be skipped here to avoid duplication.
         """
         class_manager = get_class_manager()
-        class_def = class_manager.get_class(char_class.value)
+        class_def = class_manager.get_class(class_name)
         
         if not class_def:
             return
@@ -2808,7 +2820,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 if level >= min_level:
                     max_uses = feature.get_max_uses_at_level(level)
                     if max_uses > 0:
-                        self._create_feature_use_stat(parent, char_class, feature.title, max_uses, sheet)
+                        self._create_feature_use_stat(parent, class_name, feature.title, max_uses, sheet)
         
         # Get trackable features from subclass definition
         if subclass_name:
@@ -2826,11 +2838,11 @@ class CharacterSheetView(ctk.CTkFrame):
                         if level >= min_level:
                             max_uses = feature.get_max_uses_at_level(level)
                             if max_uses > 0:
-                                self._create_feature_use_stat(parent, char_class, feature.title, max_uses, sheet)
+                                self._create_feature_use_stat(parent, class_name, feature.title, max_uses, sheet)
     
-    def _create_feature_use_stat(self, parent, char_class: CharacterClass, label: str, max_value: int, sheet: CharacterSheet, suffix: str = ""):
+    def _create_feature_use_stat(self, parent, class_name: str, label: str, max_value: int, sheet: CharacterSheet, suffix: str = ""):
         """Create a feature stat with editable current/max values."""
-        key = f"{char_class.value}:{label}"
+        key = f"{class_name}:{label}"
         
         # Get current value from sheet, default to max
         current = sheet.class_feature_uses.get(key, max_value)
@@ -3198,7 +3210,7 @@ class CharacterSheetView(ctk.CTkFrame):
         subclass_features = []
         
         for class_level in self.current_character.classes:
-            class_name = class_level.character_class.value
+            class_name = class_level.get_class_name()
             level = class_level.level
             subclass_name = class_level.subclass
             
@@ -3644,7 +3656,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if not self.current_character:
             return
         
-        class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+        class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
         default_profs = get_default_proficiencies(class_levels)
         
         # Add Languages line
@@ -3807,7 +3819,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Check if character is a level 20 Barbarian
         has_primal_champion_feature = False
         for cl in self.current_character.classes:
-            if cl.character_class.value == "Barbarian" and cl.level >= 20:
+            if cl.get_class_name() == "Barbarian" and cl.level >= 20:
                 has_primal_champion_feature = True
                 break
         
@@ -3831,7 +3843,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Check if character is a level 20 Monk
         has_body_and_mind_feature = False
         for cl in self.current_character.classes:
-            if cl.character_class.value == "Monk" and cl.level >= 20:
+            if cl.get_class_name() == "Monk" and cl.level >= 20:
                 has_body_and_mind_feature = True
                 break
         
@@ -3857,7 +3869,7 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         
         class_level = character.classes[class_index]
-        if class_level.character_class.value != "Rogue":
+        if class_level.get_class_name() != "Rogue":
             return
         
         # Check if character has Slippery Mind (level 15+)
@@ -3952,7 +3964,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if not self.current_sheet or not self.current_character:
             return
         
-        class_levels = [(cl.character_class.value, cl.level) for cl in self.current_character.classes]
+        class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
         # Use effective CON modifier (includes bonuses like Primal Champion)
         con_mod = self.current_sheet.get_effective_ability_modifier(AbilityScore.CONSTITUTION, max_score=25)
         

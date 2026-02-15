@@ -1,0 +1,62 @@
+{
+  "characters": [
+    {
+      "name": "Jack",
+      "classes": [
+        {
+          "class": "Witch",
+          "level": 6,
+          "subclass": "Steel Magic"
+        }
+      ],
+      "known_spells": [
+        "Chill Touch",
+        "Heat Metal",
+        "Heroism",
+        "Magic Weapon",
+        "Shield",
+        "Blink",
+        "Haste",
+        "Death Ward",
+        "Freedom of Movement",
+        "Flame Strike",
+        "Telekinesis"
+      ],
+      "prepared_spells": [
+        "Chill Touch",
+        "Heat Metal",
+        "Heroism",
+        "Magic Weapon",
+        "Shield",
+        "Blink",
+        "Haste",
+        "Death Ward",
+        "Freedom of Movement",
+        "Flame Strike",
+        "Telekinesis"
+      ],
+      "subclass_spells": [
+        "Chill Touch",
+        "Heat Metal",
+        "Heroism",
+        "Magic Weapon",
+        "Shield",
+        "Blink",
+        "Haste",
+        "Death Ward",
+        "Freedom of Movement",
+        "Flame Strike",
+        "Telekinesis"
+      ],
+      "class_feature_spells": [],
+      "current_slots": {},
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0,
+      "feats": [],
+      "lineage": "",
+      "hidden_features": []
+    }
+  ]
+}

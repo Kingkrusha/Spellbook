@@ -31,7 +31,7 @@ class ClassLevelRow(ctk.CTkFrame):
         
         # Class dropdown - get all classes from class manager (filtered by legacy setting)
         all_class_names = self._get_filtered_class_names()
-        initial_class = class_level.character_class.value if class_level else (all_class_names[0] if all_class_names else "Wizard")
+        initial_class = class_level.get_class_name() if class_level else (all_class_names[0] if all_class_names else "Wizard")
         self.class_var = ctk.StringVar(value=initial_class)
         class_combo = ctk.CTkComboBox(
             main_row, variable=self.class_var,

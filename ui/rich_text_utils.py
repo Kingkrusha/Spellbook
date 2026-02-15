@@ -25,34 +25,48 @@ def preprocess_html_to_markdown(text: str) -> str:
     if not text:
         return text
     
-    # Convert bold: <b>text</b> -> **text**
-    text = re.sub(r'<b>([^<]+)</b>', r'**\1**', text)
+    # Handle <b>**text**</b> (HTML wrapping markdown) - remove outer HTML and keep markdown
+    text = re.sub(r'<b>\*\*([^*]+)\*\*</b>', r'**\1**', text)
     
-    # Convert italic: <i>text</i> -> *text*
-    text = re.sub(r'<i>([^<]+)</i>', r'*\1*', text)
+    # Handle **<b>text</b>** (markdown wrapping HTML) - remove outer markdown and convert HTML
+    text = re.sub(r'\*\*<b>([^<]+)</b>\*\*', r'**\1**', text)
+    
+    # Convert bold: <b>text</b> -> **text** (allow nested tags like <spell>)
+    text = re.sub(r'<b>(.*?)</b>', r'**\1**', text)
+    
+    # Convert italic: <i>text</i> -> *text* (allow nested tags)
+    text = re.sub(r'<i>(.*?)</i>', r'*\1*', text)
     
     # Convert spell links: <spell>Name</spell> -> [[Name]]
     text = re.sub(r'<spell>([^<]+)</spell>', r'[[\1]]', text)
     
+    # Clean up any duplicate asterisks from double-formatting
+    # ****text**** -> **text** (4 asterisks on each side)
+    text = re.sub(r'\*{4,}([^*]+)\*{4,}', r'**\1**', text)
+    # ***text*** -> **text** or *text* depending on context - keep it as bold
+    text = re.sub(r'\*{3}([^*]+)\*{3}', r'**\1**', text)
+    
     # Convert HTML tables to markdown tables
     def convert_table(match):
         table_html = match.group(0)
-        # Extract headers
-        headers = re.findall(r'<th>([^<]*)</th>', table_html)
-        # Extract rows - handle varying column counts
-        rows = []
-        for row_match in re.finditer(r'<tr><td>(.*?)</td></tr>', table_html):
-            cells = re.findall(r'<td>([^<]*)</td>|([^<]+)(?=</td>|$)', row_match.group(0))
-            row = []
-            for cell in re.findall(r'<td>(.*?)</td>', row_match.group(0)):
-                row.append(cell)
-            if row:
-                rows.append(row)
         
-        # Also try simpler 2-column extraction
-        if not rows:
-            row_matches = re.findall(r'<tr><td>([^<]*)</td><td>([^<]*)</td></tr>', table_html)
-            rows = [list(r) for r in row_matches]
+        # Extract headers - allow inner tags
+        headers = re.findall(r'<th>(.*?)</th>', table_html)
+        
+        # Extract data rows
+        rows = []
+        # Find all <tr>...</tr> that contain <td> (data rows, not header rows)
+        row_matches = re.findall(r'<tr>((?:<td>.*?</td>)+)</tr>', table_html, re.DOTALL)
+        for row_content in row_matches:
+            # Skip header rows
+            if '<th>' in row_content:
+                continue
+            # Extract cells - allow any content inside
+            cells = re.findall(r'<td>(.*?)</td>', row_content, re.DOTALL)
+            if cells:
+                # Clean up cell content (remove extra whitespace)
+                cells = [cell.strip() for cell in cells]
+                rows.append(cells)
         
         if not headers or not rows:
             return table_html  # Return unchanged if parsing fails
@@ -64,7 +78,9 @@ def preprocess_html_to_markdown(text: str) -> str:
             # Pad row if needed
             while len(row) < len(headers):
                 row.append("")
-            lines.append("| " + " | ".join(row[:len(headers)]) + " |")
+            # Escape pipes in cell content and join
+            escaped_cells = [cell.replace("|", "\\|") for cell in row[:len(headers)]]
+            lines.append("| " + " | ".join(escaped_cells) + " |")
         
         return "\n".join(lines)
     

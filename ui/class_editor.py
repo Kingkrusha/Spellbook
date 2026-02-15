@@ -166,12 +166,16 @@ class FeatureEditorDialog(ctk.CTkToplevel):
             messagebox.showwarning("Warning", "Please enter a description.", parent=self)
             return
         
+        # Preserve tables and subclass_name from original feature if editing
+        tables = self._feature.tables if self._feature else []
+        subclass_name = self._feature.subclass_name if self._feature else ""
+        
         self.result = ClassAbility(
             title=title,
             description=description,
             is_subclass_feature=self.is_subclass_var.get(),
-            subclass_name="",
-            tables=[]
+            subclass_name=subclass_name,
+            tables=tables
         )
         self.destroy()
 
@@ -596,7 +600,10 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         self._create_widgets()
         
+        # If editing, create all tabs upfront (needed for _populate_from_class)
+        # If creating new, tabs are lazy-loaded for performance
         if class_def:
+            self._ensure_all_tabs_created()
             self._populate_from_class(class_def)
         
         self.update_idletasks()
@@ -610,7 +617,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=15, pady=(15, 0))
         
-        # Create tabs
+        # Create tabs (empty initially for lazy loading)
         self.tabview.add("Basic Info")
         self.tabview.add("Spellcasting")
         self.tabview.add("Level Features")
@@ -618,12 +625,22 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.tabview.add("Custom Columns")
         self.tabview.add("Column Values")
         
+        # Track which tabs have been created
+        self._tabs_created = {
+            "Basic Info": False,
+            "Spellcasting": False,
+            "Level Features": False,
+            "Class Features Widget": False,
+            "Custom Columns": False,
+            "Column Values": False,
+        }
+        
+        # Create first tab immediately (Basic Info is usually needed)
         self._create_basic_info_tab()
-        self._create_spellcasting_tab()
-        self._create_level_features_tab()
-        self._create_class_features_tab()
-        self._create_custom_columns_tab()
-        self._create_column_values_tab()
+        self._tabs_created["Basic Info"] = True
+        
+        # Bind tab change event for lazy loading
+        self.tabview.configure(command=self._on_tab_change)
         
         # Button frame
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -646,6 +663,32 @@ class ClassEditorDialog(ctk.CTkToplevel):
             text_color=btn_text,
             command=self._on_save_class
         ).pack(side="right")
+    
+    def _on_tab_change(self, tab_name: str):
+        """Handle tab change - lazy load tab content if not yet created."""
+        if tab_name not in self._tabs_created or self._tabs_created[tab_name]:
+            return
+        
+        # Create tab content based on tab name
+        if tab_name == "Spellcasting":
+            self._create_spellcasting_tab()
+        elif tab_name == "Level Features":
+            self._create_level_features_tab()
+        elif tab_name == "Class Features Widget":
+            self._create_class_features_tab()
+        elif tab_name == "Custom Columns":
+            self._create_custom_columns_tab()
+        elif tab_name == "Column Values":
+            self._create_column_values_tab()
+        
+        self._tabs_created[tab_name] = True
+        self.update_idletasks()
+    
+    def _ensure_all_tabs_created(self):
+        """Ensure all tabs are created. Used when editing existing class."""
+        for tab_name in self._tabs_created:
+            if not self._tabs_created[tab_name]:
+                self._on_tab_change(tab_name)
     
     def _create_basic_info_tab(self):
         """Create the basic info tab."""
@@ -1841,6 +1884,7 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
         self.theme = get_theme_manager()
         self.result: Optional[SubclassFeature] = None
         self._min_level = min_level
+        self._feature = feature  # Store original feature to preserve tables
         
         self.title("Edit Feature" if feature else "Add Feature")
         self.geometry("600x500")
@@ -1935,11 +1979,14 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
             messagebox.showwarning("Warning", "Please enter a description.", parent=self)
             return
         
+        # Preserve tables from original feature if editing
+        tables = self._feature.tables if self._feature else []
+        
         self.result = SubclassFeature(
             level=int(self.level_var.get()),
             title=title,
             description=description,
-            tables=[]
+            tables=tables
         )
         self.destroy()
 

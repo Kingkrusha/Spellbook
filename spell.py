@@ -71,6 +71,34 @@ class CharacterClass(Enum):
         return base_names
     
     @classmethod
+    def spellcasting_class_names(cls) -> List[str]:
+        """Return only spellcasting class names including custom spellcaster classes.
+        
+        Excludes Barbarian, Fighter, Monk, and Rogue from base classes.
+        For custom classes, checks the class manager if the class is a spellcaster.
+        """
+        non_casters = {cls.BARBARIAN, cls.FIGHTER, cls.MONK, cls.ROGUE}
+        base_names = [c.value for c in cls if c not in non_casters and c != cls.CUSTOM]
+        
+        # Add custom class names only if they are spellcasters
+        try:
+            from character_class import get_class_manager
+            class_manager = get_class_manager()
+            for name in _custom_class_names:
+                if name not in base_names:
+                    # Check if custom class is a spellcaster
+                    class_def = class_manager.get_class(name)
+                    if class_def and class_def.is_spellcaster:
+                        base_names.append(name)
+        except (ImportError, Exception):
+            # If we can't check, include all custom classes
+            for name in _custom_class_names:
+                if name not in base_names:
+                    base_names.append(name)
+        
+        return base_names
+    
+    @classmethod
     def spellcasting_classes(cls) -> List["CharacterClass"]:
         """Return only classes that can cast spells."""
         non_casters = {cls.BARBARIAN, cls.FIGHTER, cls.MONK, cls.ROGUE}

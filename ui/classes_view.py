@@ -297,15 +297,31 @@ class ClassesCollectionView(ctk.CTkFrame):
                 self._display_class(self.current_class)
     
     def _display_class(self, class_def: CharacterClassDefinition):
-        """Display the class information with feature table."""
-        # Mark as loading
+        """Display the class information with feature table.
+        
+        Uses deferred rendering to prevent UI freezing.
+        """
+        # Mark as loading and cancel any pending deferred render
         self._class_loaded = False
+        if hasattr(self, '_deferred_render_id') and self._deferred_render_id:
+            self.after_cancel(self._deferred_render_id)
+            self._deferred_render_id = None
         
         # Clear content and subclass tracking
         for widget in self.content.winfo_children():
             widget.destroy()
         self._subclass_cards.clear()
         
+        # Render header immediately (lightweight)
+        self._render_class_header(class_def)
+        
+        # Defer heavier sections to prevent blocking
+        self._deferred_render_id = self.after_idle(
+            lambda: self._render_class_body_deferred(class_def)
+        )
+    
+    def _render_class_header(self, class_def: CharacterClassDefinition):
+        """Render the lightweight header section immediately."""
         # Header with class name and "Class Details"
         header_frame = ctk.CTkFrame(self.content, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 15))
@@ -329,10 +345,27 @@ class ClassesCollectionView(ctk.CTkFrame):
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
         
-        # Core Class Traits section
-        self._create_core_traits_section(class_def)
+        # Show loading indicator
+        self._loading_label = ctk.CTkLabel(
+            self.content,
+            text="Loading class details...",
+            font=ctk.CTkFont(size=12),
+            text_color=self.theme.get_current_color('text_secondary')
+        )
+        self._loading_label.pack(pady=20)
+        self.update_idletasks()
+    
+    def _render_class_body_deferred(self, class_def: CharacterClassDefinition):
+        """Render the main class body in deferred stages."""
+        # Remove loading indicator
+        if hasattr(self, '_loading_label') and self._loading_label.winfo_exists():
+            self._loading_label.destroy()
         
-        # Description paragraphs with dynamic resizing
+        # Core traits (relatively fast)
+        self._create_core_traits_section(class_def)
+        self.update_idletasks()
+        
+        # Description  
         if class_def.description:
             from ui.rich_text_utils import DynamicText
             desc_frame = ctk.CTkFrame(self.content, fg_color="transparent")
@@ -340,7 +373,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             
             dt = DynamicText(
                 desc_frame, self.theme,
-                bg_color='bg_primary'  # Use theme color key
+                bg_color='bg_primary'
             )
             dt.set_text(class_def.description)
             dt.pack(fill="x", expand=True)
@@ -356,15 +389,29 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         # Create the feature table
         self._create_feature_table(class_def)
+        self.update_idletasks()
         
-        # Detailed Class Features section (written out)
+        # Defer detailed features (heaviest part) to next idle
+        self.after_idle(lambda: self._render_detailed_features_deferred(class_def))
+    
+    def _render_detailed_features_deferred(self, class_def: CharacterClassDefinition):
+        """Render detailed features and subclasses section with periodic UI updates."""
+        # Render detailed features in batches to keep UI responsive
         self._create_detailed_features_section(class_def)
+        self.update_idletasks()
         
         # Subclasses section (always show so user can add subclasses)
         self._create_subclasses_section(class_def)
+        self.update_idletasks()
         
         # Mark as fully loaded (for pending subclass selection)
         self._class_loaded = True
+        
+        # Handle any pending subclass selection
+        if self._pending_subclass:
+            subclass_name = self._pending_subclass
+            self._pending_subclass = None
+            self.after_idle(lambda: self._expand_and_scroll_to_subclass(subclass_name))
     
     def _create_core_traits_section(self, class_def: CharacterClassDefinition):
         """Create the Core Class Traits table like in the PHB."""
@@ -527,7 +574,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             )
             label.pack(side="left", padx=5, pady=8)
         
-        # Data rows
+        # Data rows - update UI every 5 rows to keep responsive
         for level in range(1, 21):
             level_data = class_def.levels.get(level)
             
@@ -596,6 +643,10 @@ class ClassesCollectionView(ctk.CTkFrame):
                     font=ctk.CTkFont(size=11),
                     width=col_widths.get(col, 90)
                 ).pack(side="left", padx=5, pady=5)
+            
+            # Update UI every 5 rows to prevent freezing
+            if level % 5 == 0:
+                self.update_idletasks()
     
     def _get_proficiency_bonus(self, level: int) -> int:
         """Get proficiency bonus for a given level."""
@@ -659,8 +710,9 @@ class ClassesCollectionView(ctk.CTkFrame):
                     # Same feature appears again - track additional level
                     features_shown[feature_key][2].append(level)
         
-        # Second pass: render features
+        # Second pass: render features with periodic UI updates
         rendered_features = set()
+        features_rendered_count = 0
         for level in range(1, 21):
             level_data = class_def.levels.get(level)
             if not level_data or not level_data.abilities:
@@ -673,6 +725,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                     if level == class_def.subclass_level:
                         # Show the subclass selection feature
                         self._create_feature_detail(level, ability)
+                        features_rendered_count += 1
                     # Skip subclass feature placeholders at other levels
                     continue
                 
@@ -689,6 +742,11 @@ class ClassesCollectionView(ctk.CTkFrame):
                 # Get additional levels for this feature
                 additional_levels = features_shown.get(feature_key, (level, desc_hash, []))[2]
                 self._create_feature_detail(level, ability, additional_levels)
+                features_rendered_count += 1
+                
+                # Update UI periodically to keep responsive
+                if features_rendered_count % 5 == 0:
+                    self.update_idletasks()
     
     def _create_feature_detail(self, level: int, ability: ClassAbility, additional_levels: Optional[List] = None):
         """Create a detailed feature entry."""

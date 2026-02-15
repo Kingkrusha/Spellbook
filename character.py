@@ -118,7 +118,7 @@ class CharacterSpellList:
         """Return formatted string of all classes and levels."""
         if not self.classes:
             return "No class"
-        return " / ".join(f"{cl.character_class.value} {cl.level}" for cl in self.classes)
+        return " / ".join(f"{cl.get_class_name()} {cl.level}" for cl in self.classes)
     
     def add_class(self, character_class: CharacterClass, level: int = 1):
         """Add a new class to the character."""
@@ -478,7 +478,7 @@ def update_subclass_spells(character: CharacterSpellList, class_manager=None) ->
     
     # Add subclass spells and class feature spells for each class
     for class_level in character.classes:
-        class_name = class_level.character_class.value
+        class_name = class_level.get_class_name()
         
         # Get the class definition
         class_def = class_manager.get_class(class_name)
