@@ -145,6 +145,9 @@ class SpellManager:
                 print("Populating database with initial spell data...")
                 count = self._db.populate_initial_spells()
                 print(f"Populated {count} spells into the database.")
+            else:
+                # Sync any new stat blocks for existing databases
+                self._db._populate_initial_stat_blocks()
             
             # Load all spells from database
             spell_dicts = self._db.get_all_spells()

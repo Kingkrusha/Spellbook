@@ -35,6 +35,7 @@ class ThemeColors:
     # === Accent Colors ===
     accent_primary: ThemeColor = ("#3b8ed0", "#1f538d")  # Primary accent (selected items, active tabs)
     accent_hover: ThemeColor = ("#2d7fc4", "#2a6eb0")  # Hover state for accent
+    spell_link: ThemeColor = ("#67bed9", "#67bed9")  # Spell link text color
     
     # === Button Colors ===
     button_normal: ThemeColor = ("#c0c0c0", "#4a4a4a")  # Normal button background

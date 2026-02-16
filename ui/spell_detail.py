@@ -16,6 +16,7 @@ from spell_manager import SpellManager
 from database import SpellDatabase
 from ui.stat_block_display import StatBlockDisplay
 from ui.stat_block_editor import StatBlockEditorDialog
+from ui.rich_text_utils import RichTextRenderer, preprocess_html_to_markdown
 
 
 class SpellWarningDialog(ctk.CTkToplevel):
@@ -368,26 +369,16 @@ class SpellDetailPanel(ctk.CTkFrame):
         )
         self.description_frame.pack(fill="x", pady=(0, 15))
         
-        # Description text using Text widget for colored dice support
-        # Colors will be updated based on theme
-        self.description_text = tk.Text(
+        # Description content container for rich text rendering
+        # We'll render rich text widgets (labels, tables, etc.) into this frame
+        self._description_content = ctk.CTkFrame(
             self.description_frame,
-            font=("Segoe UI", 11),
-            wrap=tk.WORD,
-            relief=tk.FLAT,
-            padx=10,
-            pady=10,
-            cursor="arrow",
-            state=tk.DISABLED,
-            height=1,  # Will auto-expand
-            borderwidth=0,
-            highlightthickness=0
+            fg_color="transparent"
         )
-        self.description_text.pack(fill="x", expand=True)
+        self._description_content.pack(fill="x", expand=True, padx=10, pady=10)
         
-        # Configure tags for colored dice - will be updated by _update_description_colors()
-        # Apply theme-aware colors to the text widget
-        self._update_description_colors()
+        # Rich text renderer for spell descriptions
+        self._rich_renderer = None  # Will be created on demand
         
         # Bind to update wraplength dynamically on resize
         self.description_frame.bind("<Configure>", self._on_content_resize)
@@ -621,55 +612,37 @@ class SpellDetailPanel(ctk.CTkFrame):
         self._update_description(spell.display_description())
     
     def _update_description(self, text: str, damage_color: Optional[str] = None):
-        """Update description text, optionally coloring damage dice."""
-        self.description_text.configure(state=tk.NORMAL)
-        self.description_text.delete("1.0", tk.END)
+        """Update description text with rich text formatting.
         
-        if damage_color:
-            # Get the "better" color from theme for comparison
-            theme = get_theme_manager()
-            better_color = theme.get_current_color("compare_better")
-            
-            # Find and color damage dice
-            dice_pattern = r'\d+d\d+'
-            last_end = 0
-            for match in re.finditer(dice_pattern, text, re.IGNORECASE):
-                # Insert text before the dice
-                if match.start() > last_end:
-                    self.description_text.insert(tk.END, text[last_end:match.start()], "normal")
-                # Insert the dice with color - use "better" tag if it's the better color
-                tag = "better" if damage_color == better_color else "worse"
-                self.description_text.insert(tk.END, match.group(), tag)
-                last_end = match.end()
-            # Insert remaining text
-            if last_end < len(text):
-                self.description_text.insert(tk.END, text[last_end:], "normal")
-        else:
-            self.description_text.insert(tk.END, text, "normal")
+        Uses RichTextRenderer to render markdown (bold, tables, spell links).
+        """
+        # Clear existing content
+        for widget in self._description_content.winfo_children():
+            widget.destroy()
         
-        self.description_text.configure(state=tk.DISABLED)
+        # Preprocess HTML to markdown
+        text = preprocess_html_to_markdown(text)
         
-        # Auto-resize height
-        self._resize_description_text()
+        # Create or get renderer
+        if self._rich_renderer is None:
+            self._rich_renderer = RichTextRenderer(get_theme_manager())
+        
+        # Calculate wraplength based on frame width
+        wraplength = max(300, self.description_frame.winfo_width() - 40)
+        
+        # Render formatted text with markdown support
+        self._rich_renderer.render_formatted_text(
+            self._description_content,
+            text,
+            on_spell_click=self._on_spell_link_click,
+            wraplength=wraplength
+        )
     
-    def _resize_description_text(self):
-        """Resize description text widget to fit content."""
-        self.description_text.configure(state=tk.NORMAL)
-        # Count lines needed
-        self.description_text.update_idletasks()
-        try:
-            # Count display lines, respecting word wrap
-            result = self.description_text.count("1.0", "end-1c", "displaylines")
-            if result:
-                line_count = result[0]
-            else:
-                raise tk.TclError  # Fallback if count returns None/empty
-        except tk.TclError:
-            # Fallback to logical lines if count is unavailable
-            line_count = int(self.description_text.index('end-1c').split('.')[0])
-        # Set height to fit all content (no maximum cap)
-        height = max(3, line_count + 1)
-        self.description_text.configure(height=height, state=tk.DISABLED)
+    def _on_spell_link_click(self, spell_name: str):
+        """Handle clicking a spell link in the description."""
+        from ui.rich_text_utils import RichTextRenderer
+        renderer = RichTextRenderer(get_theme_manager())
+        renderer.show_spell_popup(self, spell_name)
     
     def apply_comparison(self, other_spell: Spell, is_primary: bool = True):
         """Apply comparison coloring against another spell."""
@@ -878,26 +851,15 @@ class SpellDetailPanel(ctk.CTkFrame):
         super().destroy()
     
     def _on_content_resize(self, event):
-        """Update description text widget width when description frame is resized."""
-        # Account for padding - resize the text widget width
-        new_width = max(100, event.width - 20)
-        self.description_text.configure(width=new_width // 8)  # Approximate character width
-        self._resize_description_text()
+        """Handle description frame resize - may need to re-render for new width."""
+        # Rich text renderer handles wrapping automatically
+        pass
     
     def _update_description_colors(self):
-        """Update description text widget colors based on current theme."""
+        """Update description area colors based on current theme."""
         theme = get_theme_manager()
-
-        # Use current appearance colors
         bg_color = theme.get_current_color('description_bg')
-        fg_color = theme.get_current_color('text_primary')
-        better = theme.get_current_color('compare_better')
-        worse = theme.get_current_color('compare_worse')
-
-        self.description_text.configure(bg=bg_color, fg=fg_color)
-        self.description_text.tag_configure("normal", foreground=fg_color)
-        self.description_text.tag_configure("better", foreground=better)
-        self.description_text.tag_configure("worse", foreground=worse)
+        self.description_frame.configure(fg_color=bg_color)
     
     def _on_edit_click(self):
         """Handle edit button click."""
@@ -1102,8 +1064,11 @@ class SpellPopupDialog(ctk.CTkToplevel):
     def __init__(self, parent, spell: Spell):
         super().__init__(parent)
         
+        from ui.rich_text_utils import RichTextRenderer
+        
         self.spell = spell
         self.theme = get_theme_manager()
+        self._renderer = RichTextRenderer(self.theme)
         
         self.title(spell.name)
         self.geometry("550x650")
@@ -1126,74 +1091,17 @@ class SpellPopupDialog(ctk.CTkToplevel):
         self.bind("<Escape>", lambda e: self.destroy())
     
     def _render_formatted_text(self, parent, text: str):
-        """Render text with *bold* markdown formatting."""
-        import re
-        
-        # Split by double newlines to get paragraphs
-        paragraphs = text.split('\n\n')
-        
-        for para_idx, paragraph in enumerate(paragraphs):
-            lines = paragraph.strip().split('\n')
-            combined_text = ' '.join(line.strip() for line in lines if line.strip())
-            
-            if not combined_text:
-                continue
-            
-            # Check for bullet points
-            if combined_text.startswith('•') or combined_text.startswith('-'):
-                bullet_text = combined_text.lstrip('•- ')
-                combined_text = f"  • {bullet_text}"
-            
-            pady = (6, 2) if para_idx > 0 else (2, 2)
-            
-            # Find all *text* patterns for bold
-            pattern = r'\*([^*]+)\*'
-            parts = re.split(pattern, combined_text)
-            
-            if len(parts) == 1:
-                # No formatting found, just render plain text
-                ctk.CTkLabel(
-                    parent,
-                    text=combined_text,
-                    font=ctk.CTkFont(size=12),
-                    wraplength=480,
-                    justify="left"
-                ).pack(anchor="w", pady=pady)
-            else:
-                # Has formatting - use a Text widget for proper inline rendering
-                text_widget = tk.Text(
-                    parent,
-                    wrap="word",
-                    font=ctk.CTkFont(size=12),
-                    bg=self.theme.get_current_color('bg_secondary'),
-                    fg=self.theme.get_current_color('text_primary'),
-                    relief="flat",
-                    borderwidth=0,
-                    highlightthickness=0,
-                    padx=0,
-                    pady=2,
-                    cursor="arrow"
-                )
-                
-                # Configure tags
-                text_widget.tag_configure("bold", font=ctk.CTkFont(size=12, weight="bold", slant="italic"))
-                text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
-                
-                # Insert parts with formatting
-                for i, part in enumerate(parts):
-                    if not part:
-                        continue
-                    is_bold = (i % 2 == 1)
-                    tag = "bold" if is_bold else "normal"
-                    text_widget.insert("end", part, tag)
-                
-                # Calculate height
-                text_widget.update_idletasks()
-                total_chars = sum(len(p) for p in parts if p)
-                estimated_lines = max(1, (total_chars // 60) + 1)
-                
-                text_widget.configure(state="disabled", height=estimated_lines)
-                text_widget.pack(fill="x", anchor="w", pady=pady)
+        """Render text with formatting and spell links using RichTextRenderer."""
+        self._renderer.render_formatted_text(
+            parent, text,
+            on_spell_click=self._on_spell_link_click,
+            wraplength=480,
+            bold_pattern=r'\*([^*]+)\*'
+        )
+    
+    def _on_spell_link_click(self, spell_name: str):
+        """Handle click on a spell link - open another popup."""
+        self._renderer.show_spell_popup(self, spell_name)
     
     def _create_widgets(self):
         """Create dialog widgets."""

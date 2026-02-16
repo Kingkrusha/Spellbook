@@ -546,7 +546,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             about_content,
-            text="Version 1.5 • Data stored in SQLite database",
+            text="Version 1.5.3 • Data stored in SQLite database",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))

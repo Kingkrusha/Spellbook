@@ -1279,7 +1279,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                     spells_container,
                     text=display_text,
                     font=ctk.CTkFont(size=11),
-                    text_color=self.theme.get_current_color('accent_primary'),
+                    text_color=self.theme.get_current_color('spell_link'),
                     cursor="hand2"
                 )
                 spell_label.pack(side="left", padx=(0, 3))
@@ -1503,7 +1503,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                 inner_frame,
                 text=display_text,
                 font=ctk.CTkFont(size=font_size),
-                text_color=self.theme.get_current_color('accent_primary'),
+                text_color=self.theme.get_current_color('spell_link'),
                 cursor="hand2"
             )
             spell_label.pack(side="left", padx=(0, 3))
@@ -1546,7 +1546,10 @@ class FeatureDetailPopup(ctk.CTkToplevel):
     def __init__(self, parent, title: str, description: str):
         super().__init__(parent)
         
+        from ui.rich_text_utils import RichTextRenderer
+        
         self.theme = get_theme_manager()
+        self._renderer = RichTextRenderer(self.theme)
         
         self.title(title)
         self.geometry("500x400")
@@ -1576,22 +1579,24 @@ class FeatureDetailPopup(ctk.CTkToplevel):
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(anchor="w", pady=(0, 15))
         
-        # Description in scrollable text area
-        text_frame = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
+        # Description in scrollable frame with rich text
+        text_frame = ctk.CTkScrollableFrame(
+            container, 
+            fg_color=self.theme.get_current_color('bg_secondary'), 
+            corner_radius=8
+        )
         text_frame.pack(fill="both", expand=True)
         
-        text_box = ctk.CTkTextbox(
-            text_frame,
-            font=ctk.CTkFont(size=12),
-            wrap="word",
-            fg_color="transparent",
-            text_color=self.theme.get_current_color('text_primary')
-        )
-        text_box.pack(fill="both", expand=True, padx=10, pady=10)
+        # Use rich text renderer for proper formatting and spell links
+        inner_frame = ctk.CTkFrame(text_frame, fg_color="transparent")
+        inner_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Insert text and disable editing
-        text_box.insert("1.0", description)
-        text_box.configure(state="disabled")
+        self._renderer.render_formatted_text(
+            inner_frame, description,
+            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s),
+            wraplength=400,
+            bold_pattern=r'\*([^*]+)\*'
+        )
         
         # Close button
         ctk.CTkButton(

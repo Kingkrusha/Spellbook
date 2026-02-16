@@ -266,6 +266,7 @@ class RichTextRenderer:
         
         # Data rows
         spell_pattern = r'\[\[([^\]]+)\]\]'
+        bold_pattern = r'\*\*([^*]+)\*\*'
         
         for row_idx, row_data in enumerate(rows):
             row_bg = "transparent" if row_idx % 2 == 0 else self.theme.get_current_color('bg_secondary')
@@ -276,12 +277,13 @@ class RichTextRenderer:
                 cell_frame.grid(row=row_idx + 1, column=col_idx, sticky="nsew", 
                                padx=1, pady=0)
                 
-                # Check for spell link patterns [[SpellName]] in the cell
-                spell_matches = re.findall(spell_pattern, cell_text)
+                # Check for spell link patterns [[SpellName]] or bold **text** in the cell
+                has_spell_links = bool(re.search(spell_pattern, cell_text))
+                has_bold = bool(re.search(bold_pattern, cell_text))
                 
-                if spell_matches:
-                    # Cell contains spell links - render with clickable spans
-                    self._render_table_cell_with_spells(cell_frame, cell_text, spell_pattern, on_spell_click, parent)
+                if has_spell_links or has_bold:
+                    # Cell contains spell links or bold - render with formatted text widget
+                    self._render_table_cell_formatted(cell_frame, cell_text, spell_pattern, bold_pattern, on_spell_click, parent)
                 elif self.is_spell_name(cell_text.strip()):
                     # Entire cell is a spell name
                     callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
@@ -290,20 +292,33 @@ class RichTextRenderer:
                         font=ctk.CTkFont(size=11),
                         fg_color="transparent",
                         hover_color=self.theme.get_current_color('button_hover'),
-                        text_color=self.theme.get_current_color('accent_primary'),
+                        text_color=self.theme.get_current_color('spell_link'),
                         anchor="w",
                         height=32,
                         command=lambda s=cell_text.strip(): callback(s)
                     )
                     btn.pack(fill="x", padx=6, pady=6, anchor="w")
                 else:
-                    # Plain text cell
-                    ctk.CTkLabel(
-                        cell_frame, text=cell_text,
+                    # Plain text cell - use Text widget for word wrapping
+                    text_widget = tk.Text(
+                        cell_frame,
+                        wrap="word",
                         font=ctk.CTkFont(size=11),
-                        anchor="w",
-                        justify="left"
-                    ).pack(fill="x", padx=8, pady=8, anchor="w")
+                        bg=row_bg if row_bg != "transparent" else self.theme.get_current_color('bg_tertiary'),
+                        fg=self.theme.get_current_color('text_primary'),
+                        relief="flat",
+                        borderwidth=0,
+                        highlightthickness=0,
+                        padx=6,
+                        pady=6,
+                        height=1,
+                        cursor="arrow"
+                    )
+                    text_widget.insert("1.0", cell_text)
+                    # Calculate required height based on content length
+                    num_lines = max(1, (len(cell_text) // 35) + 1)
+                    text_widget.configure(state="disabled", height=num_lines)
+                    text_widget.pack(fill="both", expand=True)
         
         return table_frame
     
@@ -342,7 +357,7 @@ class RichTextRenderer:
                 text_widget.tag_configure(
                     spell_tag, 
                     font=ctk.CTkFont(size=11),
-                    foreground=self.theme.get_current_color('accent_primary'),
+                    foreground=self.theme.get_current_color('spell_link'),
                     underline=True
                 )
                 text_widget.insert("end", part, spell_tag)
@@ -355,11 +370,79 @@ class RichTextRenderer:
             else:
                 text_widget.insert("end", part, "normal")
         
-        # Calculate required height
+        # Calculate required height based on content length
         content = text_widget.get("1.0", "end").strip()
-        num_lines = max(1, len(content) // 40 + 1)
+        num_lines = max(1, (len(content) // 35) + 1)
         text_widget.configure(state="disabled", height=num_lines)
-        text_widget.pack(fill="x", expand=True)
+        text_widget.pack(fill="both", expand=True)
+    
+    def _render_table_cell_formatted(self, cell_frame, cell_text: str, spell_pattern: str,
+                                      bold_pattern: str, on_spell_click: Optional[Callable], parent):
+        """Render a table cell with bold formatting and/or spell links."""
+        # Use a Text widget for mixed content
+        text_widget = tk.Text(
+            cell_frame,
+            wrap="word",
+            font=ctk.CTkFont(size=11),
+            bg=self.theme.get_current_color('bg_tertiary'),
+            fg=self.theme.get_current_color('text_primary'),
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            padx=6,
+            pady=6,
+            height=1,
+            cursor="arrow"
+        )
+        
+        # Configure tags
+        text_widget.tag_configure("normal", font=ctk.CTkFont(size=11))
+        text_widget.tag_configure("bold", font=ctk.CTkFont(size=11, weight="bold"))
+        
+        # First split by bold pattern
+        bold_parts = re.split(bold_pattern, cell_text)
+        spell_counter = 0
+        
+        for i, part in enumerate(bold_parts):
+            if not part:
+                continue
+            
+            is_bold = (i % 2 == 1)  # Odd indices are bold text
+            
+            # Now check for spell links within this part
+            spell_parts = re.split(spell_pattern, part)
+            
+            for j, spell_part in enumerate(spell_parts):
+                if not spell_part:
+                    continue
+                
+                if j % 2 == 1:
+                    # This is a spell name
+                    spell_tag = f"spell_{spell_counter}"
+                    spell_counter += 1
+                    text_widget.tag_configure(
+                        spell_tag, 
+                        font=ctk.CTkFont(size=11, weight="bold" if is_bold else "normal"),
+                        foreground=self.theme.get_current_color('spell_link'),
+                        underline=True
+                    )
+                    text_widget.insert("end", spell_part, spell_tag)
+                    
+                    # Bind click handler
+                    callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                    text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: callback(s))
+                    text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
+                    text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
+                else:
+                    # Regular text - apply bold if needed
+                    tag = "bold" if is_bold else "normal"
+                    text_widget.insert("end", spell_part, tag)
+        
+        # Calculate required height based on content length
+        content = text_widget.get("1.0", "end").strip()
+        num_lines = max(1, (len(content) // 35) + 1)
+        text_widget.configure(state="disabled", height=num_lines)
+        text_widget.pack(fill="both", expand=True)
     
     def _preprocess_html_to_markdown(self, text: str) -> str:
         """
@@ -472,10 +555,10 @@ class RichTextRenderer:
         text_widget.tag_configure("bold", font=ctk.CTkFont(size=12, weight="bold"))
         text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
         text_widget.tag_configure("spell", font=ctk.CTkFont(size=12), 
-                                  foreground=self.theme.get_current_color('accent_primary'),
+                                  foreground=self.theme.get_current_color('spell_link'),
                                   underline=True)
         text_widget.tag_configure("bold_spell", font=ctk.CTkFont(size=12, weight="bold"), 
-                                  foreground=self.theme.get_current_color('accent_primary'),
+                                  foreground=self.theme.get_current_color('spell_link'),
                                   underline=True)
         
         spell_pattern = r'\[\[([^\]]+)\]\]'
@@ -504,7 +587,7 @@ class RichTextRenderer:
                         spell_counter += 1
                         tag_style = "bold_spell" if is_bold else "spell"
                         text_widget.tag_configure(spell_tag, font=ctk.CTkFont(size=12, weight="bold" if is_bold else "normal"),
-                                                  foreground=self.theme.get_current_color('accent_primary'),
+                                                  foreground=self.theme.get_current_color('spell_link'),
                                                   underline=True)
                         text_widget.insert("end", spell_part, spell_tag)
                         
@@ -563,7 +646,7 @@ class RichTextRenderer:
                 spell_tag = f"spell_{spell_counter}"
                 spell_counter += 1
                 text_widget.tag_configure(spell_tag, font=ctk.CTkFont(size=12),
-                                          foreground=self.theme.get_current_color('accent_primary'),
+                                          foreground=self.theme.get_current_color('spell_link'),
                                           underline=True)
                 text_widget.insert("end", part, spell_tag)
                 
@@ -1264,7 +1347,7 @@ class DynamicText(ctk.CTkFrame):
         self.text_widget.tag_configure(
             "spell", 
             font=ctk.CTkFont(size=font_size),
-            foreground=self.theme.get_current_color('accent_primary'),
+            foreground=self.theme.get_current_color('spell_link'),
             underline=True
         )
         
@@ -1281,7 +1364,7 @@ class DynamicText(ctk.CTkFrame):
             bg = self._bg_color
         
         fg = self.theme.get_current_color('text_primary')
-        accent = self.theme.get_current_color('accent_primary')
+        accent = self.theme.get_current_color('spell_link')
         
         # Handle theme color which can be a string or tuple
         bg_color = bg[1] if isinstance(bg, tuple) else bg
@@ -1375,7 +1458,7 @@ class DynamicText(ctk.CTkFrame):
                         self.text_widget.tag_configure(
                             spell_tag, 
                             font=ctk.CTkFont(size=self.font_size, weight="bold" if is_bold else "normal"),
-                            foreground=self.theme.get_current_color('accent_primary'),
+                            foreground=self.theme.get_current_color('spell_link'),
                             underline=True
                         )
                         self.text_widget.insert("end", spell_part, spell_tag)

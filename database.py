@@ -15,7 +15,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 11  # Fix missing subclass feature placeholders for Bard and other classes
+    SCHEMA_VERSION = 15  # Correct Prismatic Wall description
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -336,6 +336,30 @@ class SpellDatabase:
             self._fix_subclass_features_v11(cursor)
             cursor.execute("UPDATE schema_version SET version = 11")
             current_version = 11
+        
+        # Migration to version 12: reset all is_modified flags for fresh baseline
+        if current_version < 12:
+            cursor.execute("UPDATE spells SET is_modified = 0")
+            cursor.execute("UPDATE schema_version SET version = 12")
+            current_version = 12
+        
+        # Migration to version 13: refresh spell descriptions with table formatting
+        if current_version < 13:
+            self._refresh_spell_descriptions_v13(cursor)
+            cursor.execute("UPDATE schema_version SET version = 13")
+            current_version = 13
+        
+        # Migration to version 14: fix Prismatic Wall description
+        if current_version < 14:
+            self._refresh_spell_descriptions_v13(cursor)  # Re-apply to get updated Prismatic Wall
+            cursor.execute("UPDATE schema_version SET version = 14")
+            current_version = 14
+        
+        # Migration to version 15: correct Prismatic Wall description
+        if current_version < 15:
+            self._refresh_spell_descriptions_v13(cursor)
+            cursor.execute("UPDATE schema_version SET version = 15")
+            current_version = 15
     
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
@@ -774,6 +798,35 @@ class SpellDatabase:
                 print(f"Fixed subclass features for {updated_count} classes")
             except Exception as e:
                 print(f"Error fixing subclass features: {e}")
+    
+    def _refresh_spell_descriptions_v13(self, cursor):
+        """Refresh spell descriptions with table formatting from spell_data.py.
+        
+        Only updates spells where is_modified = 0 (not user-modified).
+        """
+        from tools.spell_data import get_all_spells
+        
+        spells = get_all_spells()
+        updated_count = 0
+        
+        for spell in spells:
+            name = spell.get('name')
+            description = spell.get('description', '')
+            
+            if not name or not description:
+                continue
+            
+            # Only update spells that haven't been modified by the user
+            cursor.execute("""
+                UPDATE spells 
+                SET description = ? 
+                WHERE name = ? COLLATE NOCASE AND is_modified = 0
+            """, (description, name))
+            
+            if cursor.rowcount > 0:
+                updated_count += 1
+        
+        print(f"Refreshed descriptions for {updated_count} spells")
     
     def _normalize_tags(self, cursor):
         """Normalize tag capitalization using class-level normalization map."""
@@ -1676,6 +1729,18 @@ class SpellDatabase:
             cursor.execute("DELETE FROM spell_tags")
             cursor.execute("DELETE FROM spell_classes")
             cursor.execute("DELETE FROM spells")
+    
+    def reset_all_spell_modified_flags(self) -> int:
+        """
+        Reset all spell is_modified flags to 0.
+        
+        Returns:
+            Number of spells affected
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE spells SET is_modified = 0 WHERE is_modified = 1")
+            return cursor.rowcount
     
     # ==================== Stat Block Methods ====================
     

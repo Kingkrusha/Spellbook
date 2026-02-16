@@ -105,6 +105,8 @@ class SpellListPanel(ctk.CTkFrame):
     
     def _on_spell_right_click(self, event, index: int):
         """Handle right-click on a spell button."""
+        if not event:
+            return  # Guard against missing event
         if self.on_right_click and 0 <= index < len(self._spells):
             # Get screen coordinates for the menu
             x = event.x_root
@@ -158,10 +160,10 @@ class SpellListPanel(ctk.CTkFrame):
         # Rebind right-click events with new index
         if self.on_right_click:
             btn.unbind("<Button-3>")
-            btn.bind("<Button-3>", lambda e, i=index: self._on_spell_right_click(e, i))
+            btn.bind("<Button-3>", lambda e=None, i=index: self._on_spell_right_click(e, i))
             for child in btn.winfo_children():
                 child.unbind("<Button-3>")
-                child.bind("<Button-3>", lambda e, i=index: self._on_spell_right_click(e, i))
+                child.bind("<Button-3>", lambda e=None, i=index: self._on_spell_right_click(e, i))
     
     def _cancel_pending_load(self):
         """Cancel any pending progressive load operation."""
