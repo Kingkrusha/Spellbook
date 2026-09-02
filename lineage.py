@@ -90,9 +90,7 @@ class Lineage:
 
 class LineageManager:
     """Manages the collection of lineages using SQLite database."""
-    
-    _instance = None
-    
+
     def __init__(self):
         self._db = None
         self._lineages_cache: Optional[List[Lineage]] = None
@@ -242,10 +240,10 @@ class LineageManager:
         data = {
             "lineages": [l.to_dict() for l in lineages]
         }
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        
+
+        from atomic_io import atomic_write_json
+        atomic_write_json(file_path, data, ensure_ascii=False)
+
         return len(lineages)
     
     def import_from_json(self, file_path: str) -> int:

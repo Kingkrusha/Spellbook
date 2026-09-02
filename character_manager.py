@@ -7,6 +7,8 @@ import os
 import json
 from typing import List, Optional, Callable
 from character import CharacterSpellList
+from atomic_io import atomic_write_json
+from paths import user_data_path
 
 
 class CharacterManager:
@@ -16,7 +18,7 @@ class CharacterManager:
     
     def __init__(self, file_path: str = None):
         """Initialize the character manager with an optional file path."""
-        self.file_path = file_path or self.DEFAULT_FILE
+        self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._characters: List[CharacterSpellList] = []
         self._listeners: List[Callable[[], None]] = []
     
@@ -66,8 +68,7 @@ class CharacterManager:
             data = {
                 "characters": [char.to_dict() for char in self._characters]
             }
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_json(self.file_path, data)
             return True
         except Exception as e:
             print(f"Error saving characters: {e}")

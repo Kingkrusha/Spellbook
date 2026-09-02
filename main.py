@@ -6,6 +6,8 @@ A desktop application for managing D&D spells with search, filter, and edit capa
 import os
 import customtkinter as ctk
 
+from paths import resource_path
+
 # Check PIL availability for icon support
 try:
     from PIL import Image, ImageTk  # noqa: F401
@@ -55,7 +57,16 @@ def main():
             try:
                 splash.set_status("Saving data...")
                 root.update()
-                
+
+                # Flush any edit still sitting in a focused widget before we
+                # tear the window down (otherwise the last unfocused change is
+                # lost).
+                if app_ref[0]:
+                    try:
+                        app_ref[0].commit_pending_edits()
+                    except Exception:
+                        pass
+
                 # Destroy the main app window first
                 if app_ref[0]:
                     try:
@@ -85,9 +96,8 @@ def main():
     root.protocol("WM_DELETE_WINDOW", on_closing)
     
     # Set app icon
-    base_path = os.path.dirname(__file__)
-    icon_png_path = os.path.join(base_path, "Spellbook Icon.png")
-    icon_ico_path = os.path.join(base_path, "Spellbook Icon.ico")
+    icon_png_path = resource_path("Spellbook Icon.png")
+    icon_ico_path = resource_path("Spellbook Icon.ico")
     
     if os.path.exists(icon_ico_path):
         try:

@@ -8,19 +8,7 @@ import sys
 from typing import List, Optional, Callable, Set
 from spell import Spell, CharacterClass, AdvancedFilters, PROTECTED_TAGS
 from database import SpellDatabase
-
-
-def get_resource_path(relative_path: str) -> str:
-    """
-    Get the absolute path to a resource, works for dev and for PyInstaller.
-    When running as a bundled .exe, resources are in a temp folder.
-    """
-    if hasattr(sys, '_MEIPASS'):
-        # Running as bundled executable (PyInstaller)
-        return os.path.join(sys._MEIPASS, relative_path)  # type: ignore[attr-defined]
-    else:
-        # Running in development
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+from paths import resource_path as get_resource_path, user_data_path
 
 
 # Spells to exclude from automatic migration (outdated/duplicate versions)
@@ -40,7 +28,7 @@ class SpellManager:
     
     def __init__(self, db_path: Optional[str] = None):
         """Initialize the spell manager with an optional database path."""
-        self.db_path = db_path or self.DEFAULT_DB_PATH
+        self.db_path = db_path or user_data_path(self.DEFAULT_DB_PATH)
         
         # If database doesn't exist, try to copy from bundled location
         if not os.path.exists(self.db_path):
@@ -795,18 +783,17 @@ class SpellManager:
         Returns:
             Number of spells exported
         """
-        import json
-        
+        from atomic_io import atomic_write_json
+
         if spells is None:
             # Default to unofficial spells only
             spells = [s for s in self._spells if not s.is_official]
-        
+
         try:
             data = {
                 "spells": [self._spell_to_dict(s) for s in spells]
             }
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_json(file_path, data)
             return len(spells)
         except Exception as e:
             print(f"Error exporting spells to JSON: {e}")

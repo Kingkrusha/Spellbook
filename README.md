@@ -34,15 +34,53 @@ python main.py
 ```
 
 ### Build Executable
+
+**Windows:**
 ```bash
 pip install pyinstaller
 pyinstaller main.spec
 # Output: dist/spellbook.exe
 ```
 
+**macOS:**
+```bash
+pip install -r requirements.txt pyinstaller
+./build_mac.sh
+# Output: dist/Spellbook.app  and  dist/Spellbook-macos-<arch>.zip
+```
+The macOS build needs a Tk-enabled Python (the python.org installer, or
+`brew install python-tk`). It must run on a Mac - PyInstaller cannot
+cross-compile from Windows.
+
+### Downloading a release (macOS)
+
+Release `.app` bundles are **not notarized** (notarization requires a paid Apple
+Developer account). The first time you open one, macOS Gatekeeper will refuse it
+with *"Spellbook can't be opened because Apple cannot check it for malicious
+software."* To get past this **once**:
+
+1. Right-click (or Control-click) `Spellbook.app` in Finder and choose **Open**.
+2. Click **Open** in the dialog that appears.
+
+Or, from Terminal:
+```bash
+xattr -dr com.apple.quarantine /path/to/Spellbook.app
+```
+After the first launch it opens normally like any other app. This is standard
+for free, open-source Mac apps and costs nothing.
+
 ## Data Storage
 
-All application data is stored in SQLite database (`spellbook.db`):
+Writable user data lives outside the app so bundles stay read-only:
+
+| Platform | Location |
+|----------|----------|
+| Windows (.exe) | next to the executable |
+| macOS (.app)   | `~/Library/Application Support/Spellbook/` |
+| Linux          | `$XDG_DATA_HOME/Spellbook/` (usually `~/.local/share/Spellbook/`) |
+| Running from source | the project directory (unchanged) |
+
+That directory holds the SQLite database (`spellbook.db`):
 - **Spells**: All official and custom spells with tags and classes
 - **Lineages**: Races with traits and source information
 - **Feats**: Feats with prerequisites and spellcasting grants

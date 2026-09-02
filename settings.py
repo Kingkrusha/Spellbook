@@ -8,6 +8,9 @@ import os
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+from atomic_io import atomic_write_json
+from paths import user_data_path
+
 
 @dataclass
 class AppSettings:
@@ -90,7 +93,7 @@ class SettingsManager:
     
     def __init__(self, file_path: Optional[str] = None):
         """Initialize the settings manager."""
-        self.file_path = file_path or self.DEFAULT_FILE
+        self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._settings: AppSettings = AppSettings()
         self._listeners = []
     
@@ -137,8 +140,7 @@ class SettingsManager:
     def save(self) -> bool:
         """Save settings to file. Returns True if successful."""
         try:
-            with open(self.file_path, 'w', encoding='utf-8') as f:
-                json.dump(self._settings.to_dict(), f, indent=2)
+            atomic_write_json(self.file_path, self._settings.to_dict())
             return True
         except Exception as e:
             print(f"Error saving settings: {e}")

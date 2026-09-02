@@ -10,6 +10,7 @@ from typing import List, Optional, Callable
 from lineage import Lineage, LineageTrait, LineageManager, get_lineage_manager
 from theme import get_theme_manager
 from settings import get_settings_manager
+from ui.platform_compat import bind_right_click, unbind_right_click
 
 
 class LineageListPanel(ctk.CTkFrame):
@@ -80,9 +81,9 @@ class LineageListPanel(ctk.CTkFrame):
         
         # Bind right-click event
         if self.on_right_click:
-            btn.bind("<Button-3>", lambda e, i=index: self._on_lineage_right_click(e, i))
+            bind_right_click(btn, lambda e, i=index: self._on_lineage_right_click(e, i))
             for child in btn.winfo_children():
-                child.bind("<Button-3>", lambda e, i=index: self._on_lineage_right_click(e, i))
+                bind_right_click(child, lambda e, i=index: self._on_lineage_right_click(e, i))
         
         return btn
     
@@ -122,11 +123,11 @@ class LineageListPanel(ctk.CTkFrame):
         
         # Rebind right-click events with new index
         if self.on_right_click:
-            btn.unbind("<Button-3>")
-            btn.bind("<Button-3>", lambda e, i=index: self._on_lineage_right_click(e, i))
+            unbind_right_click(btn)
+            bind_right_click(btn, lambda e, i=index: self._on_lineage_right_click(e, i))
             for child in btn.winfo_children():
-                child.unbind("<Button-3>")
-                child.bind("<Button-3>", lambda e, i=index: self._on_lineage_right_click(e, i))
+                unbind_right_click(child)
+                bind_right_click(child, lambda e, i=index: self._on_lineage_right_click(e, i))
     
     def _cancel_pending_load(self):
         """Cancel any pending progressive load operation."""

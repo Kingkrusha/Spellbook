@@ -477,8 +477,25 @@ class MainWindow(ctk.CTkFrame):
             except Exception as e:
                 print(f"Background preload (character sheets): {e}")
 
+    def commit_pending_edits(self):
+        """Flush edits still sitting in focused widgets across all open tabs.
+
+        Called on shutdown (from main.py) before the window is destroyed so an
+        in-progress field edit isn't lost.
+        """
+        for view_info in list(self._tab_views.values()):
+            view = view_info.get('view')
+            commit = getattr(view, 'commit_pending_edits', None)
+            if callable(commit):
+                try:
+                    commit()
+                except Exception:
+                    pass
+
     def destroy(self):
         """Clean up listeners to avoid leaks when the main window is destroyed."""
+        self.commit_pending_edits()
+
         try:
             if hasattr(self, '_theme'):
                 self._theme.remove_listener(self._on_theme_changed)

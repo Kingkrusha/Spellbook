@@ -8,6 +8,13 @@ from typing import Callable, Optional
 import os
 import sys
 
+from paths import resource_path
+
+# Borderless (overrideredirect) toplevels are unreliable on macOS Tk - they can
+# fail to raise, take focus, or paint. Keep the native title bar there so the
+# splash always shows; it's purely cosmetic.
+_USE_OVERRIDEREDIRECT = sys.platform != "darwin"
+
 
 class SplashScreen(ctk.CTkToplevel):
     """Splash screen shown during application startup."""
@@ -21,8 +28,9 @@ class SplashScreen(ctk.CTkToplevel):
         self.resizable(False, False)
         
         # Remove window decorations for a cleaner look
-        self.overrideredirect(True)
-        
+        if _USE_OVERRIDEREDIRECT:
+            self.overrideredirect(True)
+
         # Center on screen
         self.update_idletasks()
         width = 400
@@ -91,12 +99,7 @@ class SplashScreen(ctk.CTkToplevel):
     def _load_icon(self):
         """Try to load and display the app icon."""
         try:
-            if getattr(sys, 'frozen', False):
-                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-            else:
-                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            
-            icon_path = os.path.join(base_path, "Spellbook Icon.png")
+            icon_path = resource_path("Spellbook Icon.png")
             if os.path.exists(icon_path):
                 from PIL import Image
                 img = Image.open(icon_path)
@@ -140,8 +143,9 @@ class ClosingSplash(ctk.CTkToplevel):
         self.resizable(False, False)
         
         # Remove window decorations
-        self.overrideredirect(True)
-        
+        if _USE_OVERRIDEREDIRECT:
+            self.overrideredirect(True)
+
         # Center on screen
         self.update_idletasks()
         width = 350

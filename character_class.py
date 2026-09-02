@@ -9,16 +9,7 @@ import json
 import os
 import sys
 
-
-def get_data_path(filename: str) -> str:
-    """Get the path to a data file, handling PyInstaller bundled apps."""
-    if getattr(sys, 'frozen', False):
-        # Running as compiled executable
-        base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-    else:
-        # Running as script
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, filename)
+from paths import resource_path as get_data_path, user_data_path
 
 
 @dataclass
@@ -499,7 +490,7 @@ class ClassManager:
     DEFAULT_FILE = "classes.json"
     
     def __init__(self, file_path: Optional[str] = None):
-        self.file_path = file_path or self.DEFAULT_FILE  # For compatibility
+        self.file_path = file_path or user_data_path(self.DEFAULT_FILE)  # For compatibility
         self._db = None
         self._classes_cache: Optional[Dict[str, CharacterClassDefinition]] = None
         self._listeners = []
@@ -2350,11 +2341,11 @@ While carrying the map, a target gains the following benefits.
             classes = self.get_unofficial_classes()
         
         try:
+            from atomic_io import atomic_write_json
             data = {
                 "classes": {c.name: c.to_dict() for c in classes}
             }
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_json(file_path, data)
             return len(classes)
         except Exception as e:
             print(f"Error exporting classes to JSON: {e}")
@@ -2375,11 +2366,11 @@ While carrying the map, a target gains the following benefits.
             subclasses = self.get_unofficial_subclasses()
         
         try:
+            from atomic_io import atomic_write_json
             data = {
                 "subclasses": [s.to_dict() for s in subclasses]
             }
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_json(file_path, data)
             return len(subclasses)
         except Exception as e:
             print(f"Error exporting subclasses to JSON: {e}")

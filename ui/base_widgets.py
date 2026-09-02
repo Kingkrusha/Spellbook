@@ -7,6 +7,7 @@ import customtkinter as ctk
 import tkinter as tk
 from typing import TypeVar, Generic, List, Optional, Callable, Any
 from theme import get_theme_manager
+from ui.platform_compat import bind_right_click
 
 T = TypeVar('T')
 
@@ -121,9 +122,9 @@ class SelectableListPanel(ctk.CTkFrame, Generic[T]):
         
         # Bind right-click event
         if self.on_right_click:
-            btn.bind("<Button-3>", lambda e, i=index: self._on_item_right_click(e, i))
+            bind_right_click(btn, lambda e, i=index: self._on_item_right_click(e, i))
             for child in btn.winfo_children():
-                child.bind("<Button-3>", lambda e, i=index: self._on_item_right_click(e, i))
+                bind_right_click(child, lambda e, i=index: self._on_item_right_click(e, i))
         
         return btn
     
