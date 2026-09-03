@@ -20,6 +20,9 @@ from settings import get_settings_manager
 from theme import get_theme_manager
 from character_class import get_class_manager, ClassAbility
 from feat import get_feat_manager
+from atomic_io import atomic_write_json
+from paths import user_data_path
+from ui.platform_compat import bind_right_click
 import json
 import os
 
@@ -30,7 +33,7 @@ class CharacterSheetManager:
     DEFAULT_FILE = "character_sheets.json"
     
     def __init__(self, file_path: Optional[str] = None):
-        self.file_path = file_path or self.DEFAULT_FILE
+        self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._sheets: Dict[str, CharacterSheet] = {}  # character_name -> CharacterSheet
     
     def load(self) -> bool:
@@ -59,8 +62,7 @@ class CharacterSheetManager:
                     name: sheet.to_dict() for name, sheet in self._sheets.items()
                 }
             }
-            with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_json(self.file_path, data)
             return True
         except Exception as e:
             print(f"Error saving character sheets: {e}")
@@ -624,6 +626,37 @@ class CharacterSheetView(ctk.CTkFrame):
         """Save current sheet to storage."""
         if self.current_character and self.current_sheet:
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+
+    def commit_pending_edits(self):
+        """Flush any edit that is still sitting in a focused widget.
+
+        Field edits are persisted on ``<FocusOut>``. If the window is closed
+        (or this tab destroyed) while an entry still holds focus, that handler
+        never fires and the last edit is lost. Force the focused widget to
+        commit, then persist the model as a final safety net.
+        """
+        try:
+            focused = self.focus_get()
+        except Exception:
+            focused = None
+
+        if focused is not None and focused is not self:
+            try:
+                # Synchronously runs the widget's <FocusOut> bindings, which
+                # read the associated var and save the field.
+                focused.event_generate("<FocusOut>")
+            except Exception:
+                pass
+
+        try:
+            self._save_sheet()
+        except Exception:
+            pass
+
+    def destroy(self):
+        """Persist pending edits before this view is torn down."""
+        self.commit_pending_edits()
+        super().destroy()
     
     def _get_filtered_subclasses(self, class_def) -> list:
         """Get subclass names filtered by legacy setting."""
@@ -2991,7 +3024,7 @@ class CharacterSheetView(ctk.CTkFrame):
             header_label.pack(side="left")
             
             # Bind right-click to show all hidden
-            header_label.bind("<Button-3>", lambda e: self._show_all_features_menu(e, 'class'))
+            bind_right_click(header_label, lambda e: self._show_all_features_menu(e, 'class'))
             
             # Content frame
             if not is_collapsed:
@@ -3033,7 +3066,7 @@ class CharacterSheetView(ctk.CTkFrame):
             header_label.pack(side="left")
             
             # Bind right-click to show all hidden
-            header_label.bind("<Button-3>", lambda e: self._show_all_features_menu(e, 'subclass'))
+            bind_right_click(header_label, lambda e: self._show_all_features_menu(e, 'subclass'))
             
             # Content frame
             if not is_collapsed:
@@ -3079,7 +3112,7 @@ class CharacterSheetView(ctk.CTkFrame):
             header_label.pack(side="left")
             
             # Bind right-click to show all hidden traits
-            header_label.bind("<Button-3>", lambda e: self._show_all_traits_menu(e, 'lineage'))
+            bind_right_click(header_label, lambda e: self._show_all_traits_menu(e, 'lineage'))
             
             # Content frame
             lineage_content = ctk.CTkFrame(lineage_frame, fg_color="transparent")
@@ -3306,7 +3339,7 @@ class CharacterSheetView(ctk.CTkFrame):
             btn.pack(side="left", padx=2, pady=1)
             
             # Bind right-click to hide feature
-            btn.bind("<Button-3>", lambda e, a=ability, ft=feature_type: self._show_feature_context_menu(e, a.title, ft))
+            bind_right_click(btn, lambda e, a=ability, ft=feature_type: self._show_feature_context_menu(e, a.title, ft))
             
             items_in_row += 1
     
@@ -3384,7 +3417,7 @@ class CharacterSheetView(ctk.CTkFrame):
             btn.pack(side="left", padx=2, pady=1)
             
             # Bind right-click to hide trait
-            btn.bind("<Button-3>", lambda e, t=trait: self._show_trait_context_menu(e, t, 'lineage'))
+            bind_right_click(btn, lambda e, t=trait: self._show_trait_context_menu(e, t, 'lineage'))
             
             items_in_row += 1
     

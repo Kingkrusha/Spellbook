@@ -22,18 +22,17 @@ DATA_VERSIONS = {
 }
 
 
+from paths import resource_path as _resource_path, user_data_path as _user_data_path
+
+
 def get_data_path(filename: str) -> str:
-    """Get the path to a data file, handling PyInstaller bundling."""
-    if getattr(sys, 'frozen', False):
-        return os.path.join(getattr(sys, '_MEIPASS', os.path.dirname(sys.executable)), filename)
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    """Get the path to a bundled (read-only) data file."""
+    return _resource_path(filename)
 
 
 def get_user_data_path(filename: str) -> str:
-    """Get the path to user data file (writable location)."""
-    if getattr(sys, 'frozen', False):
-        return os.path.join(os.path.dirname(sys.executable), filename)
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    """Get the path to a user data file (writable location)."""
+    return _user_data_path(filename)
 
 
 def backup_file(filepath: str) -> Optional[str]:
@@ -68,10 +67,11 @@ def load_json_file(filepath: str) -> Optional[Dict]:
 
 
 def save_json_file(filepath: str, data: Dict) -> bool:
-    """Save data to a JSON file."""
+    """Save data to a JSON file (atomically, so an interrupted write can't
+    corrupt the existing file)."""
     try:
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        from atomic_io import atomic_write_json
+        atomic_write_json(filepath, data, ensure_ascii=False)
         return True
     except Exception as e:
         print(f"Error saving {filepath}: {e}")

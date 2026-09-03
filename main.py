@@ -3,15 +3,9 @@ Spellbook Application
 A desktop application for managing D&D spells with search, filter, and edit capabilities.
 """
 
-import os
 import customtkinter as ctk
 
-# Check PIL availability for icon support
-try:
-    from PIL import Image, ImageTk  # noqa: F401
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
+from ui.window_icon import install as install_app_icon, set_app_user_model_id
 
 
 def run_data_migrations():
@@ -25,10 +19,14 @@ def run_data_migrations():
 
 def main():
     """Application entry point."""
+    # Must run before any window is created so Windows groups the taskbar
+    # button under Spellbook (not pythonw.exe) and uses our icon.
+    set_app_user_model_id()
+
     # Set appearance and color theme first
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
-    
+
     # Create main window (hidden initially)
     root = ctk.CTk()
     root.title("Spellbook")
@@ -55,7 +53,16 @@ def main():
             try:
                 splash.set_status("Saving data...")
                 root.update()
-                
+
+                # Flush any edit still sitting in a focused widget before we
+                # tear the window down (otherwise the last unfocused change is
+                # lost).
+                if app_ref[0]:
+                    try:
+                        app_ref[0].commit_pending_edits()
+                    except Exception:
+                        pass
+
                 # Destroy the main app window first
                 if app_ref[0]:
                     try:
@@ -84,33 +91,10 @@ def main():
     # Override window close protocol
     root.protocol("WM_DELETE_WINDOW", on_closing)
     
-    # Set app icon
-    base_path = os.path.dirname(__file__)
-    icon_png_path = os.path.join(base_path, "Spellbook Icon.png")
-    icon_ico_path = os.path.join(base_path, "Spellbook Icon.ico")
-    
-    if os.path.exists(icon_ico_path):
-        try:
-            root.iconbitmap(icon_ico_path)
-        except Exception:
-            pass
-    
-    if os.path.exists(icon_png_path):
-        try:
-            if HAS_PIL:
-                from PIL import Image as PILImage, ImageTk as PILImageTk
-                img = PILImage.open(icon_png_path)
-                icon = PILImageTk.PhotoImage(img)
-                root.iconphoto(True, icon)  # type: ignore
-                setattr(root, '_icon', icon)  # Keep reference
-            else:
-                from tkinter import PhotoImage
-                icon = PhotoImage(file=icon_png_path)
-                root.iconphoto(True, icon)
-                setattr(root, '_icon', icon)  # Keep reference
-        except Exception:
-            pass
-    
+    # Set the app icon on the root window and every future CTkToplevel (this
+    # also monkeypatches CTkToplevel to defeat CustomTkinter's own icon).
+    install_app_icon(root)
+
     # Show splash screen
     from ui.splash_screen import SplashScreen
     splash = SplashScreen(root)

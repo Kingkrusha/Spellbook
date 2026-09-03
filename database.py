@@ -10,6 +10,8 @@ import json
 from typing import List, Optional, Tuple
 from contextlib import contextmanager
 
+from paths import user_data_path
+
 
 class SpellDatabase:
     """SQLite database handler for spell storage."""
@@ -70,7 +72,7 @@ class SpellDatabase:
     
     def __init__(self, db_path: Optional[str] = None):
         """Initialize the database connection."""
-        self.db_path = db_path or self.DEFAULT_DB_PATH
+        self.db_path = db_path or user_data_path(self.DEFAULT_DB_PATH)
         self._connection: Optional[sqlite3.Connection] = None
         
     @contextmanager
@@ -343,19 +345,7 @@ class SpellDatabase:
             cursor.execute("UPDATE schema_version SET version = 12")
             current_version = 12
         
-        # Migration to version 13: refresh spell descriptions with table formatting
-        if current_version < 13:
-            self._refresh_spell_descriptions_v13(cursor)
-            cursor.execute("UPDATE schema_version SET version = 13")
-            current_version = 13
-        
-        # Migration to version 14: fix Prismatic Wall description
-        if current_version < 14:
-            self._refresh_spell_descriptions_v13(cursor)  # Re-apply to get updated Prismatic Wall
-            cursor.execute("UPDATE schema_version SET version = 14")
-            current_version = 14
-        
-        # Migration to version 15: correct Prismatic Wall description
+        # Migration to version 15: refresh spell descriptions with the latest bundled text
         if current_version < 15:
             self._refresh_spell_descriptions_v13(cursor)
             cursor.execute("UPDATE schema_version SET version = 15")
@@ -1544,110 +1534,6 @@ class SpellDatabase:
             
             # Use batch query optimization to avoid N+1 queries
             return self._rows_to_spell_dicts_batch(conn, rows)
-    
-    def get_filtered_spell_ids(self,
-                               search_text: str = "",
-                               level: int = -1,
-                               class_name: Optional[str] = None,
-                               ritual: Optional[bool] = None,
-                               concentration: Optional[bool] = None,
-                               min_range: int = 0,
-                               source: Optional[str] = None,
-                               tags: Optional[List[str]] = None,
-                               casting_time: Optional[str] = None,
-                               duration: Optional[str] = None,
-                               has_verbal: Optional[bool] = None,
-                               has_somatic: Optional[bool] = None,
-                               has_material: Optional[bool] = None) -> List[int]:
-        """
-        Get IDs of spells matching filters (faster than full search for large result sets).
-        Uses same parameters as search_spells.
-        
-        Returns:
-            List of spell IDs matching the criteria
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            query = "SELECT DISTINCT s.id FROM spells s"
-            conditions = []
-            params = []
-            
-            # Join for class filtering
-            if class_name:
-                query += " INNER JOIN spell_classes sc ON s.id = sc.spell_id"
-                conditions.append("sc.class_name = ? COLLATE NOCASE")
-                params.append(class_name)
-            
-            # Join for tag filtering
-            if tags:
-                for i, tag in enumerate(tags):
-                    alias = f"st{i}"
-                    query += f" INNER JOIN spell_tags {alias} ON s.id = {alias}.spell_id"
-                    conditions.append(f"{alias}.tag = ? COLLATE NOCASE")
-                    params.append(tag)
-            
-            # Build WHERE conditions (same as search_spells)
-            if search_text:
-                conditions.append("""(
-                    s.name LIKE ? COLLATE NOCASE OR 
-                    s.description LIKE ? COLLATE NOCASE OR
-                    EXISTS (SELECT 1 FROM spell_tags st WHERE st.spell_id = s.id AND st.tag LIKE ? COLLATE NOCASE)
-                )""")
-                search_pattern = f"%{search_text}%"
-                params.extend([search_pattern, search_pattern, search_pattern])
-            
-            if level >= 0:
-                conditions.append("s.level = ?")
-                params.append(level)
-            
-            if ritual is not None:
-                conditions.append("s.ritual = ?")
-                params.append(1 if ritual else 0)
-            
-            if concentration is not None:
-                conditions.append("s.concentration = ?")
-                params.append(1 if concentration else 0)
-            
-            if min_range > 0:
-                conditions.append("(s.range_value = 1 OR s.range_value = 3 OR s.range_value >= ?)")
-                params.append(min_range)
-            
-            if source:
-                conditions.append("s.source = ? COLLATE NOCASE")
-                params.append(source)
-            
-            if casting_time:
-                conditions.append("s.casting_time = ? COLLATE NOCASE")
-                params.append(casting_time)
-            
-            if duration:
-                conditions.append("s.duration = ? COLLATE NOCASE")
-                params.append(duration)
-            
-            if has_verbal is not None:
-                if has_verbal:
-                    conditions.append("UPPER(s.components) LIKE '%V%'")
-                else:
-                    conditions.append("UPPER(s.components) NOT LIKE '%V%'")
-            
-            if has_somatic is not None:
-                if has_somatic:
-                    conditions.append("UPPER(s.components) LIKE '%S%'")
-                else:
-                    conditions.append("UPPER(s.components) NOT LIKE '%S%'")
-            
-            if has_material is not None:
-                if has_material:
-                    conditions.append("UPPER(s.components) LIKE '%M%'")
-                else:
-                    conditions.append("UPPER(s.components) NOT LIKE '%M%'")
-            
-            if conditions:
-                query += " WHERE " + " AND ".join(conditions)
-            
-            cursor.execute(query, params)
-            return [row[0] for row in cursor.fetchall()]
     
     def bulk_insert_spells(self, spells: List[dict]) -> int:
         """

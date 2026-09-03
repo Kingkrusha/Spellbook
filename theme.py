@@ -9,6 +9,9 @@ from typing import Tuple, Dict, Optional, List, Callable
 import json
 import os
 
+from atomic_io import atomic_write_json
+from paths import user_data_path
+
 
 # Type alias for theme-aware colors: (light_mode_color, dark_mode_color)
 ThemeColor = Tuple[str, str]
@@ -276,8 +279,23 @@ THEME_PRESETS.update({
     "monokai": _create_monokai_theme,
 })
 
-# Simplify presets: only keep the default preset. All other preset UI has been removed.
-THEME_PRESETS = {"default": _create_default_theme}
+# Human-readable names for the theme selector in Settings. Order here is the
+# order shown in the dropdown; keys must exist in THEME_PRESETS.
+PRESET_DISPLAY_NAMES: Dict[str, str] = {
+    "default": "Default",
+    "blue": "Blue",
+    "green": "Green",
+    "purple": "Purple",
+    "red": "Red",
+    "orange": "Orange",
+    "amber": "Amber",
+    "midnight": "Midnight Blue",
+    "sepia": "Sepia",
+    "greyscale": "Greyscale",
+    "solarized": "Solarized",
+    "forest": "Forest",
+    "monokai": "Monokai",
+}
 
 
 class ThemeManager:
@@ -286,6 +304,9 @@ class ThemeManager:
     CUSTOM_THEME_FILE = "custom_theme.json"
     
     def __init__(self):
+        # Resolve the custom-theme file to the writable user-data dir so it works
+        # from a read-only macOS .app bundle as well as a portable Windows build.
+        self.custom_theme_path = user_data_path(self.CUSTOM_THEME_FILE)
         self._preset_colors: Dict[str, ThemeColors] = {}
         self._custom_colors: Optional[ThemeColors] = None
         self._current_theme_name = "default"
@@ -391,11 +412,11 @@ class ThemeManager:
     
     def load_custom_theme(self) -> bool:
         """Load custom theme from file. Returns True if loaded."""
-        if not os.path.exists(self.CUSTOM_THEME_FILE):
+        if not os.path.exists(self.custom_theme_path):
             return False
-        
+
         try:
-            with open(self.CUSTOM_THEME_FILE, 'r', encoding='utf-8') as f:
+            with open(self.custom_theme_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self._custom_colors = ThemeColors.from_dict(data)
             return True
@@ -412,8 +433,7 @@ class ThemeManager:
             return False
         
         try:
-            with open(self.CUSTOM_THEME_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self._custom_colors.to_dict(), f, indent=2)
+            atomic_write_json(self.custom_theme_path, self._custom_colors.to_dict())
             return True
         except Exception as e:
             print(f"Error saving custom theme: {e}")

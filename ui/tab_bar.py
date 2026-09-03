@@ -7,6 +7,7 @@ import customtkinter as ctk
 from tkinter import Menu
 from typing import Optional, Callable, List, Dict, Any
 from theme import get_theme_manager
+from ui.platform_compat import bind_right_click
 import uuid
 
 
@@ -119,7 +120,7 @@ class TabWidget(ctk.CTkFrame):
         # Click to select
         for widget in [self, self.inner_frame, self.label]:
             widget.bind('<Button-1>', self._on_click)
-            widget.bind('<Button-3>', self._on_right_click_event)
+            bind_right_click(widget, self._on_right_click_event)
             widget.bind('<B1-Motion>', self._on_drag)
             widget.bind('<ButtonRelease-1>', self._on_drag_release)
             # Tooltip events

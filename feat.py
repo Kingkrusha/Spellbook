@@ -316,11 +316,11 @@ class FeatManager:
             feats = self.get_unofficial_feats()
         
         try:
+            from atomic_io import atomic_write_json
             data = {
                 "feats": [f.to_dict() for f in feats]
             }
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_json(file_path, data)
             return len(feats)
         except Exception as e:
             print(f"Error exporting feats to JSON: {e}")

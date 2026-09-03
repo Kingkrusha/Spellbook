@@ -15,6 +15,7 @@ a = Analysis(
         ('backgrounds.json', '.'),
         ('tools', 'tools'),
         ('Spellbook Icon.png', '.'),
+        ('Spellbook Icon.ico', '.'),
     ],
     hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
     hookspath=[],
@@ -45,5 +46,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['Spellbook Icon.png'],
+    icon=['Spellbook Icon.ico'],
 )

@@ -356,8 +356,9 @@ class CollectionsView(ctk.CTkFrame):
         # Try to refresh the main window's class filter dropdown
         try:
             main_window = self.winfo_toplevel()
-            if hasattr(main_window, 'refresh_class_filter'):
-                main_window.refresh_class_filter()
+            refresh_class_filter = getattr(main_window, 'refresh_class_filter', None)
+            if callable(refresh_class_filter):
+                refresh_class_filter()
         except Exception:
             pass
     
@@ -1114,8 +1115,8 @@ class ExportDialog(ctk.CTkToplevel):
             return
         
         try:
-            import json
-            
+            from atomic_io import atomic_write_json
+
             def filter_by_source(items, source_attr='source'):
                 if source_filter is None:
                     return items
@@ -1158,9 +1159,8 @@ class ExportDialog(ctk.CTkToplevel):
                 items = filter_by_source(items)
                 if items:
                     export_data["backgrounds"] = [b.to_dict() for b in items]
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+            atomic_write_json(file_path, export_data, ensure_ascii=False)
             
             # Build success message
             exported = []
@@ -1364,7 +1364,7 @@ class CharacterSheetExportDialog(ctk.CTkToplevel):
             return
         
         try:
-            import json
+            from atomic_io import atomic_write_json
             from character_manager import CharacterManager
             from ui.character_sheet_view import get_sheet_manager
             
@@ -1392,9 +1392,8 @@ class CharacterSheetExportDialog(ctk.CTkToplevel):
                 if sheet:
                     export_data["character_sheets"][name] = sheet.to_dict()
                     sheets_exported += 1
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+            atomic_write_json(file_path, export_data, ensure_ascii=False)
             
             messagebox.showinfo(
                 "Export Complete",
