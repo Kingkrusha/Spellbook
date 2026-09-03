@@ -1866,18 +1866,89 @@ class MainWindow(ctk.CTkFrame):
                 self.compare_detail.apply_comparison(spell, is_primary=False)
     
     def _on_new_spell(self):
-        """Open dialog to create a new spell."""
+        """Open dialog to create a new spell (manual entry or auto-detect from text)."""
         from ui.spell_editor import SpellEditorDialog
+        from ui.spell_text_import import AddSpellSourceDialog
+
+        source_dialog = AddSpellSourceDialog(self.winfo_toplevel())
+        self.wait_window(source_dialog)
+        if source_dialog.result is None:
+            return
+        if source_dialog.result == "auto":
+            self._on_new_spell_from_text()
+            return
+
         dialog = SpellEditorDialog(self.winfo_toplevel(), "New Spell", spell_manager=self.spell_manager)
         self.wait_window(dialog)
-        
+
         if dialog.result:
             if self.spell_manager.add_spell(dialog.result):
                 self.spell_list.select_spell(dialog.result.name)
             else:
-                messagebox.showerror("Error", 
+                messagebox.showerror("Error",
                     f"A spell named '{dialog.result.name}' already exists.")
-    
+
+    def _on_new_spell_from_text(self):
+        """Paste a block of text, auto-detect spell fields, and review each draft."""
+        from ui.spell_editor import SpellEditorDialog
+        from ui.spell_text_import import SpellTextImportDialog
+
+        import_dialog = SpellTextImportDialog(self.winfo_toplevel())
+        self.wait_window(import_dialog)
+        parsed_list = import_dialog.result
+        if not parsed_list:
+            return
+
+        try:
+            from text_import.spell_parser import to_spell
+        except Exception as exc:
+            messagebox.showerror("Auto-Detect Unavailable",
+                                 f"Could not load the text importer:\n{exc}")
+            return
+
+        added = []
+        total = len(parsed_list)
+        for idx, parsed in enumerate(parsed_list, 1):
+            try:
+                draft = to_spell(parsed)
+            except Exception as exc:
+                messagebox.showerror("Parse Error",
+                                     f"Could not build spell {idx} of {total}:\n{exc}")
+                continue
+
+            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
+            progress = f"{idx} of {total}" if total > 1 else ""
+
+            editor = SpellEditorDialog(
+                self.winfo_toplevel(),
+                f"Review Spell: {draft.name or 'Untitled'}",
+                spell_manager=self.spell_manager,
+                prefill_spell=draft, review_fields=review, batch_progress=progress,
+            )
+            self.wait_window(editor)
+
+            if editor.result:
+                if self.spell_manager.add_spell(editor.result):
+                    added.append(editor.result.name)
+                else:
+                    messagebox.showerror(
+                        "Error",
+                        f"A spell named '{editor.result.name}' already exists. "
+                        "It was not added.")
+            elif idx < total:
+                if not messagebox.askyesno(
+                        "Continue?",
+                        "Skip this spell and continue reviewing the remaining "
+                        f"{total - idx} spell(s)?"):
+                    break
+
+        if added:
+            self.spell_list.select_spell(added[-1])
+            if len(added) > 1:
+                messagebox.showinfo("Spells Added",
+                                    f"Added {len(added)} spells:\n" + "\n".join(added))
+
+
     def _on_edit_spell(self, spell):
         """Open dialog to edit an existing spell."""
         from ui.spell_editor import SpellEditorDialog
