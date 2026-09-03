@@ -150,32 +150,42 @@ class TagSelectionDialog(ctk.CTkToplevel):
 class SpellEditorDialog(ctk.CTkToplevel):
     """A dialog for creating or editing a spell."""
     
-    def __init__(self, parent, title: str, spell: Optional[Spell] = None, spell_manager=None):
+    def __init__(self, parent, title: str, spell: Optional[Spell] = None, spell_manager=None,
+                 prefill_spell: Optional[Spell] = None, review_fields: Optional[List[str]] = None,
+                 batch_progress: str = ""):
         super().__init__(parent)
-        
+
         self.result: Optional[Spell] = None
         self._editing = spell is not None
         self._original_spell = spell
         self._spell_manager = spell_manager
         self._selected_tags: List[str] = []  # User-editable tags (non-protected)
-        
+        # Auto-detect pre-fill: populate the form from parsed text but keep this
+        # a brand-new spell (no _original_spell), and mark fields to double-check.
+        self._prefill_spell = prefill_spell
+        self._review_fields = set(review_fields or [])
+        self._batch_progress = batch_progress
+
         # Window setup
         self.title(title)
         self.geometry("600x800")
         self.minsize(550, 700)
         self.resizable(True, True)
-        
+
         # Make modal
         self.transient(parent)
         self.grab_set()
-        
+
         # Create widgets
         self._create_widgets()
-        
+
         # Populate if editing
         if spell:
             self._populate_from_spell(spell)
-        
+        elif prefill_spell:
+            self._populate_from_spell(prefill_spell)
+            self._apply_review_highlights()
+
         # Center on parent
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
@@ -622,7 +632,78 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self._selected_tags = [t for t in spell.tags if not is_protected_tag(t)]
         self._refresh_tags_display()
         self.description_text.insert("1.0", spell.description)
-    
+
+    # Human-readable labels for the review banner / field map for highlighting.
+    _REVIEW_FIELD_LABELS = {
+        "name": "Name", "level": "Level", "casting_time": "Casting Time",
+        "ritual": "Ritual", "range": "Range", "components": "Components",
+        "duration": "Duration", "concentration": "Concentration",
+        "classes": "Classes", "source": "Source", "tags": "Tags",
+        "description": "Description",
+    }
+
+    def _apply_review_highlights(self):
+        """Add the auto-detect disclaimer banner and outline uncertain fields."""
+        theme = get_theme_manager()
+        try:
+            warn = theme.get_current_color('button_warning')
+        except Exception:
+            warn = "#d4a017"
+
+        # --- banner above the scrollable form ---------------------------- #
+        banner = ctk.CTkFrame(self, fg_color=theme.get_current_color('bg_secondary'),
+                              corner_radius=8)
+        try:
+            banner.pack(fill="x", padx=15, pady=(12, 0), before=self.scroll_frame)
+        except Exception:
+            banner.pack(fill="x", padx=15, pady=(12, 0))
+        self._review_banner = banner
+
+        heading = "Auto-detected from text - please review before saving"
+        if self._batch_progress:
+            heading = f"{heading}   ({self._batch_progress})"
+        ctk.CTkLabel(banner, text="⚠  " + heading,
+                     font=ctk.CTkFont(size=13, weight="bold"),
+                     text_color=warn, anchor="w",
+                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
+
+        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
+        if review:
+            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
+            msg = f"Fields to double-check (outlined below): {names}"
+        else:
+            msg = "All fields were detected with high confidence, but a quick check is still wise."
+        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+                     text_color=theme.get_text_secondary(), anchor="w",
+                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
+
+        ctk.CTkLabel(
+            banner,
+            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
+                  "irregularly formatted text. Nothing is saved until you click Save Spell."),
+            font=ctk.CTkFont(size=11), text_color=theme.get_text_secondary(),
+            anchor="w", justify="left", wraplength=520,
+        ).pack(fill="x", padx=12, pady=(0, 8))
+
+        # --- outline the widgets for uncertain fields ------------------- #
+        widget_map = {
+            "name": self.name_entry,
+            "level": self.level_combo,
+            "casting_time": self.casting_time_entry,
+            "range": self.range_entry,
+            "components": self.material_entry,
+            "duration": self.duration_entry,
+            "source": self.source_entry,
+        }
+        for field_name in self._review_fields:
+            w = widget_map.get(field_name)
+            if w is None:
+                continue
+            try:
+                w.configure(border_color=warn, border_width=2)
+            except Exception:
+                pass
+
     def _build_components_string(self) -> str:
         """Build the components string from checkboxes."""
         parts = []

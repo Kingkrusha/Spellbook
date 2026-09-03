@@ -3,12 +3,13 @@ Settings View for D&D Spellbook Application.
 Displays and manages application settings.
 """
 
+import threading
+
 import customtkinter as ctk
 from typing import Callable, Optional
 from settings import SettingsManager
-from theme import get_theme_manager
-
-# Theme editor removed: this build supports only appearance modes (Light/Dark/System)
+from theme import get_theme_manager, PRESET_DISPLAY_NAMES
+from version import __version__
 
 
 class SettingsView(ctk.CTkFrame):
@@ -26,16 +27,14 @@ class SettingsView(ctk.CTkFrame):
         
         # Variables for settings
         self._appearance_var = ctk.StringVar(value=settings_manager.settings.appearance_mode)
-        # Handle backwards compatibility: use theme_name if available, otherwise use use_custom_theme
-        theme_name = getattr(settings_manager.settings, 'theme_name', None)
-        if theme_name is None:
-            theme_name = 'custom' if settings_manager.settings.use_custom_theme else 'default'
-        # If theme is 'default' map it to appearance mode for display (we don't show 'Default' in UI)
-        if theme_name == 'default':
-            display_theme = settings_manager.settings.appearance_mode.capitalize()
-        else:
-            display_theme = theme_name.capitalize() if theme_name else 'System'
-        self._theme_var = ctk.StringVar(value=display_theme)
+
+        # Colour theme (preset) selector. theme_name holds a preset key
+        # ("default", "midnight", ...); the dropdown shows its display name.
+        self._theme_display_to_key = {v: k for k, v in PRESET_DISPLAY_NAMES.items()}
+        theme_key = getattr(settings_manager.settings, 'theme_name', None) or 'default'
+        if theme_key not in PRESET_DISPLAY_NAMES:
+            theme_key = 'default'
+        self._theme_var = ctk.StringVar(value=PRESET_DISPLAY_NAMES[theme_key])
         self._spell_added_var = ctk.BooleanVar(value=settings_manager.settings.show_spell_added_notification)
         self._rest_notif_var = ctk.BooleanVar(value=settings_manager.settings.show_rest_notification)
         self._warn_cantrips_var = ctk.BooleanVar(value=settings_manager.settings.warn_too_many_cantrips)
@@ -50,14 +49,16 @@ class SettingsView(ctk.CTkFrame):
         self._preload_lineages_var = ctk.BooleanVar(value=settings_manager.settings.preload_lineages)
         self._preload_backgrounds_var = ctk.BooleanVar(value=settings_manager.settings.preload_backgrounds)
         self._preload_sheets_var = ctk.BooleanVar(value=settings_manager.settings.preload_character_sheets)
+
+        # Updates
+        self._auto_check_updates_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'auto_check_updates', True)
+        )
+        self._update_check_in_progress = False
         
-        # Apply theme from settings
-        theme_name = getattr(settings_manager.settings, 'theme_name', None)
-        if theme_name is None:
-            # Backwards compatibility: use use_custom_theme
-            theme_name = 'custom' if settings_manager.settings.use_custom_theme else 'default'
-        self.theme_manager.set_theme(theme_name)
-        
+        # Apply the saved colour theme.
+        self.theme_manager.set_theme(theme_key)
+
         self._create_widgets()
         # Listen for theme changes to update text colors live
         try:
@@ -119,8 +120,25 @@ class SettingsView(ctk.CTkFrame):
                 variable=self._appearance_var, value=mode.lower(),
                 command=self._on_appearance_change
             ).pack(side="left", padx=10)
-        
-        # Only appearance mode is supported now (Light/Dark/System)
+
+        # Colour theme (preset) row
+        theme_row = ctk.CTkFrame(appearance_content, fg_color="transparent")
+        theme_row.pack(fill="x", pady=(0, 5))
+
+        ctk.CTkLabel(
+            theme_row, text="Color Theme:",
+            font=ctk.CTkFont(size=14)
+        ).pack(side="left")
+
+        self._theme_menu = ctk.CTkOptionMenu(
+            theme_row,
+            values=list(PRESET_DISPLAY_NAMES.values()),
+            variable=self._theme_var,
+            command=self._on_color_theme_change,
+            width=170,
+        )
+        self._theme_menu.pack(side="right")
+
         # Note: some appearance changes require restarting certain widgets to fully apply.
         note_text = "Note: Some appearance changes may require restarting the app to fully apply."
         text_secondary = self.theme_manager.get_text_secondary()
@@ -546,11 +564,42 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             about_content,
-            text="Version 1.5.3 • Data stored in SQLite database",
+            text=f"Version {__version__} • Data stored in SQLite database",
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
-    
+
+        # --- Updates ---
+        update_row = ctk.CTkFrame(about_content, fg_color="transparent")
+        update_row.pack(fill="x", pady=(15, 0))
+
+        self._check_updates_btn = ctk.CTkButton(
+            update_row,
+            text="Check for Updates",
+            width=170,
+            fg_color=self.theme_manager.get_current_color('button_normal'),
+            hover_color=self.theme_manager.get_current_color('button_hover'),
+            text_color=self.theme_manager.get_current_color('text_primary'),
+            command=self._on_check_for_updates
+        )
+        self._check_updates_btn.pack(side="left")
+
+        self._update_status_label = ctk.CTkLabel(
+            update_row,
+            text="",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        )
+        self._update_status_label.pack(side="left", padx=(12, 0))
+
+        self._create_toggle_row(
+            about_content,
+            "Check for updates automatically on startup",
+            self._auto_check_updates_var,
+            self._on_setting_change,
+            pady=(12, 0)
+        )
+
     def _create_section(self, parent, title: str):
         """Create a section header."""
         header = ctk.CTkFrame(parent, fg_color="transparent")
@@ -590,45 +639,18 @@ class SettingsView(ctk.CTkFrame):
         if self.on_appearance_changed:
             self.on_appearance_changed(new_mode)
 
-        # No-op: we no longer show theme preset radios
-    
-    def _on_theme_change(self, value: Optional[str] = None):
-        """Legacy hook removed — only appearance mode is supported.
+    def _on_color_theme_change(self, display_name: str):
+        """Apply and persist a colour-theme preset chosen from the dropdown."""
+        key = self._theme_display_to_key.get(display_name, "default")
+        # set_theme() notifies every registered theme listener, so open views
+        # recolour immediately.
+        self.theme_manager.set_theme(key)
+        self.settings_manager.update(theme_name=key)
+        # Also refresh the tk-based widgets (context menu, paned sashes, spell
+        # description) that don't listen to the theme manager directly.
+        if self.on_appearance_changed:
+            self.on_appearance_changed(self.settings_manager.settings.appearance_mode)
 
-        If called with a recognized appearance ('light','dark','system'), apply it.
-        """
-        sel = (value if value is not None else self._theme_var.get())
-        theme_name = sel.lower() if isinstance(sel, str) else ''
-        if theme_name in ("light", "dark", "system"):
-            ctk.set_appearance_mode(theme_name)
-            self.settings_manager.update(appearance_mode=theme_name)
-            if self.on_appearance_changed:
-                self.on_appearance_changed(theme_name)
-
-    def _update_theme_radio_labels(self):
-        # No-op: theme presets removed
-        return
-    
-    def _update_theme_editor_visibility(self):
-        # No-op: theme editor removed
-        return
-    
-    def _open_theme_editor(self):
-        # Theme editor removed
-        return
-
-    def _open_more_themes(self):
-        # Theme presets removed
-        return
-
-    def _select_preset(self, name: str):
-        # Theme presets removed
-        return
-    
-    def _on_theme_colors_changed(self):
-        # Theme editor removed
-        return
-    
     def _on_setting_change(self):
         """Handle any setting change."""
         self.settings_manager.update(
@@ -651,9 +673,55 @@ class SettingsView(ctk.CTkFrame):
             preload_feats=self._preload_feats_var.get(),
             preload_lineages=self._preload_lineages_var.get(),
             preload_backgrounds=self._preload_backgrounds_var.get(),
-            preload_character_sheets=self._preload_sheets_var.get()
+            preload_character_sheets=self._preload_sheets_var.get(),
+            auto_check_updates=self._auto_check_updates_var.get()
         )
-    
+
+    def _on_check_for_updates(self):
+        """Manually check GitHub for a newer release (runs off the UI thread)."""
+        if self._update_check_in_progress:
+            return
+        self._update_check_in_progress = True
+        self._check_updates_btn.configure(state="disabled")
+        self._update_status_label.configure(text="Checking…")
+
+        def worker():
+            try:
+                from updater import check_for_update
+                info = check_for_update()
+                self.after(0, lambda: self._on_update_check_done(info, None))
+            except Exception as exc:  # noqa: BLE001
+                self.after(0, lambda: self._on_update_check_done(None, str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_check_done(self, info, error):
+        """Back on the UI thread with the result of a manual update check."""
+        self._update_check_in_progress = False
+        try:
+            self._check_updates_btn.configure(state="normal")
+        except Exception:
+            return  # view was destroyed while checking
+
+        if error:
+            self._update_status_label.configure(text="Couldn't check for updates.")
+            return
+
+        if info is None:
+            self._update_status_label.configure(text=f"You're up to date (v{__version__}).")
+            return
+
+        self._update_status_label.configure(text=f"Version {info.version} is available.")
+        try:
+            from ui.update_dialog import UpdateDialog
+            UpdateDialog(
+                self.winfo_toplevel(),
+                info,
+                on_skip=lambda v: self.settings_manager.update(skipped_update_version=v),
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"Could not open update dialog: {exc}")
+
     def _on_restore_all_spells(self):
         """Restore all modified official spells to their defaults."""
         from tkinter import messagebox
@@ -697,8 +765,8 @@ class SettingsView(ctk.CTkFrame):
         # Update UI variables
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
-        theme_name = getattr(settings, 'theme_name', 'default')
-        self._theme_var.set(theme_name.capitalize())
+        theme_key = getattr(settings, 'theme_name', 'default') or 'default'
+        self._theme_var.set(PRESET_DISPLAY_NAMES.get(theme_key, PRESET_DISPLAY_NAMES['default']))
         self._spell_added_var.set(settings.show_spell_added_notification)
         self._rest_notif_var.set(settings.show_rest_notification)
         self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
@@ -714,10 +782,8 @@ class SettingsView(ctk.CTkFrame):
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         self._legacy_filter_var.set(settings.legacy_content_filter)
-        
-        # Update edit button visibility
-        self._update_theme_editor_visibility()
-        
+        self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
+
         # Apply appearance
         ctk.set_appearance_mode(settings.appearance_mode)
         if self.on_appearance_changed:
@@ -727,8 +793,8 @@ class SettingsView(ctk.CTkFrame):
         """Refresh UI from current settings (call when view becomes visible)."""
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
-        theme_name = getattr(settings, 'theme_name', 'default')
-        self._theme_var.set(theme_name.capitalize())
+        theme_key = getattr(settings, 'theme_name', 'default') or 'default'
+        self._theme_var.set(PRESET_DISPLAY_NAMES.get(theme_key, PRESET_DISPLAY_NAMES['default']))
         self._spell_added_var.set(settings.show_spell_added_notification)
         self._rest_notif_var.set(settings.show_rest_notification)
         self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
@@ -748,7 +814,7 @@ class SettingsView(ctk.CTkFrame):
         self._preload_lineages_var.set(settings.preload_lineages)
         self._preload_backgrounds_var.set(settings.preload_backgrounds)
         self._preload_sheets_var.set(settings.preload_character_sheets)
-        self._update_theme_editor_visibility()
+        self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
 
     def _on_theme_changed(self):
         """Update dynamic label/input colors when the appearance changes."""

@@ -282,9 +282,9 @@ class BackgroundManager:
         data = {
             "backgrounds": [b.to_dict() for b in backgrounds]
         }
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        from atomic_io import atomic_write_json
+        atomic_write_json(file_path, data, ensure_ascii=False)
         
         return len(backgrounds)
     
