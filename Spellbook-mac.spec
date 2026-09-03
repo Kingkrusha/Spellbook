@@ -24,6 +24,14 @@ import os
 
 icon_file = "Spellbook.icns" if os.path.exists("Spellbook.icns") else "Spellbook Icon.png"
 
+# Single source of truth for the version string - keep the .app bundle metadata
+# in sync with version.py. Read it rather than importing so PyInstaller's working
+# directory doesn't matter (SPECPATH is injected into spec files by PyInstaller).
+_version_ns = {}
+with open(os.path.join(SPECPATH, "version.py"), encoding="utf-8") as _vf:
+    exec(_vf.read(), _version_ns)
+APP_VERSION = _version_ns["__version__"]
+
 a = Analysis(
     ['main.py'],
     pathex=[],
@@ -80,12 +88,12 @@ app = BUNDLE(
     name='Spellbook.app',
     icon=icon_file,
     bundle_identifier='net.wasch.spellbook',
-    version='1.5.2',
+    version=APP_VERSION,
     info_plist={
         'CFBundleName': 'Spellbook',
         'CFBundleDisplayName': 'Spellbook',
-        'CFBundleShortVersionString': '1.5.2',
-        'CFBundleVersion': '1.5.2',
+        'CFBundleShortVersionString': APP_VERSION,
+        'CFBundleVersion': APP_VERSION,
         'NSHighResolutionCapable': True,
         # App has no menu bar of its own; keep it out of the "Info" LSUIElement
         # bucket so it shows in the Dock normally.

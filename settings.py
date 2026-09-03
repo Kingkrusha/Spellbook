@@ -42,6 +42,10 @@ class AppSettings:
     warn_multiclass_removal: bool = True  # Show warning when removing a multiclass by setting level to 0
     long_rest_hit_dice: str = "all"  # "all", "half", or "none" - how many hit dice to restore on long rest
     
+    # Updates
+    auto_check_updates: bool = True  # Check GitHub for a newer release on startup
+    skipped_update_version: str = ""  # Version the user chose to skip (don't nag about it)
+
     # Official spell protection
     allow_delete_official_spells: bool = False  # If False, cannot delete spells tagged as Official
     
@@ -76,6 +80,7 @@ class AppSettings:
             'show_rest_notification', 'warn_too_many_cantrips',
             'warn_wrong_class', 'warn_spell_too_high_level', 'warn_too_many_prepared',
             'show_comparison_highlights', 'initial_official_tag_applied',
+            'auto_check_updates', 'skipped_update_version',
             'allow_delete_official_spells', 'auto_calculate_hp', 'auto_calculate_ac',
             'auto_fill_proficiencies', 'auto_apply_saving_throws',
             'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter',

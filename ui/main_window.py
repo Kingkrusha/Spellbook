@@ -353,8 +353,14 @@ class MainWindow(ctk.CTkFrame):
         
         # Apply appearance mode from settings
         ctk.set_appearance_mode(self.settings_manager.settings.appearance_mode)
-        # Register for theme change notifications
+        # Apply the saved colour theme before any view is built, so everything
+        # renders with the right palette from the start.
         theme = get_theme_manager()
+        try:
+            theme.set_theme(getattr(self.settings_manager.settings, 'theme_name', 'default') or 'default')
+        except Exception:
+            pass
+        # Register for theme change notifications
         theme.add_listener(self._on_theme_changed)
         # keep a reference for cleanup on destroy
         self._theme = theme
@@ -413,6 +419,11 @@ class MainWindow(ctk.CTkFrame):
         
         # Schedule background preloading after UI is visible
         self.after(500, self._background_preload)
+
+        # Clean up a leftover .bak from a previous successful update, then
+        # check GitHub for a newer release (silent, background, best-effort).
+        self.after(1500, self._cleanup_update_backup)
+        self.after(4000, self._maybe_check_for_updates)
     
     def _update_progress(self, message: str, value: float):
         """Update startup progress if callback is available."""
@@ -476,6 +487,62 @@ class MainWindow(ctk.CTkFrame):
                     _ = sheet_manager.get_sheet(char.name)
             except Exception as e:
                 print(f"Background preload (character sheets): {e}")
+
+    def _cleanup_update_backup(self):
+        """Remove the previous version's .bak after a successful update."""
+        try:
+            from updater import cleanup_backup
+            cleanup_backup()
+        except Exception:
+            pass
+
+    def _maybe_check_for_updates(self):
+        """Silently check GitHub for a newer release on startup.
+
+        Only runs for a packaged build (running from source you use git) and
+        only when the user hasn't turned the auto-check off. Any failure -
+        offline, GitHub down, rate limited - is swallowed; this must never
+        interrupt startup.
+        """
+        try:
+            from paths import is_frozen
+            if not is_frozen():
+                return
+            if not getattr(self.settings_manager.settings, 'auto_check_updates', True):
+                return
+        except Exception:
+            return
+
+        def worker():
+            try:
+                from updater import check_for_update
+                info = check_for_update()
+            except Exception:
+                return  # stay quiet on any failure
+            if info is None:
+                return
+            try:
+                self.after(0, lambda: self._show_update_dialog(info))
+            except Exception:
+                pass
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_update_dialog(self, info):
+        """Show the update dialog unless the user has skipped this version."""
+        try:
+            skipped = getattr(self.settings_manager.settings, 'skipped_update_version', "")
+            if skipped and skipped == info.version:
+                return
+            from ui.update_dialog import UpdateDialog
+            UpdateDialog(
+                self.winfo_toplevel(),
+                info,
+                on_skip=lambda v: self.settings_manager.update(skipped_update_version=v),
+            )
+        except Exception as e:
+            print(f"Update dialog error: {e}")
 
     def commit_pending_edits(self):
         """Flush edits still sitting in focused widgets across all open tabs.

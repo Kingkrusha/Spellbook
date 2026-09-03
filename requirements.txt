@@ -1,3 +1,7 @@
 # D&D Spellbook Application
 customtkinter>=5.2.0
 pillow>=10.0.0
+# CA bundle for the in-app update check (HTTPS to api.github.com). Optional -
+# updater.py falls back to the system trust store - but bundling it makes the
+# check reliable inside the frozen macOS .app.
+certifi>=2024.2.2

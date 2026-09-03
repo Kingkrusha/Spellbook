@@ -279,8 +279,23 @@ THEME_PRESETS.update({
     "monokai": _create_monokai_theme,
 })
 
-# Simplify presets: only keep the default preset. All other preset UI has been removed.
-THEME_PRESETS = {"default": _create_default_theme}
+# Human-readable names for the theme selector in Settings. Order here is the
+# order shown in the dropdown; keys must exist in THEME_PRESETS.
+PRESET_DISPLAY_NAMES: Dict[str, str] = {
+    "default": "Default",
+    "blue": "Blue",
+    "green": "Green",
+    "purple": "Purple",
+    "red": "Red",
+    "orange": "Orange",
+    "amber": "Amber",
+    "midnight": "Midnight Blue",
+    "sepia": "Sepia",
+    "greyscale": "Greyscale",
+    "solarized": "Solarized",
+    "forest": "Forest",
+    "monokai": "Monokai",
+}
 
 
 class ThemeManager:
