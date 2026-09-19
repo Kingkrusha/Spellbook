@@ -53,14 +53,15 @@ class TagSelectionDialog(ctk.CTkToplevel):
         ).pack(fill="x", pady=(0, 5))
         
         new_tag_frame = ctk.CTkFrame(container, fg_color="transparent")
-        new_tag_frame.pack(fill="x", pady=(0, 15))
-        
+        new_tag_frame.pack(fill="x", pady=(0, 10))
+
         self._new_tag_entry = ctk.CTkEntry(
             new_tag_frame, height=35,
-            placeholder_text="Enter new tag name"
+            placeholder_text="Type to search or add a new tag"
         )
         self._new_tag_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        
+        self._new_tag_entry.bind("<KeyRelease>", lambda _e: self._render_list())
+
         btn_text = theme.get_current_color('text_primary')
         ctk.CTkButton(
             new_tag_frame, text="Add", width=60,
@@ -69,51 +70,27 @@ class TagSelectionDialog(ctk.CTkToplevel):
             text_color=btn_text,
             command=self._on_add_new
         ).pack(side="right")
-        
+
         # Divider
-        ctk.CTkFrame(container, height=2, fg_color=theme.get_current_color('border')).pack(fill="x", pady=10)
-        
+        ctk.CTkFrame(container, height=2, fg_color=theme.get_current_color('border')).pack(fill="x", pady=8)
+
         # Existing tags section
         ctk.CTkLabel(
             container,
-            text="Or select existing tag:",
-            font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(fill="x", pady=(0, 5))
-        
-        ctk.CTkLabel(
-            container,
-            text="(Click a tag to add it)",
-            font=ctk.CTkFont(size=11),
+            text="Existing tags (click to add):",
+            font=ctk.CTkFont(size=12),
             text_color=text_secondary
-        ).pack(fill="x", pady=(0, 10))
-        
-        # Filter out already selected and protected tags
-        selected_lower = [t.lower() for t in selected_tags]
-        available = [t for t in available_tags if t.lower() not in selected_lower and not is_protected_tag(t)]
-        
-        if not available:
-            ctk.CTkLabel(
-                container,
-                text="No additional tags available.",
-                font=ctk.CTkFont(size=13),
-                text_color=text_secondary
-            ).pack(pady=30)
-        else:
-            # Scrollable tag list
-            scroll = ctk.CTkScrollableFrame(container)
-            scroll.pack(fill="both", expand=True, pady=(0, 15))
+        ).pack(fill="x", pady=(0, 6))
 
-            for tag in sorted(available):
-                btn = ctk.CTkButton(
-                    scroll, text=tag, anchor="w",
-                    fg_color="transparent",
-                    hover_color=theme.get_current_color('accent_primary'),
-                    text_color=theme.get_current_color('text_primary'),
-                    text_color_disabled="black",
-                    font=ctk.CTkFont(size=13),
-                    command=lambda t=tag: self._on_select_existing(t)
-                )
-                btn.pack(fill="x", pady=2)
+        # Filter out already selected and protected tags
+        selected_lower = {t.lower() for t in selected_tags}
+        self._available = sorted(
+            t for t in available_tags
+            if t.lower() not in selected_lower and not is_protected_tag(t))
+
+        self._list_scroll = ctk.CTkScrollableFrame(container)
+        self._list_scroll.pack(fill="both", expand=True, pady=(0, 15))
+        self._render_list()
 
         # Cancel button
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -125,6 +102,36 @@ class TagSelectionDialog(ctk.CTkToplevel):
                       text_color=btn_text,
                       command=self._on_cancel).pack(side="right")
     
+    def _render_list(self):
+        """(Re)build the existing-tag list, filtered by what's typed so far."""
+        theme = get_theme_manager()
+        for w in self._list_scroll.winfo_children():
+            w.destroy()
+
+        q = self._new_tag_entry.get().strip().lower()
+        matches = [t for t in self._available if q in t.lower()] if q else list(self._available)
+        if q:
+            matches.sort(key=lambda t: (not t.lower().startswith(q), t.lower()))
+
+        if not matches:
+            ctk.CTkLabel(
+                self._list_scroll,
+                text="No match — click Add to create this tag." if q else "No additional tags available.",
+                font=ctk.CTkFont(size=12), text_color=theme.get_text_secondary()
+            ).pack(pady=20)
+            return
+
+        for tag in matches:
+            ctk.CTkButton(
+                self._list_scroll, text=tag, anchor="w",
+                fg_color="transparent",
+                hover_color=theme.get_current_color('accent_primary'),
+                text_color=theme.get_current_color('text_primary'),
+                text_color_disabled="black",
+                font=ctk.CTkFont(size=13),
+                command=lambda t=tag: self._on_select_existing(t)
+            ).pack(fill="x", pady=2)
+
     def _on_add_new(self):
         """Add a new tag from the entry field."""
         tag = self._new_tag_entry.get().strip()

@@ -48,7 +48,31 @@ class SettingsView(ctk.CTkFrame):
         self._preload_feats_var = ctk.BooleanVar(value=settings_manager.settings.preload_feats)
         self._preload_lineages_var = ctk.BooleanVar(value=settings_manager.settings.preload_lineages)
         self._preload_backgrounds_var = ctk.BooleanVar(value=settings_manager.settings.preload_backgrounds)
+        self._preload_equipment_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'preload_equipment', True))
+        self._preload_magic_items_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'preload_magic_items', True))
         self._preload_sheets_var = ctk.BooleanVar(value=settings_manager.settings.preload_character_sheets)
+
+        # Object linking - as-you-type suggestions, per content category. The
+        # UI presents these as "Disable ..." checkboxes, so each var holds the
+        # *disabled* state (the inverse of the link_suggest_* setting).
+        self._link_disable_spells_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_spells', True))
+        self._link_disable_feats_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_feats', True))
+        self._link_disable_lineages_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_lineages', True))
+        self._link_disable_backgrounds_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_backgrounds', True))
+        self._link_disable_classes_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_classes', True))
+        self._link_disable_equipment_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_equipment', True))
+        self._link_disable_magic_items_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_magic_items', True))
+        self._link_autocomplete_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'link_autocomplete_names', True))
 
         # Updates
         self._auto_check_updates_var = ctk.BooleanVar(
@@ -68,6 +92,11 @@ class SettingsView(ctk.CTkFrame):
     
     def _create_widgets(self):
         """Create the settings UI."""
+        # Section "card" frames are collected here so _on_theme_changed can
+        # recolour them - CTkFrame(corner_radius=...) with no fg_color falls
+        # back to CTk's own default theme, not ours, unless we set it.
+        self._card_frames = []
+
         # Main scrollable container
         self.container = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.container.pack(fill="both", expand=True, padx=20, pady=20)
@@ -96,7 +125,9 @@ class SettingsView(ctk.CTkFrame):
         # === Appearance Section ===
         self._create_section(self.container, "Appearance")
         
-        appearance_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        appearance_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(appearance_frame)
         appearance_frame.pack(fill="x", pady=(0, 20))
         
         appearance_content = ctk.CTkFrame(appearance_frame, fg_color="transparent")
@@ -152,7 +183,9 @@ class SettingsView(ctk.CTkFrame):
         # === Notifications Section ===
         self._create_section(self.container, "Notifications")
         
-        notif_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        notif_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(notif_frame)
         notif_frame.pack(fill="x", pady=(0, 20))
         
         notif_content = ctk.CTkFrame(notif_frame, fg_color="transparent")
@@ -176,7 +209,9 @@ class SettingsView(ctk.CTkFrame):
         # === Spell Warnings Section ===
         self._create_section(self.container, "Spell List Warnings")
         
-        warnings_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        warnings_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(warnings_frame)
         warnings_frame.pack(fill="x", pady=(0, 20))
         
         warnings_content = ctk.CTkFrame(warnings_frame, fg_color="transparent")
@@ -224,7 +259,9 @@ class SettingsView(ctk.CTkFrame):
         # === Comparison Mode Section ===
         self._create_section(self.container, "Comparison Mode")
         
-        compare_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        compare_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(compare_frame)
         compare_frame.pack(fill="x", pady=(0, 20))
         
         compare_content = ctk.CTkFrame(compare_frame, fg_color="transparent")
@@ -248,7 +285,9 @@ class SettingsView(ctk.CTkFrame):
         # === Character Sheet Section ===
         self._create_section(self.container, "Character Sheets")
         
-        charsheet_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        charsheet_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(charsheet_frame)
         charsheet_frame.pack(fill="x", pady=(0, 20))
         
         charsheet_content = ctk.CTkFrame(charsheet_frame, fg_color="transparent")
@@ -383,7 +422,9 @@ class SettingsView(ctk.CTkFrame):
         # === Official Spells Section ===
         self._create_section(self.container, "Official Spells")
         
-        official_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        official_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(official_frame)
         official_frame.pack(fill="x", pady=(0, 20))
         
         official_content = ctk.CTkFrame(official_frame, fg_color="transparent")
@@ -433,7 +474,9 @@ class SettingsView(ctk.CTkFrame):
         # === Legacy Content Section ===
         self._create_section(self.container, "Legacy Content")
         
-        legacy_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        legacy_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(legacy_frame)
         legacy_frame.pack(fill="x", pady=(0, 20))
         
         legacy_content = ctk.CTkFrame(legacy_frame, fg_color="transparent")
@@ -477,7 +520,9 @@ class SettingsView(ctk.CTkFrame):
         # === Loading Options Section ===
         self._create_section(self.container, "Loading Options")
         
-        loading_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        loading_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(loading_frame)
         loading_frame.pack(fill="x", pady=(0, 20))
         
         loading_content = ctk.CTkFrame(loading_frame, fg_color="transparent")
@@ -526,12 +571,28 @@ class SettingsView(ctk.CTkFrame):
         
         self._create_toggle_row(
             loading_content,
+            "Preload Equipment",
+            self._preload_equipment_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+
+        self._create_toggle_row(
+            loading_content,
+            "Preload Magic Items",
+            self._preload_magic_items_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+
+        self._create_toggle_row(
+            loading_content,
             "Preload Character Sheet Data",
             self._preload_sheets_var,
             self._on_setting_change,
             pady=(10, 0)
         )
-        
+
         ctk.CTkLabel(
             loading_content,
             text="Changes take effect on next app restart.",
@@ -539,10 +600,71 @@ class SettingsView(ctk.CTkFrame):
             text_color=text_secondary
         ).pack(anchor="w", pady=(15, 0))
         
+        # === Object Linking Section ===
+        self._create_section(self.container, "Object Linking")
+
+        linking_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                     fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(linking_frame)
+        linking_frame.pack(fill="x", pady=(0, 20))
+
+        linking_content = ctk.CTkFrame(linking_frame, fg_color="transparent")
+        linking_content.pack(fill="x", padx=20, pady=15)
+
+        ctk.CTkLabel(
+            linking_content,
+            text="While typing in a description or notes field, matching objects are "
+                 "suggested as clickable links. Disable suggestions per category below - "
+                 "links already made, and the right-click \"Find Link Suggestions\"/"
+                 "\"Unlink\" options, are unaffected.",
+            font=ctk.CTkFont(size=13), text_color=text_secondary,
+            wraplength=560, justify="left",
+        ).pack(anchor="w", pady=(0, 15))
+
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Spells",
+            self._link_disable_spells_var, self._on_setting_change,
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Feats",
+            self._link_disable_feats_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Lineages",
+            self._link_disable_lineages_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Backgrounds",
+            self._link_disable_backgrounds_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Classes (and Subclasses)",
+            self._link_disable_classes_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Equipment",
+            self._link_disable_equipment_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Magic Items",
+            self._link_disable_magic_items_var, self._on_setting_change, pady=(10, 0),
+        )
+
+        sep = ctk.CTkFrame(linking_content, fg_color=self.theme_manager.get_current_color('bg_tertiary'), height=1)
+        sep.pack(fill="x", pady=(15, 12))
+
+        self._create_toggle_row(
+            linking_content,
+            "Autocomplete linked words to the object's exact name (e.g. \"fire\" -> \"Fire Bolt\")",
+            self._link_autocomplete_var, self._on_setting_change,
+        )
+
         # === About Section ===
         self._create_section(self.container, "About")
         
-        about_frame = ctk.CTkFrame(self.container, corner_radius=10)
+        about_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                   fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(about_frame)
         about_frame.pack(fill="x", pady=(0, 20))
         
         about_content = ctk.CTkFrame(about_frame, fg_color="transparent")
@@ -673,8 +795,18 @@ class SettingsView(ctk.CTkFrame):
             preload_feats=self._preload_feats_var.get(),
             preload_lineages=self._preload_lineages_var.get(),
             preload_backgrounds=self._preload_backgrounds_var.get(),
+            preload_equipment=self._preload_equipment_var.get(),
+            preload_magic_items=self._preload_magic_items_var.get(),
             preload_character_sheets=self._preload_sheets_var.get(),
-            auto_check_updates=self._auto_check_updates_var.get()
+            auto_check_updates=self._auto_check_updates_var.get(),
+            link_suggest_spells=not self._link_disable_spells_var.get(),
+            link_suggest_feats=not self._link_disable_feats_var.get(),
+            link_suggest_lineages=not self._link_disable_lineages_var.get(),
+            link_suggest_backgrounds=not self._link_disable_backgrounds_var.get(),
+            link_suggest_classes=not self._link_disable_classes_var.get(),
+            link_suggest_equipment=not self._link_disable_equipment_var.get(),
+            link_suggest_magic_items=not self._link_disable_magic_items_var.get(),
+            link_autocomplete_names=self._link_autocomplete_var.get(),
         )
 
     def _on_check_for_updates(self):
@@ -783,6 +915,14 @@ class SettingsView(ctk.CTkFrame):
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
         self._legacy_filter_var.set(settings.legacy_content_filter)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
+        self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
+        self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
+        self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
+        self._link_disable_backgrounds_var.set(not getattr(settings, 'link_suggest_backgrounds', True))
+        self._link_disable_classes_var.set(not getattr(settings, 'link_suggest_classes', True))
+        self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
+        self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
+        self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 
         # Apply appearance
         ctk.set_appearance_mode(settings.appearance_mode)
@@ -813,14 +953,34 @@ class SettingsView(ctk.CTkFrame):
         self._preload_feats_var.set(settings.preload_feats)
         self._preload_lineages_var.set(settings.preload_lineages)
         self._preload_backgrounds_var.set(settings.preload_backgrounds)
+        self._preload_equipment_var.set(getattr(settings, 'preload_equipment', True))
+        self._preload_magic_items_var.set(getattr(settings, 'preload_magic_items', True))
         self._preload_sheets_var.set(settings.preload_character_sheets)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
+        self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
+        self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
+        self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
+        self._link_disable_backgrounds_var.set(not getattr(settings, 'link_suggest_backgrounds', True))
+        self._link_disable_classes_var.set(not getattr(settings, 'link_suggest_classes', True))
+        self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
+        self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
+        self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 
     def _on_theme_changed(self):
         """Update dynamic label/input colors when the appearance changes."""
         try:
             theme = self.theme_manager
             text_secondary = theme.get_text_secondary()
+
+            # Recolour the section "card" frames - they're created with an
+            # explicit fg_color (not "transparent"), so they don't pick up a
+            # new theme on their own.
+            card_bg = theme.get_current_color('bg_secondary')
+            for frame in getattr(self, '_card_frames', []):
+                try:
+                    frame.configure(fg_color=card_bg)
+                except Exception:
+                    pass
 
             # Walk container and update CTkLabel text colors where appropriate
             for child in self.container.winfo_children():

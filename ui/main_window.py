@@ -420,9 +420,8 @@ class MainWindow(ctk.CTkFrame):
         # Schedule background preloading after UI is visible
         self.after(500, self._background_preload)
 
-        # Clean up a leftover .bak from a previous successful update, then
-        # check GitHub for a newer release (silent, background, best-effort).
-        self.after(1500, self._cleanup_update_backup)
+        # Check GitHub for a newer release (silent, background, best-effort;
+        # only opens a browser link - never downloads or installs anything).
         self.after(4000, self._maybe_check_for_updates)
     
     def _update_progress(self, message: str, value: float):
@@ -476,7 +475,31 @@ class MainWindow(ctk.CTkFrame):
                     )
             except Exception as e:
                 print(f"Background preload (backgrounds): {e}")
-        
+
+        # Preload equipment (creates EquipmentView)
+        if getattr(settings, 'preload_equipment', True):
+            try:
+                if not hasattr(self, 'equipment_view'):
+                    from ui.equipment_view import EquipmentView
+                    self.equipment_view = EquipmentView(
+                        self,
+                        on_back=self._back_to_collections
+                    )
+            except Exception as e:
+                print(f"Background preload (equipment): {e}")
+
+        # Preload magic items (creates MagicItemView)
+        if getattr(settings, 'preload_magic_items', True):
+            try:
+                if not hasattr(self, 'magic_items_view'):
+                    from ui.magic_item_view import MagicItemView
+                    self.magic_items_view = MagicItemView(
+                        self,
+                        on_back=self._back_to_collections
+                    )
+            except Exception as e:
+                print(f"Background preload (magic items): {e}")
+
         # Preload character sheets data
         if settings.preload_character_sheets:
             try:
@@ -487,14 +510,6 @@ class MainWindow(ctk.CTkFrame):
                     _ = sheet_manager.get_sheet(char.name)
             except Exception as e:
                 print(f"Background preload (character sheets): {e}")
-
-    def _cleanup_update_backup(self):
-        """Remove the previous version's .bak after a successful update."""
-        try:
-            from updater import cleanup_backup
-            cleanup_backup()
-        except Exception:
-            pass
 
     def _maybe_check_for_updates(self):
         """Silently check GitHub for a newer release on startup.
@@ -782,6 +797,10 @@ class MainWindow(ctk.CTkFrame):
             self.lineages_view.pack_forget()
         elif collection_key == "backgrounds" and hasattr(self, 'backgrounds_view'):
             self.backgrounds_view.pack_forget()
+        elif collection_key == "equipment" and hasattr(self, 'equipment_view'):
+            self.equipment_view.pack_forget()
+        elif collection_key == "magic_items" and hasattr(self, 'magic_items_view'):
+            self.magic_items_view.pack_forget()
     
     def _navigate_to_collection_in_tab(self, tab_id: str, collection_key: str, item_name: Optional[str] = None):
         """Navigate to a collection within a specific tab."""
@@ -811,7 +830,9 @@ class MainWindow(ctk.CTkFrame):
             'feats': 'Feats',
             'lineages': 'Lineages',
             'backgrounds': 'Backgrounds',
-            'classes': 'Classes'
+            'classes': 'Classes',
+            'equipment': 'Equipment',
+            'magic_items': 'Magic Items'
         }
         
         if item_name and collection_key == 'classes':
@@ -846,7 +867,15 @@ class MainWindow(ctk.CTkFrame):
             self._show_backgrounds_view_internal()
             if item_name:
                 self.after(150, lambda: self._select_background_item(item_name))
-    
+        elif collection_key == "equipment":
+            self._show_equipment_view_internal()
+            if item_name:
+                self.after(150, lambda: self._select_equipment_item(item_name))
+        elif collection_key == "magic_items":
+            self._show_magic_items_view_internal()
+            if item_name:
+                self.after(150, lambda: self._select_magic_item_item(item_name))
+
     def _ensure_feats_view_created(self):
         """Create feats view if not already created (lazy loading)."""
         if not self._feats_view_created:
@@ -901,7 +930,17 @@ class MainWindow(ctk.CTkFrame):
         """Select a background in the backgrounds view."""
         if hasattr(self, 'backgrounds_view') and hasattr(self.backgrounds_view, 'select_background'):
             self.backgrounds_view.select_background(name)
-    
+
+    def _select_equipment_item(self, name: str):
+        """Select an item in the equipment view."""
+        if hasattr(self, 'equipment_view') and hasattr(self.equipment_view, 'select_item'):
+            self.equipment_view.select_item(name)
+
+    def _select_magic_item_item(self, name: str):
+        """Select an item in the magic items view."""
+        if hasattr(self, 'magic_items_view') and hasattr(self.magic_items_view, 'select_item'):
+            self.magic_items_view.select_item(name)
+
     def _show_classes_view(self):
         """Show the classes collection view (called from _navigate_to_collection)."""
         self._show_tab("classes")
@@ -946,7 +985,31 @@ class MainWindow(ctk.CTkFrame):
             )
         
         self.backgrounds_view.pack(fill="both", expand=True)
-    
+
+    def _show_equipment_view_internal(self):
+        """Internal method to show the equipment view without modifying tab state."""
+        from ui.equipment_view import EquipmentView
+
+        if not hasattr(self, 'equipment_view'):
+            self.equipment_view = EquipmentView(
+                self,
+                on_back=self._back_to_collections
+            )
+
+        self.equipment_view.pack(fill="both", expand=True)
+
+    def _show_magic_items_view_internal(self):
+        """Internal method to show the magic items view without modifying tab state."""
+        from ui.magic_item_view import MagicItemView
+
+        if not hasattr(self, 'magic_items_view'):
+            self.magic_items_view = MagicItemView(
+                self,
+                on_back=self._back_to_collections
+            )
+
+        self.magic_items_view.pack(fill="both", expand=True)
+
     def _back_to_collections(self):
         """Go back to the main collections view within the current tab."""
         # Get the current tab
@@ -1060,6 +1123,15 @@ class MainWindow(ctk.CTkFrame):
             self.advanced_btn.configure(fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'))
         except Exception:
             pass
+
+        # These "card" panels are created with an explicit fg_color (not
+        # "transparent"), so they need to be repainted explicitly too.
+        card_bg = theme.get_current_color('bg_secondary')
+        for attr in ('advanced_frame', 'compare_container'):
+            try:
+                getattr(self, attr).configure(fg_color=card_bg)
+            except Exception:
+                pass
 
         # Update input widgets (entries / combos) to pick up input/background colors
         try:
@@ -1210,7 +1282,8 @@ class MainWindow(ctk.CTkFrame):
         """Create the collapsible advanced filters panel."""
         # Container frame (hidden by default)
         theme = get_theme_manager()
-        self.advanced_frame = ctk.CTkFrame(self.spells_view, corner_radius=10)
+        self.advanced_frame = ctk.CTkFrame(self.spells_view, corner_radius=10,
+                                            fg_color=theme.get_current_color('bg_secondary'))
         # Don't pack yet - will be shown/hidden by toggle
         
         # Inner content with padding
@@ -1558,9 +1631,11 @@ class MainWindow(ctk.CTkFrame):
     def _create_compare_panel(self):
         """Create the compare spell panel (hidden initially)."""
         from ui.spell_detail import SpellDetailPanel
-        
+        theme = get_theme_manager()
+
         # Container frame that will replace the spell list when comparing
-        self.compare_container = ctk.CTkFrame(self.left_container, corner_radius=10)
+        self.compare_container = ctk.CTkFrame(self.left_container, corner_radius=10,
+                                               fg_color=theme.get_current_color('bg_secondary'))
         
         # Header with close button
         header = ctk.CTkFrame(self.compare_container, fg_color="transparent")

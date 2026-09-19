@@ -209,10 +209,10 @@ class CollectionsView(ctk.CTkFrame):
             ("📜 Spells", "spells", True, "Browse and manage your spell database"),
             ("⚔️ Feats", "feats", True, "Character feats and abilities"),
             ("🧬 Lineages", "lineages", True, "Races and species options"),
-            ("✨ Magic Items", "magic_items", False, "Magical equipment and artifacts"),
+            ("✨ Magic Items", "magic_items", True, "Magical equipment and artifacts"),
             ("🎭 Classes", "classes", True, "Character class definitions"),
             ("📖 Backgrounds", "backgrounds", True, "Character background options"),
-            ("🛡️ Equipment", "equipment", False, "Mundane items and gear"),
+            ("🛡️ Equipment", "equipment", True, "Mundane items and gear"),
             ("👹 Monsters", "monsters", False, "Creature stat blocks"),
             ("📚 Rules", "rules", False, "Game rules and references"),
         ]

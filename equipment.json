@@ -1,0 +1,3483 @@
+{
+  "equipment": [
+    {
+      "name": "Acid",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Alchemist's Supplies",
+      "description": "When you take the Attack action, you can replace one of your attacks with throwing a vial of Acid. Target one creature or object you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 2d6 Acid damage.",
+      "tags": [
+        "d6",
+        "Acid"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Alchemist's Fire",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Alchemist's Supplies",
+      "description": "When you take the Attack action, you can replace one of your attacks with throwing a flask of Alchemist's Fire. Target one creature or object you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 1d4 Fire damage and start burning (see the rules glossary).",
+      "tags": [
+        "d4",
+        "Fire"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ammunition",
+      "type": "Adventuring Gear",
+      "cost": "Varies",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "Ammunition is required by a weapon that has the Ammunition property. A weapon's description specifies the type of ammunition used by the weapon. The Ammunition table lists the different types and the amount you get when you buy them.",
+      "tags": [
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Antitoxin",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Brewer's Supplies or Herbalism Kit",
+      "description": "As a Bonus Action, you can drink a vial of Antitoxin to gain Advantage on saving throws to avoid or end the Poisoned condition for 1 hour.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Arcane Focus",
+      "type": "Adventuring Gear",
+      "cost": "Varies",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Jeweler's Tools or Woodcarver's Tools",
+      "description": "An Arcane Focus takes one of the forms in the Arcane Focuses table and is bejeweled or carved to channel arcane magic. A Sorcerer, Warlock, or Wizard can use such an item as a Spellcasting Focus.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Backpack",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "A Backpack holds up to 30 pounds within 1 cubic foot. It can also serve as a saddlebag.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ball Bearings",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "As a Utilize action, you can spill Ball Bearings from their pouch. They spread to cover a level, 10-foot-square area within 10 feet of yourself. A creature that enters this area for the first time on a turn must succeed on a DC 10 Dexterity saving throw or have the Prone condition. It takes 10 minutes to recover the Ball Bearings.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Barrel",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 70.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools",
+      "description": "A Barrel holds up to 40 gallons of liquid or up to 4 cubic feet of dry goods.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Basket",
+      "type": "Adventuring Gear",
+      "cost": "4 SP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "A Basket holds up to 40 pounds within 2 cubic feet.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bedroll",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 7.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "A Bedroll sleeps one Small or Medium creature. While in a Bedroll, you automatically succeed on saving throws against extreme cold (see the Dungeon Master's Guide).",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bell",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "When rung as a Utilize action, a Bell produces a sound that can be heard up to 60 feet away.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Blanket",
+      "type": "Adventuring Gear",
+      "cost": "5 SP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "While wrapped in a blanket, you have Advantage on saving throws against extreme cold (see the Dungeon Master's Guide).",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Block and Tackle",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Mason's Tools",
+      "description": "A Block and Tackle allows you to hoist up to four times the weight you can normally lift.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bright Fungal Cloak",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "While wearing a Bright Fungal Cloak, you can take a Bonus Action to furl or unfurl it. When the cloak is unfurled, it sheds Bright Light in a 5-foot radius and Dim Light for an additional 5 feet. One pound of fungus is sewn into a Bright Fungal Cloak. This fungus can be eaten as food. Once all the fungus is consumed, the cloak becomes a mundane set of [[equipment:Clothes, Traveler's|Traveler's Clothes]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Book",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A Book contains fiction or nonfiction. If you consult an accurate nonfiction Book about its topic, you gain a +5 bonus to Intelligence (Arcana, History, Nature, or Religion) checks you make about that topic.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bottle, Glass",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Glassblower's Tools",
+      "description": "A Glass Bottle holds up to 1½ pints.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bucket",
+      "type": "Adventuring Gear",
+      "cost": "5 CP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "A Bucket holds up to half a cubic foot of contents.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Burglar's Pack",
+      "type": "Adventuring Gear",
+      "cost": "16 GP",
+      "weight": 42.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A Burglar's Pack contains the following items: [[equipment:Backpack]], [[equipment:Ball Bearings]], [[equipment:Bell]], 10 [[equipment:Candle|Candles]], [[equipment:Crowbar]], [[equipment:Lantern, Hooded|Hooded Lantern]], 7 flasks of [[equipment:Oil]], 5 days of [[equipment:Rations]], [[equipment:Rope]], [[equipment:Tinderbox]], and [[equipment:Waterskin]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Caltrops",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "As a Utilize action, you can spread Caltrops from their bag to cover a 5-foot-square area within 5 feet of yourself. A creature that enters this area for the first time on a turn must succeed on a DC 15 Dexterity saving throw or take 1 Piercing damage and have its Speed reduced to 0 until the start of its next turn. It takes 10 minutes to recover the Caltrops.",
+      "tags": [
+        "Piercing"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Candle",
+      "type": "Adventuring Gear",
+      "cost": "1 CP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Herbalism Kit",
+      "description": "For 1 hour, a lit Candle sheds Bright Light in a 5-foot radius and Dim Light for an additional 5 feet.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Case, Crossbow Bolt",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "A Crossbow Bolt Case holds up to 20 Bolts.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Case, Map or Scroll",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "A Map or Scroll Case holds up to 10 sheets of paper or 5 sheets of parchment.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Chain",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "As a Utilize action, you can wrap a Chain around an unwilling creature within 5 feet of yourself that has the Grappled, Incapacitated, or Restrained condition if you succeed on a DC 13 Strength (Athletics) check. If the creature's legs are bound, the creature has the Restrained condition until it escapes. Escaping the Chain requires the creature to make a successful DC 18 Dexterity (Acrobatics) check as an action. Bursting the Chain requires a successful DC 20 Strength (Athletics) check as an action.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Chest",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 25.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools",
+      "description": "A Chest holds up to 12 cubic feet of contents.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Climber's Kit",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 12.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Cobbler's Tools",
+      "description": "A Climber's Kit includes boot tips, gloves, pitons, and a harness. As a Utilize action, you can use the Climber's Kit to anchor yourself; when you do, you can't fall more than 25 feet from the anchor point, and you can't move more than 25 feet from there without undoing the anchor as a Bonus Action.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Clothes, Fine",
+      "type": "Adventuring Gear",
+      "cost": "15 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "Fine Clothes are made of expensive fabrics and adorned with expertly crafted details. Some events and locations admit only people wearing these clothes.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Clothes, Traveler's",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "Traveler's Clothes are resilient garments designed for travel in various environments.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Component Pouch",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Alchemist's Supplies",
+      "description": "A Component Pouch is watertight and filled with compartments that hold all the free Material components of your spells.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Costume",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Disguise Kit",
+      "description": "While wearing a Costume, you have Advantage on any ability check you make to impersonate the person or type of person it represents.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Crowbar",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "Using a Crowbar gives you Advantage on Strength checks where the Crowbar's leverage can be applied.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Desert Clothing",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "When you are wearing Desert Clothing and not wearing Medium or Heavy armor, you automatically succeed on saving throws against the effects of extreme heat. See chapter 3 of the Dungeon Master's Guide for rules on extreme heat.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Devil Mask",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "While you are wearing a Devil Mask, other creatures have Disadvantage on Intelligence (Investigation) and Wisdom (Insight) checks made to discern your true identity or intentions.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Diplomat's Pack",
+      "type": "Adventuring Gear",
+      "cost": "39 GP",
+      "weight": 39.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A Diplomat's Pack contains the following items: [[equipment:Chest]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Ink]], 5 [[equipment:Ink Pen|Ink Pens]], [[equipment:Lamp]], 2 [[equipment:Case, Map or Scroll|Map or Scroll Cases]], 4 flasks of [[equipment:Oil]], 5 sheets of [[equipment:Paper]], 5 sheets of [[equipment:Parchment]], [[equipment:Perfume]], and [[equipment:Tinderbox]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Druidic Focus",
+      "type": "Adventuring Gear",
+      "cost": "Varies",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Painter's Supplies or Woodcarver's Tools",
+      "description": "A Druidic Focus takes one of the forms in the Druidic Focuses table and is carved, tied with ribbon, or painted to channel primal magic. A Druid or Ranger can use such an object as a Spellcasting Focus.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Dungeoneer's Pack",
+      "type": "Adventuring Gear",
+      "cost": "12 GP",
+      "weight": 55.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A Dungeoneer's Pack contains the following items: [[equipment:Backpack]], [[equipment:Caltrops]], [[equipment:Crowbar]], 2 flasks of [[equipment:Oil]], 10 days of [[equipment:Rations]], [[equipment:Rope]], [[equipment:Tinderbox]], 10 [[equipment:Torch|Torches]], and [[equipment:Waterskin]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Entertainer's Pack",
+      "type": "Adventuring Gear",
+      "cost": "40 GP",
+      "weight": 58.5,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "An Entertainer's Pack contains the following items: [[equipment:Backpack]], [[equipment:Bedroll]], [[equipment:Bell]], [[equipment:Lantern, Bullseye|Bullseye Lantern]], 3 [[equipment:Costume|Costumes]], [[equipment:Mirror]], 8 flasks of [[equipment:Oil]], 9 days of [[equipment:Rations]], [[equipment:Tinderbox]], and [[equipment:Waterskin]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Explorer's Pack",
+      "type": "Adventuring Gear",
+      "cost": "10 GP",
+      "weight": 55.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "An Explorer's Pack contains the following items: [[equipment:Backpack]], [[equipment:Bedroll]], 2 flasks of [[equipment:Oil]], 10 days of [[equipment:Rations]], [[equipment:Rope]], [[equipment:Tinderbox]], 10 [[equipment:Torch|Torches]], and [[equipment:Waterskin]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Flask",
+      "type": "Adventuring Gear",
+      "cost": "2 CP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "A Flask holds up to 1 pint.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Garb of Light and Shadow",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "This garb appeals to Fey from one Domain of Delight, such as the Gloaming Court or the Summer Court. While wearing the garb, you have Advantage on ability checks to influence Fey associated with that Domain of Delight.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Genie Robe",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "This robe appeals to Elementals associated with a particular Elemental Plane (Air, Earth, Fire, Water). While wearing a Genie Robe, you have Advantage on ability checks made to influence Elementals associated with that plane.",
+      "tags": [
+        "Fire"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Grappling Hook",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "As a Utilize action, you can throw the Grappling Hook at a railing, a ledge, or another catch within 50 feet of yourself, and the hook catches on if you succeed on a DC 13 Dexterity (Acrobatics) check. If you tied a [[equipment:Rope]] to the hook, you can then climb it.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Healer's Kit",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Herbalism Kit",
+      "description": "A Healer's Kit has ten uses. As a Utilize action, you can expend one of its uses to stabilize an Unconscious creature that has 0 Hit Points without needing to make a Wisdom (Medicine) check.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Holy Symbol",
+      "type": "Adventuring Gear",
+      "cost": "Varies",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Jeweler's Tools or Painter's Supplies",
+      "description": "A Holy Symbol takes one of the forms in the Holy Symbol table and is bejeweled or painted to channel divine magic. A Cleric or Paladin can use a Holy Symbol as a Spellcasting Focus.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Holy Water",
+      "type": "Adventuring Gear",
+      "cost": "25 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "When you take the Attack action, you can replace one of your attacks with throwing a flask of Holy Water. Target one creature you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 2d8 Radiant damage if it is a Fiend or an Undead.",
+      "tags": [
+        "d8",
+        "Radiant"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Hunting Trap",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 25.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "As a Utilize action, you can set a Hunting Trap, which is a sawtooth steel ring that snaps shut when a creature steps on a pressure plate in the center. The trap is affixed by a heavy chain to an immobile object, such as a tree or a spike driven into the ground. A creature that steps on the plate must succeed on a DC 13 Dexterity saving throw or take 1d4 Piercing damage and have its Speed reduced to 0 until the start of its next turn. Thereafter, until the creature breaks free of the trap, its movement is limited by the length of the chain (typically 3 feet). A creature can use its action to make a DC 13 Strength (Athletics) check, freeing itself or another creature within its reach on a success. Each failed check deals 1 Piercing damage to the trapped creature.",
+      "tags": [
+        "d4",
+        "Piercing"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ink",
+      "type": "Adventuring Gear",
+      "cost": "10 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Calligrapher's Supplies",
+      "description": "Ink comes in a 1-ounce bottle, which provides enough ink to write about 500 pages.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ink Pen",
+      "type": "Adventuring Gear",
+      "cost": "2 CP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "Using [[equipment:Ink]], an Ink Pen is used to write or draw.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Jug",
+      "type": "Adventuring Gear",
+      "cost": "2 CP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Potter's Tools",
+      "description": "A Jug holds up to 1 gallon.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ladder",
+      "type": "Adventuring Gear",
+      "cost": "1 SP",
+      "weight": 25.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools",
+      "description": "A Ladder is 10 feet tall. You must climb to move up or down it.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lamp",
+      "type": "Adventuring Gear",
+      "cost": "5 SP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Potter's Tools",
+      "description": "A Lamp burns Oil as fuel to cast Bright Light in a 15-foot radius and Dim Light for an additional 30 feet.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lantern, Bullseye",
+      "type": "Adventuring Gear",
+      "cost": "10 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "A Bullseye Lantern burns Oil as fuel to cast Bright Light in a 60-foot Cone and Dim Light for an additional 60 feet.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lantern, Hooded",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "A Hooded Lantern burns Oil as fuel to cast Bright Light in a 30-foot radius and Dim Light for an additional 30 feet. As a Bonus Action, you can lower the hood, reducing the light to Dim Light in a 5-foot radius, or raise it again.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lock",
+      "type": "Adventuring Gear",
+      "cost": "10 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "A Lock comes with a key. Without the key, a creature can use [[equipment:Thieves' Tools]] to pick this Lock with a successful DC 15 Dexterity (Sleight of Hand) check.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Locking Spellbook",
+      "type": "Adventuring Gear",
+      "cost": "35 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "This 100-page leather-bound tome can be used as a Spellbook. It is closed with a lock that comes with a key. As a Utilize action, a creature can try to pick the lock using [[equipment:Thieves' Tools]], doing so with a successful DC 15 Dexterity (Sleight of Hand) check.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Magnifying Glass",
+      "type": "Adventuring Gear",
+      "cost": "100 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Glassblower's Tools",
+      "description": "A Magnifying Glass grants Advantage on any ability check made to appraise or inspect a highly detailed item. Lighting a fire with a Magnifying Glass requires light as bright as sunlight to focus, tinder to ignite, and about 5 minutes for the fire to ignite.",
+      "tags": [
+        "Fire"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Manacles",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "As a Utilize action, you can use Manacles to bind an unwilling Small or Medium creature within 5 feet of yourself that has the Grappled, Incapacitated, or Restrained condition if you succeed on a DC 13 Dexterity (Sleight of Hand) check. While bound, a creature has Disadvantage on attack rolls, and the creature is Restrained if the Manacles are attached to a chain or hook that is fixed in place. Escaping the Manacles requires a successful DC 20 Dexterity (Sleight of Hand) check as an action. Bursting them requires a successful DC 25 Strength (Athletics) check as an action. Each set of Manacles comes with a key. Without the key, a creature can use [[equipment:Thieves' Tools]] to pick the Manacles' lock with a successful DC 15 Dexterity (Sleight of Hand) check.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Map",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Cartographer's Tools",
+      "description": "If you consult an accurate Map, you gain a +5 bonus to Wisdom (Survival) checks you make to find your way in the place represented on it.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Mirror",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 0.5,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "A handheld steel Mirror is useful for personal cosmetics but also for peeking around corners and reflecting light as a signal.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Monster Camouflage",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A suit of Monster Camouflage looks like a Beast or Monstrosity, such as an owlbear. To discern that you're disguised, a creature must take the Study action to inspect your appearance and succeed on a DC 10 Intelligence (Investigation or Nature) check. The creature has Advantage on this check if it is within 30 feet of you and automatically succeeds on this check if you do anything the monster you're disguised as couldn't do.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Net",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "When you take the Attack action, you can replace one of your attacks with throwing a Net. Target a creature you can see within 15 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or have the Restrained condition until it escapes. The target succeeds automatically if it is Huge or larger. To escape, the target or a creature within 5 feet of it must take an action to make a DC 10 Strength (Athletics) check, freeing the Restrained creature on a success. Destroying the Net (AC 10; 5 HP; Immunity to Bludgeoning, Poison, and Psychic damage) also frees the target, ending the effect.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Oil",
+      "type": "Adventuring Gear",
+      "cost": "1 SP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Alchemist's Supplies",
+      "description": "You can douse a creature, object, or space with Oil or use it as fuel, as detailed below. Dousing a Creature or an Object. When you take the Attack action, you can replace one of your attacks with throwing an Oil flask. Target one creature or object within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or be covered in oil. If the target takes Fire damage before the oil dries (after 1 minute), the target takes an extra 5 Fire damage from burning oil. Dousing a Space. You can take the Utilize action to pour an Oil flask on level ground to cover a 5-foot-square area within 5 feet of yourself. If lit, the oil burns until the end of the turn 2 rounds from when the oil was lit (or 12 seconds) and deals 5 Fire damage to any creature that enters the area or ends its turn there. A creature can take this damage only once per turn. Fuel. Oil serves as fuel for Lamps and Lanterns. Once lit, a flask of Oil burns for 6 hours in a [[equipment:Lamp]] or Lantern. That duration doesn't need to be consecutive; you can extinguish the burning Oil (as a Utilize action) and rekindle it again until it has burned for a total of 6 hours.",
+      "tags": [
+        "Fire"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Paper",
+      "type": "Adventuring Gear",
+      "cost": "2 SP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Alchemist's Supplies",
+      "description": "One sheet of Paper can hold about 250 handwritten words.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Parchment",
+      "type": "Adventuring Gear",
+      "cost": "1 SP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "One sheet of Parchment can hold about 250 handwritten words.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Perfume",
+      "type": "Adventuring Gear",
+      "cost": "5 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Alchemist's Supplies",
+      "description": "Perfume comes in a 4-ounce vial. For 1 hour after applying Perfume to yourself, you have Advantage on Charisma (Persuasion) checks made to influence an Indifferent Humanoid within 5 feet of yourself.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Poison, Basic",
+      "type": "Adventuring Gear",
+      "cost": "100 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Poisoner's Kit",
+      "description": "As a Bonus Action, you can use a vial of Basic Poison to coat one weapon or up to three pieces of ammunition. A creature that takes Piercing or Slashing damage from the poisoned weapon or ammunition takes an extra 1d4 Poison damage. Once applied, the poison retains potency for 1 minute or until its damage is dealt, whichever comes first.",
+      "tags": [
+        "d4",
+        "Piercing",
+        "Slashing",
+        "Poison",
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pole",
+      "type": "Adventuring Gear",
+      "cost": "5 CP",
+      "weight": 7.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools",
+      "description": "A Pole is 10 feet long. You can use it to touch something up to 10 feet away. If you must make a Strength (Athletics) check as part of a High or Long Jump, you can use the Pole to vault, giving yourself Advantage on the check.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pot, Iron",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "An Iron Pot holds up to 1 gallon.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Potion of Healing",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.5,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Herbalism Kit",
+      "description": "This potion is a magic item. As a Bonus Action, you can drink it or administer it to another creature within 5 feet of yourself. The creature that drinks the magical red fluid in this vial regains 2d4 + 2 Hit Points.",
+      "tags": [
+        "d4"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pouch",
+      "type": "Adventuring Gear",
+      "cost": "5 SP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "A Pouch holds up to 6 pounds within one-fifth of a cubic foot.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Priest's Pack",
+      "type": "Adventuring Gear",
+      "cost": "33 GP",
+      "weight": 29.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A Priest's Pack contains the following items: [[equipment:Backpack]], [[equipment:Blanket]], [[equipment:Holy Water]], [[equipment:Lamp]], 7 days of [[equipment:Rations]], [[equipment:Robe]], and [[equipment:Tinderbox]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Quiver",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "A Quiver holds up to 20 Arrows.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ram, Portable",
+      "type": "Adventuring Gear",
+      "cost": "4 GP",
+      "weight": 35.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools",
+      "description": "You can use a Portable Ram to break down doors. When doing so, you gain a +4 bonus to the Strength check. One other character can help you use the ram, giving you Advantage on this check.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Rations",
+      "type": "Adventuring Gear",
+      "cost": "5 SP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Cook's Utensils",
+      "description": "Rations consist of travel-ready food, including jerky, dried fruit, hardtack, and nuts. See \"Malnutrition\" in the rules glossary for the risks of not eating.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Robe",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "A Robe has vocational or ceremonial significance. Some events and locations admit only people wearing a Robe bearing certain colors or symbols.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Rope",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "As a Utilize action, you can tie a knot with Rope if you succeed on a DC 10 Dexterity (Sleight of Hand) check. The Rope can be burst with a successful DC 20 Strength (Athletics) check. You can bind an unwilling creature with the Rope only if the creature has the Grappled, Incapacitated, or Restrained condition. If the creature's legs are bound, the creature has the Restrained condition until it escapes. Escaping the Rope requires the creature to make a successful DC 15 Dexterity (Acrobatics) check as an action.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Sack",
+      "type": "Adventuring Gear",
+      "cost": "1 CP",
+      "weight": 0.5,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "A Sack holds up to 30 pounds within 1 cubic foot.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Scholar's Pack",
+      "type": "Adventuring Gear",
+      "cost": "40 GP",
+      "weight": 22.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "A Scholar's Pack contains the following items: [[equipment:Backpack]], [[equipment:Book]], [[equipment:Ink]], [[equipment:Ink Pen]], [[equipment:Lamp]], 10 flasks of [[equipment:Oil]], 10 sheets of [[equipment:Parchment]], and [[equipment:Tinderbox]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Shovel",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "Working for 1 hour, you can use a Shovel to dig a hole that is 5 feet on each side in soil or similar material.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Signal Whistle",
+      "type": "Adventuring Gear",
+      "cost": "5 CP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "When blown as a Utilize action, a Signal Whistle produces a sound that can be heard up to 600 feet away.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Spell Scroll (Cantrip)",
+      "type": "Adventuring Gear",
+      "cost": "30 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Calligrapher's Supplies",
+      "description": "A Spell Scroll (Cantrip) is a magic item that bears the words of a cantrip determined by the scroll's creator. If the spell is on your class's spell list, you can read the scroll and cast the spell using its normal casting time and without providing any Material components. If the spell requires a saving throw or an attack roll, the spell save DC is 13, and the attack bonus is +5. The scroll disintegrates when the casting is completed.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Spell Scroll (Level 1)",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Calligrapher's Supplies",
+      "description": "A Spell Scroll (Level 1) is a magic item that bears the words of a level 1 spell, respectively, determined by the scroll's creator. If the spell is on your class's spell list, you can read the scroll and cast the spell using its normal casting time and without providing any Material components. If the spell requires a saving throw or an attack roll, the spell save DC is 13, and the attack bonus is +5. The scroll disintegrates when the casting is completed.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Spikes, Iron",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "Iron Spikes come in bundles of ten. As a Utilize action, you can use a blunt object, such as a [[equipment:Light Hammer]], to hammer a spike into wood, earth, or a similar material. You can do so to jam a door shut or to then tie a [[equipment:Rope]] or [[equipment:Chain]] to the Spike.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Spyglass",
+      "type": "Adventuring Gear",
+      "cost": "1,000 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Glassblower's Tools",
+      "description": "Objects viewed through a Spyglass are magnified to twice their size.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "String",
+      "type": "Adventuring Gear",
+      "cost": "1 SP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "String is 10 feet long. You can tie a knot in it as a Utilize action.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Tent",
+      "type": "Adventuring Gear",
+      "cost": "2 GP",
+      "weight": 20.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "A Tent sleeps up to two Small or Medium creatures.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Tinderbox",
+      "type": "Adventuring Gear",
+      "cost": "5 SP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "A Tinderbox is a small container holding flint, fire steel, and tinder (usually dry cloth soaked in light oil) used to kindle a fire. Using it to light a [[equipment:Candle]], [[equipment:Lamp]], Lantern, or Torch or anything else with exposed fuel takes a Bonus Action. Lighting any other fire takes 1 minute.",
+      "tags": [
+        "Fire"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Torch",
+      "type": "Adventuring Gear",
+      "cost": "1 CP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools",
+      "description": "A Torch burns for 1 hour, casting Bright Light in a 20-foot radius and Dim Light for an additional 20 feet. When you take the Attack action, you can attack with the Torch, using it as a Simple Melee weapon. On a hit, the target takes 1 Fire damage.",
+      "tags": [
+        "Fire",
+        "Simple Weapon"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Vial",
+      "type": "Adventuring Gear",
+      "cost": "1 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Glassblower's Tools",
+      "description": "A Vial holds up to 4 ounces.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Warm Fungal Clothing",
+      "type": "Adventuring Gear",
+      "cost": "15 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "When you're wearing Warm Fungal Clothing, you automatically succeed on saving throws against the effects of extreme cold. See chapter 3 of the Dungeon Master's Guide for rules on extreme cold. One pound of fungus is sewn into Fungal Clothing. This fungus can be eaten as food. Once all the fungus is consumed, this becomes a mundane set of [[equipment:Clothes, Traveler's|Traveler's Clothes]].",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Waterskin",
+      "type": "Adventuring Gear",
+      "cost": "2 SP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "A Waterskin holds up to 4 pints. If you don't drink sufficient water, you risk dehydration (see the rules glossary).",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Winter Camouflage",
+      "type": "Adventuring Gear",
+      "cost": "50 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "While you wear Winter Camouflage in an appropriate environment, you have Advantage on Dexterity (Stealth) checks.",
+      "tags": [],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Arrows",
+      "type": "Ammunition",
+      "cost": "1 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "Ammunition, sold in a set of 20 and stored in a quiver.",
+      "tags": [
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bolts",
+      "type": "Ammunition",
+      "cost": "1 GP",
+      "weight": 1.5,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "Ammunition, sold in a set of 20 and stored in a case.",
+      "tags": [
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bullets, Firearm",
+      "type": "Ammunition",
+      "cost": "3 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "Ammunition, sold in a set of 10 and stored in a pouch.",
+      "tags": [
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bullets, Sling",
+      "type": "Ammunition",
+      "cost": "4 CP",
+      "weight": 1.5,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "Ammunition, sold in a set of 20 and stored in a pouch.",
+      "tags": [
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Needles",
+      "type": "Ammunition",
+      "cost": "1 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "Ammunition, sold in a set of 50 and stored in a pouch.",
+      "tags": [
+        "Ammunition"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Club",
+      "type": "Melee Weapon",
+      "cost": "1 SP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools or Woodcarver's Tools",
+      "description": "**Damage:** 1d4 Bludgeoning",
+      "tags": [
+        "Simple Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Dagger",
+      "type": "Melee Weapon",
+      "cost": "2 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d4 Piercing",
+      "tags": [
+        "Simple Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Finesse",
+          "description": "When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls."
+        },
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Thrown (Range 20/60)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Nick",
+          "description": "When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Greatclub",
+      "type": "Melee Weapon",
+      "cost": "2 SP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools or Woodcarver's Tools",
+      "description": "**Damage:** 1d8 Bludgeoning",
+      "tags": [
+        "Simple Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Push",
+          "description": "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Handaxe",
+      "type": "Melee Weapon",
+      "cost": "5 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d6 Slashing",
+      "tags": [
+        "Simple Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Thrown (Range 20/60)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Javelin",
+      "type": "Melee Weapon",
+      "cost": "5 SP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d6 Piercing",
+      "tags": [
+        "Simple Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Thrown (Range 30/120)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Light Hammer",
+      "type": "Melee Weapon",
+      "cost": "2 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d4 Bludgeoning",
+      "tags": [
+        "Simple Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Thrown (Range 20/60)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Nick",
+          "description": "When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Mace",
+      "type": "Melee Weapon",
+      "cost": "5 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d6 Bludgeoning",
+      "tags": [
+        "Simple Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Mastery, Sap",
+          "description": "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Quarterstaff",
+      "type": "Melee Weapon",
+      "cost": "2 SP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Carpenter's Tools or Woodcarver's Tools",
+      "description": "**Damage:** 1d6 Bludgeoning",
+      "tags": [
+        "Simple Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Versatile (1d8)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Mastery, Topple",
+          "description": "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Sickle",
+      "type": "Melee Weapon",
+      "cost": "1 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d4 Slashing",
+      "tags": [
+        "Simple Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Mastery, Nick",
+          "description": "When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Spear",
+      "type": "Melee Weapon",
+      "cost": "1 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d6 Piercing",
+      "tags": [
+        "Simple Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Thrown (Range 20/60)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Versatile (1d8)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Sap",
+          "description": "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Dart",
+      "type": "Ranged Weapon",
+      "cost": "5 CP",
+      "weight": 0.25,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1d4 Piercing",
+      "tags": [
+        "Simple Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Finesse",
+          "description": "When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls."
+        },
+        {
+          "name": "Thrown (Range 20/60)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Light Crossbow",
+      "type": "Ranged Weapon",
+      "cost": "25 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1d8 Piercing",
+      "tags": [
+        "Simple Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 80/320; Bolt)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Loading",
+          "description": "You can fire only one piece of ammunition from a Loading weapon when you use an action, a Bonus Action, or a Reaction to fire it, regardless of the number of attacks you can normally make."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Shortbow",
+      "type": "Ranged Weapon",
+      "cost": "25 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1d6 Piercing",
+      "tags": [
+        "Simple Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 80/320; Arrow)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Sling",
+      "type": "Ranged Weapon",
+      "cost": "1 SP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "**Damage:** 1d4 Bludgeoning",
+      "tags": [
+        "Simple Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 30/120; Bullet)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Battleaxe",
+      "type": "Melee Weapon",
+      "cost": "10 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Versatile (1d10)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Mastery, Topple",
+          "description": "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Flail",
+      "type": "Melee Weapon",
+      "cost": "10 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Bludgeoning",
+      "tags": [
+        "Martial Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Mastery, Sap",
+          "description": "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Glaive",
+      "type": "Melee Weapon",
+      "cost": "20 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d10 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Reach",
+          "description": "A Reach weapon adds 5 feet to your reach when you attack with it, as well as when determining your reach for Opportunity Attacks with it."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Graze",
+          "description": "If your attack roll with this weapon misses a creature, you can deal damage to that creature equal to the ability modifier you used to make the attack roll. This damage is the same type dealt by the weapon, and the damage can be increased only by increasing the ability modifier."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Greataxe",
+      "type": "Melee Weapon",
+      "cost": "30 GP",
+      "weight": 7.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d12 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Cleave",
+          "description": "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon's damage, but don't add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Greatsword",
+      "type": "Melee Weapon",
+      "cost": "50 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 2d6 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Graze",
+          "description": "If your attack roll with this weapon misses a creature, you can deal damage to that creature equal to the ability modifier you used to make the attack roll. This damage is the same type dealt by the weapon, and the damage can be increased only by increasing the ability modifier."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Halberd",
+      "type": "Melee Weapon",
+      "cost": "20 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d10 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Reach",
+          "description": "A Reach weapon adds 5 feet to your reach when you attack with it, as well as when determining your reach for Opportunity Attacks with it."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Cleave",
+          "description": "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon's damage, but don't add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lance",
+      "type": "Melee Weapon",
+      "cost": "10 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d10 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Reach",
+          "description": "A Reach weapon adds 5 feet to your reach when you attack with it, as well as when determining your reach for Opportunity Attacks with it."
+        },
+        {
+          "name": "Two-Handed (unless mounted)",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Topple",
+          "description": "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Longsword",
+      "type": "Melee Weapon",
+      "cost": "15 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Versatile (1d10)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Mastery, Sap",
+          "description": "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Maul",
+      "type": "Melee Weapon",
+      "cost": "10 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 2d6 Bludgeoning",
+      "tags": [
+        "Martial Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Topple",
+          "description": "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Morningstar",
+      "type": "Melee Weapon",
+      "cost": "15 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Mastery, Sap",
+          "description": "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pike",
+      "type": "Melee Weapon",
+      "cost": "5 GP",
+      "weight": 18.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d10 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Reach",
+          "description": "A Reach weapon adds 5 feet to your reach when you attack with it, as well as when determining your reach for Opportunity Attacks with it."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Mastery, Push",
+          "description": "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Rapier",
+      "type": "Melee Weapon",
+      "cost": "25 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Finesse",
+          "description": "When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Scimitar",
+      "type": "Melee Weapon",
+      "cost": "25 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d6 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Finesse",
+          "description": "When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls."
+        },
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Mastery, Nick",
+          "description": "When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Shortsword",
+      "type": "Melee Weapon",
+      "cost": "10 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d6 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Finesse",
+          "description": "When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls."
+        },
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Trident",
+      "type": "Melee Weapon",
+      "cost": "5 GP",
+      "weight": 4.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Thrown (Range 20/60)",
+          "description": "If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon."
+        },
+        {
+          "name": "Versatile (1d10)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Topple",
+          "description": "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Warhammer",
+      "type": "Melee Weapon",
+      "cost": "15 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Bludgeoning",
+      "tags": [
+        "Martial Weapon",
+        "Bludgeoning"
+      ],
+      "properties": [
+        {
+          "name": "Versatile (1d10)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Mastery, Push",
+          "description": "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "War Pick",
+      "type": "Melee Weapon",
+      "cost": "5 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "**Damage:** 1d8 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Versatile (1d10)",
+          "description": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+        },
+        {
+          "name": "Mastery, Sap",
+          "description": "If you hit a creature with this weapon, that creature has Disadvantage on its next attack roll before the start of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Whip",
+      "type": "Melee Weapon",
+      "cost": "2 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "**Damage:** 1d4 Slashing",
+      "tags": [
+        "Martial Weapon",
+        "Slashing"
+      ],
+      "properties": [
+        {
+          "name": "Finesse",
+          "description": "When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls."
+        },
+        {
+          "name": "Reach",
+          "description": "A Reach weapon adds 5 feet to your reach when you attack with it, as well as when determining your reach for Opportunity Attacks with it."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Blowgun",
+      "type": "Ranged Weapon",
+      "cost": "10 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 25/100; Needle)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Loading",
+          "description": "You can fire only one piece of ammunition from a Loading weapon when you use an action, a Bonus Action, or a Reaction to fire it, regardless of the number of attacks you can normally make."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Hand Crossbow",
+      "type": "Ranged Weapon",
+      "cost": "75 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1d6 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 30/120; Bolt)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Light",
+          "description": "When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative."
+        },
+        {
+          "name": "Loading",
+          "description": "You can fire only one piece of ammunition from a Loading weapon when you use an action, a Bonus Action, or a Reaction to fire it, regardless of the number of attacks you can normally make."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Heavy Crossbow",
+      "type": "Ranged Weapon",
+      "cost": "50 GP",
+      "weight": 18.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1d10 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 100/400; Bolt)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Loading",
+          "description": "You can fire only one piece of ammunition from a Loading weapon when you use an action, a Bonus Action, or a Reaction to fire it, regardless of the number of attacks you can normally make."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Push",
+          "description": "If you hit a creature with this weapon, you can push the creature up to 10 feet straight away from yourself if it is Large or smaller."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Longbow",
+      "type": "Ranged Weapon",
+      "cost": "50 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Woodcarver's Tools",
+      "description": "**Damage:** 1d8 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 150/600; Arrow)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Heavy",
+          "description": "You have Disadvantage on attack rolls with a Heavy weapon if it's a Melee weapon and your Strength score isn't at least 13 or if it's a Ranged weapon and your Dexterity score isn't at least 13."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Musket",
+      "type": "Ranged Weapon",
+      "cost": "500 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "**Damage:** 1d12 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 40/120; Bullet)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Loading",
+          "description": "You can fire only one piece of ammunition from a Loading weapon when you use an action, a Bonus Action, or a Reaction to fire it, regardless of the number of attacks you can normally make."
+        },
+        {
+          "name": "Two-Handed",
+          "description": "A Two-Handed weapon requires two hands when you attack with it."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Slow",
+          "description": "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn't exceed 10 feet."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pistol",
+      "type": "Ranged Weapon",
+      "cost": "250 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Tinker's Tools",
+      "description": "**Damage:** 1d10 Piercing",
+      "tags": [
+        "Martial Weapon",
+        "Piercing"
+      ],
+      "properties": [
+        {
+          "name": "Ammunition (Range 30/90; Bullet)",
+          "description": "You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. The type of ammunition required is specified with the weapon's range. Each attack expends one piece of ammunition. Drawing the ammunition is part of the attack (you need a free hand to load a one-handed weapon). After a fight, you can spend 1 minute to recover half the ammunition (round down) you used in the fight; the rest is lost."
+        },
+        {
+          "name": "Loading",
+          "description": "You can fire only one piece of ammunition from a Loading weapon when you use an action, a Bonus Action, or a Reaction to fire it, regardless of the number of attacks you can normally make."
+        },
+        {
+          "name": "Range",
+          "description": "A Range weapon has a range in parentheses after the Ammunition or Thrown property. The range lists two numbers. The first is the weapon's normal range in feet, and the second is the weapon's long range. When attacking a target beyond normal range, you have Disadvantage on the attack roll. You can't attack a target beyond the long range."
+        },
+        {
+          "name": "Mastery, Vex",
+          "description": "If you hit a creature with this weapon and deal damage to the creature, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Padded Armor",
+      "type": "Armor",
+      "cost": "5 GP",
+      "weight": 8.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Weaver's Tools",
+      "description": "While wearing this armor, your Armor Class is 11 + your Dexterity modifier.\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Light Armor",
+          "description": "Takes 1 minute to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Leather Armor",
+      "type": "Armor",
+      "cost": "10 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "While wearing this armor, your Armor Class is 11 + your Dexterity modifier.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Light Armor",
+          "description": "Takes 1 minute to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Studded Leather Armor",
+      "type": "Armor",
+      "cost": "45 GP",
+      "weight": 13.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "While wearing this armor, your Armor Class is 12 + your Dexterity modifier.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Light Armor",
+          "description": "Takes 1 minute to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Hide Armor",
+      "type": "Armor",
+      "cost": "10 GP",
+      "weight": 12.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Leatherworker's Tools",
+      "description": "While wearing this armor, your Armor Class is 12 + your Dexterity modifier (maximum bonus +2).",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Medium Armor",
+          "description": "Takes 5 minutes to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Chain Shirt",
+      "type": "Armor",
+      "cost": "50 GP",
+      "weight": 20.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 13 + your Dexterity modifier (maximum bonus +2).",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Medium Armor",
+          "description": "Takes 5 minutes to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Scale Mail",
+      "type": "Armor",
+      "cost": "50 GP",
+      "weight": 45.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 14 + your Dexterity modifier (maximum bonus +2).\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Medium Armor",
+          "description": "Takes 5 minutes to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Breastplate",
+      "type": "Armor",
+      "cost": "400 GP",
+      "weight": 20.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 14 + your Dexterity modifier (maximum bonus +2).",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Medium Armor",
+          "description": "Takes 5 minutes to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Half Plate Armor",
+      "type": "Armor",
+      "cost": "750 GP",
+      "weight": 40.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 15 + your Dexterity modifier (maximum bonus +2).\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Medium Armor",
+          "description": "Takes 5 minutes to don and 1 minute to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ring Mail",
+      "type": "Armor",
+      "cost": "30 GP",
+      "weight": 40.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 14.\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Heavy Armor",
+          "description": "Takes 10 minutes to don and 5 minutes to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Chain Mail",
+      "type": "Armor",
+      "cost": "75 GP",
+      "weight": 55.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 16.\nIf your Strength score is less than 13, your speed is reduced by 10 feet.\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Heavy Armor",
+          "description": "Takes 10 minutes to don and 5 minutes to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Splint Armor",
+      "type": "Armor",
+      "cost": "200 GP",
+      "weight": 60.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 17.\nIf your Strength score is less than 15, your speed is reduced by 10 feet.\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Heavy Armor",
+          "description": "Takes 10 minutes to don and 5 minutes to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Plate Armor",
+      "type": "Armor",
+      "cost": "1,500 GP",
+      "weight": 65.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "Smith's Tools",
+      "description": "While wearing this armor, your Armor Class is 18.\nIf your Strength score is less than 15, your speed is reduced by 10 feet.\nYou have Disadvantage on Dexterity (Stealth) checks while wearing this armor.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Heavy Armor",
+          "description": "Takes 10 minutes to don and 5 minutes to doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Shield",
+      "type": "Shield",
+      "cost": "10 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "While holding this shield, your Armor Class increases by 2.",
+      "tags": [],
+      "properties": [
+        {
+          "name": "Shield",
+          "description": "Takes a Utilize action to don or doff."
+        }
+      ],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Alchemist's Supplies",
+      "type": "Tool",
+      "cost": "50 GP",
+      "weight": 8.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Identify a substance (DC 15), or start a fire (DC 15)\n**Craft:** [[equipment:Acid]], [[equipment:Alchemist's Fire]], [[equipment:Component Pouch]], [[equipment:Oil]], [[equipment:Paper]], [[equipment:Perfume]]",
+      "tags": [
+        "Artisan Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Brewer's Supplies",
+      "type": "Tool",
+      "cost": "20 GP",
+      "weight": 9.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Detect poisoned drink (DC 15), or identify alcohol (DC 10)\n**Craft:** [[equipment:Antitoxin]]",
+      "tags": [
+        "Artisan Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Calligrapher's Supplies",
+      "type": "Tool",
+      "cost": "10 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Write text with impressive flourishes that guard against forgery (DC 15)\n**Craft:** [[equipment:Ink]], [[magic_item:Spell Scroll]]",
+      "tags": [
+        "Artisan Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Carpenter's Tools",
+      "type": "Tool",
+      "cost": "8 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Strength\n**Utilize:** Seal or pry open a door or container (DC 20)\n**Craft:** [[equipment:Club]], [[equipment:Greatclub]], [[equipment:Quarterstaff]], [[equipment:Barrel]], [[equipment:Chest]], [[equipment:Ladder]], [[equipment:Pole]], [[equipment:Ram, Portable|Portable Ram]], [[equipment:Torch]]",
+      "tags": [
+        "Artisan Tool",
+        "Strength"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Cartographer's Tools",
+      "type": "Tool",
+      "cost": "15 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Draft a map of a small area (DC 15)\n**Craft:** [[equipment:Map]]",
+      "tags": [
+        "Artisan Tool",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Cobbler's Tools",
+      "type": "Tool",
+      "cost": "5 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Modify footwear to give Advantage on the wearer's next Dexterity (Acrobatics) check (DC 10)\n**Craft:** [[equipment:Climber's Kit]]",
+      "tags": [
+        "Artisan Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Cook's Utensils",
+      "type": "Tool",
+      "cost": "1 GP",
+      "weight": 8.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Improve food's flavor (DC 10), or detect spoiled or poisoned food (DC 15)\n**Craft:** [[equipment:Rations]]",
+      "tags": [
+        "Artisan Tool",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Glassblower's Tools",
+      "type": "Tool",
+      "cost": "30 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Discern what a glass object held in the past 24 hours (DC 15)\n**Craft:** [[equipment:Bottle, Glass|Glass Bottle]], [[equipment:Magnifying Glass]], [[equipment:Spyglass]], [[equipment:Vial]]",
+      "tags": [
+        "Artisan Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Jeweler's Tools",
+      "type": "Tool",
+      "cost": "25 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Discern a gem's value (DC 15)\n**Craft:** [[equipment:Arcane Focus]], [[equipment:Holy Symbol]]",
+      "tags": [
+        "Artisan Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Leatherworker's Tools",
+      "type": "Tool",
+      "cost": "5 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Add a design to a leather item (DC 10)\n**Craft:** [[equipment:Sling]], [[equipment:Whip]], [[equipment:Hide Armor]], [[equipment:Leather Armor]], [[equipment:Studded Leather Armor]], [[equipment:Backpack]], [[equipment:Case, Crossbow Bolt|Crossbow Bolt Case]], [[equipment:Case, Map or Scroll|Map or Scroll Case]], [[equipment:Parchment]], [[equipment:Pouch]], [[equipment:Quiver]], [[equipment:Waterskin]]",
+      "tags": [
+        "Artisan Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Mason's Tools",
+      "type": "Tool",
+      "cost": "10 GP",
+      "weight": 8.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Strength\n**Utilize:** Chisel a symbol or hole in stone (DC 10)\n**Craft:** [[equipment:Block and Tackle]]",
+      "tags": [
+        "Artisan Tool",
+        "Strength"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Painter's Supplies",
+      "type": "Tool",
+      "cost": "10 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Paint a recognizable image of something you've seen (DC 10)\n**Craft:** [[equipment:Druidic Focus]], [[equipment:Holy Symbol]]",
+      "tags": [
+        "Artisan Tool",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Potter's Tools",
+      "type": "Tool",
+      "cost": "10 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Discern what a ceramic object held in the past 24 hours (DC 15)\n**Craft:** [[equipment:Jug]], [[equipment:Lamp]]",
+      "tags": [
+        "Artisan Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Smith's Tools",
+      "type": "Tool",
+      "cost": "20 GP",
+      "weight": 8.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Strength\n**Utilize:** Pry open a door or container (DC 20)\n**Craft:** Any Melee weapon (except [[equipment:Club]], [[equipment:Greatclub]], [[equipment:Quarterstaff]], and [[equipment:Whip]]), Medium armor (except [[equipment:Hide Armor|Hide]]), Heavy armor, [[equipment:Ball Bearings]], [[equipment:Bucket]], [[equipment:Caltrops]], [[equipment:Chain]], [[equipment:Crowbar]], [[equipment:Bullets, Firearm|Firearm Bullets]], [[equipment:Grappling Hook]], [[equipment:Pot, Iron|Iron Pot]], [[equipment:Spikes, Iron|Iron Spikes]], [[equipment:Bullets, Sling|Sling Bullets]]",
+      "tags": [
+        "Artisan Tool",
+        "Strength"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Tinker's Tools",
+      "type": "Tool",
+      "cost": "50 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Assemble a Tiny item composed of scrap, which falls apart in 1 minute (DC 20)\n**Craft:** [[equipment:Musket]], [[equipment:Pistol]], [[equipment:Bell]], [[equipment:Lantern, Bullseye|Bullseye Lantern]], [[equipment:Flask]], [[equipment:Lantern, Hooded|Hooded Lantern]], [[equipment:Hunting Trap]], [[equipment:Lock]], [[equipment:Manacles]], [[equipment:Mirror]], [[equipment:Shovel]], [[equipment:Signal Whistle]], [[equipment:Tinderbox]]",
+      "tags": [
+        "Artisan Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Weaver's Tools",
+      "type": "Tool",
+      "cost": "1 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Mend a tear in clothing (DC 10), or sew a Tiny design (DC 10)\n**Craft:** [[equipment:Padded Armor]], [[equipment:Basket]], [[equipment:Bedroll]], [[equipment:Blanket]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Net]], [[equipment:Robe]], [[equipment:Rope]], [[equipment:Sack]], [[equipment:String]], [[equipment:Tent]], [[equipment:Clothes, Traveler's|Traveler's Clothes]]",
+      "tags": [
+        "Artisan Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Woodcarver's Tools",
+      "type": "Tool",
+      "cost": "1 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Carve a pattern in wood (DC 10)\n**Craft:** [[equipment:Club]], [[equipment:Greatclub]], [[equipment:Quarterstaff]], Ranged weapons (except [[equipment:Pistol]], [[equipment:Musket]], and [[equipment:Sling]]), [[equipment:Arcane Focus]], [[equipment:Arrows]], [[equipment:Bolts]], [[equipment:Druidic Focus]], [[equipment:Ink Pen]], [[equipment:Needles]]",
+      "tags": [
+        "Artisan Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Disguise Kit",
+      "type": "Tool",
+      "cost": "25 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Apply makeup (DC 10)\n**Craft:** [[equipment:Costume]]",
+      "tags": [
+        "Other Tool",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Forgery Kit",
+      "type": "Tool",
+      "cost": "15 GP",
+      "weight": 5.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Mimic 10 or fewer words of someone else's handwriting (DC 15), or duplicate a wax seal (DC 20)",
+      "tags": [
+        "Other Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Herbalism Kit",
+      "type": "Tool",
+      "cost": "5 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Identify a plant (DC 10)\n**Craft:** [[equipment:Antitoxin]], [[equipment:Candle]], [[equipment:Healer's Kit]], [[equipment:Potion of Healing]]",
+      "tags": [
+        "Other Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Navigator's Tools",
+      "type": "Tool",
+      "cost": "25 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Plot a course (DC 10), or determine position by stargazing (DC 15)",
+      "tags": [
+        "Other Tool",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Poisoner's Kit",
+      "type": "Tool",
+      "cost": "50 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Intelligence\n**Utilize:** Detect a poisoned object (DC 10)\n**Craft:** [[equipment:Poison, Basic|Basic Poison]]",
+      "tags": [
+        "Other Tool",
+        "Intelligence"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Thieves' Tools",
+      "type": "Tool",
+      "cost": "25 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Dexterity\n**Utilize:** Pick a lock (DC 15), or disarm a trap (DC 15)",
+      "tags": [
+        "Other Tool",
+        "Dexterity"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Gaming Set",
+      "type": "Tool",
+      "cost": "Varies",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Discern whether someone is cheating (DC 10), or win the game (DC 20)\n**Variants:** [[equipment:Dice]], [[equipment:Dragonchess]], [[equipment:Playing Cards]], [[equipment:Three-dragon Ante]]\nEach variant requires a separate proficiency.",
+      "tags": [
+        "Gaming Set",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Dice",
+      "type": "Tool",
+      "cost": "1 SP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Discern whether someone is cheating (DC 10), or win the game (DC 20)\nThis is a variant of [[equipment:Gaming Set]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Gaming Set",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Dragonchess",
+      "type": "Tool",
+      "cost": "1 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Discern whether someone is cheating (DC 10), or win the game (DC 20)\nThis is a variant of [[equipment:Gaming Set]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Gaming Set",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Playing Cards",
+      "type": "Tool",
+      "cost": "5 SP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Discern whether someone is cheating (DC 10), or win the game (DC 20)\nThis is a variant of [[equipment:Gaming Set]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Gaming Set",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Three-dragon Ante",
+      "type": "Tool",
+      "cost": "1 GP",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Wisdom\n**Utilize:** Discern whether someone is cheating (DC 10), or win the game (DC 20)\nThis is a variant of [[equipment:Gaming Set]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Gaming Set",
+        "Wisdom"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Musical Instrument",
+      "type": "Tool",
+      "cost": "Varies",
+      "weight": 0.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\n**Variants:** [[equipment:Bagpipes]], [[equipment:Drum]], [[equipment:Dulcimer]], [[equipment:Flute]], [[equipment:Horn]], [[equipment:Lute]], [[equipment:Lyre]], [[equipment:Pan Flute]], [[equipment:Shawm]], [[equipment:Viol]]\nEach variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bagpipes",
+      "type": "Tool",
+      "cost": "30 GP",
+      "weight": 6.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Drum",
+      "type": "Tool",
+      "cost": "6 GP",
+      "weight": 3.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Dulcimer",
+      "type": "Tool",
+      "cost": "25 GP",
+      "weight": 10.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Flute",
+      "type": "Tool",
+      "cost": "2 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Horn",
+      "type": "Tool",
+      "cost": "3 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lute",
+      "type": "Tool",
+      "cost": "35 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Lyre",
+      "type": "Tool",
+      "cost": "30 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pan Flute",
+      "type": "Tool",
+      "cost": "12 GP",
+      "weight": 2.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Shawm",
+      "type": "Tool",
+      "cost": "2 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Viol",
+      "type": "Tool",
+      "cost": "30 GP",
+      "weight": 1.0,
+      "source": "Player's Handbook (2024)",
+      "crafting_materials": [],
+      "crafting_tool": "",
+      "description": "**Ability:** Charisma\n**Utilize:** Play a known tune (DC 10), or improvise a song (DC 15)\nThis is a variant of [[equipment:Musical Instrument]]. Each variant requires a separate proficiency.",
+      "tags": [
+        "Musical Instrument",
+        "Charisma"
+      ],
+      "properties": [],
+      "is_official": true,
+      "is_custom": false
+    }
+  ]
+}

@@ -38,7 +38,7 @@ class ThemeColors:
     # === Accent Colors ===
     accent_primary: ThemeColor = ("#3b8ed0", "#1f538d")  # Primary accent (selected items, active tabs)
     accent_hover: ThemeColor = ("#2d7fc4", "#2a6eb0")  # Hover state for accent
-    spell_link: ThemeColor = ("#67bed9", "#67bed9")  # Spell link text color
+    spell_link: ThemeColor = ("#67bed9", "#67bed9")  # Hyperlink text color (spells, feats, equipment, and other object links)
     
     # === Button Colors ===
     button_normal: ThemeColor = ("#c0c0c0", "#4a4a4a")  # Normal button background
@@ -122,6 +122,7 @@ def _create_blue_theme() -> ThemeColors:
     colors.accent_hover = ("#2563eb", "#1d4ed8")
     colors.button_normal = ("#bfdbfe", "#1e40af")  # Blue tones
     colors.button_hover = ("#93c5fd", "#1e3a8a")
+    colors.spell_link = ("#0891b2", "#22d3ee")  # Teal-cyan - distinct from the blue accent
     return colors
 
 
@@ -132,6 +133,7 @@ def _create_green_theme() -> ThemeColors:
     colors.accent_hover = ("#059669", "#047857")
     colors.button_normal = ("#d1fae5", "#064e3b")
     colors.button_hover = ("#a7f3d0", "#065f46")
+    colors.spell_link = ("#0284c7", "#38bdf8")  # Sky blue - pops against the green accent
     return colors
 
 
@@ -142,6 +144,7 @@ def _create_purple_theme() -> ThemeColors:
     colors.accent_hover = ("#7c3aed", "#6d28d9")
     colors.button_normal = ("#e9d5ff", "#581c87")
     colors.button_hover = ("#ddd6fe", "#6b21a8")
+    colors.spell_link = ("#0369a1", "#7dd3fc")  # Sky blue - distinct from the purple accent
     return colors
 
 
@@ -152,6 +155,7 @@ def _create_red_theme() -> ThemeColors:
     colors.accent_hover = ("#dc2626", "#b91c1c")
     colors.button_normal = ("#fecaca", "#991b1b")
     colors.button_hover = ("#fca5a5", "#7f1d1d")
+    colors.spell_link = ("#1d4ed8", "#60a5fa")  # Blue - distinct from the red accent
     return colors
 
 
@@ -162,6 +166,7 @@ def _create_orange_theme() -> ThemeColors:
     colors.accent_hover = ("#ea580c", "#c2410c")
     colors.button_normal = ("#fed7aa", "#9a3412")
     colors.button_hover = ("#fdba74", "#7c2d12")
+    colors.spell_link = ("#1d4ed8", "#7dd3fc")  # Blue - distinct from the orange accent
     return colors
 
 
@@ -172,6 +177,7 @@ def _create_amber_theme() -> ThemeColors:
     colors.accent_hover = ("#d97706", "#b45309")
     colors.button_normal = ("#fde68a", "#78350f")
     colors.button_hover = ("#fcd34d", "#92400e")
+    colors.spell_link = ("#1e40af", "#93c5fd")  # Blue - distinct from the amber accent
     return colors
 
 
@@ -197,6 +203,7 @@ def _create_midnight_blue_theme() -> ThemeColors:
     colors.text_primary = ("#dbeafe", "#e6f2ff")
     colors.button_normal = ("#0b3a66", "#0b3a66")
     colors.button_hover = ("#134e8a", "#134e8a")
+    colors.spell_link = ("#fbbf24", "#fbbf24")  # Amber - warm contrast against the all-blue palette
     return colors
 
 
@@ -210,6 +217,7 @@ def _create_sepia_theme() -> ThemeColors:
     colors.text_primary = ("#2b1f13", "#f4efe6")
     colors.button_normal = ("#d6b48a", "#6b4020")
     colors.button_hover = ("#c49f6f", "#7a4f2a")
+    colors.spell_link = ("#2563eb", "#7dd3fc")  # Cool blue - stands out against the warm sepia tones
     return colors
 
 
@@ -223,6 +231,7 @@ def _create_greyscale_theme() -> ThemeColors:
     colors.text_primary = ("#0b0b0b", "#ffffff")
     colors.button_normal = ("#d1d5db", "#2b2b2b")
     colors.button_hover = ("#9ca3af", "#3a3a3a")
+    colors.spell_link = ("#2563eb", "#60a5fa")  # The one spot of color in an otherwise monochrome theme
     return colors
 
 
@@ -244,6 +253,7 @@ def _create_solarized_theme() -> ThemeColors:
     colors.text_primary = ("#073642", "#839496")
     colors.button_normal = ("#eee8d5", "#073642")
     colors.button_hover = ("#e6dec4", "#0b3946")
+    colors.spell_link = ("#6c71c4", "#6c71c4")  # Solarized violet - distinct from the cyan-blue accent
     return colors
 
 
@@ -257,6 +267,7 @@ def _create_forest_theme() -> ThemeColors:
     colors.text_primary = ("#072b19", "#dfffe6")
     colors.button_normal = ("#c7f0d0", "#054d2b")
     colors.button_hover = ("#9fe1ac", "#06663a")
+    colors.spell_link = ("#b45309", "#fbbf24")  # Amber - pops against the all-green palette
     return colors
 
 
@@ -270,6 +281,7 @@ def _create_monokai_theme() -> ThemeColors:
     colors.text_primary = ("#f8f8f2", "#f8f8f2")
     colors.button_normal = ("#5a5a50", "#5a5a50")
     colors.button_hover = ("#75715e", "#75715e")
+    colors.spell_link = ("#66d9ef", "#66d9ef")  # Monokai's signature cyan
     return colors
 
 
@@ -528,6 +540,7 @@ COLOR_GROUPS = {
     "Accents": [
         ("accent_primary", "Primary Accent"),
         ("accent_hover", "Accent Hover"),
+        ("spell_link", "Hyperlink Text"),
     ],
     "Buttons": [
         ("button_normal", "Normal Button"),
