@@ -23,6 +23,7 @@ from feat import get_feat_manager
 from atomic_io import atomic_write_json
 from paths import user_data_path
 from ui.platform_compat import bind_right_click
+from ui.object_link_widgets import attach_object_linking
 import json
 import os
 
@@ -3142,6 +3143,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 font=ctk.CTkFont(size=11)
             )
             self.features_text.pack(fill="x", pady=(0, 0))
+            attach_object_linking(self.features_text, self.theme)
             self.features_text.insert("1.0", sheet.features_and_traits)
             self._bind_autosave(self.features_text, "features_and_traits")
         else:
@@ -3150,6 +3152,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 features_frame, height=0,
                 font=ctk.CTkFont(size=11)
             )
+            attach_object_linking(self.features_text, self.theme)
             self.features_text.insert("1.0", sheet.features_and_traits)
         
         # Feats subsection
@@ -3750,6 +3753,7 @@ class CharacterSheetView(ctk.CTkFrame):
             font=ctk.CTkFont(size=11)
         )
         self.notes_text.pack(fill="both", expand=True, padx=8, pady=8)
+        attach_object_linking(self.notes_text, self.theme)
         self.notes_text.insert("1.0", sheet.notes)
         self.notes_text.bind("<FocusOut>", lambda e: self._save_text_field(
             "notes", self.notes_text.get("1.0", "end-1c")
@@ -4111,6 +4115,7 @@ class CharacterSheetView(ctk.CTkFrame):
             font=ctk.CTkFont(size=11)
         )
         self.equipment_text.pack(fill="x", padx=10, pady=(0, 10))
+        attach_object_linking(self.equipment_text, self.theme)
         self.equipment_text.insert("1.0", self.current_sheet.equipment)
         self.equipment_text.bind("<FocusOut>", lambda e: self._save_text_field(
             "equipment", self.equipment_text.get("1.0", "end-1c")

@@ -41,8 +41,12 @@ a = Analysis(
         ('feats.json', '.'),
         ('classes.json', '.'),
         ('backgrounds.json', '.'),
+        ('equipment.json', '.'),
         ('tools', 'tools'),
         ('Spellbook Icon.png', '.'),
+    ] + [
+        (f, '.') for f in ('magic_items.json',)
+        if os.path.exists(os.path.join(SPECPATH, f))
     ],
     hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
     hookspath=[],

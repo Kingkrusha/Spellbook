@@ -31,12 +31,14 @@ class FeatListPanel(ctk.CTkFrame):
         self._feat_buttons: List[ctk.CTkButton] = []
         self._pending_after_id: Optional[str] = None  # Track pending after() calls
         self.theme = get_theme_manager()
-        
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._refresh_buttons()
     
     def _create_widgets(self):
@@ -273,12 +275,14 @@ class FeatDetailPanel(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, corner_radius=10)
         self.theme = get_theme_manager()
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._current_feat: Optional[Feat] = None
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._update_colors()
     
     def _create_widgets(self):
@@ -375,7 +379,14 @@ class FeatDetailPanel(ctk.CTkFrame):
         for para_idx, paragraph in enumerate(paragraphs):
             if not paragraph.strip():
                 continue
-            
+
+            # A markdown table block (Adept spell lists, roll tables, ...) is drawn as a real table
+            if paragraph.strip().startswith('|'):
+                from ui.rich_text_utils import render_description_blocks
+                self._desc_widgets.extend(render_description_blocks(
+                    self.desc_frame, paragraph, self.theme, bold_pattern=r'\*([^*]+)\*'))
+                continue
+
             # Create a DynamicText for this paragraph with single asterisk bold pattern
             dt = DynamicText(
                 self.desc_frame, self.theme,
@@ -485,6 +496,8 @@ class FeatsView(ctk.CTkFrame):
         self._update_context_menu_colors()
         if hasattr(self, 'paned'):
             self._update_paned_colors()
+        if hasattr(self, 'compare_container'):
+            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
     
     def _update_context_menu_colors(self):
         """Update context menu colors for theme."""
@@ -644,7 +657,9 @@ class FeatsView(ctk.CTkFrame):
     def _create_compare_panel(self):
         """Create the compare feat panel (hidden initially)."""
         # Container frame that will replace the feat list when comparing
-        self.compare_container = ctk.CTkFrame(self.left_container, corner_radius=10)
+        self.compare_container = ctk.CTkFrame(
+            self.left_container, corner_radius=10,
+            fg_color=self.theme.get_current_color('bg_secondary'))
         
         # Header with close button
         header = ctk.CTkFrame(self.compare_container, fg_color="transparent")
@@ -780,7 +795,7 @@ class FeatsView(ctk.CTkFrame):
             # Search filter
             if search_text:
                 if (search_text not in feat.name.lower() and 
-                    search_text not in feat.description.lower()):
+                    search_text not in feat.plain_description().lower()):
                     continue
             
             # Type filter
@@ -824,10 +839,20 @@ class FeatsView(ctk.CTkFrame):
             self.delete_btn.configure(state="disabled")
     
     def _on_add_feat(self):
-        """Open dialog to add a new feat."""
+        """Open dialog to add a new feat (manual entry or auto-detect from text)."""
+        from ui.feat_text_import import AddFeatSourceDialog
+
+        source_dialog = AddFeatSourceDialog(self)
+        self.wait_window(source_dialog)
+        if source_dialog.result is None:
+            return
+        if source_dialog.result == "auto":
+            self._on_add_feat_from_text()
+            return
+
         dialog = FeatEditorDialog(self, "Add Feat")
         self.wait_window(dialog)
-        
+
         if dialog.result:
             dialog.result.is_custom = True
             if self.feat_manager.add_feat(dialog.result):
@@ -835,7 +860,68 @@ class FeatsView(ctk.CTkFrame):
                 messagebox.showinfo("Success", f"Feat '{dialog.result.name}' added!")
             else:
                 messagebox.showerror("Error", f"A feat named '{dialog.result.name}' already exists.")
-    
+
+    def _on_add_feat_from_text(self):
+        """Paste a block of text, auto-detect feat fields, and review each draft."""
+        from ui.feat_text_import import FeatTextImportDialog
+
+        import_dialog = FeatTextImportDialog(self)
+        self.wait_window(import_dialog)
+        parsed_list = import_dialog.result
+        if not parsed_list:
+            return
+
+        try:
+            from text_import.feat_parser import to_feat
+        except Exception as exc:
+            messagebox.showerror("Auto-Detect Unavailable",
+                                 f"Could not load the text importer:\n{exc}")
+            return
+
+        added = []
+        total = len(parsed_list)
+        for idx, parsed in enumerate(parsed_list, 1):
+            try:
+                draft = to_feat(parsed)
+            except Exception as exc:
+                messagebox.showerror("Parse Error",
+                                     f"Could not build feat {idx} of {total}:\n{exc}")
+                continue
+
+            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
+            progress = f"{idx} of {total}" if total > 1 else ""
+
+            editor = FeatEditorDialog(
+                self, f"Review Feat: {draft.name or 'Untitled'}",
+                prefill_feat=draft, review_fields=review, batch_progress=progress,
+            )
+            self.wait_window(editor)
+
+            if editor.result:
+                editor.result.is_custom = True
+                if self.feat_manager.add_feat(editor.result):
+                    added.append(editor.result.name)
+                else:
+                    messagebox.showerror(
+                        "Error",
+                        f"A feat named '{editor.result.name}' already exists. "
+                        "It was not added.")
+            elif idx < total:
+                if not messagebox.askyesno(
+                        "Continue?",
+                        "Skip this feat and continue reviewing the remaining "
+                        f"{total - idx} feat(s)?"):
+                    break
+
+        if added:
+            self._load_feats()
+            if len(added) > 1:
+                messagebox.showinfo("Feats Added",
+                                    f"Added {len(added)} feats:\n" + "\n".join(added))
+            else:
+                messagebox.showinfo("Success", f"Feat '{added[0]}' added!")
+
+
     def _on_edit_feat(self):
         """Edit the selected feat."""
         feat = self.list_panel.get_selected_feat()
@@ -876,22 +962,31 @@ class FeatsView(ctk.CTkFrame):
 class FeatEditorDialog(ctk.CTkToplevel):
     """Dialog for adding/editing a feat."""
     
-    def __init__(self, parent, title: str, feat: Optional[Feat] = None):
+    def __init__(self, parent, title: str, feat: Optional[Feat] = None,
+                 prefill_feat: Optional[Feat] = None, review_fields: Optional[List[str]] = None,
+                 batch_progress: str = ""):
         super().__init__(parent)
         self.title(title)
         self.geometry("600x750")
         self.transient(parent)
         self.grab_set()
-        
+
         self.theme = get_theme_manager()
         self.result: Optional[Feat] = None
         self._editing_feat = feat
-        
+        # Auto-detect pre-fill: populate the form from parsed text but keep this
+        # a brand-new feat, and mark fields for the reviewer to double-check.
+        self._review_fields = set(review_fields or [])
+        self._batch_progress = batch_progress
+
         self._create_widgets()
-        
+
         if feat:
             self._populate_from_feat(feat)
-        
+        elif prefill_feat:
+            self._populate_from_feat(prefill_feat)
+            self._apply_review_highlights()
+
         # Center dialog
         self.update_idletasks()
         x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
@@ -904,7 +999,8 @@ class FeatEditorDialog(ctk.CTkToplevel):
         
         scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=20, pady=20)
-        
+        self._scroll = scroll
+
         self.feat_manager = get_feat_manager()
         
         # Name
@@ -1034,7 +1130,75 @@ class FeatEditorDialog(ctk.CTkToplevel):
             self.set_spells_entry.insert(0, ", ".join(feat.set_spells))
         
         self.desc_text.insert("1.0", feat.description)
-    
+
+    _REVIEW_FIELD_LABELS = {
+        "name": "Name", "type": "Type", "prereq": "Prerequisite",
+        "has_prereq": "Has Prerequisites", "source": "Source",
+        "description": "Description", "is_spellcasting": "Grants Spellcasting",
+        "spell_lists": "Spell Lists", "spells_num": "Spells Granted",
+        "set_spells": "Set Spells",
+    }
+
+    def _apply_review_highlights(self):
+        """Add the auto-detect disclaimer banner and outline uncertain fields."""
+        try:
+            warn = self.theme.get_current_color('button_warning')
+        except Exception:
+            warn = "#d4a017"
+
+        banner = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_secondary'),
+                              corner_radius=8)
+        try:
+            banner.pack(fill="x", padx=20, pady=(12, 0), before=self._scroll)
+        except Exception:
+            banner.pack(fill="x", padx=20, pady=(12, 0))
+
+        heading = "Auto-detected from text - please review before saving"
+        if self._batch_progress:
+            heading = f"{heading}   ({self._batch_progress})"
+        ctk.CTkLabel(banner, text="⚠  " + heading,
+                     font=ctk.CTkFont(size=13, weight="bold"),
+                     text_color=warn, anchor="w",
+                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
+
+        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
+        if review:
+            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
+            msg = f"Fields to double-check (outlined below): {names}"
+        else:
+            msg = "All fields were detected with high confidence, but a quick check is still wise."
+        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+                     text_color=self.theme.get_text_secondary(), anchor="w",
+                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
+
+        ctk.CTkLabel(
+            banner,
+            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
+                  "irregularly formatted text, and feats vary a lot. Spellcasting "
+                  "fields especially are a best guess. Nothing is saved until you "
+                  "click Save."),
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary(),
+            anchor="w", justify="left", wraplength=520,
+        ).pack(fill="x", padx=12, pady=(0, 8))
+
+        widget_map = {
+            "name": self.name_entry,
+            "type": self.type_combo,
+            "prereq": self.prereq_entry,
+            "source": self.source_entry,
+            "spell_lists": self.spell_lists_entry,
+            "spells_num": self.spells_num_entry,
+            "set_spells": self.set_spells_entry,
+        }
+        for field_name in self._review_fields:
+            w = widget_map.get(field_name)
+            if w is None:
+                continue
+            try:
+                w.configure(border_color=warn, border_width=2)
+            except Exception:
+                pass
+
     def _save(self):
         """Save the feat."""
         name = self.name_entry.get().strip()

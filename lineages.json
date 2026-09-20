@@ -21,7 +21,7 @@
         },
         {
           "name": "Light Bearer",
-          "description": "You know the Light cantrip. Charisma is your spellcasting ability for it."
+          "description": "You know the [[spell:Light]] cantrip. Charisma is your spellcasting ability for it."
         },
         {
           "name": "Celestial Revelation",
@@ -187,7 +187,7 @@
         },
         {
           "name": "Elven Lineage",
-          "description": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).\n\n| Lineage | Level 1 | Level 3 | Level 5 |\n|---------|---------|---------|--------|\n| Drow | The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip. | Faerie Fire | Darkness |\n| High Elf | You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list. | Detect Magic | Misty Step |\n| Wood Elf | Your Speed increases to 35 feet. You also know the Druidcraft cantrip. | Longstrider | Pass without Trace |\n| Lorwyn Elf | You know the Thorn Whip cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Druid spell list. | Command | Silence |\n| Shadowmoor Elf | The range of your Darkvision increases to 120 feet. You also know the Starry Wisp cantrip. | Heroism | Gentle Repose |"
+          "description": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).\n\n| Lineage | Level 1 | Level 3 | Level 5 |\n|---------|---------|---------|--------|\n| Drow | The range of your Darkvision increases to 120 feet. You also know the [[spell:Dancing Lights]] cantrip. | [[spell:Faerie Fire]] | [[spell:Darkness]] |\n| High Elf | You know the [[spell:Prestidigitation]] cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the [[class:Wizard]] spell list. | [[spell:Detect Magic]] | [[spell:Misty Step]] |\n| Wood Elf | Your Speed increases to 35 feet. You also know the [[spell:Druidcraft]] cantrip. | [[spell:Longstrider]] | [[spell:Pass without Trace]] |\n| Lorwyn Elf | You know the [[spell:Thorn Whip]] cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the [[class:Druid]] spell list. | [[spell:Command]] | [[spell:Silence]] |\n| Shadowmoor Elf | The range of your Darkvision increases to 120 feet. You also know the [[spell:Starry Wisp]] cantrip. | [[spell:Heroism]] | [[spell:Gentle Repose]] |"
         },
         {
           "name": "Fey Ancestry",
@@ -216,7 +216,7 @@
       "traits": [
         {
           "name": "Fairy Magic",
-          "description": "You know the Druidcraft cantrip.\n\nStarting at 3rd level, you can cast the Faerie Fire spell with this trait. Starting at 5th level, you can also cast the Enlarge/Reduce spell with this trait. Once you cast Faerie Fire or Enlarge/Reduce with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+          "description": "You know the [[spell:Druidcraft]] cantrip.\n\nStarting at 3rd level, you can cast the [[spell:Faerie Fire]] spell with this trait. Starting at 5th level, you can also cast the [[spell:Enlarge/Reduce]] spell with this trait. Once you cast [[spell:Faerie Fire]] or [[spell:Enlarge/Reduce]] with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
         },
         {
           "name": "Flight",
@@ -245,7 +245,7 @@
         },
         {
           "name": "Reach to the Blaze",
-          "description": "You know the Produce Flame cantrip. Starting at 3rd level, you can cast the Burning Hands spell with this trait. Starting at 5th level, you can also cast the Flame Blade spell with this trait, without requiring a material component. Once you cast Burning Hands or Flame Blade with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+          "description": "You know the [[spell:Produce Flame]] cantrip. Starting at 3rd level, you can cast the [[spell:Burning Hands]] spell with this trait. Starting at 5th level, you can also cast the [[spell:Flame Blade]] spell with this trait, without requiring a material component. Once you cast [[spell:Burning Hands]] or [[spell:Flame Blade]] with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
         }
       ],
       "source": "Lorwyn - First Light",
@@ -270,7 +270,7 @@
         },
         {
           "name": "Gnomish Lineage",
-          "description": "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):\n\n**Forest Gnome.** You know the Minor Illusion cantrip. You also always have the Speak with Animals spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.\n\n**Rock Gnome.** You know the Mending and Prestidigitation cantrips. In addition, you can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
+          "description": "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):\n\n**Forest Gnome.** You know the [[spell:Minor Illusion]] cantrip. You also always have the [[spell:Speak with Animals]] spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.\n\n**Rock Gnome.** You know the [[spell:Mending]] and [[spell:Prestidigitation]] cantrips. In addition, you can spend 10 minutes casting [[spell:Prestidigitation]] to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
         }
       ],
       "source": "Players Handbook (2024)",
@@ -349,7 +349,7 @@
         },
         {
           "name": "Versatile",
-          "description": "You gain an Origin feat of your choice. Skilled is recommended."
+          "description": "You gain an Origin feat of your choice. [[feat:Skilled]] is recommended."
         }
       ],
       "source": "Players Handbook (2024)",
@@ -378,7 +378,7 @@
         },
         {
           "name": "Severed from Dreams",
-          "description": "You can't be the target of the Dream spell. In addition, when you finish a Long Rest, you gain proficiency in one skill of your choice. This proficiency lasts until you finish another Long Rest."
+          "description": "You can't be the target of the [[spell:Dream]] spell. In addition, when you finish a Long Rest, you gain proficiency in one skill of your choice. This proficiency lasts until you finish another Long Rest."
         }
       ],
       "source": "Eberron - Forge of the Artificer",
@@ -403,7 +403,7 @@
         },
         {
           "name": "Fey Gift",
-          "description": "You know the Friends cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Cleric, Druid, or Wizard spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spell you cast with this trait (chosen when you select this species)."
+          "description": "You know the [[spell:Friends]] cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the [[class:Cleric]], [[class:Druid]], or [[class:Wizard]] spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spell you cast with this trait (chosen when you select this species)."
         },
         {
           "name": "Lethargy Resilience",
@@ -482,7 +482,7 @@
       "traits": [
         {
           "name": "Cold Fire Magic",
-          "description": "You know the Ray of Frost cantrip. When you reach character levels 3 and 5, you learn the Ice Knife spell and the Flame Blade spell, respectively. You always have those spells prepared. You can cast each once without a spell slot, and you regain the ability to cast these spells in this way when you finish a Long Rest. You can also cast the spells using any spell slots you have of the appropriate level. When you cast Flame Blade using this trait, the spell deals Cold damage instead of Fire damage.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose the ability when you select this species)."
+          "description": "You know the [[spell:Ray of Frost]] cantrip. When you reach character levels 3 and 5, you learn the [[spell:Ice Knife]] spell and the [[spell:Flame Blade]] spell, respectively. You always have those spells prepared. You can cast each once without a spell slot, and you regain the ability to cast these spells in this way when you finish a Long Rest. You can also cast the spells using any spell slots you have of the appropriate level. When you cast [[spell:Flame Blade]] using this trait, the spell deals Cold damage instead of Fire damage.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose the ability when you select this species)."
         },
         {
           "name": "Cold Resistance",
@@ -536,11 +536,11 @@
         },
         {
           "name": "Fiendish Legacy",
-          "description": "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).\n\n| Legacy | Level 1 | Level 3 | Level 5 |\n|--------|---------|---------|--------|\n| Abyssal | You have Resistance to Poison damage. You also know the Poison Spray cantrip. | Ray of Sickness | Hold Person |\n| Chthonic | You have Resistance to Necrotic damage. You also know the Chill Touch cantrip. | False Life | Ray of Enfeeblement |\n| Infernal | You have Resistance to Fire damage. You also know the Fire Bolt cantrip. | Hellish Rebuke | Darkness |"
+          "description": "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).\n\n| Legacy | Level 1 | Level 3 | Level 5 |\n|--------|---------|---------|--------|\n| Abyssal | You have Resistance to Poison damage. You also know the [[spell:Poison Spray]] cantrip. | [[spell:Ray of Sickness]] | [[spell:Hold Person]] |\n| Chthonic | You have Resistance to Necrotic damage. You also know the [[spell:Chill Touch]] cantrip. | [[spell:False Life]] | [[spell:Ray of Enfeeblement]] |\n| Infernal | You have Resistance to Fire damage. You also know the [[spell:Fire Bolt]] cantrip. | [[spell:Hellish Rebuke]] | [[spell:Darkness]] |"
         },
         {
           "name": "Otherworldly Presence",
-          "description": "You know the Thaumaturgy cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait."
+          "description": "You know the [[spell:Thaumaturgy]] cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait."
         }
       ],
       "source": "Players Handbook (2024)",
@@ -577,6 +577,114 @@
         }
       ],
       "source": "Eberron - Forge of the Artificer",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Hexblood",
+      "description": "Hexbloods are individuals infused with fey magic as a result of eldritch energy or mysterious witchcraft. Many hexbloods are transformed into such beings after making a deal with a powerful hag, but other strange forces can result in the birth of a hexblood. A hexblood's strange fey power manifests as eerie clairvoyance and beguiling magic.",
+      "creature_type": "Fey",
+      "size": "Medium or Small",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "description": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Eerie Token",
+          "description": "As a Bonus Action, you can create a magical token by harmlessly removing a lock of hair, detaching a nail, or using some other method. While the token exists, you gain the following benefits:\n\n**Distant Message.** As a Magic action, you can send a telepathic message of 25 words or fewer to a creature holding or carrying the token, as long as you are within 10 miles of it.\n\n**Remote Viewing.** If you are within 10 miles of the token, you can take a Magic action to extend your senses through the token for 1 minute, until you have the Incapacitated condition, or until you end this state (no action required). During this state, you can see and hear from the token as if you were located where it is. When this state ends, the token is harmlessly destroyed.\n\nUnless the token is destroyed early, it lasts until you finish a Long Rest. Once you create a token using this feature, you can't do so again until you finish a Long Rest."
+        },
+        {
+          "name": "Hex Magic",
+          "description": "You always have the [[spell:Disguise Self]] and [[spell:Hex]] spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select this species)."
+        }
+      ],
+      "source": "Ravenloft - The Horrors Within",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Lupin",
+      "description": "With their bristling fur and snarling muzzles, lupins cast imposing shadows in the Mists. Lupins often arise from encounters with werewolves in which the curse of lycanthropy didn't fully take hold. Unlike true werewolves, lupins can't shift between wolf and humanoid form but are instead stuck as a hybrid transformation. This cursed wolflike physiology affords lupins bestial might, enhanced instincts, and a dread-inducing howl.",
+      "creature_type": "Humanoid",
+      "size": "Medium or Small",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "description": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Feral Pounce",
+          "description": "Your Unarmed Strikes deal Slashing damage instead of Bludgeoning damage. In addition, when you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Shove options. You can use this benefit only once per turn."
+        },
+        {
+          "name": "Howl",
+          "description": "As a Bonus Action, you let out an unearthly howl. Each creature of your choice within 15 feet of you must succeed on a Wisdom saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus) or have Disadvantage on attack rolls and saving throws until the start of your next turn.\n\nYou can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+        },
+        {
+          "name": "Werewolf Instincts",
+          "description": "You have proficiency in the Perception, Stealth, or Survival skill."
+        }
+      ],
+      "source": "Ravenloft - The Horrors Within",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Reborn",
+      "description": "Reborn are individuals who have died yet inexplicably still live. Some reborn exhibit the scars of fatal ends, their ashen flesh or bloodless veins making it clear that they've escaped death. Other reborn are marvels of magic or science, being stitched together from disparate beings or bearing mysterious minds in manufactured bodies. Whatever their origins, reborn know a new life and seek experiences and answers all their own.",
+      "creature_type": "Humanoid",
+      "size": "Medium or Small",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Escaped Death",
+          "description": "You have Advantage on Death Saving Throws."
+        },
+        {
+          "name": "Everlasting",
+          "description": "You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in an inactive, motionless state, during which you retain consciousness."
+        },
+        {
+          "name": "Knowledge from a Past Life",
+          "description": "You gain proficiency in one skill of your choice.\n\nIn addition, you can temporarily peer into the past to aid you in the present. When you fail an ability check, you can roll 1d6 and add the number rolled to the d20, potentially turning the failure into a success. You can do this a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+        },
+        {
+          "name": "Strange Endurance",
+          "description": "You have Resistance to one of the following damage types of your choice: Cold, Necrotic, or Poison."
+        }
+      ],
+      "source": "Ravenloft - The Horrors Within",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Duskling",
+      "description": "Dusklings are a people who've left the Feywild to settle in forested lands of both the Outer Planes and the Material Plane. The inherent magic of the Feywild still runs through them, giving dusklings the ability to suffuse themselves with magical effects.\n\nDusklings that travel the planes often live in migratory communities that follow livestock herds they tend. When the resources run out in one place, they move to another. Young dusklings play daring games that encourage them to harness and utilize their inner powers.",
+      "creature_type": "Fey",
+      "size": "Medium",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "description": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Enhanced Jump",
+          "description": "Add 2 feet to the distance you can leap with a running High Jump and 10 feet to the distance you can leap with a running Long Jump."
+        },
+        {
+          "name": "Inner Magic",
+          "description": "You have magic inside you that you can manipulate to enhance your physical or mental attributes. When you finish a Long Rest, choose one of the following benefits, which lasts until you choose a different ability.\n\nAs a Bonus Action, you can switch to a different benefit. You can switch the benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.\n\n**Ardor.** You have Advantage on Charisma ability checks and on saving throws to avoid or end the Frightened condition.\n\n**Mobility.** Your Speed increases by 10 feet, and climbing and swimming don't cost you extra movement.\n\n**Vigor.** You gain a number of Temporary Hit Points equal to your Proficiency Bonus, and you have Advantage on Strength (Athletics) and Dexterity (Acrobatics) checks."
+        }
+      ],
+      "source": "D&D Beyond Drops - September 2026",
       "is_official": true,
       "is_custom": false,
       "is_legacy": false

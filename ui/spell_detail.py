@@ -232,6 +232,10 @@ class SpellDetailPanel(ctk.CTkFrame):
         self._is_primary = True  # Primary panel or compare panel
         self._tooltip_label: Optional[ctk.CTkLabel] = None  # For modified spell tooltip
         
+        try:
+            self.configure(fg_color=get_theme_manager().get_current_color('bg_primary'))
+        except Exception:
+            pass
         self._create_widgets()
         self.set_spell(None)
         # Register for theme changes to update colors live
@@ -779,6 +783,11 @@ class SpellDetailPanel(ctk.CTkFrame):
         try:
             theme = get_theme_manager()
             text_color = theme.get_current_color('text_primary')
+
+            try:
+                self.configure(fg_color=theme.get_current_color('bg_primary'))
+            except Exception:
+                pass
 
             # Update labels and property text colors
             try:

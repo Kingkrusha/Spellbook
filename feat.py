@@ -16,6 +16,8 @@ FEAT_TYPE_FIGHTING_STYLE = "Fighting Style"
 FEAT_TYPE_ELDRITCH_INVOCATION = "Eldritch Invocation"
 FEAT_TYPE_DRAGONMARK = "Dragonmark"
 FEAT_TYPE_EPIC_BOON = "Epic Boon"
+FEAT_TYPE_DARK_GIFT = "Dark Gift"
+FEAT_TYPE_PLANAR_PACT = "Planar Pact"
 
 # Default feat types - users can add more
 DEFAULT_FEAT_TYPES = [
@@ -25,6 +27,8 @@ DEFAULT_FEAT_TYPES = [
     FEAT_TYPE_ELDRITCH_INVOCATION,
     FEAT_TYPE_DRAGONMARK,
     FEAT_TYPE_EPIC_BOON,
+    FEAT_TYPE_DARK_GIFT,
+    FEAT_TYPE_PLANAR_PACT,
 ]
 
 
@@ -45,6 +49,11 @@ class Feat:
     is_custom: bool = False  # True if user-created
     is_legacy: bool = False  # True for 2014 (legacy) content
     
+    def plain_description(self) -> str:
+        """Description with [[link]] markup replaced by its visible text (for searching)."""
+        from object_link_sweep import strip_links
+        return strip_links(self.description)
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -275,7 +284,7 @@ class FeatManager:
                 continue
             
             # Search in name and description
-            if query_lower in feat.name.lower() or query_lower in feat.description.lower():
+            if query_lower in feat.name.lower() or query_lower in feat.plain_description().lower():
                 results.append(feat)
         
         return results

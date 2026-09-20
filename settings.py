@@ -58,8 +58,25 @@ class AppSettings:
     preload_feats: bool = True  # Preload feats
     preload_lineages: bool = True  # Preload lineages/races
     preload_backgrounds: bool = True  # Preload backgrounds
+    preload_equipment: bool = True  # Preload equipment
+    preload_magic_items: bool = True  # Preload magic items
     preload_character_sheets: bool = False  # Preload character sheet data
     
+    # Object linking - as-you-type link suggestions in description/notes fields.
+    # Each toggle disables *suggestions* for that category; links already made
+    # (and the "Find link suggestions" / "Unlink" right-click actions) are
+    # unaffected. Subclasses share the "Classes" toggle.
+    link_suggest_spells: bool = True
+    link_suggest_feats: bool = True
+    link_suggest_lineages: bool = True
+    link_suggest_backgrounds: bool = True
+    link_suggest_classes: bool = True
+    link_suggest_equipment: bool = True
+    link_suggest_magic_items: bool = True
+    # When linking a suggested word, replace it with the object's exact name
+    # (e.g. "fire" -> "Fire Bolt") instead of keeping what was typed.
+    link_autocomplete_names: bool = True
+
     # Internal flags (not user-configurable)
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
     
@@ -85,7 +102,10 @@ class AppSettings:
             'auto_fill_proficiencies', 'auto_apply_saving_throws',
             'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter',
             'preload_classes', 'preload_feats', 'preload_lineages', 'preload_backgrounds',
-            'preload_character_sheets'
+            'preload_equipment', 'preload_magic_items', 'preload_character_sheets',
+            'link_suggest_spells', 'link_suggest_feats', 'link_suggest_lineages',
+            'link_suggest_backgrounds', 'link_suggest_classes', 'link_suggest_equipment',
+            'link_suggest_magic_items', 'link_autocomplete_names',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

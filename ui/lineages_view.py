@@ -31,12 +31,14 @@ class LineageListPanel(ctk.CTkFrame):
         self._lineage_buttons: List[ctk.CTkButton] = []
         self._pending_after_id: Optional[str] = None  # Track pending after() calls
         self.theme = get_theme_manager()
-        
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._refresh_buttons()
     
     def _create_widgets(self):
@@ -243,12 +245,14 @@ class LineageDetailPanel(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, corner_radius=10)
         self.theme = get_theme_manager()
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._current_lineage: Optional[Lineage] = None
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._update_colors()
     
     def _create_widgets(self):
@@ -489,6 +493,8 @@ class LineagesView(ctk.CTkFrame):
         self._update_context_menu_colors()
         if hasattr(self, 'paned'):
             self._update_paned_colors()
+        if hasattr(self, 'compare_container'):
+            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
     
     def _update_context_menu_colors(self):
         """Update context menu colors for theme."""
@@ -648,7 +654,9 @@ class LineagesView(ctk.CTkFrame):
     
     def _create_compare_panel(self):
         """Create the compare lineage panel (hidden initially)."""
-        self.compare_container = ctk.CTkFrame(self.left_container, corner_radius=10)
+        self.compare_container = ctk.CTkFrame(
+            self.left_container, corner_radius=10,
+            fg_color=self.theme.get_current_color('bg_secondary'))
         
         # Header with close button
         header = ctk.CTkFrame(self.compare_container, fg_color="transparent")
@@ -784,15 +792,80 @@ class LineagesView(ctk.CTkFrame):
         self.list_panel.pack(fill="both", expand=True)
     
     def _on_add_lineage(self):
-        """Open dialog to add a new lineage."""
+        """Open dialog to add a new lineage (manual entry or auto-detect from text)."""
+        from ui.lineage_text_import import AddLineageSourceDialog
+
+        source_dialog = AddLineageSourceDialog(self.winfo_toplevel())
+        self.wait_window(source_dialog)
+        if source_dialog.result is None:
+            return
+        if source_dialog.result == "auto":
+            self._on_add_lineage_from_text()
+            return
+
         dialog = LineageEditorDialog(self.winfo_toplevel(), self.lineage_manager)
         dialog.grab_set()
         self.wait_window(dialog)
-        
+
         if dialog.result:
             self._load_lineages()
             self.list_panel.select_lineage(dialog.result.name)
-    
+
+    def _on_add_lineage_from_text(self):
+        """Paste a block of text, auto-detect lineage fields, and review each draft."""
+        from ui.lineage_text_import import LineageTextImportDialog
+
+        import_dialog = LineageTextImportDialog(self.winfo_toplevel())
+        self.wait_window(import_dialog)
+        parsed_list = import_dialog.result
+        if not parsed_list:
+            return
+
+        try:
+            from text_import.lineage_parser import to_lineage
+        except Exception as exc:
+            messagebox.showerror("Auto-Detect Unavailable",
+                                 f"Could not load the text importer:\n{exc}")
+            return
+
+        added = []
+        total = len(parsed_list)
+        for idx, parsed in enumerate(parsed_list, 1):
+            try:
+                draft = to_lineage(parsed)
+            except Exception as exc:
+                messagebox.showerror("Parse Error",
+                                     f"Could not build lineage {idx} of {total}:\n{exc}")
+                continue
+
+            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
+            progress = f"{idx} of {total}" if total > 1 else ""
+
+            editor = LineageEditorDialog(
+                self.winfo_toplevel(), self.lineage_manager,
+                prefill_lineage=draft, review_fields=review, batch_progress=progress,
+            )
+            editor.grab_set()
+            self.wait_window(editor)
+
+            if editor.result:
+                # LineageEditorDialog._save() already persists via the manager.
+                added.append(editor.result.name)
+            elif idx < total:
+                if not messagebox.askyesno(
+                        "Continue?",
+                        "Skip this lineage and continue reviewing the remaining "
+                        f"{total - idx} lineage(s)?"):
+                    break
+
+        if added:
+            self._load_lineages()
+            self.list_panel.select_lineage(added[-1])
+            if len(added) > 1:
+                messagebox.showinfo("Lineages Added",
+                                    f"Added {len(added)} lineages:\n" + "\n".join(added))
+
+
     def _on_edit_lineage(self):
         """Edit the selected lineage."""
         lineage = self.list_panel.get_selected_lineage()
@@ -853,29 +926,38 @@ class LineagesView(ctk.CTkFrame):
 class LineageEditorDialog(ctk.CTkToplevel):
     """Dialog for creating/editing lineages."""
     
-    def __init__(self, parent, lineage_manager: LineageManager, lineage: Optional[Lineage] = None):
+    def __init__(self, parent, lineage_manager: LineageManager, lineage: Optional[Lineage] = None,
+                 prefill_lineage: Optional[Lineage] = None, review_fields: Optional[List[str]] = None,
+                 batch_progress: str = ""):
         super().__init__(parent)
-        
+
         self.lineage_manager = lineage_manager
         self.editing_lineage = lineage
         self.result: Optional[Lineage] = None
         self.theme = get_theme_manager()
         self._trait_entries = []  # List of (name_entry, desc_entry, frame) tuples
-        
+        # Auto-detect pre-fill: populate the form from parsed text but keep this
+        # a brand-new lineage, and mark fields for the reviewer to double-check.
+        self._review_fields = set(review_fields or [])
+        self._batch_progress = batch_progress
+
         self.title("Edit Lineage" if lineage else "Add Lineage")
         self.geometry("700x700")
         self.minsize(600, 500)
-        
+
         self.transient(parent)
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 700) // 2
         y = parent.winfo_y() + (parent.winfo_height() - 700) // 2
         self.geometry(f"+{x}+{y}")
-        
+
         self._create_widgets()
-        
+
         if lineage:
             self._populate_from_lineage(lineage)
+        elif prefill_lineage:
+            self._populate_from_lineage(prefill_lineage)
+            self._apply_review_highlights()
     
     def _create_widgets(self):
         """Create the editor UI."""
@@ -1042,7 +1124,77 @@ class LineageEditorDialog(ctk.CTkToplevel):
         
         for trait in lineage.traits:
             self._add_trait(trait.name, trait.description)
-    
+
+    _REVIEW_FIELD_LABELS = {
+        "name": "Name", "creature_type": "Creature Type", "size": "Size",
+        "speed": "Speed", "source": "Source", "description": "Description",
+        "traits": "Traits",
+    }
+
+    def _apply_review_highlights(self):
+        """Add the auto-detect disclaimer banner and outline uncertain fields."""
+        try:
+            warn = self.theme.get_current_color('button_warning')
+        except Exception:
+            warn = "#d4a017"
+
+        banner = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_secondary'),
+                              corner_radius=8)
+        try:
+            banner.pack(fill="x", padx=20, pady=(12, 0), before=self.scroll)
+        except Exception:
+            banner.pack(fill="x", padx=20, pady=(12, 0))
+
+        heading = "Auto-detected from text - please review before saving"
+        if self._batch_progress:
+            heading = f"{heading}   ({self._batch_progress})"
+        ctk.CTkLabel(banner, text="⚠  " + heading,
+                     font=ctk.CTkFont(size=13, weight="bold"),
+                     text_color=warn, anchor="w",
+                     justify="left", wraplength=620).pack(fill="x", padx=12, pady=(8, 2))
+
+        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
+        if review:
+            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
+            msg = f"Fields to double-check (outlined below): {names}"
+        else:
+            msg = "All fields were detected with high confidence, but a quick check is still wise."
+        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+                     text_color=self.theme.get_text_secondary(), anchor="w",
+                     justify="left", wraplength=620).pack(fill="x", padx=12, pady=(0, 2))
+
+        ctk.CTkLabel(
+            banner,
+            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
+                  "irregularly formatted text. Splitting the description from its "
+                  "traits is a best guess. Nothing is saved until you click Save."),
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary(),
+            anchor="w", justify="left", wraplength=620,
+        ).pack(fill="x", padx=12, pady=(0, 8))
+
+        widget_map = {
+            "name": self.name_entry,
+            "creature_type": self.creature_type_entry,
+            "size": self.size_combo,
+            "speed": self.speed_entry,
+            "source": self.source_entry,
+        }
+        for field_name in self._review_fields:
+            w = widget_map.get(field_name)
+            if w is None:
+                continue
+            try:
+                w.configure(border_color=warn, border_width=2)
+            except Exception:
+                pass
+
+        if "traits" in self._review_fields:
+            for _name_e, _desc_e, frame in self._trait_entries:
+                try:
+                    frame.configure(border_color=warn, border_width=2)
+                except Exception:
+                    pass
+
     def _save(self):
         """Save the lineage."""
         name = self.name_entry.get().strip()

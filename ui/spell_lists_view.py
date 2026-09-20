@@ -141,7 +141,11 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                  settings_manager: Optional[SettingsManager] = None,
                  scrollable: bool = True):
         super().__init__(parent, corner_radius=10)
-        
+        try:
+            self.configure(fg_color=get_theme_manager().get_current_color('bg_primary'))
+        except Exception:
+            pass
+
         self.spell_manager = spell_manager
         self.character_manager = character_manager
         self.on_remove_spell = on_remove_spell
@@ -274,6 +278,10 @@ class CharacterSpellsPanel(ctk.CTkFrame):
     def _on_theme_changed(self):
         """Reconfigure color-sensitive widgets when theme changes."""
         theme = get_theme_manager()
+        try:
+            self.configure(fg_color=theme.get_current_color('bg_primary'))
+        except Exception:
+            pass
         try:
             # Button colors
             if hasattr(self, 'long_rest_btn'):
@@ -1082,6 +1090,10 @@ class SpellListsView(ctk.CTkFrame):
         # Update text color for count label
         theme = get_theme_manager()
         self.char_count_label.configure(text_color=theme.get_text_secondary())
+        # The left panel card has an explicit fg_color, so it won't repaint on
+        # its own.
+        if hasattr(self, 'left_panel'):
+            self.left_panel.configure(fg_color=theme.get_current_color('bg_primary'))
         # Rebuild character cards to pick up any fg_color/bg changes
         self._refresh_characters()
     
@@ -1116,8 +1128,11 @@ class SpellListsView(ctk.CTkFrame):
         self.paned.pack(fill="both", expand=True)
         self.update_paned_colors()
         
-        left_panel = ctk.CTkFrame(self.paned, corner_radius=10)
-        
+        theme = get_theme_manager()
+        self.left_panel = ctk.CTkFrame(self.paned, corner_radius=10,
+                                        fg_color=theme.get_current_color('bg_primary'))
+        left_panel = self.left_panel
+
         char_header = ctk.CTkFrame(left_panel, fg_color="transparent")
         char_header.pack(fill="x", padx=15, pady=(15, 10))
         

@@ -9,7 +9,7 @@
       "other_proficiencies": ["Calligrapher's Supplies"],
       "ability_scores": ["Intelligence", "Wisdom", "Charisma"],
       "feats": ["Magic Initiate (Cleric)"],
-      "equipment": "Choose A or B: (A) Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Calligrapher's Supplies]], [[equipment:Book]] (prayers), [[equipment:Holy Symbol]], [[equipment:Parchment]] (10 sheets), [[equipment:Robe]], 8 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -23,7 +23,7 @@
       "other_proficiencies": ["Choose one kind of Artisan's Tools"],
       "ability_scores": ["Strength", "Dexterity", "Intelligence"],
       "feats": ["Crafter"],
-      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), 2 Pouches, Traveler's Clothes, 32 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), 2 [[equipment:Pouch|Pouches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 32 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -37,7 +37,7 @@
       "other_proficiencies": ["Forgery Kit"],
       "ability_scores": ["Dexterity", "Constitution", "Charisma"],
       "feats": ["Skilled"],
-      "equipment": "Choose A or B: (A) Forgery Kit, Costume, Fine Clothes, 15 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Forgery Kit]], [[equipment:Costume]], [[equipment:Clothes, Fine|Fine Clothes]], 15 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -51,7 +51,7 @@
       "other_proficiencies": ["Thieves' Tools"],
       "ability_scores": ["Dexterity", "Constitution", "Intelligence"],
       "feats": ["Alert"],
-      "equipment": "Choose A or B: (A) 2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) 2 [[equipment:Dagger|Daggers]], [[equipment:Thieves' Tools]], [[equipment:Crowbar]], 2 [[equipment:Pouch|Pouches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 16 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -65,7 +65,7 @@
       "other_proficiencies": ["Choose one kind of Musical Instrument"],
       "ability_scores": ["Strength", "Dexterity", "Charisma"],
       "feats": ["Musician"],
-      "equipment": "Choose A or B: (A) Musical Instrument (same as above), 2 Costumes, Mirror, Perfume, Traveler's Clothes, 11 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Musical Instrument]] (same as above), 2 [[equipment:Costume|Costumes]], [[equipment:Mirror]], [[equipment:Perfume]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 11 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -79,7 +79,7 @@
       "other_proficiencies": ["Carpenter's Tools"],
       "ability_scores": ["Strength", "Constitution", "Wisdom"],
       "feats": ["Tough"],
-      "equipment": "Choose A or B: (A) Sickle, Carpenter's Tools, Healer's Kit, Iron Pot, Shovel, Traveler's Clothes, 30 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Sickle]], [[equipment:Carpenter's Tools]], [[equipment:Healer's Kit]], [[equipment:Pot, Iron|Iron Pot]], [[equipment:Shovel]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 30 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -93,7 +93,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Strength", "Intelligence", "Wisdom"],
       "feats": ["Alert"],
-      "equipment": "Choose A or B: (A) Spear, Light Crossbow, 20 Bolts, Gaming Set (same as above), Hooded Lantern, Manacles, Quiver, Traveler's Clothes, 12 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Spear]], [[equipment:Light Crossbow]], 20 [[equipment:Bolts]], [[equipment:Gaming Set]] (same as above), [[equipment:Lantern, Hooded|Hooded Lantern]], [[equipment:Manacles]], [[equipment:Quiver]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 12 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -107,7 +107,7 @@
       "other_proficiencies": ["Cartographer's Tools"],
       "ability_scores": ["Dexterity", "Constitution", "Wisdom"],
       "feats": ["Magic Initiate (Druid)"],
-      "equipment": "Choose A or B: (A) Shortbow, 20 Arrows, Cartographer's Tools, Bedroll, Quiver, Tent, Traveler's Clothes, 3 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Shortbow]], 20 [[equipment:Arrows]], [[equipment:Cartographer's Tools]], [[equipment:Bedroll]], [[equipment:Quiver]], [[equipment:Tent]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 3 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -121,7 +121,7 @@
       "other_proficiencies": ["Herbalism Kit"],
       "ability_scores": ["Constitution", "Wisdom", "Charisma"],
       "feats": ["Healer"],
-      "equipment": "Choose A or B: (A) Quarterstaff, Herbalism Kit, Bedroll, Book (philosophy), Lamp, Oil (3 flasks), Traveler's Clothes, 16 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Quarterstaff]], [[equipment:Herbalism Kit]], [[equipment:Bedroll]], [[equipment:Book]] (philosophy), [[equipment:Lamp]], [[equipment:Oil]] (3 flasks), [[equipment:Clothes, Traveler's|Traveler's Clothes]], 16 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -135,7 +135,7 @@
       "other_proficiencies": ["Navigator's Tools"],
       "ability_scores": ["Constitution", "Intelligence", "Charisma"],
       "feats": ["Lucky"],
-      "equipment": "Choose A or B: (A) Navigator's Tools, 2 Pouches, Traveler's Clothes, 22 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Navigator's Tools]], 2 [[equipment:Pouch|Pouches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 22 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -149,7 +149,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Strength", "Intelligence", "Charisma"],
       "feats": ["Skilled"],
-      "equipment": "Choose A or B: (A) Gaming Set (same as above), Fine Clothes, Perfume, 29 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Gaming Set]] (same as above), [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Perfume]], 29 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -163,7 +163,7 @@
       "other_proficiencies": ["Calligrapher's Supplies"],
       "ability_scores": ["Constitution", "Intelligence", "Wisdom"],
       "feats": ["Magic Initiate (Wizard)"],
-      "equipment": "Choose A or B: (A) Quarterstaff, Calligrapher's Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Quarterstaff]], [[equipment:Calligrapher's Supplies]], [[equipment:Book]] (history), [[equipment:Parchment]] (8 sheets), [[equipment:Robe]], 8 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -177,7 +177,7 @@
       "other_proficiencies": ["Navigator's Tools"],
       "ability_scores": ["Strength", "Dexterity", "Wisdom"],
       "feats": ["Tavern Brawler"],
-      "equipment": "Choose A or B: (A) Dagger, Navigator's Tools, Rope, Traveler's Clothes, 20 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Navigator's Tools]], [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 20 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -191,7 +191,7 @@
       "other_proficiencies": ["Calligrapher's Supplies"],
       "ability_scores": ["Dexterity", "Intelligence", "Wisdom"],
       "feats": ["Skilled"],
-      "equipment": "Choose A or B: (A) Calligrapher's Supplies, Fine Clothes, Lamp, Oil (3 flasks), Parchment (12 sheets), 23 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Calligrapher's Supplies]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Lamp]], [[equipment:Oil]] (3 flasks), [[equipment:Parchment]] (12 sheets), 23 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -205,7 +205,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Strength", "Dexterity", "Constitution"],
       "feats": ["Savage Attacker"],
-      "equipment": "Choose A or B: (A) Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Healer's Kit, Quiver, Traveler's Clothes, 14 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Spear]], [[equipment:Shortbow]], 20 [[equipment:Arrows]], [[equipment:Gaming Set]] (same as above), [[equipment:Healer's Kit]], [[equipment:Quiver]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 14 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -219,7 +219,7 @@
       "other_proficiencies": ["Thieves' Tools"],
       "ability_scores": ["Dexterity", "Wisdom", "Charisma"],
       "feats": ["Lucky"],
-      "equipment": "Choose A or B: (A) 2 Daggers, Thieves' Tools, Gaming Set (any), Bedroll, 2 Pouches, Traveler's Clothes, 16 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) 2 [[equipment:Dagger|Daggers]], [[equipment:Thieves' Tools]], [[equipment:Gaming Set]] (any), [[equipment:Bedroll]], 2 [[equipment:Pouch|Pouches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 16 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -233,7 +233,7 @@
       "other_proficiencies": ["Disguise Kit"],
       "ability_scores": ["Strength", "Constitution", "Charisma"],
       "feats": ["Aberrant Dragonmark"],
-      "equipment": "Choose A or B: (A) Dagger, Disguise Kit, Costume, Traveler's Clothes, 16 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Disguise Kit]], [[equipment:Costume]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 16 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -247,7 +247,7 @@
       "other_proficiencies": ["Cartographer's Tools"],
       "ability_scores": ["Dexterity", "Intelligence", "Wisdom"],
       "feats": ["Skilled"],
-      "equipment": "Choose A or B: (A) Cartographer's Tools, Bullseye Lantern, Map, Map or Scroll Case, Shovel, Tent, Traveler's Clothes, 17 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Cartographer's Tools]], [[equipment:Lantern, Bullseye|Bullseye Lantern]], [[equipment:Map]], [[equipment:Case, Map or Scroll|Map or Scroll Case]], [[equipment:Shovel]], [[equipment:Tent]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 17 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -261,7 +261,7 @@
       "other_proficiencies": ["Choose one kind of Artisan's Tools"],
       "ability_scores": ["Strength", "Intelligence", "Charisma"],
       "feats": ["Lucky"],
-      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), Fine Clothes, 20 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), [[equipment:Clothes, Fine|Fine Clothes]], 20 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -275,7 +275,7 @@
       "other_proficiencies": ["Choose one kind of Artisan's Tools"],
       "ability_scores": ["Strength", "Dexterity", "Intelligence"],
       "feats": ["Mark of Making"],
-      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), Crowbar, Fine Clothes, 2 Pouches, 17 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), [[equipment:Crowbar]], [[equipment:Clothes, Fine|Fine Clothes]], 2 [[equipment:Pouch|Pouches]], 17 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -289,7 +289,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Strength", "Constitution", "Wisdom"],
       "feats": ["Mark of Sentinel"],
-      "equipment": "Choose A or B: (A) Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Fine Clothes, Healer's Kit, Quiver, 1 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Spear]], [[equipment:Shortbow]], 20 [[equipment:Arrows]], [[equipment:Gaming Set]] (same as above), [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Healer's Kit]], [[equipment:Quiver]], 1 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -303,7 +303,7 @@
       "other_proficiencies": ["Cook's Utensils"],
       "ability_scores": ["Dexterity", "Wisdom", "Charisma"],
       "feats": ["Mark of Hospitality"],
-      "equipment": "Choose A or B: (A) Cook's Utensils, Fine Clothes, Iron Pot, Lamp, Oil (5 flasks), Perfume, 26 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Cook's Utensils]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Pot, Iron|Iron Pot]], [[equipment:Lamp]], [[equipment:Oil]] (5 flasks), [[equipment:Perfume]], 26 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -317,7 +317,7 @@
       "other_proficiencies": ["Herbalism Kit"],
       "ability_scores": ["Dexterity", "Constitution", "Wisdom"],
       "feats": ["Mark of Healing"],
-      "equipment": "Choose A or B: (A) Herbalism Kit, Fine Clothes, Healer's Kit, 25 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Herbalism Kit]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Healer's Kit]], 25 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -331,7 +331,7 @@
       "other_proficiencies": ["Thieves' Tools"],
       "ability_scores": ["Strength", "Constitution", "Intelligence"],
       "feats": ["Mark of Warding"],
-      "equipment": "Choose A or B: (A) Thieves' Tools, Fine Clothes, 10 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Thieves' Tools]], [[equipment:Clothes, Fine|Fine Clothes]], 10 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -345,7 +345,7 @@
       "other_proficiencies": ["Navigator's Tools"],
       "ability_scores": ["Strength", "Dexterity", "Charisma"],
       "feats": ["Mark of Storm"],
-      "equipment": "Choose A or B: (A) Navigator's Tools, Fine Clothes, 10 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Navigator's Tools]], [[equipment:Clothes, Fine|Fine Clothes]], 10 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -359,7 +359,7 @@
       "other_proficiencies": ["Disguise Kit"],
       "ability_scores": ["Dexterity", "Intelligence", "Wisdom"],
       "feats": ["Mark of Detection"],
-      "equipment": "Choose A or B: (A) Disguise Kit, Fine Clothes, 10 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Disguise Kit]], [[equipment:Clothes, Fine|Fine Clothes]], 10 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -373,7 +373,7 @@
       "other_proficiencies": ["Cartographer's Tools"],
       "ability_scores": ["Dexterity", "Constitution", "Intelligence"],
       "feats": ["Mark of Passage"],
-      "equipment": "Choose A or B: (A) Cartographer's Tools, Fine Clothes, Map, Map or Scroll Case, 18 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Cartographer's Tools]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Map]], [[equipment:Case, Map or Scroll|Map or Scroll Case]], 18 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -387,7 +387,7 @@
       "other_proficiencies": ["Disguise Kit"],
       "ability_scores": ["Dexterity", "Wisdom", "Charisma"],
       "feats": ["Mark of Shadow"],
-      "equipment": "Choose A or B: (A) Disguise Kit, Fine Clothes, 10 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Disguise Kit]], [[equipment:Clothes, Fine|Fine Clothes]], 10 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -401,7 +401,7 @@
       "other_proficiencies": ["Calligrapher's Supplies"],
       "ability_scores": ["Intelligence", "Wisdom", "Charisma"],
       "feats": ["Mark of Scribing"],
-      "equipment": "Choose A or B: (A) Calligrapher's Supplies, Fine Clothes, Ink, 5 Ink Pens, Paper (30 sheets), Parchment (9 sheets), 8 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Calligrapher's Supplies]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Ink]], 5 [[equipment:Ink Pen|Ink Pens]], [[equipment:Paper]] (30 sheets), [[equipment:Parchment]] (9 sheets), 8 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -415,7 +415,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Constitution", "Intelligence", "Wisdom"],
       "feats": ["Mark of Finding"],
-      "equipment": "Choose A or B: (A) Gaming Set (same as above), Climber's Kit, Fine Clothes, Hunting Trap, Manacles, 2 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Gaming Set]] (same as above), [[equipment:Climber's Kit]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Hunting Trap]], [[equipment:Manacles]], 2 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -429,7 +429,7 @@
       "other_proficiencies": ["Choose one kind of Musical Instrument"],
       "ability_scores": ["Dexterity", "Intelligence", "Charisma"],
       "feats": ["Mark of Shadow"],
-      "equipment": "Choose A or B: (A) Musical Instrument (same as above), Costume, Fine Clothes, 13 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Musical Instrument]] (same as above), [[equipment:Costume]], [[equipment:Clothes, Fine|Fine Clothes]], 13 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -443,7 +443,7 @@
       "other_proficiencies": ["Herbalism Kit"],
       "ability_scores": ["Constitution", "Wisdom", "Charisma"],
       "feats": ["Mark of Handling"],
-      "equipment": "Choose A or B: (A) Herbalism Kit, Fine Clothes, Net, 29 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Herbalism Kit]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Net]], 29 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -457,7 +457,7 @@
       "other_proficiencies": ["Thieves' Tools"],
       "ability_scores": ["Constitution", "Intelligence", "Charisma"],
       "feats": ["Alert"],
-      "equipment": "Choose A or B: (A) Thieves' Tools, Bullseye Lantern, Crowbar, Oil (10 flasks), Traveler's Clothes, 10 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Thieves' Tools]], [[equipment:Lantern, Bullseye|Bullseye Lantern]], [[equipment:Crowbar]], [[equipment:Oil]] (10 flasks), [[equipment:Clothes, Traveler's|Traveler's Clothes]], 10 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -471,7 +471,7 @@
       "other_proficiencies": ["Weaver's Tools"],
       "ability_scores": ["Strength", "Dexterity", "Wisdom"],
       "feats": ["Skilled"],
-      "equipment": "Choose A or B: (A) Dagger, Weaver's Tools, Backpack, Ball Bearings, Basket, Bedroll, Bucket, Rations (3 days' worth), Rope, Signal Whistle, Traveler's Clothes, 38 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Weaver's Tools]], [[equipment:Backpack]], [[equipment:Ball Bearings]], [[equipment:Basket]], [[equipment:Bedroll]], [[equipment:Bucket]], [[equipment:Rations]] (3 days' worth), [[equipment:Rope]], [[equipment:Signal Whistle]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 38 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -485,7 +485,7 @@
       "other_proficiencies": ["Leatherworker's Tools"],
       "ability_scores": ["Strength", "Constitution", "Wisdom"],
       "feats": ["Healer"],
-      "equipment": "Choose A or B: (A) Greatclub, Leatherworker's Tools, Bedroll, Blanket, Healer's Kit, Pole, Rations (3 days' worth), Tent, Tinderbox, 5 Torches, Traveler's Clothes, Waterskin, 32 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Greatclub]], [[equipment:Leatherworker's Tools]], [[equipment:Bedroll]], [[equipment:Blanket]], [[equipment:Healer's Kit]], [[equipment:Pole]], [[equipment:Rations]] (3 days' worth), [[equipment:Tent]], [[equipment:Tinderbox]], 5 [[equipment:Torch|Torches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 32 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -499,7 +499,7 @@
       "other_proficiencies": ["Calligrapher's Supplies"],
       "ability_scores": ["Dexterity", "Constitution", "Intelligence"],
       "feats": ["Cult of the Dragon Initiate"],
-      "equipment": "Choose A or B: (A) Calligrapher's Supplies, Dagger, Glass Bottle, Lamp, Manacles, Oil (5 flasks), 2 Pouches, Robe, Rope, 30 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Calligrapher's Supplies]], [[equipment:Dagger]], [[equipment:Bottle, Glass|Glass Bottle]], [[equipment:Lamp]], [[equipment:Manacles]], [[equipment:Oil]] (5 flasks), 2 [[equipment:Pouch|Pouches]], [[equipment:Robe]], [[equipment:Rope]], 30 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -513,7 +513,7 @@
       "other_proficiencies": ["Herbalism Kit"],
       "ability_scores": ["Constitution", "Intelligence", "Wisdom"],
       "feats": ["Emerald Enclave Fledgling"],
-      "equipment": "Choose A or B: (A) Shortbow, 20 Arrows, Herbalism Kit, Bedroll, Blanket, Pouch, Tent, Traveler's Clothes, 13 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Shortbow]], 20 [[equipment:Arrows]], [[equipment:Herbalism Kit]], [[equipment:Bedroll]], [[equipment:Blanket]], [[equipment:Pouch]], [[equipment:Tent]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 13 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -527,7 +527,7 @@
       "other_proficiencies": ["Smith's Tools"],
       "ability_scores": ["Strength", "Constitution", "Charisma"],
       "feats": ["Tough"],
-      "equipment": "Choose A or B: (A) Mace, Smith's Tools, Fine Clothes, Manacles, Portable Ram, 4 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Mace]], [[equipment:Smith's Tools]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Manacles]], [[equipment:Ram, Portable|Portable Ram]], 4 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -541,7 +541,7 @@
       "other_proficiencies": ["Glassblower's Tools"],
       "ability_scores": ["Dexterity", "Wisdom", "Charisma"],
       "feats": ["Magic Initiate (Wizard)"],
-      "equipment": "Choose A or B: (A) Light Hammer, Glassblower's Tools, Fine Clothes, Lamp, Oil (3 flasks), Waterskin, 2 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Light Hammer]], [[equipment:Glassblower's Tools]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Lamp]], [[equipment:Oil]] (3 flasks), [[equipment:Waterskin]], 2 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -555,7 +555,7 @@
       "other_proficiencies": ["Disguise Kit"],
       "ability_scores": ["Dexterity", "Intelligence", "Charisma"],
       "feats": ["Harper Agent"],
-      "equipment": "Choose A or B: (A) Disguise Kit, Bedroll, Costume, Grappling Hook, Rope, Traveler's Clothes, 14 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Disguise Kit]], [[equipment:Bedroll]], [[equipment:Costume]], [[equipment:Grappling Hook]], [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 14 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -569,7 +569,7 @@
       "other_proficiencies": ["Woodcarver's Tools"],
       "ability_scores": ["Strength", "Dexterity", "Constitution"],
       "feats": ["Alert"],
-      "equipment": "Choose A or B: (A) Woodcarver's Tools, Basket, Block and Tackle, Bucket, Chain, Hunting Trap, Net, Pole, Rations (3 days' worth), Rope, Traveler's Clothes, 32 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Woodcarver's Tools]], [[equipment:Basket]], [[equipment:Block and Tackle]], [[equipment:Bucket]], [[equipment:Chain]], [[equipment:Hunting Trap]], [[equipment:Net]], [[equipment:Pole]], [[equipment:Rations]] (3 days' worth), [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 32 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -583,7 +583,7 @@
       "other_proficiencies": ["Smith's Tools"],
       "ability_scores": ["Strength", "Intelligence", "Wisdom"],
       "feats": ["Tyro of the Gauntlet"],
-      "equipment": "Choose A or B: (A) Spear, Smith's Tools, Bullseye Lantern, Holy Symbol, Manacles, Oil (5 flasks), Tinderbox, Traveler's Clothes, 9 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Spear]], [[equipment:Smith's Tools]], [[equipment:Lantern, Bullseye|Bullseye Lantern]], [[equipment:Holy Symbol]], [[equipment:Manacles]], [[equipment:Oil]] (5 flasks), [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 9 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -597,7 +597,7 @@
       "other_proficiencies": ["Calligrapher's Supplies"],
       "ability_scores": ["Strength", "Intelligence", "Charisma"],
       "feats": ["Lords' Alliance Agent"],
-      "equipment": "Choose A or B: (A) 2 Javelins, Calligrapher's Supplies, Fine Clothes, Ink, 5 Ink Pens, Parchment (9 sheets), 13 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) 2 [[equipment:Javelin|Javelins]], [[equipment:Calligrapher's Supplies]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Ink]], 5 [[equipment:Ink Pen|Ink Pens]], [[equipment:Parchment]] (9 sheets), 13 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -611,7 +611,7 @@
       "other_proficiencies": ["Painter's Supplies"],
       "ability_scores": ["Constitution", "Wisdom", "Charisma"],
       "feats": ["Magic Initiate (Druid)"],
-      "equipment": "Choose A or B: (A) Quarterstaff, Painter's Supplies, Bedroll, Bell, Pouch, Robe, String, Traveler's Clothes, Waterskin, 34 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Quarterstaff]], [[equipment:Painter's Supplies]], [[equipment:Bedroll]], [[equipment:Bell]], [[equipment:Pouch]], [[equipment:Robe]], [[equipment:String]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 34 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -625,7 +625,7 @@
       "other_proficiencies": ["Mason's Tools"],
       "ability_scores": ["Dexterity", "Constitution", "Intelligence"],
       "feats": ["Lucky"],
-      "equipment": "Choose A or B: (A) Dagger, Light Hammer, Mason's Tools, Backpack, Bedroll, Crowbar, Ladder, Pole, 2 Pouches, Rope, String, Tinderbox, 5 Torches, Traveler's Clothes, Waterskin, 26 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Light Hammer]], [[equipment:Mason's Tools]], [[equipment:Backpack]], [[equipment:Bedroll]], [[equipment:Crowbar]], [[equipment:Ladder]], [[equipment:Pole]], 2 [[equipment:Pouch|Pouches]], [[equipment:Rope]], [[equipment:String]], [[equipment:Tinderbox]], 5 [[equipment:Torch|Torches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 26 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -639,7 +639,7 @@
       "other_proficiencies": ["Jeweler's Tools"],
       "ability_scores": ["Intelligence", "Wisdom", "Charisma"],
       "feats": ["Crafter"],
-      "equipment": "Choose A or B: (A) Quarterstaff, Jeweler's Tools, Perfume, Pouch, Robe, Shovel, String, Waterskin, 16 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Quarterstaff]], [[equipment:Jeweler's Tools]], [[equipment:Perfume]], [[equipment:Pouch]], [[equipment:Robe]], [[equipment:Shovel]], [[equipment:String]], [[equipment:Waterskin]], 16 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -653,7 +653,7 @@
       "other_proficiencies": ["Navigator's Tools"],
       "ability_scores": ["Strength", "Wisdom", "Charisma"],
       "feats": ["Purple Dragon Rook"],
-      "equipment": "Choose A or B: (A) Spear, Navigator's Tools, Fine Clothes, 9 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Spear]], [[equipment:Navigator's Tools]], [[equipment:Clothes, Fine|Fine Clothes]], 9 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -667,7 +667,7 @@
       "other_proficiencies": ["Cartographer's Tools"],
       "ability_scores": ["Strength", "Constitution", "Charisma"],
       "feats": ["Tough"],
-      "equipment": "Choose A or B: (A) Cartographer's Tools, Backpack, Bedroll, Hooded Lantern, Oil (3 flasks), Rope, Tinderbox, Traveler's Clothes, Waterskin, 23 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Cartographer's Tools]], [[equipment:Backpack]], [[equipment:Bedroll]], [[equipment:Lantern, Hooded|Hooded Lantern]], [[equipment:Oil]] (3 flasks), [[equipment:Rope]], [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 23 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -681,7 +681,7 @@
       "other_proficiencies": ["Thieves' Tools"],
       "ability_scores": ["Dexterity", "Intelligence", "Charisma"],
       "feats": ["Savage Attacker"],
-      "equipment": "Choose A or B: (A) 2 Daggers, Thieves' Tools, Caltrops, Costume, Grappling Hook, Iron Spikes, Mirror, 2 Pouches, Rope, Traveler's Clothes, 3 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) 2 [[equipment:Dagger|Daggers]], [[equipment:Thieves' Tools]], [[equipment:Caltrops]], [[equipment:Costume]], [[equipment:Grappling Hook]], [[equipment:Spikes, Iron|Iron Spikes]], [[equipment:Mirror]], 2 [[equipment:Pouch|Pouches]], [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 3 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -695,7 +695,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Constitution", "Intelligence", "Charisma"],
       "feats": ["Spellfire Spark"],
-      "equipment": "Choose A or B: (A) Gaming Set (same as above), Arcane Focus (Crystal or Wand), 2 Pouches, Traveler's Clothes, 36 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Gaming Set]] (same as above), [[equipment:Arcane Focus]] (Crystal or Wand), 2 [[equipment:Pouch|Pouches]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 36 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -709,7 +709,7 @@
       "other_proficiencies": ["Forgery Kit"],
       "ability_scores": ["Strength", "Dexterity", "Charisma"],
       "feats": ["Zhentarim Ruffian"],
-      "equipment": "Choose A or B: (A) Club, Dagger, Forgery Kit, Fine Clothes, Hooded Lantern, Oil (3 flasks), 2 Pouches, String, Tinderbox, 11 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Club]], [[equipment:Dagger]], [[equipment:Forgery Kit]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Lantern, Hooded|Hooded Lantern]], [[equipment:Oil]] (3 flasks), 2 [[equipment:Pouch|Pouches]], [[equipment:String]], [[equipment:Tinderbox]], 11 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -723,7 +723,7 @@
       "other_proficiencies": ["Choose one kind of Gaming Set"],
       "ability_scores": ["Dexterity", "Intelligence", "Charisma"],
       "feats": ["Tireless Reveler"],
-      "equipment": "Choose A or B: (A) Dagger, Gaming Set (same as above), Fine Clothes, Glass Bottle, Mirror, Perfume, Pouch, Tinderbox, 19 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Gaming Set]] (same as above), [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Bottle, Glass|Glass Bottle]], [[equipment:Mirror]], [[equipment:Perfume]], [[equipment:Pouch]], [[equipment:Tinderbox]], 19 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -737,7 +737,7 @@
       "other_proficiencies": ["Cartographer's Tools"],
       "ability_scores": ["Strength", "Constitution", "Wisdom"],
       "feats": ["Child of the Sun"],
-      "equipment": "Choose A or B: (A) Quarterstaff, Cartographer's Tools, Backpack, Basket, Parchment (4 sheets), Rope, Traveler's Clothes, 29 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Quarterstaff]], [[equipment:Cartographer's Tools]], [[equipment:Backpack]], [[equipment:Basket]], [[equipment:Parchment]] (4 sheets), [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 29 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -751,7 +751,7 @@
       "other_proficiencies": ["Glassblower's Tools"],
       "ability_scores": ["Dexterity", "Intelligence", "Charisma"],
       "feats": ["Shadowmoor Hexer"],
-      "equipment": "Choose A or B: (A) Dagger, Glassblower's Tools, Backpack, Hunting Trap, Lamp, Oil (3 flasks), Traveler's Clothes, Waterskin, 8 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Glassblower's Tools]], [[equipment:Backpack]], [[equipment:Hunting Trap]], [[equipment:Lamp]], [[equipment:Oil]] (3 flasks), [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 8 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -765,7 +765,7 @@
       "other_proficiencies": ["Cook's Utensils"],
       "ability_scores": ["Strength", "Constitution", "Charisma"],
       "feats": ["Vampire's Plaything"],
-      "equipment": "Choose A or B: (A) Cook's Utensils, Fine Clothes, 2 Glass Bottles, Healer's Kit, Perfume, Lamp, Oil (3 flasks), Waterskin, 19 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Cook's Utensils]], [[equipment:Clothes, Fine|Fine Clothes]], 2 [[equipment:Bottle, Glass|Glass Bottles]], [[equipment:Healer's Kit]], [[equipment:Perfume]], [[equipment:Lamp]], [[equipment:Oil]] (3 flasks), [[equipment:Waterskin]], 19 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false
@@ -779,7 +779,217 @@
       "other_proficiencies": ["Woodcarver's Tools"],
       "ability_scores": ["Dexterity", "Constitution", "Wisdom"],
       "feats": ["Vampire Hunter"],
-      "equipment": "Choose A or B: (A) Woodcarver's Tools, Crowbar, Hooded Lantern, Holy Symbol (reliquary), Holy Water, Mirror, Oil (3 flasks), Tinderbox, Traveler's Clothes, Waterskin, 4 GP; or (B) 50 GP",
+      "equipment": "Choose A or B: (A) [[equipment:Woodcarver's Tools]], [[equipment:Crowbar]], [[equipment:Lantern, Hooded|Hooded Lantern]], [[equipment:Holy Symbol]] (reliquary), [[equipment:Holy Water]], [[equipment:Mirror]], [[equipment:Oil]] (3 flasks), [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 4 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Haunted One",
+      "source": "Ravenloft: The Horrors Within",
+      "is_legacy": false,
+      "description": "You are haunted by the events of your past. Whether it was a lone terrible incident or an accumulation of painful moments, you bear the unshakable weight of what happened to you. You've tried to bury it and run away from it, to no avail; it can't be slain with a sword or banished via magic. Nevertheless, you persist.",
+      "skills": ["Arcana", "Survival"],
+      "other_proficiencies": ["Choose one kind of Gaming Set"],
+      "ability_scores": ["Constitution", "Wisdom", "Charisma"],
+      "feats": ["Survivor", "a Dark Gift feat of your choice"],
+      "equipment": "Choose A or B: (A) [[equipment:Gaming Set]] (same as above), [[equipment:Crowbar]], [[equipment:Holy Water]] (1 flask), [[equipment:Mirror]], [[equipment:Oil]] (2 flasks), [[equipment:Signal Whistle]], [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 5 [[equipment:Torch|Torches]], [[equipment:Waterskin]], 14 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Investigator",
+      "source": "Ravenloft: The Horrors Within",
+      "is_legacy": false,
+      "description": "You relentlessly seek the truth. Perhaps you witnessed something remarkable or terrible and now desire to unravel its mystery, or maybe you're motivated by universal justice and honesty. Whether the cases you're embroiled in are local crimes or eldritch conspiracies, you're driven to reveal what others would keep hidden.",
+      "skills": ["Insight", "Investigation"],
+      "other_proficiencies": ["Disguise Kit"],
+      "ability_scores": ["Intelligence", "Wisdom", "Charisma"],
+      "feats": ["Sharp Eye", "a Dark Gift feat of your choice"],
+      "equipment": "Choose A or B: (A) [[equipment:Disguise Kit]], [[equipment:Manacles]], [[equipment:Shovel]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 3 [[equipment:Vial|Vials]], 16 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Mist Wanderer",
+      "source": "Ravenloft: The Horrors Within",
+      "is_legacy": false,
+      "description": "You once knew your home. But one day, the Mists rose and drew you into a Domain of Dread. Ever since, you have wandered between domains, braving the mercurial Mists as you search for a way home. Your time in these cursed realms has changed you, yet you find solace in communities of fellow wanderers throughout the Mists.",
+      "skills": ["Survival", "Stealth"],
+      "other_proficiencies": ["Choose one kind of Artisan's Tools"],
+      "ability_scores": ["Dexterity", "Constitution", "Wisdom"],
+      "feats": ["a Dark Gift feat of your choice (Mist Walker is recommended)"],
+      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), [[equipment:Lamp]], [[equipment:Oil]] (5 flasks), [[equipment:Pouch]], [[equipment:Rope]], [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 30 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Spirit Medium",
+      "source": "Ravenloft: The Horrors Within",
+      "is_legacy": false,
+      "description": "Through strange rituals and fateful encounters, you've discovered that you bear a unique connection to the spirits of the dead and damned. Your body is a conduit for such spirits, granting you prescient insight from beyond. But these spirits' intentions aren't always innocent, and their gifts come at a haunting cost.",
+      "skills": ["Insight", "Religion"],
+      "other_proficiencies": ["Choose one kind of Gaming Set"],
+      "ability_scores": ["Constitution", "Intelligence", "Wisdom"],
+      "feats": ["Dark Gift feat of your choice (Gathered Whispers is recommended)"],
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Gaming Set]] (same as above), [[equipment:Basket]], [[equipment:Bell]], 8 [[equipment:Candle|Candles]], [[equipment:Ink]], [[equipment:Ink Pen]], [[equipment:Paper]] (5 sheets), [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 32 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Agent of the Ninth Quill",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Your sharp mind and keen burgling skills led you to fall in with the Ninth Quill, a collective of thieves, saboteurs, and spies who steal magical lore and relics from others. Through your escapades—from purloining magic items and arcane tomes to sabotaging groups of mages—you've developed cunning skills and magical tricks to further your spy craft.",
+      "skills": ["Arcana", "Sleight of Hand"],
+      "other_proficiencies": ["Thieves' Tools"],
+      "ability_scores": ["Dexterity", "Intelligence", "Charisma"],
+      "feats": ["Arcane Infiltrator"],
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Light Hammer]], [[equipment:Thieves' Tools]], [[equipment:Spikes, Iron|Iron Spikes]], [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 17 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Bejeweled Conclave Spy",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Publicly, you're a courtier, a mediator, or an entertainer. But behind that glamorous visage is a mind honed for gathering secrets. Trained by the enchanters of the Bejeweled Conclave, you know how to use your charm and wit (plus a little magic) to infiltrate organizations, uncover information, and broker deals.",
+      "skills": ["Deception", "Perception"],
+      "other_proficiencies": ["Disguise Kit"],
+      "ability_scores": ["Dexterity", "Wisdom", "Charisma"],
+      "feats": ["Arcane Eloquence"],
+      "equipment": "Choose A or B: (A) [[equipment:Disguise Kit]], [[equipment:Clothes, Fine|Fine Clothes]], [[equipment:Perfume]], 5 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Cosmic Dawn Experiment",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Your body has been warped by the transmutation practices of the Bringers of the Cosmic Dawn. Perhaps you were inadvertently caught up in one of the organization's experiments, or maybe you were a member of the organization and sought to improve your physical form through magical might. Whatever the case, you use your strange anatomy to your benefit.",
+      "skills": ["Athletics", "Survival"],
+      "other_proficiencies": ["Choose one kind of Artisan's Tools"],
+      "ability_scores": ["Strength", "Dexterity", "Constitution"],
+      "feats": ["Transmuted Anatomy"],
+      "equipment": "Choose A or B: (A) Artisan's Tools (same as above), [[equipment:Backpack]], [[equipment:Robe]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 30 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Covenant of the Grave Recruit",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Death has always fascinated you. You've studied that morbid topic alongside members of the Covenant of the Grave, analyzing the macabre with scientific precision. Though these studies, you've amassed knowledge of medication, necromancy, and history.",
+      "skills": ["History", "Medicine"],
+      "other_proficiencies": ["Herbalism Kit"],
+      "ability_scores": ["Strength", "Intelligence", "Wisdom"],
+      "feats": ["Arcane Undertaker"],
+      "equipment": "Choose A or B: (A) [[equipment:Dagger]], [[equipment:Herbalism Kit]], [[equipment:Book]] (anatomy), [[equipment:Shovel]], 16 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Crucible Storm Chaser",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Your daredevil tendencies and thirst for excitement led you to the Crucible Keepers, an organization dedicated to studying natural and magical catastrophes. From playing with molten glass to charging into a hurricane's eye, you thrive when disaster is mere steps away.",
+      "skills": ["Athletics", "Nature"],
+      "other_proficiencies": ["Glassblower's Tools"],
+      "ability_scores": ["Strength", "Constitution", "Intelligence"],
+      "feats": ["Arcane Overload"],
+      "equipment": "Choose A or B: (A) [[equipment:Glassblower's Tools]], [[equipment:Backpack]], [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 15 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Familiar Trainer",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "A magical familiar bonded with you when you were young, accompanying you throughout your adolescence. Now, you can't imagine life without your furry—or feathery, scaly, or slimy—friend at your side. You've learned to work in tandem with your familiar, and when adventure presents its challenges, your familiar is quick to remind you of the small joys in life.",
+      "skills": ["Animal Handling", "Arcana"],
+      "other_proficiencies": ["Choose one kind of Gaming Set"],
+      "ability_scores": ["Constitution", "Intelligence", "Wisdom"],
+      "feats": ["Familiar Friend"],
+      "equipment": "Choose A or B: (A) [[equipment:Quarterstaff]], [[equipment:Gaming Set]] (same as above), [[equipment:Bedroll]], [[equipment:Bell]], [[equipment:String]], [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 44 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Horizon Weaver Initiate",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Your adolescence was marked by unquenchable wanderlust. You left home and began your travels as soon as you were able. Along the way, you encountered the adventurous conjurers of the Horizon Weavers, who taught you some of their teleportation magic to further your explorations.",
+      "skills": ["Acrobatics", "Survival"],
+      "other_proficiencies": ["Weaver's Tools"],
+      "ability_scores": ["Dexterity", "Constitution", "Wisdom"],
+      "feats": ["Portal Jumper"],
+      "equipment": "Choose A or B: (A) [[equipment:Shortbow]], 20 [[equipment:Arrows]], [[equipment:Weaver's Tools]], [[equipment:Map]], [[equipment:Quiver]], [[equipment:Rope]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 18 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Phantasmic Circus Trouper",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "Whether as a performer or a circus hand, you found a home among the members of the Phantasmic Circus. As you traveled across the world bringing magic and wonder to excited audiences, you learned some illusion magic and honed your talents for performance and misdirection.",
+      "skills": ["Deception", "Performance"],
+      "other_proficiencies": ["Disguise Kit"],
+      "ability_scores": ["Dexterity", "Constitution", "Charisma"],
+      "feats": ["Arcane Artist"],
+      "equipment": "Choose A or B: (A) [[equipment:Disguise Kit]], [[equipment:Gaming Set]] (any), [[equipment:Costume]], [[equipment:Mirror]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 12 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Seer Apprentice",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "As an apprentice among the Seers of Sea and Sky, you learned to interpret minor omens from the clouds above and the fathoms below. The organization's rich network of libraries furthered your education, and you now travel across the world, imparting advice and aid to others.",
+      "skills": ["History", "Insight"],
+      "other_proficiencies": ["Navigator's Tools"],
+      "ability_scores": ["Intelligence", "Wisdom", "Charisma"],
+      "feats": ["Arcane Omens"],
+      "equipment": "Choose A or B: (A) [[equipment:Navigator's Tools]], 8 [[equipment:Candle|Candles]], [[equipment:Ink]], [[equipment:Ink Pen]], [[equipment:Parchment]] (9 sheets), [[equipment:Pouch]], [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], 11 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Ward of the Sheltering Hands",
+      "source": "Arcana Unleashed",
+      "is_legacy": false,
+      "description": "A turn of ill luck led you to the Sheltering Hands, an altruistic organization dedicated to defending the downtrodden. The organization helped you regain your footing and taught you some of its protective magic—in the hope that one day you too would shelter the less fortunate in their time of need.",
+      "skills": ["Insight", "Medicine"],
+      "other_proficiencies": ["Cook's Utensils"],
+      "ability_scores": ["Constitution", "Wisdom", "Charisma"],
+      "feats": ["Arcane Safeguard"],
+      "equipment": "Choose A or B: (A) [[equipment:Cook's Utensils]], [[equipment:Blanket]], [[equipment:Healer's Kit]], [[equipment:Lamp]], [[equipment:Oil]] (3 flasks), [[equipment:Tinderbox]], [[equipment:Clothes, Traveler's|Traveler's Clothes]], [[equipment:Waterskin]], 40 GP; or (B) 50 GP",
+      "features": [],
+      "is_official": true,
+      "is_custom": false
+    },
+    {
+      "name": "Pact Seeker",
+      "source": "D&D Beyond Drops - May 2026",
+      "is_legacy": false,
+      "description": "You had a purpose in mind. Perhaps you were seeking out knowledge or power. Or maybe you were in search of hidden secrets. One way or another, your journey lead you to seek out an extraplanar entity. Once you made contact, a deal was struck, and your life changed.",
+      "skills": ["Arcana", "Persuasion"],
+      "other_proficiencies": ["Calligrapher's Supplies"],
+      "ability_scores": ["Constitution", "Intelligence", "Charisma"],
+      "feats": ["Choose one Planar Pact feat"],
+      "equipment": "Choose A or B: (A) [[equipment:Book]], [[equipment:Calligrapher's Supplies]], [[equipment:Ink]], [[equipment:Ink Pen]], [[equipment:Parchment]] (10 sheets), [[equipment:Clothes, Traveler's|Traveler's Clothes]], 2 GP; or (B) 50 GP",
       "features": [],
       "is_official": true,
       "is_custom": false

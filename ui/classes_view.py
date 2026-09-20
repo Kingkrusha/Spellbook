@@ -3,6 +3,7 @@ Classes Collection View for D&D Spellbook Application.
 Displays class information with feature tables like the PHB 2024.
 """
 
+import re
 import customtkinter as ctk
 from typing import Optional, Callable, List
 from theme import get_theme_manager
@@ -23,6 +24,20 @@ def get_spell_manager():
     return _spell_manager
 
 _spell_manager = None
+
+
+def _spell_column_index(columns, rows) -> int:
+    """Index of the column holding spell names, or -1 if the table has none.
+
+    A column titled "Spells" / "Prepared Spells" only counts when it holds
+    names: a purely numeric count column (a subclass spellcasting table's
+    "Prepared Spells") must not be rendered as clickable spell links.
+    """
+    for i, col in enumerate(columns):
+        if "Spell" in col and any(
+                i < len(r) and re.search(r"[A-Za-z]", str(r[i])) for r in rows):
+            return i
+    return -1
 
 
 class ClassesCollectionView(ctk.CTkFrame):
@@ -801,9 +816,8 @@ class ClassesCollectionView(ctk.CTkFrame):
         if not columns or not rows:
             return
         
-        # Check if this is a spell list table (has "Spells" column)
-        is_spell_table = any("Spells" in col or "Spell" in col for col in columns)
-        spell_col_index = next((i for i, col in enumerate(columns) if "Spells" in col or "Spell" in col), -1)
+        spell_col_index = _spell_column_index(columns, rows)
+        is_spell_table = spell_col_index >= 0
         
         self._render_compact_table(parent, columns, rows, title, is_spell_table, spell_col_index)
     
@@ -1474,9 +1488,8 @@ class ClassesCollectionView(ctk.CTkFrame):
         if not columns or not rows:
             return
         
-        # Check if this is a spell list table (has "Spells" column)
-        is_spell_table = any("Spells" in col or "Spell" in col for col in columns)
-        spell_col_index = next((i for i, col in enumerate(columns) if "Spells" in col or "Spell" in col), -1)
+        spell_col_index = _spell_column_index(columns, rows)
+        is_spell_table = spell_col_index >= 0
         
         self._render_compact_table(parent, columns, rows, title, is_spell_table, spell_col_index)
     

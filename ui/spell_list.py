@@ -51,6 +51,7 @@ class SpellListPanel(ctk.CTkFrame):
         self._font = ctk.CTkFont(size=13)
 
         self._refresh_colors()
+        self.configure(fg_color=self._panel_bg)
         self._create_widgets()
         self._install_scroll_hooks()
 
@@ -65,6 +66,7 @@ class SpellListPanel(ctk.CTkFrame):
 
     def _refresh_colors(self):
         theme = get_theme_manager()
+        self._panel_bg = theme.get_current_color('bg_primary')
         self._row_bg = theme.get_current_color('spell_row')
         self._accent = theme.get_current_color('accent_primary')
         self._hover = theme.get_current_color('button_hover')
@@ -354,6 +356,7 @@ class SpellListPanel(ctk.CTkFrame):
         try:
             self._refresh_colors()
             try:
+                self.configure(fg_color=self._panel_bg)
                 self.count_label.configure(text_color=self._secondary_text)
                 self.scroll_frame.configure(fg_color=self._row_bg)
             except Exception:
