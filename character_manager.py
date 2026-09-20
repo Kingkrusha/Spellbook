@@ -21,25 +21,41 @@ class CharacterManager:
         self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._characters: List[CharacterSpellList] = []
         self._listeners: List[Callable[[], None]] = []
-    
+        self._error_listeners: List[Callable[[str], None]] = []
+
     @property
     def characters(self) -> List[CharacterSpellList]:
         """Return a copy of the character list."""
         return self._characters.copy()
-    
+
     def add_listener(self, callback: Callable[[], None]):
         """Add a listener to be notified when characters change."""
         self._listeners.append(callback)
-    
+
     def remove_listener(self, callback: Callable[[], None]):
         """Remove a listener to prevent memory leaks when views are destroyed."""
         if callback in self._listeners:
             self._listeners.remove(callback)
-    
+
     def _notify_listeners(self):
         """Notify all listeners of a change."""
         for listener in self._listeners:
             listener()
+
+    def add_error_listener(self, callback: Callable[[str], None]):
+        """Add a listener to be notified when a load/save fails.
+
+        Without this, a failed save was only ever ``print()``-ed - invisible
+        in a windowed build with no console - so edits could silently vanish.
+        """
+        self._error_listeners.append(callback)
+
+    def _notify_error(self, message: str):
+        for listener in self._error_listeners:
+            try:
+                listener(message)
+            except Exception:
+                pass
     
     def load_characters(self) -> bool:
         """Load characters from the JSON file. Returns True if successful."""
@@ -59,9 +75,10 @@ class CharacterManager:
             return True
         except Exception as e:
             print(f"Error loading characters: {e}")
+            self._notify_error(f"Could not load characters.json: {e}")
             self._characters = []
             return False
-    
+
     def save_characters(self) -> bool:
         """Save all characters to the JSON file. Returns True if successful."""
         try:
@@ -72,6 +89,7 @@ class CharacterManager:
             return True
         except Exception as e:
             print(f"Error saving characters: {e}")
+            self._notify_error(f"Could not save your changes to characters.json: {e}")
             return False
     
     def add_character(self, character: CharacterSpellList) -> bool:
