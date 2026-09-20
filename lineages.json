@@ -21,7 +21,7 @@
         },
         {
           "name": "Light Bearer",
-          "description": "You know the Light cantrip. Charisma is your spellcasting ability for it."
+          "description": "You know the [[spell:Light]] cantrip. Charisma is your spellcasting ability for it."
         },
         {
           "name": "Celestial Revelation",
@@ -187,7 +187,7 @@
         },
         {
           "name": "Elven Lineage",
-          "description": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).\n\n| Lineage | Level 1 | Level 3 | Level 5 |\n|---------|---------|---------|--------|\n| Drow | The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip. | Faerie Fire | Darkness |\n| High Elf | You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list. | Detect Magic | Misty Step |\n| Wood Elf | Your Speed increases to 35 feet. You also know the Druidcraft cantrip. | Longstrider | Pass without Trace |\n| Lorwyn Elf | You know the Thorn Whip cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Druid spell list. | Command | Silence |\n| Shadowmoor Elf | The range of your Darkvision increases to 120 feet. You also know the Starry Wisp cantrip. | Heroism | Gentle Repose |"
+          "description": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).\n\n| Lineage | Level 1 | Level 3 | Level 5 |\n|---------|---------|---------|--------|\n| Drow | The range of your Darkvision increases to 120 feet. You also know the [[spell:Dancing Lights]] cantrip. | [[spell:Faerie Fire]] | [[spell:Darkness]] |\n| High Elf | You know the [[spell:Prestidigitation]] cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the [[class:Wizard]] spell list. | [[spell:Detect Magic]] | [[spell:Misty Step]] |\n| Wood Elf | Your Speed increases to 35 feet. You also know the [[spell:Druidcraft]] cantrip. | [[spell:Longstrider]] | [[spell:Pass without Trace]] |\n| Lorwyn Elf | You know the [[spell:Thorn Whip]] cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the [[class:Druid]] spell list. | [[spell:Command]] | [[spell:Silence]] |\n| Shadowmoor Elf | The range of your Darkvision increases to 120 feet. You also know the [[spell:Starry Wisp]] cantrip. | [[spell:Heroism]] | [[spell:Gentle Repose]] |"
         },
         {
           "name": "Fey Ancestry",
@@ -216,7 +216,7 @@
       "traits": [
         {
           "name": "Fairy Magic",
-          "description": "You know the Druidcraft cantrip.\n\nStarting at 3rd level, you can cast the Faerie Fire spell with this trait. Starting at 5th level, you can also cast the Enlarge/Reduce spell with this trait. Once you cast Faerie Fire or Enlarge/Reduce with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+          "description": "You know the [[spell:Druidcraft]] cantrip.\n\nStarting at 3rd level, you can cast the [[spell:Faerie Fire]] spell with this trait. Starting at 5th level, you can also cast the [[spell:Enlarge/Reduce]] spell with this trait. Once you cast [[spell:Faerie Fire]] or [[spell:Enlarge/Reduce]] with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
         },
         {
           "name": "Flight",
@@ -245,7 +245,7 @@
         },
         {
           "name": "Reach to the Blaze",
-          "description": "You know the Produce Flame cantrip. Starting at 3rd level, you can cast the Burning Hands spell with this trait. Starting at 5th level, you can also cast the Flame Blade spell with this trait, without requiring a material component. Once you cast Burning Hands or Flame Blade with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+          "description": "You know the [[spell:Produce Flame]] cantrip. Starting at 3rd level, you can cast the [[spell:Burning Hands]] spell with this trait. Starting at 5th level, you can also cast the [[spell:Flame Blade]] spell with this trait, without requiring a material component. Once you cast [[spell:Burning Hands]] or [[spell:Flame Blade]] with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
         }
       ],
       "source": "Lorwyn - First Light",
@@ -270,7 +270,7 @@
         },
         {
           "name": "Gnomish Lineage",
-          "description": "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):\n\n**Forest Gnome.** You know the Minor Illusion cantrip. You also always have the Speak with Animals spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.\n\n**Rock Gnome.** You know the Mending and Prestidigitation cantrips. In addition, you can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
+          "description": "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):\n\n**Forest Gnome.** You know the [[spell:Minor Illusion]] cantrip. You also always have the [[spell:Speak with Animals]] spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.\n\n**Rock Gnome.** You know the [[spell:Mending]] and [[spell:Prestidigitation]] cantrips. In addition, you can spend 10 minutes casting [[spell:Prestidigitation]] to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
         }
       ],
       "source": "Players Handbook (2024)",
@@ -349,7 +349,7 @@
         },
         {
           "name": "Versatile",
-          "description": "You gain an Origin feat of your choice. Skilled is recommended."
+          "description": "You gain an Origin feat of your choice. [[feat:Skilled]] is recommended."
         }
       ],
       "source": "Players Handbook (2024)",
@@ -378,7 +378,7 @@
         },
         {
           "name": "Severed from Dreams",
-          "description": "You can't be the target of the Dream spell. In addition, when you finish a Long Rest, you gain proficiency in one skill of your choice. This proficiency lasts until you finish another Long Rest."
+          "description": "You can't be the target of the [[spell:Dream]] spell. In addition, when you finish a Long Rest, you gain proficiency in one skill of your choice. This proficiency lasts until you finish another Long Rest."
         }
       ],
       "source": "Eberron - Forge of the Artificer",
@@ -403,7 +403,7 @@
         },
         {
           "name": "Fey Gift",
-          "description": "You know the Friends cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Cleric, Druid, or Wizard spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spell you cast with this trait (chosen when you select this species)."
+          "description": "You know the [[spell:Friends]] cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the [[class:Cleric]], [[class:Druid]], or [[class:Wizard]] spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spell you cast with this trait (chosen when you select this species)."
         },
         {
           "name": "Lethargy Resilience",
@@ -482,7 +482,7 @@
       "traits": [
         {
           "name": "Cold Fire Magic",
-          "description": "You know the Ray of Frost cantrip. When you reach character levels 3 and 5, you learn the Ice Knife spell and the Flame Blade spell, respectively. You always have those spells prepared. You can cast each once without a spell slot, and you regain the ability to cast these spells in this way when you finish a Long Rest. You can also cast the spells using any spell slots you have of the appropriate level. When you cast Flame Blade using this trait, the spell deals Cold damage instead of Fire damage.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose the ability when you select this species)."
+          "description": "You know the [[spell:Ray of Frost]] cantrip. When you reach character levels 3 and 5, you learn the [[spell:Ice Knife]] spell and the [[spell:Flame Blade]] spell, respectively. You always have those spells prepared. You can cast each once without a spell slot, and you regain the ability to cast these spells in this way when you finish a Long Rest. You can also cast the spells using any spell slots you have of the appropriate level. When you cast [[spell:Flame Blade]] using this trait, the spell deals Cold damage instead of Fire damage.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose the ability when you select this species)."
         },
         {
           "name": "Cold Resistance",
@@ -536,11 +536,11 @@
         },
         {
           "name": "Fiendish Legacy",
-          "description": "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).\n\n| Legacy | Level 1 | Level 3 | Level 5 |\n|--------|---------|---------|--------|\n| Abyssal | You have Resistance to Poison damage. You also know the Poison Spray cantrip. | Ray of Sickness | Hold Person |\n| Chthonic | You have Resistance to Necrotic damage. You also know the Chill Touch cantrip. | False Life | Ray of Enfeeblement |\n| Infernal | You have Resistance to Fire damage. You also know the Fire Bolt cantrip. | Hellish Rebuke | Darkness |"
+          "description": "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.\n\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\n\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).\n\n| Legacy | Level 1 | Level 3 | Level 5 |\n|--------|---------|---------|--------|\n| Abyssal | You have Resistance to Poison damage. You also know the [[spell:Poison Spray]] cantrip. | [[spell:Ray of Sickness]] | [[spell:Hold Person]] |\n| Chthonic | You have Resistance to Necrotic damage. You also know the [[spell:Chill Touch]] cantrip. | [[spell:False Life]] | [[spell:Ray of Enfeeblement]] |\n| Infernal | You have Resistance to Fire damage. You also know the [[spell:Fire Bolt]] cantrip. | [[spell:Hellish Rebuke]] | [[spell:Darkness]] |"
         },
         {
           "name": "Otherworldly Presence",
-          "description": "You know the Thaumaturgy cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait."
+          "description": "You know the [[spell:Thaumaturgy]] cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait."
         }
       ],
       "source": "Players Handbook (2024)",

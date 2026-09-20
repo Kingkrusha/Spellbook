@@ -64,12 +64,18 @@ class SelectableListPanel(ctk.CTkFrame, Generic[T]):
         self._selected_index: Optional[int] = None
         self._item_buttons: List[ctk.CTkButton] = []
         self.theme = get_theme_manager()
-        
+        # Own the panel background (track the theme) unless the caller set one.
+        self._theme_owns_bg = 'fg_color' not in kwargs
+        if self._theme_owns_bg:
+            self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        if getattr(self, '_theme_owns_bg', False):
+            self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._refresh_buttons()
     
     def _create_widgets(self):

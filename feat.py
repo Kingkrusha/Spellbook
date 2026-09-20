@@ -45,6 +45,11 @@ class Feat:
     is_custom: bool = False  # True if user-created
     is_legacy: bool = False  # True for 2014 (legacy) content
     
+    def plain_description(self) -> str:
+        """Description with [[link]] markup replaced by its visible text (for searching)."""
+        from object_link_sweep import strip_links
+        return strip_links(self.description)
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -275,7 +280,7 @@ class FeatManager:
                 continue
             
             # Search in name and description
-            if query_lower in feat.name.lower() or query_lower in feat.description.lower():
+            if query_lower in feat.name.lower() or query_lower in feat.plain_description().lower():
                 results.append(feat)
         
         return results

@@ -89,6 +89,16 @@ def preprocess_html_to_markdown(text: str) -> str:
     return text
 
 
+def link_display_text(inner: str) -> str:
+    """The visible text for the inside of a ``[[...]]`` token.
+
+    ``[[equipment:Bottle, Glass|Glass Bottle]]`` shows as "Glass Bottle" and
+    ``[[Fireball]]`` as "Fireball" - never the raw markup.
+    """
+    from object_links import parse_link_markup
+    return parse_link_markup(inner)[2]
+
+
 class RichTextRenderer:
     """
     Utility class for rendering rich text with markdown formatting, tables, and spell links.
@@ -215,7 +225,21 @@ class RichTextRenderer:
                 parent=parent.winfo_toplevel()
             )
     
-    def render_table(self, parent, headers: list, rows: list, 
+    def show_link_popup(self, parent, inner: str):
+        """Default handler for a clicked ``[[...]]`` token when no explicit
+        `on_spell_click` override was supplied. Dispatches through the
+        universal object-link system (spell, feat, equipment, class, ...)
+        rather than assuming every link is a spell."""
+        from object_links import parse_link_markup
+        from ui.object_link_widgets import open_link_popup
+
+        category, name, _display = parse_link_markup(inner)
+        if category == "spell":
+            self.show_spell_popup(parent, name)
+        else:
+            open_link_popup(parent, category, name)
+
+    def render_table(self, parent, headers: list, rows: list,
                      on_spell_click: Optional[Callable[[str], None]] = None):
         """
         Render a table with headers and rows using grid layout.
@@ -241,7 +265,7 @@ class RichTextRenderer:
                 if i < len(row):
                     # Strip [[]] from spell links for length calculation
                     cell_text = str(row[i])
-                    cell_text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', cell_text)
+                    cell_text = re.sub(r'\[\[([^\]]+)\]\]', lambda m: link_display_text(m.group(1)), cell_text)
                     max_len = max(max_len, len(cell_text))
             col_weights.append(max(5, max_len))
         
@@ -286,7 +310,7 @@ class RichTextRenderer:
                     self._render_table_cell_formatted(cell_frame, cell_text, spell_pattern, bold_pattern, on_spell_click, parent)
                 elif self.is_spell_name(cell_text.strip()):
                     # Entire cell is a spell name
-                    callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                    callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_link_popup(p, s)
                     btn = ctk.CTkButton(
                         cell_frame, text=cell_text,
                         font=ctk.CTkFont(size=11),
@@ -318,10 +342,29 @@ class RichTextRenderer:
                     # Calculate required height based on content length
                     num_lines = max(1, (len(cell_text) // 35) + 1)
                     text_widget.configure(state="disabled", height=num_lines)
+                    self._fit_height_to_content(text_widget)
                     text_widget.pack(fill="both", expand=True)
         
         return table_frame
     
+    @staticmethod
+    def _fit_height_to_content(text_widget):
+        """Keep a read-only Text cell exactly as tall as its wrapped content.
+
+        The character-count guess used when a cell is built assumes a narrow
+        column, so wide columns end up with a lot of dead space. Once the cell
+        is laid out (and whenever it is resized) use the real line count.
+        """
+        def fit(_event=None):
+            try:
+                counted = text_widget.count("1.0", "end", "displaylines")
+                if counted and counted[0] > 0 and text_widget.winfo_width() > 20:
+                    if int(text_widget.cget("height")) != counted[0]:
+                        text_widget.configure(height=counted[0])
+            except Exception:
+                pass
+        text_widget.bind("<Configure>", fit, add="+")
+
     def _render_table_cell_with_spells(self, cell_frame, cell_text: str, spell_pattern: str, 
                                         on_spell_click: Optional[Callable], parent):
         """Render a table cell containing spell links."""
@@ -360,20 +403,21 @@ class RichTextRenderer:
                     foreground=self.theme.get_current_color('spell_link'),
                     underline=True
                 )
-                text_widget.insert("end", part, spell_tag)
-                
+                text_widget.insert("end", link_display_text(part), spell_tag)
+
                 # Bind click handler
-                callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_link_popup(p, s)
                 text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=part: callback(s))
                 text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
                 text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
             else:
                 text_widget.insert("end", part, "normal")
-        
+
         # Calculate required height based on content length
         content = text_widget.get("1.0", "end").strip()
         num_lines = max(1, (len(content) // 35) + 1)
         text_widget.configure(state="disabled", height=num_lines)
+        self._fit_height_to_content(text_widget)
         text_widget.pack(fill="both", expand=True)
     
     def _render_table_cell_formatted(self, cell_frame, cell_text: str, spell_pattern: str,
@@ -426,10 +470,10 @@ class RichTextRenderer:
                         foreground=self.theme.get_current_color('spell_link'),
                         underline=True
                     )
-                    text_widget.insert("end", spell_part, spell_tag)
-                    
+                    text_widget.insert("end", link_display_text(spell_part), spell_tag)
+
                     # Bind click handler
-                    callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                    callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_link_popup(p, s)
                     text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: callback(s))
                     text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
                     text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
@@ -442,6 +486,7 @@ class RichTextRenderer:
         content = text_widget.get("1.0", "end").strip()
         num_lines = max(1, (len(content) // 35) + 1)
         text_widget.configure(state="disabled", height=num_lines)
+        self._fit_height_to_content(text_widget)
         text_widget.pack(fill="both", expand=True)
     
     def _preprocess_html_to_markdown(self, text: str) -> str:
@@ -589,10 +634,10 @@ class RichTextRenderer:
                         text_widget.tag_configure(spell_tag, font=ctk.CTkFont(size=12, weight="bold" if is_bold else "normal"),
                                                   foreground=self.theme.get_current_color('spell_link'),
                                                   underline=True)
-                        text_widget.insert("end", spell_part, spell_tag)
-                        
+                        text_widget.insert("end", link_display_text(spell_part), spell_tag)
+
                         # Bind click handler
-                        callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                        callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_link_popup(p, s)
                         text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=spell_part: callback(s))
                         text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
                         text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
@@ -648,16 +693,16 @@ class RichTextRenderer:
                 text_widget.tag_configure(spell_tag, font=ctk.CTkFont(size=12),
                                           foreground=self.theme.get_current_color('spell_link'),
                                           underline=True)
-                text_widget.insert("end", part, spell_tag)
-                
+                text_widget.insert("end", link_display_text(part), spell_tag)
+
                 # Bind click handler
-                callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_spell_popup(p, s)
+                callback = on_spell_click if on_spell_click else lambda s, p=parent: self.show_link_popup(p, s)
                 text_widget.tag_bind(spell_tag, "<Button-1>", lambda e, s=part: callback(s))
                 text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
                 text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
             else:
                 text_widget.insert("end", part, "normal")
-        
+
         # Calculate height
         total_chars = sum(len(p) for p in parts if p)
         estimated_lines = max(1, (total_chars // 55) + 1)
@@ -1216,6 +1261,13 @@ class RichTextEditor:
         self.text_widget = text_widget
         self.theme = theme or get_theme_manager()
         self.renderer = RichTextRenderer(self.theme)
+
+        # Universal object linking (as-you-type suggestions, click-to-open,
+        # right-click "Find Link Suggestions"/"Unlink") on every field that
+        # goes through RichTextEditor - which is every content editor's
+        # description field.
+        from ui.object_link_widgets import attach_object_linking
+        self.linker = attach_object_linking(text_widget, self.theme, get_popup_parent=lambda: self.parent)
     
     def create_toolbar(self, toolbar_parent) -> ctk.CTkFrame:
         """
@@ -1394,15 +1446,25 @@ class DynamicText(ctk.CTkFrame):
             self.text_widget.configure(height=self.min_height)
             return
         
-        # Approximate chars per line (assuming ~7-8 pixels per char)
+        # Prefer the real wrapped line count. The raw markup is a poor guide:
+        # a [[category:Name|display]] link is far longer than what it shows.
+        try:
+            self.text_widget.update_idletasks()
+            counted = self.text_widget.count("1.0", "end", "displaylines")
+            if counted and counted[0] > 0 and self.text_widget.winfo_width() > 20:
+                self.text_widget.configure(height=max(self.min_height, counted[0]))
+                return
+        except Exception:
+            pass
+
+        # Fallback: approximate chars per line (assuming ~7-8 pixels per char)
+        visible = self.text_widget.get("1.0", "end-1c")
         chars_per_line = max(1, width // 8)
-        total_chars = len(self._text_content)
-        lines = max(self.min_height, (total_chars // chars_per_line) + 1)
-        
+        lines = max(self.min_height, (len(visible) // chars_per_line) + 1)
+
         # Account for line breaks in the text
-        line_breaks = self._text_content.count('\n')
-        lines += line_breaks
-        
+        lines += visible.count('\n')
+
         self.text_widget.configure(height=lines)
     
     def set_text(self, text: str, bold_pattern: str = r'\*\*([^*]+)\*\*'):
@@ -1461,8 +1523,9 @@ class DynamicText(ctk.CTkFrame):
                             foreground=self.theme.get_current_color('spell_link'),
                             underline=True
                         )
-                        self.text_widget.insert("end", spell_part, spell_tag)
-                        self._text_parts.append((spell_part, is_bold, True))
+                        display_part = link_display_text(spell_part)
+                        self.text_widget.insert("end", display_part, spell_tag)
+                        self._text_parts.append((display_part, is_bold, True))
                         
                         # Bind click handler
                         click_handler = self.on_spell_click
@@ -1483,52 +1546,20 @@ class DynamicText(ctk.CTkFrame):
         # Update height
         self._on_resize()
     
-    def _default_spell_click(self, spell_name: str):
-        """Default handler for spell clicks - shows a popup or error if not found."""
-        from ui.spell_detail import SpellPopupDialog
-        from database import SpellDatabase
-        from spell import Spell, CharacterClass
-        
-        db = SpellDatabase()
-        spell_dict = db.get_spell_by_name(spell_name.strip())
-        if not spell_dict:
-            # Spell not found - show a warning message
-            messagebox.showwarning(
-                "Spell Not Found",
-                f"The spell '{spell_name}' was not found in the database.\n\n"
-                "It may have been removed or renamed.",
-                parent=self.winfo_toplevel()
-            )
-            return
-        
-        # Convert dict to Spell object
-        classes = []
-        for class_name in spell_dict.get('classes', []):
-            try:
-                classes.append(CharacterClass.from_string(class_name))
-            except ValueError:
-                pass
-        
-        spell = Spell(
-            name=spell_dict['name'],
-            level=spell_dict['level'],
-            casting_time=spell_dict['casting_time'],
-            ritual=spell_dict.get('ritual', False),
-            range_value=spell_dict['range_value'],
-            components=spell_dict['components'],
-            duration=spell_dict['duration'],
-            concentration=spell_dict.get('concentration', False),
-            classes=classes,
-            description=spell_dict.get('description', ''),
-            source=spell_dict.get('source', ''),
-            tags=spell_dict.get('tags', []),
-            is_modified=spell_dict.get('is_modified', False),
-            original_name=spell_dict.get('original_name', ''),
-            is_legacy=spell_dict.get('is_legacy', False)
-        )
-        
-        popup = SpellPopupDialog(self.winfo_toplevel(), spell)
-        popup.focus()
+    def _default_spell_click(self, inner: str):
+        """Default handler for a clicked [[...]] token when no explicit
+        on_spell_click override was supplied. Despite the name (kept for
+        backward compatibility), this dispatches through the universal
+        object-link system - spell, feat, equipment, class, ... - rather
+        than assuming every link is a spell."""
+        from object_links import parse_link_markup
+        from ui.object_link_widgets import open_link_popup
+
+        category, name, _display = parse_link_markup(inner)
+        if category == "spell":
+            RichTextRenderer(self.theme).show_spell_popup(self, name)
+        else:
+            open_link_popup(self, category, name)
     
     def destroy(self):
         """Clean up on destruction."""
@@ -1537,6 +1568,34 @@ class DynamicText(ctk.CTkFrame):
         except Exception:
             pass
         super().destroy()
+
+
+def render_description_blocks(parent, text: str, theme=None,
+                              bold_pattern: str = r'\*\*([^*]+)\*\*') -> list:
+    """Render a description as blank-line-separated blocks; return the widgets.
+
+    Ordinary blocks become auto-sizing `DynamicText` (bold + [[links]]). A block
+    that is a markdown table (its first line starts with ``|``) is drawn as a
+    real table instead of raw pipe characters. The caller owns the returned
+    widgets and destroys them when the content changes.
+    """
+    theme = theme or get_theme_manager()
+    renderer = RichTextRenderer(theme)
+    widgets: list = []
+    for block in text.split('\n\n'):
+        block = block.strip()
+        if not block:
+            continue
+        if block.startswith('|'):
+            headers, rows, _consumed = renderer.parse_markdown_table(block.split('\n'))
+            if headers and rows:
+                widgets.append(renderer.render_table(parent, headers, rows))
+                continue
+        dt = DynamicText(parent, theme, bg_color='bg_primary')
+        dt.set_text(block, bold_pattern=bold_pattern)
+        dt.pack(fill="x", expand=True, pady=(2, 2))
+        widgets.append(dt)
+    return widgets
 
 
 def render_dynamic_text(parent, text: str, theme=None, on_spell_click=None,

@@ -80,12 +80,26 @@ class ParsedObject:
 _LABEL_SPLIT_RE = re.compile(r"\s*[:–—\-]\s+|\s*:\s*")
 
 
+_FULLY_WRAPPED_RE = re.compile(r"^(\*{1,3}|_{1,3})(.+?)\1$")
+
+
 def clean_lines(text: str) -> List[str]:
-    """Normalise whitespace and drop obvious decoration lines."""
+    """Normalise whitespace and drop obvious decoration lines.
+
+    Markdown emphasis is only unwrapped when it wraps the WHOLE line (e.g. a
+    "**Fireball**" heading line, or "***Spike Growth***"). A line like
+    "*Repeatable.* You can take this feat more than once." is left untouched -
+    a naive `.strip("*_")` would strip only the leading `*` (since the line
+    doesn't end in one), leaving a stray asterisk stranded mid-sentence and
+    corrupting the saved description. Feats in particular store this exact
+    "*Sub-heading.* text..." convention as real content, not decoration.
+    """
     out: List[str] = []
     for raw in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         line = raw.strip()
-        line = line.strip("*_ ")                     # markdown bold/italic runs
+        m = _FULLY_WRAPPED_RE.match(line)
+        if m and m.group(2).strip():
+            line = m.group(2).strip()
         line = re.sub(r"^#+\s*", "", line)           # markdown headings
         if set(line) <= {"-", "=", "_", "—", "–", " "} and line:
             continue                                 # horizontal rule

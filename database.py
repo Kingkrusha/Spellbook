@@ -17,7 +17,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 15  # Correct Prismatic Wall description
+    SCHEMA_VERSION = 22  # Ship the bundled Rare magic items
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -81,6 +81,10 @@ class SpellDatabase:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Enable column access by name
         conn.execute("PRAGMA foreign_keys = ON")  # Enable foreign key support
+        # Lets searches match a description's visible text instead of its
+        # [[category:Name|shown]] link markup (see search_spells).
+        from object_link_sweep import strip_links
+        conn.create_function("strip_links", 1, lambda t: strip_links(t) if t else t, deterministic=True)
         try:
             yield conn
             conn.commit()
@@ -350,7 +354,64 @@ class SpellDatabase:
             self._refresh_spell_descriptions_v13(cursor)
             cursor.execute("UPDATE schema_version SET version = 15")
             current_version = 15
-    
+
+        # Migration to version 16: backfill the bundled equipment / magic item
+        # content for databases created before it shipped. Idempotent
+        # (INSERT OR IGNORE), and never touches user-created rows.
+        if current_version < 16:
+            self._seed_equipment_and_magic_items(cursor)
+            cursor.execute("UPDATE schema_version SET version = 16")
+            current_version = 16
+
+        # Migration to version 17: re-run the seed so installs that already
+        # passed v16 pick up the bundled magic_items.json (first shipped now).
+        if current_version < 17:
+            self._seed_equipment_and_magic_items(cursor)
+            cursor.execute("UPDATE schema_version SET version = 17")
+            current_version = 17
+
+        # Migration to version 18: re-run the seed so existing installs pick up
+        # the tools (artisan/other tools, gaming sets, instruments) added to
+        # equipment.json.
+        if current_version < 18:
+            self._seed_equipment_and_magic_items(cursor)
+            cursor.execute("UPDATE schema_version SET version = 18")
+            current_version = 18
+
+        # Migration to version 19: fill in the Crafting Tool of bundled
+        # equipment (e.g. Acid -> Alchemist's Supplies) on existing installs.
+        if current_version < 19:
+            self._backfill_equipment_crafting_tools(cursor)
+            cursor.execute("UPDATE schema_version SET version = 19")
+            current_version = 19
+
+        # Migration to version 20: link object mentions in official content
+        # ("the Misty Step spell", a background's gear list, ...). If it can't
+        # run, the version stays at 19 and it is retried on the next launch.
+        if current_version < 20:
+            if self._link_official_content(cursor):
+                cursor.execute("UPDATE schema_version SET version = 20")
+                current_version = 20
+
+        # Migration to version 21: add bundled subclasses that shipped after
+        # the classes were first seeded (Artificer: Reanimator).
+        if current_version < 21:
+            if self._seed_missing_subclasses(cursor):
+                cursor.execute("UPDATE schema_version SET version = 21")
+                current_version = 21
+
+        # Migration to version 22: add the bundled Rare magic items to
+        # existing installs (INSERT OR IGNORE, so nothing already there - or
+        # user-made - is touched). The new items are bundled already linked;
+        # the link sweep is re-run so older text that mentions them (Bag of
+        # Holding -> Portable Hole, ...) links to them too. Idempotent, and
+        # retried on the next launch if the sweep can't run.
+        if current_version < 22:
+            self._seed_equipment_and_magic_items(cursor)
+            if self._link_official_content(cursor):
+                cursor.execute("UPDATE schema_version SET version = 22")
+                current_version = 22
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -396,7 +457,57 @@ class SpellDatabase:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_feats_name ON feats(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_feats_type ON feats(type)")
-        
+
+        # Equipment table (mundane gear)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS equipment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                type TEXT DEFAULT 'Adventuring Gear',
+                cost TEXT DEFAULT '',
+                weight REAL NOT NULL DEFAULT 0,
+                source TEXT DEFAULT '',
+                crafting_materials_json TEXT DEFAULT '[]',
+                crafting_tool TEXT DEFAULT '',
+                description TEXT DEFAULT '',
+                tags_json TEXT DEFAULT '[]',
+                properties_json TEXT DEFAULT '[]',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_equipment_name ON equipment(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_equipment_type ON equipment(type)")
+
+        # Magic items table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS magic_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                type TEXT DEFAULT 'Wondrous Item',
+                cost TEXT DEFAULT '',
+                weight REAL NOT NULL DEFAULT 0,
+                source TEXT DEFAULT '',
+                enchanting_materials_json TEXT DEFAULT '[]',
+                description TEXT DEFAULT '',
+                tags_json TEXT DEFAULT '[]',
+                properties_json TEXT DEFAULT '[]',
+                rarity TEXT DEFAULT 'Common',
+                requires_attunement INTEGER NOT NULL DEFAULT 0,
+                attunement_requirement TEXT DEFAULT '',
+                attunement_optional INTEGER NOT NULL DEFAULT 0,
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_name ON magic_items(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_type ON magic_items(type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_rarity ON magic_items(rarity)")
+
         # Backgrounds table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS backgrounds (
@@ -471,7 +582,271 @@ class SpellDatabase:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_subclasses_name ON subclasses(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_subclasses_class_id ON subclasses(class_id)")
-    
+
+        # Self-healing: add optional columns that were introduced after the
+        # equipment / magic_items tables first shipped. CREATE TABLE IF NOT
+        # EXISTS never alters an existing table, so backfill them here (this
+        # method runs on every initialize()).
+        for _table, _col, _coldef in (
+            ("equipment", "properties_json", "TEXT DEFAULT '[]'"),
+            ("magic_items", "properties_json", "TEXT DEFAULT '[]'"),
+            ("magic_items", "requires_attunement", "INTEGER NOT NULL DEFAULT 0"),
+        ):
+            cursor.execute(f"PRAGMA table_info({_table})")
+            _existing = {row[1] for row in cursor.fetchall()}
+            if _col not in _existing:
+                cursor.execute(f"ALTER TABLE {_table} ADD COLUMN {_col} {_coldef}")
+                if _col == "requires_attunement":
+                    # Rows that predate the column: infer it from the
+                    # restriction text that used to double as the flag.
+                    cursor.execute(
+                        "UPDATE magic_items SET requires_attunement = 1 "
+                        "WHERE TRIM(COALESCE(attunement_requirement, '')) != ''")
+
+    def _bundled_json_path(self, filename):
+        """Absolute path to a bundled JSON seed file (PyInstaller-aware)."""
+        import os
+        import sys
+        if getattr(sys, 'frozen', False):
+            base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        else:
+            base = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base, filename)
+
+    def _backfill_equipment_crafting_tools(self, cursor):
+        """Copy crafting_tool from the bundled equipment.json onto existing rows.
+
+        Only official rows whose crafting_tool is still empty are touched, so
+        anything the user has typed in (or a custom item) is left alone.
+        """
+        import os
+
+        path = self._bundled_json_path('equipment.json')
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for item in data.get('equipment', []):
+                tool = (item.get('crafting_tool') or '').strip()
+                if not tool:
+                    continue
+                cursor.execute(
+                    "UPDATE equipment SET crafting_tool = ? "
+                    "WHERE name = ? AND is_custom = 0 AND COALESCE(crafting_tool, '') = ''",
+                    (tool, item.get('name', '')))
+        except Exception as e:
+            print(f"Error backfilling equipment crafting tools: {e}")
+
+    def _seed_missing_subclasses(self, cursor) -> bool:
+        """INSERT OR IGNORE the bundled classes.json subclasses.
+
+        (name, class) is unique, so subclasses already present - including any
+        the user has customised - are never touched. Returns True on success.
+        """
+        import os
+
+        path = self._bundled_json_path('classes.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                classes = json.load(f).get('classes', {})
+            added = 0
+            for class_name, cls in classes.items():
+                cursor.execute("SELECT id FROM classes WHERE name = ? COLLATE NOCASE", (class_name,))
+                row = cursor.fetchone()
+                if not row:
+                    continue
+                for sub in cls.get('subclasses', []):
+                    features_data = {
+                        'features': sub.get('features', []),
+                        'subclass_spells': sub.get('subclass_spells', []),
+                        'armor_proficiencies': sub.get('armor_proficiencies', []),
+                        'weapon_proficiencies': sub.get('weapon_proficiencies', []),
+                        'unarmored_defense': sub.get('unarmored_defense', ''),
+                        'trackable_features': sub.get('trackable_features', []),
+                    }
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO subclasses
+                        (name, class_id, description, features_json, source, is_official, is_custom, is_legacy)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        sub.get('name', ''), row[0], sub.get('description', ''),
+                        json.dumps(features_data), sub.get('source', ''),
+                        1 if sub.get('is_official', True) else 0,
+                        1 if sub.get('is_custom', False) else 0,
+                        1 if sub.get('is_legacy', False) else 0,
+                    ))
+                    added += cursor.rowcount
+            if added:
+                print(f"Added {added} bundled subclass(es)")
+            return True
+        except Exception as e:
+            print(f"Error seeding subclasses (will retry next launch): {e}")
+            return False
+
+    def _link_official_content(self, cursor) -> bool:
+        """Wrap mentions of other objects in official content as [[links]].
+
+        Runs the same sweep (object_link_sweep) that was applied to the bundled
+        source files, so an upgraded install matches a fresh one. Only official
+        rows are touched: custom rows never are, and spells the user has edited
+        (is_modified) are left alone. Idempotent. Returns True on success.
+        """
+        try:
+            import object_link_sweep as sweep
+            from tools.spell_data import get_all_spells
+
+            official_spells = {s['name'] for s in get_all_spells()}
+
+            def official_names(table):
+                cursor.execute(f"SELECT name FROM {table} WHERE is_custom = 0")
+                return [r[0] for r in cursor.fetchall()]
+
+            uni = sweep.Universe({
+                'spell': official_spells,
+                'feat': official_names('feats'),
+                'lineage': official_names('lineages'),
+                'background': official_names('backgrounds'),
+                'class': official_names('classes'),
+                'subclass': official_names('subclasses'),
+                'equipment': official_names('equipment'),
+                'magic_item': official_names('magic_items'),
+            })
+            changes: list = []
+
+            def swept(fn, rec):
+                before = len(changes)
+                fn(rec, uni, changes)
+                return len(changes) > before
+
+            cursor.execute("SELECT id, name, description FROM spells WHERE is_modified = 0")
+            for row_id, name, desc in cursor.fetchall():
+                rec = {'name': name, 'description': desc}
+                if name in official_spells and swept(sweep.sweep_spell, rec):
+                    cursor.execute("UPDATE spells SET description = ? WHERE id = ?",
+                                   (rec['description'], row_id))
+
+            for table, fn in (('feats', sweep.sweep_feat),
+                              ('equipment', sweep.sweep_equipment),
+                              ('magic_items', sweep.sweep_magic_item)):
+                cursor.execute(f"SELECT id, name, description FROM {table} WHERE is_custom = 0")
+                for row_id, name, desc in cursor.fetchall():
+                    rec = {'name': name, 'description': desc}
+                    if swept(fn, rec):
+                        cursor.execute(f"UPDATE {table} SET description = ? WHERE id = ?",
+                                       (rec['description'], row_id))
+
+            cursor.execute("SELECT id, name, description, traits_json FROM lineages WHERE is_custom = 0")
+            for row_id, name, desc, traits in cursor.fetchall():
+                rec = {'name': name, 'description': desc, 'traits': json.loads(traits or '[]')}
+                if swept(sweep.sweep_lineage, rec):
+                    cursor.execute("UPDATE lineages SET description = ?, traits_json = ? WHERE id = ?",
+                                   (rec['description'], json.dumps(rec['traits']), row_id))
+
+            cursor.execute("SELECT id, name, description, equipment FROM backgrounds WHERE is_custom = 0")
+            for row_id, name, desc, gear in cursor.fetchall():
+                rec = {'name': name, 'description': desc, 'equipment': gear}
+                if swept(sweep.sweep_background, rec):
+                    cursor.execute("UPDATE backgrounds SET description = ?, equipment = ? WHERE id = ?",
+                                   (rec['description'], rec['equipment'], row_id))
+
+            cursor.execute("SELECT id, name, class_features_json FROM classes WHERE is_custom = 0")
+            for row_id, name, levels_json in cursor.fetchall():
+                levels = json.loads(levels_json or '{}')
+                before = len(changes)
+                sweep.sweep_class_levels(levels, name, uni, changes)
+                if len(changes) > before:
+                    cursor.execute("UPDATE classes SET class_features_json = ? WHERE id = ?",
+                                   (json.dumps(levels), row_id))
+
+            cursor.execute("SELECT id, name, description, features_json FROM subclasses WHERE is_custom = 0")
+            for row_id, name, desc, features_json in cursor.fetchall():
+                data = json.loads(features_json or '{}')
+                rec = {'name': name, 'description': desc, 'features': data.get('features', [])}
+                if swept(sweep.sweep_subclass, rec):
+                    cursor.execute("UPDATE subclasses SET description = ?, features_json = ? WHERE id = ?",
+                                   (rec['description'], json.dumps(data), row_id))
+
+            print(f"Linked object mentions in {len(changes)} official text fields")
+            return True
+        except Exception as e:
+            print(f"Error linking object mentions (will retry next launch): {e}")
+            return False
+
+    def _seed_equipment_and_magic_items(self, cursor):
+        """INSERT OR IGNORE the bundled equipment.json / magic_items.json rows.
+
+        Idempotent (the tables' name column is UNIQUE), so this is safe to run
+        both when first populating a fresh database and from an upgrade
+        migration that backfills installs predating this content. User-created
+        rows are never touched.
+        """
+        import os
+
+        equipment_path = self._bundled_json_path('equipment.json')
+        if os.path.exists(equipment_path):
+            try:
+                with open(equipment_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for item in data.get('equipment', []):
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO equipment
+                        (name, type, cost, weight, source, crafting_materials_json, crafting_tool,
+                         description, tags_json, properties_json, is_official, is_custom)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        item.get('name', ''),
+                        item.get('type', 'Adventuring Gear'),
+                        item.get('cost', ''),
+                        item.get('weight', 0.0),
+                        item.get('source', ''),
+                        json.dumps(item.get('crafting_materials', [])),
+                        item.get('crafting_tool', ''),
+                        item.get('description', ''),
+                        json.dumps(item.get('tags', [])),
+                        json.dumps(item.get('properties', [])),
+                        1 if item.get('is_official', True) else 0,
+                        1 if item.get('is_custom', False) else 0
+                    ))
+                print(f"Seeded {len(data.get('equipment', []))} equipment items")
+            except Exception as e:
+                print(f"Error seeding equipment: {e}")
+
+        magic_items_path = self._bundled_json_path('magic_items.json')
+        if os.path.exists(magic_items_path):
+            try:
+                with open(magic_items_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for item in data.get('magic_items', []):
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO magic_items
+                        (name, type, cost, weight, source, enchanting_materials_json, description,
+                         tags_json, properties_json, rarity, requires_attunement,
+                         attunement_requirement, attunement_optional, is_official, is_custom)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        item.get('name', ''),
+                        item.get('type', 'Wondrous Item'),
+                        item.get('cost', ''),
+                        item.get('weight', 0.0),
+                        item.get('source', ''),
+                        json.dumps(item.get('enchanting_materials', [])),
+                        item.get('description', ''),
+                        json.dumps(item.get('tags', [])),
+                        json.dumps(item.get('properties', [])),
+                        item.get('rarity', 'Common'),
+                        1 if item.get('requires_attunement', bool(item.get('attunement_requirement'))) else 0,
+                        item.get('attunement_requirement', ''),
+                        1 if item.get('attunement_optional', False) else 0,
+                        1 if item.get('is_official', True) else 0,
+                        1 if item.get('is_custom', False) else 0
+                    ))
+                print(f"Seeded {len(data.get('magic_items', []))} magic items")
+            except Exception as e:
+                print(f"Error seeding magic items: {e}")
+
     def _migrate_json_to_database(self, cursor):
         """Migrate data from JSON files to database tables."""
         import os
@@ -542,7 +917,10 @@ class SpellDatabase:
                 print(f"Migrated {len(data.get('feats', []))} feats to database")
             except Exception as e:
                 print(f"Error migrating feats: {e}")
-        
+
+        # Migrate equipment + magic items (shared with the v16 backfill migration)
+        self._seed_equipment_and_magic_items(cursor)
+
         # Migrate backgrounds
         backgrounds_path = get_json_path('backgrounds.json')
         if os.path.exists(backgrounds_path):
@@ -1470,7 +1848,7 @@ class SpellDatabase:
                 # Search in name, description, and check if any tag matches
                 conditions.append("""(
                     s.name LIKE ? COLLATE NOCASE OR 
-                    s.description LIKE ? COLLATE NOCASE OR
+                    strip_links(s.description) LIKE ? COLLATE NOCASE OR
                     EXISTS (SELECT 1 FROM spell_tags st WHERE st.spell_id = s.id AND st.tag LIKE ? COLLATE NOCASE)
                 )""")
                 search_pattern = f"%{search_text}%"
@@ -1981,6 +2359,228 @@ class SpellDatabase:
             'is_legacy': bool(row['is_legacy'])
         }
     
+    # ==================== EQUIPMENT METHODS ====================
+
+    def get_all_equipment(self) -> List[dict]:
+        """Get all equipment from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM equipment ORDER BY name")
+            return [self._row_to_equipment_dict(row) for row in cursor.fetchall()]
+
+    def get_equipment_by_name(self, name: str) -> Optional[dict]:
+        """Get an equipment item by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM equipment WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_equipment_dict(row) if row else None
+
+    def insert_equipment(self, item_data: dict) -> int:
+        """Insert a new equipment item."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO equipment (name, type, cost, weight, source, crafting_materials_json,
+                                       crafting_tool, description, tags_json, properties_json,
+                                       is_official, is_custom)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                item_data['name'],
+                item_data.get('type', 'Adventuring Gear'),
+                item_data.get('cost', ''),
+                item_data.get('weight', 0.0),
+                item_data.get('source', ''),
+                json.dumps(item_data.get('crafting_materials', [])),
+                item_data.get('crafting_tool', ''),
+                item_data.get('description', ''),
+                json.dumps(item_data.get('tags', [])),
+                json.dumps(item_data.get('properties', [])),
+                1 if item_data.get('is_official', True) else 0,
+                1 if item_data.get('is_custom', False) else 0
+            ))
+            return cursor.lastrowid or 0
+
+    def update_equipment(self, item_id: int, item_data: dict) -> bool:
+        """Update an existing equipment item."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE equipment SET name = ?, type = ?, cost = ?, weight = ?, source = ?,
+                crafting_materials_json = ?, crafting_tool = ?, description = ?, tags_json = ?,
+                properties_json = ?, is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                item_data['name'],
+                item_data.get('type', 'Adventuring Gear'),
+                item_data.get('cost', ''),
+                item_data.get('weight', 0.0),
+                item_data.get('source', ''),
+                json.dumps(item_data.get('crafting_materials', [])),
+                item_data.get('crafting_tool', ''),
+                item_data.get('description', ''),
+                json.dumps(item_data.get('tags', [])),
+                json.dumps(item_data.get('properties', [])),
+                1 if item_data.get('is_official', True) else 0,
+                1 if item_data.get('is_custom', False) else 0,
+                item_id
+            ))
+            return cursor.rowcount > 0
+
+    def delete_equipment(self, item_id: int) -> bool:
+        """Delete an equipment item by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM equipment WHERE id = ?", (item_id,))
+            return cursor.rowcount > 0
+
+    def _row_to_equipment_dict(self, row) -> dict:
+        """Convert a database row to an equipment dictionary."""
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'type': row['type'] or 'Adventuring Gear',
+            'cost': row['cost'] or '',
+            'weight': row['weight'] if row['weight'] is not None else 0.0,
+            'source': row['source'] or '',
+            'crafting_materials': json.loads(row['crafting_materials_json']) if row['crafting_materials_json'] else [],
+            'crafting_tool': row['crafting_tool'] or '',
+            'description': row['description'] or '',
+            'tags': json.loads(row['tags_json']) if row['tags_json'] else [],
+            'properties': self._safe_json_list(row, 'properties_json'),
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+        }
+
+    @staticmethod
+    def _safe_json_list(row, key):
+        """Read a JSON-list column that may be absent on older rows/schemas."""
+        try:
+            raw = row[key]
+        except (IndexError, KeyError):
+            return []
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+            return value if isinstance(value, list) else []
+        except (ValueError, TypeError):
+            return []
+
+    # ==================== MAGIC ITEM METHODS ====================
+
+    def get_all_magic_items(self) -> List[dict]:
+        """Get all magic items from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM magic_items ORDER BY name")
+            return [self._row_to_magic_item_dict(row) for row in cursor.fetchall()]
+
+    def get_magic_item_by_name(self, name: str) -> Optional[dict]:
+        """Get a magic item by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM magic_items WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_magic_item_dict(row) if row else None
+
+    def insert_magic_item(self, item_data: dict) -> int:
+        """Insert a new magic item."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO magic_items (name, type, cost, weight, source, enchanting_materials_json,
+                                         description, tags_json, properties_json, rarity,
+                                         requires_attunement, attunement_requirement, attunement_optional,
+                                         is_official, is_custom)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                item_data['name'],
+                item_data.get('type', 'Wondrous Item'),
+                item_data.get('cost', ''),
+                item_data.get('weight', 0.0),
+                item_data.get('source', ''),
+                json.dumps(item_data.get('enchanting_materials', [])),
+                item_data.get('description', ''),
+                json.dumps(item_data.get('tags', [])),
+                json.dumps(item_data.get('properties', [])),
+                item_data.get('rarity', 'Common'),
+                1 if item_data.get('requires_attunement', bool(item_data.get('attunement_requirement'))) else 0,
+                item_data.get('attunement_requirement', ''),
+                1 if item_data.get('attunement_optional', False) else 0,
+                1 if item_data.get('is_official', True) else 0,
+                1 if item_data.get('is_custom', False) else 0
+            ))
+            return cursor.lastrowid or 0
+
+    def update_magic_item(self, item_id: int, item_data: dict) -> bool:
+        """Update an existing magic item."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE magic_items SET name = ?, type = ?, cost = ?, weight = ?, source = ?,
+                enchanting_materials_json = ?, description = ?, tags_json = ?, properties_json = ?,
+                rarity = ?, requires_attunement = ?, attunement_requirement = ?, attunement_optional = ?,
+                is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                item_data['name'],
+                item_data.get('type', 'Wondrous Item'),
+                item_data.get('cost', ''),
+                item_data.get('weight', 0.0),
+                item_data.get('source', ''),
+                json.dumps(item_data.get('enchanting_materials', [])),
+                item_data.get('description', ''),
+                json.dumps(item_data.get('tags', [])),
+                json.dumps(item_data.get('properties', [])),
+                item_data.get('rarity', 'Common'),
+                1 if item_data.get('requires_attunement', bool(item_data.get('attunement_requirement'))) else 0,
+                item_data.get('attunement_requirement', ''),
+                1 if item_data.get('attunement_optional', False) else 0,
+                1 if item_data.get('is_official', True) else 0,
+                1 if item_data.get('is_custom', False) else 0,
+                item_id
+            ))
+            return cursor.rowcount > 0
+
+    def delete_magic_item(self, item_id: int) -> bool:
+        """Delete a magic item by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM magic_items WHERE id = ?", (item_id,))
+            return cursor.rowcount > 0
+
+    def _row_to_magic_item_dict(self, row) -> dict:
+        """Convert a database row to a magic item dictionary."""
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'type': row['type'] or 'Wondrous Item',
+            'cost': row['cost'] or '',
+            'weight': row['weight'] if row['weight'] is not None else 0.0,
+            'source': row['source'] or '',
+            'enchanting_materials': json.loads(row['enchanting_materials_json']) if row['enchanting_materials_json'] else [],
+            'description': row['description'] or '',
+            'tags': json.loads(row['tags_json']) if row['tags_json'] else [],
+            'properties': self._safe_json_list(row, 'properties_json'),
+            'rarity': row['rarity'] or 'Common',
+            'requires_attunement': self._row_flag(row, 'requires_attunement',
+                                                  bool((row['attunement_requirement'] or '').strip())),
+            'attunement_requirement': row['attunement_requirement'] or '',
+            'attunement_optional': bool(row['attunement_optional']),
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+        }
+
+    @staticmethod
+    def _row_flag(row, key, default=False):
+        """Read a boolean column that may be absent on an older row/schema."""
+        try:
+            val = row[key]
+        except (IndexError, KeyError):
+            return default
+        return bool(val)
+
     # ==================== BACKGROUND METHODS ====================
     
     def get_all_backgrounds(self) -> List[dict]:

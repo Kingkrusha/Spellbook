@@ -31,12 +31,14 @@ class BackgroundListPanel(ctk.CTkFrame):
         self._background_buttons: List[ctk.CTkButton] = []
         self._pending_after_id: Optional[str] = None  # Track pending after() calls
         self.theme = get_theme_manager()
-        
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._refresh_buttons()
     
     def _create_widgets(self):
@@ -242,12 +244,14 @@ class BackgroundDetailPanel(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, corner_radius=10)
         self.theme = get_theme_manager()
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._current_background: Optional[Background] = None
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-    
+
     def _on_theme_changed(self):
         """Handle theme changes."""
+        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._update_colors()
     
     def _create_widgets(self):
@@ -346,12 +350,11 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             self.scroll_frame, text="Equipment",
             font=ctk.CTkFont(size=14, weight="bold")
         )
-        self.equipment_label = ctk.CTkLabel(
-            self.scroll_frame, text="",
-            font=ctk.CTkFont(size=12),
-            wraplength=800,
-            justify="left"
-        )
+        # Equipment can contain [[equipment:Name]] links, so it is rendered by
+        # the link-aware DynamicText (built in _render_equipment) rather than a
+        # plain label that would show the raw markup.
+        self.equipment_container = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        self._equipment_text_widget = None
         
         # Description
         self.desc_header = ctk.CTkLabel(
@@ -513,6 +516,17 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             widget.destroy()
         self._desc_widgets = []
     
+    def _render_equipment(self, text: str):
+        """Show the equipment list, with any [[...]] links clickable."""
+        from ui.rich_text_utils import DynamicText
+
+        if self._equipment_text_widget is not None:
+            self._equipment_text_widget.destroy()
+        dt = DynamicText(self.equipment_container, self.theme, bg_color='bg_primary')
+        dt.set_text(text)
+        dt.pack(fill="x", expand=True)
+        self._equipment_text_widget = dt
+
     def _render_description(self, text: str):
         """Render description with dynamic resizing and bold text support."""
         from ui.rich_text_utils import DynamicText
@@ -556,7 +570,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             self.feat_frame.pack_forget()
             self._clear_feats()
             self.equipment_header.pack_forget()
-            self.equipment_label.pack_forget()
+            self.equipment_container.pack_forget()
             self.desc_header.pack_forget()
             self._clear_description()
             self.description_container.pack_forget()
@@ -645,11 +659,11 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         # Equipment
         if background.equipment:
             self.equipment_header.pack(anchor="w", pady=(10, 5))
-            self.equipment_label.configure(text=background.equipment)
-            self.equipment_label.pack(anchor="w", pady=(0, 10))
+            self._render_equipment(background.equipment)
+            self.equipment_container.pack(fill="x", anchor="w", pady=(0, 10))
         else:
             self.equipment_header.pack_forget()
-            self.equipment_label.pack_forget()
+            self.equipment_container.pack_forget()
         
         # Description
         if background.description:
@@ -706,6 +720,8 @@ class BackgroundsView(ctk.CTkFrame):
         self._update_context_menu_colors()
         if hasattr(self, 'paned'):
             self._update_paned_colors()
+        if hasattr(self, 'compare_container'):
+            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
     
     def _update_context_menu_colors(self):
         """Update context menu colors for theme."""
@@ -852,7 +868,9 @@ class BackgroundsView(ctk.CTkFrame):
     
     def _create_compare_panel(self):
         """Create the compare background panel (hidden initially)."""
-        self.compare_container = ctk.CTkFrame(self.left_container, corner_radius=10)
+        self.compare_container = ctk.CTkFrame(
+            self.left_container, corner_radius=10,
+            fg_color=self.theme.get_current_color('bg_secondary'))
         
         # Header with close button
         header = ctk.CTkFrame(self.compare_container, fg_color="transparent")
@@ -1145,6 +1163,8 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self.scroll, text="Equipment:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
         self.equipment_text = ctk.CTkTextbox(self.scroll, height=60)
         self.equipment_text.pack(fill="x", pady=(5, 15))
+        from ui.object_link_widgets import attach_object_linking
+        attach_object_linking(self.equipment_text, self.theme)
         
         # Description
         ctk.CTkLabel(self.scroll, text="Description: *", font=ctk.CTkFont(weight="bold")).pack(anchor="w")

@@ -1,5 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
+# Official-content JSON that ships only when present (e.g. magic_items.json
+# doesn't exist until that data is added). Missing files are simply skipped so
+# the build never breaks on one that isn't ready yet.
+_optional_content = [
+    (f, '.') for f in ('magic_items.json',)
+    if os.path.exists(os.path.join(SPECPATH, f))
+]
+
 
 a = Analysis(
     ['main.py'],
@@ -13,10 +23,11 @@ a = Analysis(
         ('feats.json', '.'),
         ('classes.json', '.'),
         ('backgrounds.json', '.'),
+        ('equipment.json', '.'),
         ('tools', 'tools'),
         ('Spellbook Icon.png', '.'),
         ('Spellbook Icon.ico', '.'),
-    ],
+    ] + _optional_content,
     hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
     hookspath=[],
     hooksconfig={},
