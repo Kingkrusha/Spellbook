@@ -330,7 +330,11 @@ class MainWindow(ctk.CTkFrame):
         
         self._update_progress("Loading characters...", 0.45)
         self.character_manager = CharacterManager()
+        self.character_manager.add_error_listener(self._on_data_save_error)
         self.character_manager.load_characters()
+
+        from ui.character_sheet_view import get_sheet_manager
+        get_sheet_manager().add_error_listener(self._on_data_save_error)
         
         self.settings_manager = get_settings_manager()
         
@@ -429,6 +433,28 @@ class MainWindow(ctk.CTkFrame):
         if self._progress_callback:
             self._progress_callback(message, value)
             self.update_idletasks()
+
+    def _on_data_save_error(self, message: str):
+        """Warn the user when a character/character-sheet save fails.
+
+        Previously these failures were only ever ``print()``-ed, which is
+        invisible in the packaged (windowed, no console) build - the user had
+        no way to know their edits hadn't reached disk. Only the first one
+        pops a dialog per session; once it's shown we know the user is aware
+        something is wrong, and repeated identical popups (e.g. from a
+        permanently read-only data folder) would just be noise.
+        """
+        if getattr(self, "_shown_save_error", False):
+            return
+        self._shown_save_error = True
+        try:
+            messagebox.showerror(
+                "Save Failed",
+                f"{message}\n\nYour changes may not be saved. Check that the "
+                "Spellbook data folder is writable and has free disk space."
+            )
+        except Exception:
+            pass
     
     def _background_preload(self):
         """Preload data in background based on user settings."""

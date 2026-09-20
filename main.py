@@ -3,6 +3,38 @@ Spellbook Application
 A desktop application for managing D&D spells with search, filter, and edit capabilities.
 """
 
+import sys
+
+
+def _ensure_std_streams():
+    """Give ``print()`` somewhere safe to write.
+
+    PyInstaller builds with ``console=False`` (all three .spec files here) run
+    with ``sys.stdout``/``sys.stderr`` set to ``None`` on Windows and macOS -
+    there's no console to attach to. The app has many ``print()`` calls in
+    error-handling paths (character/character-sheet save failures among them);
+    against a ``None`` stream those raise ``AttributeError`` instead of
+    logging, and that new exception escapes the ``except`` block uncaught,
+    silently abandoning whatever save or migration was in progress. Redirect
+    to a log file up front so those diagnostics land somewhere instead of
+    crashing the operation that was trying to report them.
+    """
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        from paths import user_data_path
+        log_file = open(user_data_path("spellbook.log"), "a", encoding="utf-8", buffering=1)
+    except Exception:
+        import io
+        log_file = io.StringIO()
+    if sys.stdout is None:
+        sys.stdout = log_file
+    if sys.stderr is None:
+        sys.stderr = log_file
+
+
+_ensure_std_streams()
+
 import customtkinter as ctk
 
 from ui.window_icon import install as install_app_icon, set_app_user_model_id

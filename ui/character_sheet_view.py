@@ -36,7 +36,24 @@ class CharacterSheetManager:
     def __init__(self, file_path: Optional[str] = None):
         self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._sheets: Dict[str, CharacterSheet] = {}  # character_name -> CharacterSheet
-    
+        self._error_listeners: List[Callable[[str], None]] = []
+
+    def add_error_listener(self, callback: Callable[[str], None]):
+        """Add a listener notified when a load/save fails.
+
+        Without this, a failed save was only ever ``print()``-ed - invisible
+        in a windowed build with no console - so sheet edits could silently
+        vanish without the user ever finding out.
+        """
+        self._error_listeners.append(callback)
+
+    def _notify_error(self, message: str):
+        for listener in self._error_listeners:
+            try:
+                listener(message)
+            except Exception:
+                pass
+
     def load(self) -> bool:
         """Load character sheets from file."""
         if not os.path.exists(self.file_path):
@@ -52,9 +69,10 @@ class CharacterSheetManager:
             return True
         except Exception as e:
             print(f"Error loading character sheets: {e}")
+            self._notify_error(f"Could not load character_sheets.json: {e}")
             self._sheets = {}
             return False
-    
+
     def save(self) -> bool:
         """Save character sheets to file."""
         try:
@@ -67,6 +85,7 @@ class CharacterSheetManager:
             return True
         except Exception as e:
             print(f"Error saving character sheets: {e}")
+            self._notify_error(f"Could not save your character sheet changes: {e}")
             return False
     
     def get_sheet(self, character_name: str) -> Optional[CharacterSheet]:
@@ -4939,8 +4958,9 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
         filter_frame.grid(row=0, column=0, sticky="e", pady=(0, 5))
         
         self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._filter_feats())
-        
+        self._filter_after_id = None
+        self.search_var.trace_add("write", lambda *args: self._schedule_filter_feats())
+
         search_entry = ctk.CTkEntry(
             filter_frame, textvariable=self.search_var,
             placeholder_text="Search...", width=150
@@ -5116,15 +5136,46 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
             self._populate_available_feats()
             self._populate_selected_feats()
     
+    def _schedule_filter_feats(self):
+        """Debounce search-box edits before rebuilding the feat list.
+
+        Filtering rebuilds every row in ``available_frame`` from scratch
+        (~185 feats' worth of CTkFrame/CTkButton/CTkLabel widgets). Doing
+        that synchronously on every single keystroke (the old behaviour) is
+        what made the dialog feel slow and unresponsive while typing - each
+        keystroke blocked the UI thread to destroy and recreate hundreds of
+        widgets. Waiting for a short pause in typing collapses a fast typist's
+        keystrokes into one rebuild instead of one per character.
+        """
+        if self._filter_after_id is not None:
+            self.after_cancel(self._filter_after_id)
+        self._filter_after_id = self.after(150, self._filter_feats)
+
     def _filter_feats(self):
         """Filter available feats based on search."""
+        self._filter_after_id = None
         self._populate_available_feats()
     
+    def destroy(self):
+        """Cancel any pending debounced filter before teardown.
+
+        Covers every close path (Save, Cancel, the window's own [X],
+        Alt+F4) so the scheduled ``after()`` callback can't fire against a
+        destroyed window.
+        """
+        if self._filter_after_id is not None:
+            try:
+                self.after_cancel(self._filter_after_id)
+            except Exception:
+                pass
+            self._filter_after_id = None
+        super().destroy()
+
     def _on_save(self):
         """Save the selected feats."""
         self.result = self.selected_feats
         self.destroy()
-    
+
     def _on_cancel(self):
         """Cancel without saving."""
         self.result = None
