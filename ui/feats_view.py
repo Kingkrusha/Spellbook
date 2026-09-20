@@ -379,7 +379,14 @@ class FeatDetailPanel(ctk.CTkFrame):
         for para_idx, paragraph in enumerate(paragraphs):
             if not paragraph.strip():
                 continue
-            
+
+            # A markdown table block (Adept spell lists, roll tables, ...) is drawn as a real table
+            if paragraph.strip().startswith('|'):
+                from ui.rich_text_utils import render_description_blocks
+                self._desc_widgets.extend(render_description_blocks(
+                    self.desc_frame, paragraph, self.theme, bold_pattern=r'\*([^*]+)\*'))
+                continue
+
             # Create a DynamicText for this paragraph with single asterisk bold pattern
             dt = DynamicText(
                 self.desc_frame, self.theme,

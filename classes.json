@@ -1015,6 +1015,103 @@
           "source": "Player's Handbook (2024)",
           "is_custom": false,
           "is_legacy": false
+        },
+        {
+          "name": "College of Spirits",
+          "parent_class": "Bard",
+          "description": "Bards of the College of Spirits conjure legendary spirits to change the world. But such entities are capricious, and what a Bard summons isn't always entirely under their control.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Channeler",
+              "description": "You learn how to contact spirits beyond the grave, letting their power and knowledge flow through you. You gain the following benefits.\n\n*Guiding Whispers.* You know the [[spell:Guidance]] cantrip. It has a range of 60 feet when you cast it.\n\n*Spiritual Focus.* You employ tools that aid you in channeling spirits. You gain a [[equipment:Gaming Set]] (playing cards). You have proficiency with this [[equipment:Gaming Set]], and you can use it or one of the following items as a Spellcasting Focus for your Bard spells: [[equipment:Arcane Focus]] (crystal or orb), [[equipment:Candle]], or [[equipment:Ink Pen]].",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Spirits from Beyond",
+              "description": "You can call forth spirits of the dead to empower you and your allies. When you take a Bonus Action to give a creature a Bardic Inspiration die, you can call forth the powers of a random spirit. To determine the spirit you channel, roll the Bardic Inspiration die and refer to the Spirits from Beyond table. The spirit remains channeled until you unleash it or until you finish a Short or Long Rest.\n\n*Controlled Channeling.* As a Bonus Action, you can expend a use of your Bardic Inspiration and channel a specific spirit. When you do so, choose the spirit from the Spirits from Beyond table rather than rolling. The chosen spirit's corresponding number must be less than or equal to the highest number on your Bardic Inspiration die; for example, if your Bardic Inspiration die is a d8, you can choose to channel any spirit up to (and including) the Shade.\n\n*Unleashing a Spirit.* As a Magic action, you can unleash one of your channeled spirits. Choose one creature you can see within 30 feet of yourself as the spirit's target. The spirit then takes effect; if a spirit's effect requires a saving throw, the DC equals your Bard spell save DC.",
+              "tables": [
+                {
+                  "title": "Spirits From Beyond",
+                  "columns": [
+                    "Bardic Insp. Die",
+                    "Spirit"
+                  ],
+                  "rows": [
+                    [
+                      "1",
+                      "Beloved. The target regains Hit Points equal to one roll of your Bardic Inspiration die plus your Charisma modifier."
+                    ],
+                    [
+                      "2",
+                      "Sharpshooter. The target takes Force damage equal to a roll of your Bardic Inspiration die plus your Charisma modifier."
+                    ],
+                    [
+                      "3",
+                      "Avenger. Until the end of your next turn, any creature that hits the target with a melee attack roll takes Force damage equal to a roll of your Bardic Inspiration die."
+                    ],
+                    [
+                      "4",
+                      "Renegade. The target can immediately take a Reaction to teleport up to 30 feet to an unoccupied space it can see."
+                    ],
+                    [
+                      "5",
+                      "Fortune Teller. The target has Advantage on D20 Tests until the start of your next turn."
+                    ],
+                    [
+                      "6",
+                      "Wayfarer. The target gains Temporary Hit Points equal to a roll of your Bardic Inspiration die plus your Bard level. While it has these Temporary Hit Points, the target's Speed increases by 10 feet."
+                    ],
+                    [
+                      "7",
+                      "Trickster. The target makes a Wisdom saving throw. On a failed save, the target takes Psychic damage equal to two rolls of your Bardic Inspiration die and has the Charmed condition until the start of your next turn. On a successful save, the target takes half as much damage only."
+                    ],
+                    [
+                      "8",
+                      "Shade. The target gains the Invisible condition until the end of its next turn or until the target makes an attack roll, deals damage, or casts a spell. When the invisibility ends, each creature in a 5-foot Emanation originating from the target must succeed on a Constitution saving throw or take Necrotic damage equal to two rolls of your Bardic Inspiration die."
+                    ],
+                    [
+                      "9",
+                      "Arsonist. The target makes a Dexterity saving throw, taking Fire damage equal to four rolls of your Bardic Inspiration die on a failed save or half as much on a successful one."
+                    ],
+                    [
+                      "10",
+                      "Coward. The target and each creature of your choice in a 30-foot Emanation originating from the target must succeed on a Wisdom saving throw or have the Frightened condition until the start of your next turn. While a creature is Frightened, its Speed is halved (round down), and it can take either an action or a Bonus Action, not both."
+                    ],
+                    [
+                      "11",
+                      "Brute. Each creature of your choice in a 30-foot Emanation originating from the target makes a Strength saving throw. On a failed save, a creature takes Thunder damage equal to three rolls of your Bardic Inspiration die and has the Prone condition. On a successful save, a creature takes half as much damage only."
+                    ],
+                    [
+                      "12",
+                      "Priest. The target regains Hit Points equal to two rolls of your Bardic Inspiration die, and one of the following conditions of your choice ends on the target: Blinded, Charmed,Deafened, Paralyzed, Poisoned or Stunned."
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 6,
+              "title": "Empowered Channeling",
+              "description": "Your ability to channel spirits improves. You gain the following benefits.\n\n*Power from Beyond.* Once per turn, when you cast a Bard spell with a spell slot that deals damage or restores Hit Points, roll 1d6. You gain a bonus equal to the number rolled to one of the spell's damage rolls or to the total Hit Points the spell restores.\n\n*Spiritual Manifestation.* You always have the [[spell:Spirit Guardians]] spell prepared. You can cast the spell once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest.\n\nWhenever you cast the spell, you can modify it so the spirits also guard against worldly threats. When you cast the spell in this way, you and allies within the spell's Emanation have Half Cover. Once you modify the spell in this way, you can't do so again until you finish a Short or Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Mystical Connection",
+              "description": "You gain mastery over the spirits you call forth. Whenever you roll on the Spirits from Beyond table, you can roll the die twice and choose which of the two effects to bestow. If you roll the same number on both dice, you can instead choose any effect on the table.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Ravenloft - The Horrors Within",
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -2414,6 +2511,234 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Arcana Domain",
+          "parent_class": "Cleric",
+          "description": "Magic suffuses the multiverse and fuels both destruction and creation. Clerics with the Arcana Domain view magical knowledge not as power to be used in pursuit of personal ends, but as a gift they have the responsibility to share.\n\nGods associated with the Arcana Domain know the secrets and potential of magic intimately. These gods are often connected to knowledge, secrecy, or power.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Arcana Domain Spells",
+              "description": "Your connection to this divine domain means you always have certain spells ready. When you reach a Cleric level specified in the Arcana Domain Spells table, you thereafter always have the listed spells prepared.",
+              "tables": [
+                {
+                  "title": "Arcana Domain Spells",
+                  "columns": [
+                    "Cleric Level",
+                    "Prepared Spells"
+                  ],
+                  "rows": [
+                    [
+                      "3",
+                      "Detect Magic, Magic Missile, Magic Weapon, Nystul's Magic Aura"
+                    ],
+                    [
+                      "5",
+                      "Counterspell, Dispel Magic"
+                    ],
+                    [
+                      "7",
+                      "Arcane Eye, Leomund's Secret Chest"
+                    ],
+                    [
+                      "9",
+                      "Bigby's Hand, Teleportation Circle"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 3,
+              "title": "Modify Magic",
+              "description": "You can use your Channel Divinity to alter your spells as you cast them. When you cast a spell, you can expend one use of your Channel Divinity and change the spell in one of the following ways (no action required).\n\n*Fortifying Spell.* One target of the spell gains a number of Temporary Hit Points equal to 2d8 plus your Cleric level.\n\n*Tenacious Spell.* When you cast a spell that forces a creature to make a saving throw, and a creature you can see succeeds on that saving throw, roll 1d6 and subtract the number rolled from the target's first saving throw against the spell's effect.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Student of Arcana",
+              "description": "You gain the following benefits.\n\n*Magical Knowledge.* You gain proficiency in the Arcana skill or one skill of your choice from the skills available to Clerics at level 1.\n\n*Cantrips.* You learn two Wizard cantrips of your choice. Whenever you gain a Cleric level, you can replace one of these cantrips with another Wizard cantrip.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Dispelling Recovery",
+              "description": "Immediately after you cast a spell with a spell slot that restores Hit Points to a creature or ends a condition on a creature, you can cast [[spell:Dispel Magic]] as part of that action, Bonus Action, or Reaction, and without expending a spell slot.\n\nOnce you use this feature, you can't use it again until you finish a Short or Long Rest. You also restore your use of it by expending one use of Channel Divinity (no action required).",
+              "tables": []
+            },
+            {
+              "level": 17,
+              "title": "Magical Mastery",
+              "description": "You learn four Wizard spells, one from each of levels 6, 7, 8, and 9. You thereafter always have those spells prepared. Whenever you gain a Cleric level, you can replace one of these spells with another Wizard spell of the same level.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [
+            {
+              "spell_name": "Detect Magic",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Magic Missile",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Magic Weapon",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Nystul's Magic Aura",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Counterspell",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Dispel Magic",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Arcane Eye",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Leomund's Secret Chest",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Bigby's Hand",
+              "level_gained": 9
+            },
+            {
+              "spell_name": "Teleportation Circle",
+              "level_gained": 9
+            }
+          ],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Grave Domain",
+          "parent_class": "Cleric",
+          "description": "The Grave Domain concerns itself with the boundary between life and death. To those who tap into this domain's power, death is a natural and inevitable part of the multiverse. Such Clerics seek to destroy undead and shepherd spirits.\n\nThe magic of this domain also allows these Clerics to stave off death for a time. But this is merely a delay of death, not a denial of it, for the grave will always claim its due.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Grave Domain Spells",
+              "description": "Your connection to this divine domain ensures you always have certain spells ready. When you reach a Cleric level specified in the Grave Domain Spells table, you thereafter always have the listed spells prepared.",
+              "tables": [
+                {
+                  "title": "Grave Domain Spells",
+                  "columns": [
+                    "Cleric Level",
+                    "Spells"
+                  ],
+                  "rows": [
+                    [
+                      "3",
+                      "Detect Evil and Good, False Life, Gentle Repose, Ray of Enfeeblement, Spare the Dying"
+                    ],
+                    [
+                      "5",
+                      "Revivify, Vampiric Touch"
+                    ],
+                    [
+                      "7",
+                      "Blight, Death Ward"
+                    ],
+                    [
+                      "9",
+                      "Dispel Evil and Good, Raise Dead"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 3,
+              "title": "Circle of Mortality",
+              "description": "You can manipulate the balance between life and death, granting you the following benefits.\n\n*Pull of Death.* Once per turn, when you deal damage to a creature that's missing any Hit Points by casting a spell or by hitting with an attack roll, that creature takes an extra 1d4 Necrotic damage. This extra damage increases to 1d6 when you reach Cleric level 11.\n\n*Return to Life.* You can cast [[spell:Spare the Dying]] as a Bonus Action.\n\nAdditionally, when you would normally roll one or more dice to restore Hit Points to a creature at 0 Hit Points with a spell or Channel Divinity, don't roll those dice for the healing; instead, use the highest number possible for each die. For example, instead of restoring 2d4 Hit Points to a creature at 0 Hit Points with a spell, you restore 8.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Path to the Grave",
+              "description": "As a Bonus Action, you present your [[equipment:Holy Symbol]] and expend a use of Channel Divinity to curse one creature you can see within 30 feet of yourself until the start of your next turn. While cursed, the creature has Disadvantage on attack rolls and saving throws.\n\nWhen you or an ally you can see hits the cursed target with an attack roll, you can end the curse early (no action required) to make the attack deal extra Necrotic or Radiant damage (your choice) equal to your Cleric level.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Sentinel at Death's Door",
+              "description": "When you or a Bloodied creature you can see within 60 feet of yourself is hit with an attack roll, you can take a Reaction to halve that attack's damage (round down). If the triggering attack roll was a Critical Hit, any effects triggered by a Critical Hit are canceled.\n\nYou can use this feature a number of times equal to your Wisdom modifier (minimum of once). You regain all expended uses when you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 17,
+              "title": "Divine Reaper",
+              "description": "Your deep connection to this domain renders you a hallowed harbinger of death, granting you the following benefits.\n\n*Enhanced Necromancy.* When you cast a spell of level 5 or lower from the Necromancy school that targets one creature, or when you cast a spell from the Grave Domain Spells table, you can expend a use of Channel Divinity to target a second creature within the spell's range. If the spell requires costly or consumed Material components, you must provide Material components for each target.\n\n*Keeper of Souls.* When an enemy dies within 60 feet of you, you or one creature you can see within 60 feet of yourself regains Hit Points equal to twice your Cleric level. You can't use this feature if you have the Incapacitated condition. Once you use this feature, you can't use it again until you finish a Short or Long Rest, unless you expend a level 6+ spell slot (no action required) to restore your use of it.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [
+            {
+              "spell_name": "Detect Evil and Good",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "False Life",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Gentle Repose",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Ray of Enfeeblement",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Spare the Dying",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Revivify",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Vampiric Touch",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Blight",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Death Ward",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Dispel Evil and Good",
+              "level_gained": 9
+            },
+            {
+              "spell_name": "Raise Dead",
+              "level_gained": 9
+            }
+          ],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Ravenloft - The Horrors Within",
           "is_custom": false,
           "is_legacy": false
         }
@@ -5273,6 +5598,69 @@
           "source": "Forgotten Realms - Heroes of Faerun",
           "is_custom": false,
           "is_legacy": false
+        },
+        {
+          "name": "Arcane Archer",
+          "parent_class": "Fighter",
+          "description": "An Arcane Archer studies a unique elven method of archery that weaves magic into attacks to produce supernatural effects. Over the centuries, other folk have learned this technique and broadened it so it applies to ranged weapons of many kinds and to aspects of adventuring life outside of combat.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Arcane Archer Lore",
+              "description": "You learn magical theory and secrets of nature, granting you the following benefits.\n\n*Cantrip.* You know either the [[spell:Druidcraft]] or the [[spell:Prestidigitation]] cantrip. Intelligence is your spellcasting ability for it.\n\n*Skills.* You gain proficiency in the Arcana and Nature skills. If you already have one of these proficiencies, you instead gain proficiency in a different skill of your choice from the skills available to Fighters at level 1 (or in two skills available to Fighters at level 1 if you have both).",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Arcane Shot",
+              "description": "You learn to unleash special magical effects with your shots.\n\n*Arcane Shot Options.* You learn two Arcane Shot options of your choice from the \"Arcane Shot Options\" section later in this subclass's description.\n\nYou learn an additional Arcane Shot option of your choice when you reach Fighter levels 7, 10, 15, and 18. Each time you learn a new Arcane Shot option, you can also replace one option you know with a different one.\n\n*Using Arcane Shot.* Once per turn when you make a ranged attack using a weapon with the Ammunition property, you can apply one of your Arcane Shot options to that attack. You decide to use the option when you hit a creature and deal damage to it unless the option doesn't involve an attack roll.\n\nYou can use this feature a number of times equal to your Intelligence modifier (minimum of once). You regain all expended uses when you finish a Short or Long Rest.\n\n*Arcane Shot Die.* Arcane Shot options refer to your Arcane Shot Die. Your Arcane Shot Die is a d6.\n\n*Saving Throws.* If an Arcane Shot option requires a saving throw, the DC equals 8 plus your Intelligence modifier and Proficiency Bonus.\n\n*At Higher Levels.* Your Arcane Shot Die changes when you reach certain Fighter levels. The die becomes a d8 at level 10, a d10 at level 15, and a d12 at level 18.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Arcane Shot Options",
+              "description": "The Arcane Shot options are presented here in alphabetical order.\n\n*Banishing Shot.* Your ammunition temporarily sequesters your target in a harmless demiplane. The creature you hit takes extra Psychic damage equal to one roll of your Arcane Shot Die and must succeed on a Charisma saving throw or be banished. While banished, the creature has the Incapacitated condition and a Speed of 0. At the end of its next turn, the target reappears in the space it left or, if that space is occupied, in the nearest unoccupied space.\n\n*Beguiling Shot.* Your ammunition beguiles your target. The creature you hit takes extra Psychic damage equal to two rolls of your Arcane Shot Die and must succeed on a Wisdom saving throw or have the Charmed condition until the start of your next turn, treating either you or one of your allies within 30 feet of the target (your choice) as the charmer. The Charmed condition ends early if the charmer attacks the target, deals damage to it, or forces it to make a saving throw.\n\n*Bursting Shot.* You imbue your ammunition with explosive magical energy. Immediately after you deal damage to the creature, your target and each creature within a 10-foot Emanation originating from the target take Force damage equal to two rolls of your Arcane Shot Die.\n\n*Enfeebling Shot.* Your ammunition saps your target's strength. The creature you hit takes extra Necrotic damage equal to two rolls of your Arcane Shot Die. The target must also succeed on a Constitution saving throw or have the Poisoned condition until the end of its next turn. Whenever a target Poisoned in this way hits with an attack roll, it subtracts an amount equal to one roll of your Arcane Shot Die from the total damage of that attack.\n\n*Grasping Shot.* Your ammunition creates clutching brambles around your target. The creature you hit takes extra Slashing damage equal to one roll of your Arcane Shot Die and must succeed on a Strength saving throw or have the Restrained condition for 1 minute or until you use this option again. The target or a creature within reach of it can take an action to make a Strength (Athletics) check against your Arcane Shot saving throw DC, removing the brambles and ending the Restrained condition on the target on a successful check.\n\n*Piercing Shot.* You give your ammunition an ethereal quality. When you use this option, you don't make an attack roll for the attack. Instead, the ammunition shoots forward in a 30-foot-long, 1-foot-wide Line originating from you, then vanishes. The Line ignores cover, as the ammunition phases through solid objects. Each creature in the Line makes a Dexterity saving throw. On a failed save, a creature takes damage as if it were hit plus extra Piercing damage equal to two rolls of your Arcane Shot Die. On a successful save, a creature takes half as much damage.\n\n*Seeking Shot.* Your ammunition can seek out a target. When you use this option, you don't make an attack roll for the attack. Instead, choose one creature you have seen in the last minute. The ammunition flies toward that creature, moving around corners if necessary and ignoring Half Cover and Three-Quarters Cover. If the target is within your weapon's long range, the target makes a Dexterity saving throw. On a failed save, the target takes damage as if it were hit plus extra Force damage equal to two rolls of your Arcane Shot Die, and you learn the target's current location. On a successful save, the target takes half as much damage only. If the target is beyond your weapon's long range, the ammunition disappears after traveling as far as it can.\n\n*Shadow Shot.* Your ammunition occludes your foe's vision with shadows. The creature you hit takes extra Psychic damage equal to one roll of your Arcane Shot Die, and it must succeed on a Wisdom saving throw or have the Blinded condition until the end of its next turn.",
+              "tables": []
+            },
+            {
+              "level": 7,
+              "title": "Curving Shot",
+              "description": "You learn how to direct an errant shot toward a new target. If you make a ranged attack roll with a weapon with the Ammunition property and miss, you can cause the shot to ricochet toward a new target as a Bonus Action immediately after the attack misses. The new target must be a creature you can see within the weapon's range and within 60 feet of the attack's original target. Make an attack roll against the new target.",
+              "tables": []
+            },
+            {
+              "level": 7,
+              "title": "Magical Ammunition",
+              "description": "You learn to imbue your ammunition with magical properties. As a Magic action, you can imbue a piece of nonmagical ammunition with one of the following magical properties and fire it at a solid surface you can see within the weapon's range. When the ammunition hits the surface, the ammunition's effect activates, and the ammunition attaches to the surface it hit for the duration of the effect; you can remove an attached piece of ammunition as a Magic action, ending the effect early. When the effect ends, the ammunition is destroyed.\n\nOnce you use this feature, you can't do so again until you finish a Short or Long Rest. You can also restore your use of this feature by expending a use of your Second Wind (no action required).\n\n*Darkening Ammunition.* Magical shadows fill a 15-foot Emanation originating from the ammunition for 1 minute. Nonmagical flames in the Emanation are extinguished, and creatures in the Emanation have a −5 penalty to Wisdom (Perception) checks and Passive Perception.\n\n*Unlocking Ammunition.* A burst of magic fills a 15-foot Emanation originating from the ammunition. The ammunition also emits a loud knocking sound, audible up to 300 feet away. Any object in the Emanation that is held shut by a nonmagical lock or that is stuck or barred becomes unlocked, unstuck, or unbarred. If such an object has multiple locks, only one of them is unlocked.\n\n*Vine Ammunition.* A 120-foot-long vine grows from the ammunition. You and other creatures can then climb it. The vine withers away after 10 minutes.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Ever-Ready Shot",
+              "description": "When you roll Initiative, you can regain one expended use of Arcane Shot.",
+              "tables": []
+            },
+            {
+              "level": 15,
+              "title": "Indomitable Teleport",
+              "description": "Your magical mastery lets you escape dire situations. When you use your Indomitable feature and succeed on the saving throw, you can teleport up to 60 feet to an unoccupied space you can see.",
+              "tables": []
+            },
+            {
+              "level": 18,
+              "title": "Masterful Shots",
+              "description": "You employ agility in your sharpshooting. When a creature you can see misses you with an attack roll, you can take a Reaction to move up to half your Speed away from the attacker without provoking Opportunity Attacks. You can then make a ranged attack roll against the attacker as part of this Reaction if the attacker is within the weapon's range.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -6031,6 +6419,240 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Warrior of the Mystic Arts",
+          "parent_class": "Monk",
+          "description": "Warriors of the Mystic Arts wield magic to supplement their martial skill. They harness mystical focus to enhance their magical and physical abilities.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Spellcasting",
+              "description": "You have learned to cast spells. See the Player's Handbook for the rules on spellcasting. The information below details how you use those rules as a Warrior of the Mystic Arts.\n\n*Cantrips.* You know two cantrips of your choice from the [[class:Sorcerer]] spell list. [[spell:Blade Ward]] and [[spell:Thunderclap]] are recommended. Whenever you gain a Monk level, you can replace one of these cantrips with another cantrip of your choice from the [[class:Sorcerer]] spell list.\n\nWhen you reach Monk level 10, you learn another Sorcerer cantrip of your choice.\n\n*Spell Slots.* The Warrior of the Mystic Arts Spellcasting table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.\n\n*Prepared Spells of Level 1+.* You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose three level 1 spells from the [[class:Sorcerer]] spell list. [[spell:Jump]], [[spell:Magic Missile]], and [[spell:Shield]] are recommended.\n\nThe number of spells on your list increases as you gain Monk levels, as shown in the Prepared Spells column of the Warrior of the Mystic Arts Spellcasting table. Whenever that number increases, choose additional spells from the [[class:Sorcerer]] spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 7 Monk, your list of prepared spells can include five Sorcerer spells of levels 1 and 2 in any combination.\n\n*Changing Your Prepared Spells.* Whenever you gain a Monk level, you can replace one spell on your list with another Sorcerer spell for which you have spell slots.\n\n*Spellcasting Ability.* Wisdom is your spellcasting ability for your Sorcerer spells.\n\n*Spellcasting Focus.* You can use an [[equipment:Arcane Focus]] as a Spellcasting Focus for your Sorcerer spells.\n\n*Multiclassing.* If you multiclass and have the Spellcasting feature from more than one class, add one third of your Monk levels (round down) to determine your available spell slots.",
+              "tables": [
+                {
+                  "title": "Warrior of the Mystic Arts Spellcasting",
+                  "columns": [
+                    "Monk Level",
+                    "Prepared Spells",
+                    "1",
+                    "2",
+                    "3",
+                    "4"
+                  ],
+                  "rows": [
+                    [
+                      "3",
+                      "3",
+                      "2",
+                      "-",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "4",
+                      "4",
+                      "3",
+                      "-",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "5",
+                      "4",
+                      "3",
+                      "-",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "6",
+                      "4",
+                      "3",
+                      "-",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "7",
+                      "5",
+                      "4",
+                      "2",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "8",
+                      "6",
+                      "4",
+                      "2",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "9",
+                      "6",
+                      "4",
+                      "2",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "10",
+                      "7",
+                      "4",
+                      "3",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "11",
+                      "8",
+                      "4",
+                      "3",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "12",
+                      "8",
+                      "4",
+                      "3",
+                      "-",
+                      "-"
+                    ],
+                    [
+                      "13",
+                      "9",
+                      "4",
+                      "3",
+                      "2",
+                      "-"
+                    ],
+                    [
+                      "14",
+                      "10",
+                      "4",
+                      "3",
+                      "2",
+                      "-"
+                    ],
+                    [
+                      "15",
+                      "10",
+                      "4",
+                      "3",
+                      "2",
+                      "-"
+                    ],
+                    [
+                      "16",
+                      "11",
+                      "4",
+                      "3",
+                      "3",
+                      "-"
+                    ],
+                    [
+                      "17",
+                      "11",
+                      "4",
+                      "3",
+                      "3",
+                      "-"
+                    ],
+                    [
+                      "18",
+                      "11",
+                      "4",
+                      "3",
+                      "3",
+                      "-"
+                    ],
+                    [
+                      "19",
+                      "12",
+                      "4",
+                      "3",
+                      "3",
+                      "1"
+                    ],
+                    [
+                      "20",
+                      "13",
+                      "4",
+                      "3",
+                      "3",
+                      "1"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 6,
+              "title": "Mystic Fighting Style",
+              "description": "When you take the Attack action on your turn, you can replace one Unarmed Strike with a casting of one of your Sorcerer cantrips that has a casting time of an action.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Mystic Focus",
+              "description": "You keep your magical power and martial focus in perfect balance, allowing you to convert spell slots into Focus Points, or convert Focus Points into spell slots.\n\n*Converting Spell Slots to Focus Points.* You can expend a spell slot to regain a number of expended Focus Points equal to the slot's level (no action required).\n\n*Recovering Spell Slots.* When you finish a Short Rest or use Uncanny Metabolism, you can transform unexpended Focus Points to recover one expended spell slot. The Recovering Spell Slots table shows the cost of recovering a spell slot of a given level, and it lists the minimum Monk level you must be to recover a slot. You can recover a spell slot no higher than level 4.",
+              "tables": [
+                {
+                  "title": "Recovering Spell Slots",
+                  "columns": [
+                    "Spell Slot Level",
+                    "Focus Point Cost",
+                    "Min. Monk Level"
+                  ],
+                  "rows": [
+                    [
+                      "1",
+                      "2",
+                      "6"
+                    ],
+                    [
+                      "2",
+                      "3",
+                      "7"
+                    ],
+                    [
+                      "3",
+                      "5",
+                      "13"
+                    ],
+                    [
+                      "4",
+                      "6",
+                      "19"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 11,
+              "title": "Focused Strike",
+              "description": "When you use your Stunning Strike, whether the target succeeds or fails on the saving throw, the target has Disadvantage on saving throws against your spells until the start of your next turn.",
+              "tables": []
+            },
+            {
+              "level": 17,
+              "title": "Improved Mystic Fighting Style",
+              "description": "When you use Flurry of Blows, you can replace two of the Unarmed Strikes with a casting of one of your level 1 or 2 Sorcerer spells that has a casting time of an action, and you cast it as part of the same Bonus Action you use to activate Flurry of Blows.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
           "is_custom": false,
           "is_legacy": false
         }
@@ -7126,7 +7748,7 @@
           "abilities": [
             {
               "title": "Channel Divinity",
-              "description": "You can channel divine energy directly from the Outer Planes, using it to fuel magical effects. You start with one such effect: Divine Sense, which is described below. Other Paladin features give additional Channel Divinity effect options. Each time you use this class's Channel Divinity, you choose which effect from this class to create.\n\nYou can use this class's Channel Divinity twice. You regain one of its expended uses when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest. You gain an additional use when you reach Paladin level 11.\n\n*Divine Sense.* As a Bonus Action, you can open your awareness to detect Celestials, Fiends, and Undead. For the next 10 minutes or until you have the Incapacitated condition, you know the location of any creature of those types within 60 feet of yourself, and you know its creature type. Within the same radius, you also detect the presence of any place or object that has been consecrated or desecrated, as with the Hallow spell.",
+              "description": "You can channel divine energy directly from the Outer Planes, using it to fuel magical effects. You start with one such effect: Divine Sense, which is described below. Other Paladin features give additional Channel Divinity effect options. Each time you use this class's Channel Divinity, you choose which effect from this class to create.\n\nYou can use this class's Channel Divinity twice. You regain one of its expended uses when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest. You gain an additional use when you reach Paladin level 11.\n\n*Divine Sense.* As a Bonus Action, you can open your awareness to detect Celestials, Fiends, and Undead. For the next 10 minutes or until you have the Incapacitated condition, you know the location of any creature of those types within 60 feet of yourself, and you know its creature type. Within the same radius, you also detect the presence of any place or object that has been consecrated or desecrated, as with the [[spell:Hallow]] spell.",
               "is_subclass_feature": false,
               "subclass_name": "",
               "tables": []
@@ -8206,6 +8828,102 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Forgotten Realms - Heroes of Faerun",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Hollow Warden",
+          "parent_class": "Ranger",
+          "description": "Legends tell that the most ancient and bloodthirsty terrors lurk deep within the old places of the earth. Hollow Wardens venerate and draw power from such beings, transforming themselves into merciless and monstrous guardians that stalk jagged coastlines, steep mountain crags, and other dark and wild places.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Hollow Warden Spells",
+              "description": "When you reach a Ranger level specified in the Hollow Warden Spells table, you thereafter always have the listed spell prepared.",
+              "tables": [
+                {
+                  "title": "Hollow Warden Spells",
+                  "columns": [
+                    "Ranger Level",
+                    "Spells"
+                  ],
+                  "rows": [
+                    [
+                      "3",
+                      "Wrathful Smite"
+                    ],
+                    [
+                      "5",
+                      "Alter Self"
+                    ],
+                    [
+                      "9",
+                      "Phantom Steed"
+                    ],
+                    [
+                      "13",
+                      "Dominate Beast"
+                    ],
+                    [
+                      "17",
+                      "Steel Wind Strike"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 3,
+              "title": "Wrath of the Wild",
+              "description": "You draw power from the strange and ancient horrors of the land, causing you to sprout unnatural growths, such as bloody antlers or putrid fangs, or causing your shadow to lengthen or twist around you. As a Bonus Action, you can expend a use of Favored Enemy to transform into a ghastly form, gaining the following benefits for 1 minute or until you have the Incapacitated condition, die, or end the transformation (no action required).\n\n*Ancient Armor.* You gain a +1 bonus to AC, as your body is wreathed in rotten bark and beastly bristles. This bonus increases to +2 when you reach Ranger level 11.\n\n*Prowling Retribution.* Immediately after a creature you can see within 5 feet of yourself deals damage to you or one of your allies, you can make an Opportunity Attack against that creature.\n\n*Unnerving Aura.* When you transform and at the start of each of your subsequent turns, each creature of your choice in a 10-foot Emanation originating from you makes a Wisdom saving throw against your spell save DC. On a failed save, a creature has the Frightened condition until the start of your next turn.",
+              "tables": []
+            },
+            {
+              "level": 7,
+              "title": "Hungering Might",
+              "description": "You gain a bonus to Constitution saving throws equal to your Wisdom modifier (minimum of +1).\n\nIn addition, once per turn when you hit a creature with an attack roll while you are transformed using Wrath of the Wild, you regain a number of Hit Points equal to 1d10 plus your Wisdom modifier, provided you are Bloodied when you hit.",
+              "tables": []
+            },
+            {
+              "level": 11,
+              "title": "Rot and Violence",
+              "description": "Your dedication to wild eldritch beings alters you further. When transformed using Wrath of the Wild, you gain the following additional benefits.\n\n*Menacing Aura.* When a creature fails its saving throw against your Unnerving Aura, it also can't regain Hit Points or take Reactions until the start of your next turn.\n\n*Strangling Roots.* When you hit a creature with an attack roll using a weapon, you can activate the Sap or Slow mastery property in addition to a different mastery property you're using with that weapon.",
+              "tables": []
+            },
+            {
+              "level": 15,
+              "title": "Ancient Might",
+              "description": "You become wholly suffused with the wild's ancient and terrible power, granting you the following benefits.\n\n*Ominous Strikes.* When you hit a creature that has the Frightened condition with an attack roll, that attack deals extra damage equal to your Wisdom modifier.\n\n*Persistent Wrath.* If you're reduced to 0 Hit Points but not killed outright while transformed using Wrath of the Wild, you can surge with wild power. Your Hit Points instead change to a number equal to twice your Ranger level. Once you use this feature, you can't do so again until you finish a Long Rest. You can also expend a level 4+ spell slot (no action required) to restore your use of this feature.\n\n*Timeless.* You have Immunity to the Exhaustion condition.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [
+            {
+              "spell_name": "Wrathful Smite",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Alter Self",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Phantom Steed",
+              "level_gained": 9
+            },
+            {
+              "spell_name": "Dominate Beast",
+              "level_gained": 13
+            },
+            {
+              "spell_name": "Steel Wind Strike",
+              "level_gained": 17
+            }
+          ],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Ravenloft - The Horrors Within",
           "is_custom": false,
           "is_legacy": false
         }
@@ -9309,6 +10027,57 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Phantom",
+          "parent_class": "Rogue",
+          "description": "Some Rogues traverse the veil between life and death, shepherding opponents to the grave and slipping through the world as undetectable as a spirit. In these pursuits, a Rogue might discover a mystical connection to death itself. Such an individual becomes immersed in negative energy, infusing their strikes with deathly energy and stealing knowledge from souls who have passed on. Thieves' guilds value Rogues of this persuasion as highly effective information gatherers and spies.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Wails from the Grave",
+              "description": "Immediately after you deal Sneak Attack damage to a creature on your turn, you can target a second creature that you can see within 30 feet of the first creature. Roll half the number of Sneak Attack damage dice for your level (round up), and the second creature takes Necrotic damage equal to the roll's total as wails of the dead sound around it.\n\nYou can use this feature a number of times equal to your Dexterity modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Whispers of the Dead",
+              "description": "Whenever you finish a Short or Long Rest, you can choose one skill or tool proficiency that you lack and gain it, as a ghostly presence shares its knowledge with you. You lose this proficiency when you use this benefit again to choose a different proficiency.",
+              "tables": []
+            },
+            {
+              "level": 9,
+              "title": "Tokens of the Departed",
+              "description": "The spirits of the dead are drawn to you, and echoes of their past lives magically manifest as strange curios with resonant power.\n\nYou gain two soul trinkets. A soul trinket is a Tiny object (the DM determines the trinket's form or has you roll on the Trinkets table in the Player's Handbook to generate it). If you move more than 30 feet from a trinket, the trinket immediately teleports to you, appearing somewhere on your person.\n\n*Using Soul Trinkets.* You can use soul trinkets in the following ways:\n\n*Death's Knell.* When you deal Sneak Attack damage on your turn, you can destroy one soul trinket and immediately use Wails from the Grave without expending a use of that feature.\n\n*Life Essence.* While you have at least one soul trinket, you have Advantage on Death Saving Throws and Constitution saving throws.\n\n*Spirit Query.* You can take a Magic action to destroy one soul trinket and immediately cast the [[spell:Augury]] spell, requiring no spell components and using Constitution as the spellcasting modifier. If you know the creature with which the trinket is associated, you can ask the creature's spirit one question instead of casting the spell. In this case, the spirit appears to you and answers as concisely as possible in a language it knew in life.\n\n*Gaining Additional Soul Trinkets.* When a creature you can see within 30 feet of you dies, you can take a Reaction to gain another soul trinket, claiming a sliver of that creature's departing spirit. The new trinket appears somewhere on your person.\n\nYou can have a maximum of two soul trinkets at a time. If you try to gain a soul trinket while at your maximum, one of your existing trinkets is immediately destroyed and replaced by the new trinket. The maximum number of soul trinkets you can have increases when you reach Rogue levels 13 (three trinkets) and 17 (four trinkets).\n\nWhenever you finish a Long Rest with fewer than two soul trinkets, you gain soul trinkets until you have two.",
+              "tables": []
+            },
+            {
+              "level": 9,
+              "title": "Voice of Death",
+              "description": "You can cast [[spell:Speak with Dead]] once without a spell slot, requiring no spell components and using Dexterity as the spellcasting modifier. You regain the ability to cast it this way when you finish a Short or Long Rest.\n\nWhen you cast the spell, you can target one of your soul trinkets from Tokens of the Departed instead of a corpse, allowing the spirit of the creature associated with the trinket to answer.",
+              "tables": []
+            },
+            {
+              "level": 13,
+              "title": "Ghost Walk",
+              "description": "As a Bonus Action, you assume a spectral form, gaining the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can't use it again until you finish a Long Rest unless you destroy one of your soul trinkets from Tokens of the Departed (no action required) to restore your use of it.\n\n*Flight.* You gain a Fly Speed of 10 feet and can hover.\n\n*Hazy Form.* Attack rolls have Disadvantage against you.\n\n*Incorporeal Movement.* You can move through creatures and objects as if they were Difficult Terrain, but you take 1d10 Force damage if you end your turn inside a creature or an object.",
+              "tables": []
+            },
+            {
+              "level": 17,
+              "title": "Death's Friend",
+              "description": "Your association with death has become so close that you gain the following benefits.\n\n*Death's Lament.* When you use Wails from the Grave, you can deal the feature's Necrotic damage to both the first and the second creature.\n\n*Draw of Death.* When you roll Initiative, you gain one soul trinket for your Tokens of the Departed if you have none remaining.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Ravenloft - The Horrors Within",
           "is_custom": false,
           "is_legacy": false
         }
@@ -10479,6 +11248,118 @@
           "unarmored_defense": "",
           "trackable_features": [],
           "source": "Player's Handbook (2024)",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Shadow Sorcery",
+          "parent_class": "Sorcerer",
+          "description": "Your innate magic comes from the most nebulous and inscrutable forces of the Shadowfell or from other regions of supernatural darkness. You might trace your lineage to an entity from such a place, or perhaps you were exposed to the sinister energy of a shadow dragon and were transformed by it. Your shadowy magic allows you to command darkness, undeath, and woe.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Shadow Spells",
+              "description": "When you reach a Sorcerer level specified in the Shadow Spells table, you thereafter always have the listed spells prepared.",
+              "tables": [
+                {
+                  "title": "Shadow Spells",
+                  "columns": [
+                    "Sorcerer Level",
+                    "Spells"
+                  ],
+                  "rows": [
+                    [
+                      "3",
+                      "Bane, Darkness, Inflict Wounds, Pass Without Trace"
+                    ],
+                    [
+                      "5",
+                      "Hunger of Hadar, Nondetection"
+                    ],
+                    [
+                      "7",
+                      "Greater Invisibility, Phantasmal Killer"
+                    ],
+                    [
+                      "9",
+                      "Contagion, Creation"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 3,
+              "title": "Power of Shadow",
+              "description": "You gain the following benefits.\n\n*Eyes of the Dark.* You have Darkvision with a range of 120 feet and Blindsight with a range of 10 feet. In addition, if a spell you cast creates an area of Darkness, you can see normally through that spell's Darkness.\n\n*Strength of the Grave.* If you would drop to 0 Hit Points and not die outright, you can make a Charisma saving throw (DC 5 plus the damage taken). On a successful save, your Hit Points instead change to a number equal to your Charisma modifier plus your Sorcerer level. After you succeed on this save, you can't use this benefit again until you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Beasts of Ill Omen",
+              "description": "You can call forth a howling creature of shadow to hound your foes. You can spend 3 Sorcery Points to cast [[spell:Summon Beast]] as a Bonus Action without expending a spell slot, without preparing the spell, and without Material components. The summoned creature appears as a beast made of shadow, and enemies within 5 feet of the summoned creature have Disadvantage on saving throws against spells you cast.\n\nWhenever you cast the spell, you can modify it so that it doesn't require Concentration. If you do so, the spell's duration becomes 1 minute for that casting, and the spell ends early if you cast the spell again.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Shadow Walk",
+              "description": "While you are in Dim Light or Darkness, you can take a Bonus Action to teleport up to 120 feet to an unoccupied space you can see that is also in Dim Light or Darkness.",
+              "tables": []
+            },
+            {
+              "level": 18,
+              "title": "Umbral Form",
+              "description": "When you use Innate Sorcery, you can adopt a shadowy form, gaining the benefits below while your Innate Sorcery is active or until you end the form (no action required). Once you use this feature, you can't use it again until you finish a Long Rest unless you spend 6 Sorcery Points (no action required) to restore your use of it.\n\n*Incorporeal Movement.* You can move through creatures and objects as if they were Difficult Terrain, but you take 1d10 Force damage if you end your turn inside a creature or an object.\n\n*Shadow Resilience.* You have Resistance to all damage except Force and Radiant damage.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [
+            {
+              "spell_name": "Bane",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Darkness",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Inflict Wounds",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Pass Without Trace",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Hunger of Hadar",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Nondetection",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Greater Invisibility",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Phantasmal Killer",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Contagion",
+              "level_gained": 9
+            },
+            {
+              "spell_name": "Creation",
+              "level_gained": 9
+            }
+          ],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Ravenloft - The Horrors Within",
           "is_custom": false,
           "is_legacy": false
         }
@@ -11708,6 +12589,237 @@
           "source": "Player's Handbook (2024)",
           "is_custom": false,
           "is_legacy": false
+        },
+        {
+          "name": "Undead Patron",
+          "parent_class": "Warlock",
+          "description": "You've made a pact with a creature that defies the cycle of life and death: a powerful lich, a vampire, or another entity of undeath. Having once been mortal, these ancient patrons know firsthand the paths of ambition and the routes past the doors of death. They eagerly share this profane knowledge and other secrets with those who work their will among the living.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Form of Dread",
+              "description": "As a Bonus Action, you transform into an avatar of your patron's dreadful power, gaining the benefits below for 1 minute, until you have the Incapacitated condition, or until you end the form (no action required). You can transform a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.\n\n*Facsimile of Life.* You gain Temporary Hit Points equal to 1d10 plus your Warlock level.\n\n*Fearless Form.* You have Immunity to the Frightened condition. If you are Frightened when you transform, the condition immediately ends for you.\n\n*Frightful Avatar.* Once per turn, when you hit a creature with an attack roll, you can force it to make a Wisdom saving throw against your spell save DC. On a failed save, the target has the Frightened condition until the end of your next turn.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Undead Spells",
+              "description": "The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Undead Spells table, you thereafter always have the listed spells prepared.",
+              "tables": [
+                {
+                  "title": "Undead Spells",
+                  "columns": [
+                    "Warlock Level",
+                    "Spells"
+                  ],
+                  "rows": [
+                    [
+                      "3",
+                      "Bane, Blindness/Deafness, Phantasmal Force, Ray of Sickness"
+                    ],
+                    [
+                      "5",
+                      "Speak with Dead, Summon Undead"
+                    ],
+                    [
+                      "7",
+                      "Greater Invisibility, Phantasmal Killer"
+                    ],
+                    [
+                      "9",
+                      "Antilife Shell, Cloudkill"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 6,
+              "title": "Grave Touched",
+              "description": "Your patron's powers have a profound effect on your body and magic, granting you the following benefits.\n\n*Arcane Necrosis.* Necrotic damage from your attacks, Warlock spells, and Warlock features ignores Resistance to Necrotic damage. Once per turn when you cast a spell that deals damage, you can change that spell's damage type to Necrotic.\n\n*Dreaded Necrosis.* When you hit a creature with an attack roll and deal Necrotic damage while using your Form of Dread, you can roll one additional damage die when determining the Necrotic damage the target takes. You can use this benefit only once per turn.\n\n*Undead Endurance.* You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. In addition, you don't need to sleep, and magic can't put you to sleep.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Necrotic Husk",
+              "description": "Your connection to undeath saturates your body. You gain the following benefits.\n\n*Necrotic Resilience.* You have Resistance to Necrotic damage. While using your Form of Dread, you have Immunity to Necrotic damage.\n\n*Unholy Resuscitation.* If you drop to 0 Hit Points and don't die outright, you can cause your body to erupt with deathly energy. Each creature of your choice in a 30-foot Emanation originating from you makes a Constitution saving throw against your spell save DC, taking Necrotic damage equal to 2d10 plus your Charisma modifier on a failed save or half as much damage on a successful one. Your Hit Points then change to twice your Warlock level, and you gain 1 Exhaustion level.\n\nOnce you use this benefit, you can't use it again until you finish a Short or Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Superior Dread",
+              "description": "Your Form of Dread improves, granting you the following benefits while you are using it.\n\n*Dread Resistance.* You have Resistance to Bludgeoning, Piercing, and Slashing damage.\n\n*Ghostly Flight.* You have a Fly Speed equal to your Speed and can hover. You can move through creatures and objects as if they were Difficult Terrain, but you take 1d10 Force damage if you end your turn inside a creature or an object.\n\n*Profane Casting.* Whenever you cast a Warlock spell from the Conjuration or Necromancy school, you cast it without any Verbal, Somatic, or Material components, except Material components that are costly or consumed.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [
+            {
+              "spell_name": "Bane",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Blindness/Deafness",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Phantasmal Force",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Ray of Sickness",
+              "level_gained": 3
+            },
+            {
+              "spell_name": "Speak with Dead",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Summon Undead",
+              "level_gained": 5
+            },
+            {
+              "spell_name": "Greater Invisibility",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Phantasmal Killer",
+              "level_gained": 7
+            },
+            {
+              "spell_name": "Antilife Shell",
+              "level_gained": 9
+            },
+            {
+              "spell_name": "Cloudkill",
+              "level_gained": 9
+            }
+          ],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Ravenloft - The Horrors Within",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Vestige Patron",
+          "parent_class": "Warlock",
+          "description": "Your pact draws on the power of a dying god, a being once worshipped by countless followers but now abandoned and forgotten. This dying god, known as a vestige, might have been benevolent, evil, or strange and unknowable, but now it is driven to regain its former power. The vestige needs your help, and it is willing to share its remaining strength with you.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Vestige Companion",
+              "description": "The vestige manifests, drawing strength from your pact. It uses the Vestige Companion stat block and is a Celestial, Fiend, or Undead (choose when you gain this feature). You determine what the vestige looks like, but regardless of its form, the vestige bears features indicating its supernatural origin. For example, you might decide your vestige is an oversize floating skull etched with sigils, a circle of glowing runes, or a constantly shifting abstract shape. The vestige is Friendly to you and your allies and obeys your commands. It vanishes if you die.\n\n*The Vestige in Combat.* In combat, the vestige acts during your turn. It can move and use its Reaction on its own, but the only action it takes is the Dodge action unless you take a Bonus Action to command it to take an action in its stat block or some other action. You can also sacrifice one of your attacks when you take the Attack action to command the vestige to take the Vestige's Strike action. If you have the Incapacitated condition, the vestige acts on its own and isn't limited to the Dodge action.\n\n*Disappearance of the Vestige.* When the vestige drops to 0 Hit Points, it disappears. You can spend 1 minute performing a magical ceremony to manifest the vestige again; it reappears with its maximum Hit Points in an unoccupied space within 5 feet of you. As a Magic action, you can temporarily dismiss the vestige to a pocket dimension. As a Magic action while it is temporarily dismissed, you can cause the vestige to reappear in an unoccupied space within 30 feet of you. Whenever the vestige drops to 0 Hit Points or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying.\n\nWhenever you finish a Long Rest, you can summon the vestige in a new form, which appears in an unoccupied space within 5 feet of you. You choose its appearance and whether it is a Celestial, Fiend, or Undead. If the vestige is already manifested from this feature, its form changes to the new one.",
+              "tables": [
+                {
+                  "title": "Vestige Companion",
+                  "columns": [
+                    "Statistic",
+                    "Value"
+                  ],
+                  "rows": [
+                    [
+                      "Size/Type",
+                      "Small Celestial, Fiend, or Undead, Neutral"
+                    ],
+                    [
+                      "Armor Class",
+                      "13 plus your Charisma modifier"
+                    ],
+                    [
+                      "Hit Points",
+                      "4 + four times your Warlock level (the vestige has a number of Hit Dice [d6s] equal to your Warlock level)"
+                    ],
+                    [
+                      "Speed",
+                      "5 ft., 30 ft. hover"
+                    ],
+                    [
+                      "STR/DEX/CON",
+                      "1 (-5/-5) / 14 (+2/+2) / 10 (+0/+0)"
+                    ],
+                    [
+                      "INT/WIS/CHA",
+                      "15 (+2/+2) / 15 (+2/+2) / 16 (+3/+3)"
+                    ],
+                    [
+                      "Resistances",
+                      "Fire (Fiend only), Necrotic (Undead only), Radiant (Celestial only)"
+                    ],
+                    [
+                      "Immunities",
+                      "Charmed, Frightened, Prone"
+                    ],
+                    [
+                      "Senses",
+                      "Passive Perception 12"
+                    ],
+                    [
+                      "Languages",
+                      "Speaks the languages you know"
+                    ],
+                    [
+                      "Pact Bond (Trait)",
+                      "Add your Proficiency Bonus to any ability check or saving throw the vestige makes."
+                    ],
+                    [
+                      "Vestige's Strike (Action)",
+                      "Melee or Ranged Attack Roll: Bonus equals your spell attack modifier, reach 5 ft. or range 60 ft. Hit: 1d6 + 3 plus your Charisma modifier Fire (Fiend), Necrotic (Undead), or Radiant (Celestial) damage."
+                    ],
+                    [
+                      "Divine Power (1/Day) (Bonus Action)",
+                      "Your vestige manifests a remnant of its divine power in one of the following ways, based on its form:"
+                    ],
+                    [
+                      "Cursed Invocation (Undead Only) (Bonus Action)",
+                      "The vestige places a curse on a creature you can see within 30 feet of the vestige for 1 minute. While cursed, the target has Disadvantage on attack rolls against you and the vestige."
+                    ],
+                    [
+                      "Fiendish Swap (Fiend Only) (Bonus Action)",
+                      "If you and the vestige are within 60 feet of each other, you both teleport, swapping places."
+                    ],
+                    [
+                      "Healing Touch (Celestial Only) (Bonus Action)",
+                      "The vestige touches another creature. The target regains Hit Points equal to 2d8 plus your Charisma modifier and ends one condition on it: Blinded, Deafened, or Poisoned."
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "level": 3,
+              "title": "Vestige Spells",
+              "description": "The magic of your Vestige Companion ensures you always have certain spells ready. Select one of the following Cleric domains: Life, Light, Trickery, or War. The Domain Spells of your chosen domain are Warlock spells for you. When you reach a Warlock level equal to a Cleric level listed on the Domain Spells table for the domain you have chosen, you thereafter always have the listed spells prepared.\n\nFor example, if you chose the [[subclass:War Domain]] for this feature, when you reach Warlock level 3, you would have the [[spell:Guiding Bolt]], [[spell:Magic Weapon]], [[spell:Shield of Faith]], and [[spell:Spiritual Weapon]] spells prepared.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Vestige Power",
+              "description": "Your Vestige Companion now regains its use of Divine Power whenever you finish a Short or Long Rest or when you use your Magical Cunning feature. In addition, while within 30 feet of your Vestige Companion, you have Resistance to the same damage types as the vestige.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Vestige Recovery",
+              "description": "When your Vestige Companion would drop to 0 Hit Points, you can take a Reaction and expend a Pact Magic spell slot to instead change its Hit Points to its Hit Point maximum. The vestige then teleports to an unoccupied space you can see within 30 feet of it. Once you use this feature, you can't do so again until you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Semblance of Life",
+              "description": "Your Vestige Companion continues to grow in strength, and with your assistance, it can briefly adopt a more powerful form. Depending on the vestige's type, you can take a Magic action while the vestige is within 90 feet of you to shape-shift it for 1 hour into one of the following forms: Celestial Spirit (Celestial vestige; see the [[spell:Summon Celestial]] spell in the Player's Handbook), Fiendish Spirit (Fiend vestige; see the [[spell:Summon Fiend]] spell in the Player's Handbook), or Undead Spirit (Undead vestige; see the [[spell:Summon Undead]] spell in the Player's Handbook). The vestige's game statistics are replaced by the spirit's stat block, and the spell's level is equal to half your Warlock level (round down; maximum level 9), but the vestige retains its personality, Divine Power Bonus Action, Hit Points, and Hit Point Dice.\n\nThe vestige gains a number of Temporary Hit Points equal to the Hit Points of the spirit form. These Temporary Hit Points vanish if any remain after 1 hour, and the transformation ends early if it has no Temporary Hit Points left.\n\nOnce you use this feature, you can't do so again until you finish a Long Rest.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
+          "is_custom": false,
+          "is_legacy": false
         }
       ],
       "levels": {
@@ -12586,6 +13698,216 @@
             }
           ],
           "source": "Player's Handbook (2024)",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Conjurer",
+          "parent_class": "Wizard",
+          "description": "A Conjurer considers distance and matter to be flexible guidelines rather than physical laws. Conjurers master magic that moves creatures instantly through space and summons creatures to fight on their behalf.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Benign Transposition",
+              "description": "As a Bonus Action, you teleport up to 30 feet to an unoccupied space that you can see. Alternatively, you can choose a space within range that is occupied by a Medium or smaller creature. If that creature is willing, you both teleport, swapping places.\n\nYou can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Conjuration Savant",
+              "description": "Choose two Wizard spells from the Conjuration school, each of which must be no higher than level 2, and add them to your spellbook for free.\n\nIn addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Conjuration school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Distant Transposition",
+              "description": "The range of your Benign Transposition feature increases to 60 feet. Additionally, you can restore one use of it by expending a level 3+ spell slot (no action required).",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Durable Summons",
+              "description": "When you cast a Conjuration spell to summon or create a creature using a spell slot, that creature gains Temporary Hit Points equal to twice your Wizard level when it first appears. While it has these Temporary Hit Points, the creature has Resistance to every damage type except Force, Necrotic, Psychic, and Radiant.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Focused Conjuration",
+              "description": "Taking damage can't break your Concentration on Conjuration spells.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Splintered Summons",
+              "description": "When you use a spell slot to cast a Conjuration spell that summons a spirit whose stat block is included in the spell description, such as [[spell:Summon Aberration]], you can modify the spell to summon two creatures with the spell instead of one. Each creature is of the same kind, uses the stat block and rules denoted by the spell, and manifests in a different unoccupied space of your choice within the spell's range, but the summoned creatures' Hit Point maximums and current Hit Points are halved. If you lose Concentration on the spell, both creatures disappear.\n\nOnce you use this feature to modify a spell in this way, you must finish a Long Rest before you can do so again. You can also restore your use of it by expending a level 5+ spell slot (no action required).",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Enchanter",
+          "parent_class": "Wizard",
+          "description": "An Enchanter's magic clouds or captivates minds. Some Enchanters use their abilities to encourage peace and soften cruelty, while others use their mind-altering magic for selfish ends.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Enchanting Conversationalist",
+              "description": "You gain proficiency in one of the following skills of your choice: Deception, Intimidation, or Persuasion.\n\nIn addition, when you make an ability check with the chosen skill, you gain a bonus to the check equal to your Intelligence modifier (minimum of +1).",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Enchantment Savant",
+              "description": "Choose two Wizard spells from the Enchantment school, each of which must be no higher than level 2, and add them to your spellbook for free.\n\nIn addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Enchantment school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Hypnotic Presence",
+              "description": "Your charming words and enchanting gaze can enthrall another creature. As a Magic action, choose one creature that you can see within 10 feet of yourself. If the target can see or hear you, it must succeed on a Wisdom saving throw against your spell save DC or have the Charmed condition for 1 minute or until the target is more than 10 feet away from you, the target can neither see nor hear you, or the target takes damage. While Charmed, the target has the Incapacitated condition and a Speed of 0.\n\nYou can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Split Enchantment",
+              "description": "When you use a spell slot to cast an Enchantment spell, such as [[spell:Charm Person]], that can be cast with a higher-level spell slot to target an additional creature, you can increase the spell's effective level by 1.\n\nYou can use this feature a number of times equal to your Intelligence modifier, and you regain all expended uses when you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Instinctive Charm",
+              "description": "When a creature within 30 feet of you that you can see hits you with an attack roll, you can take a Reaction to force the attacker to make a Wisdom saving throw against your spell save DC. On a failed save, the attack misses instead, and if there is another creature within range of the attack other than the attacker, the attacker targets that creature with the triggering attack, using the same attack roll. If multiple creatures are within the attack's range, you choose which one to target.\n\nOnce you take this Reaction, you can't do so again until you finish a Long Rest. You can also restore your use of it by casting an Enchantment spell with a spell slot.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Alter Memories",
+              "description": "You can make a creature unaware of your magical influence. When you cast an Enchantment spell that imposes the Charmed condition using a spell slot, you can choose one creature targeted by the spell. That creature remains unaware of being Charmed by you.\n\nIn addition, once before the spell ends, you can take a Magic action to force the chosen creature to make an Intelligence saving throw against your spell save DC. On a failed save, you can make the creature lose a number of hours of its memories equal to 1 plus your Intelligence modifier (minimum of 1 hour lost). You can make the creature forget less time, and the amount of time can't exceed the duration of your Enchantment spell.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Necromancer",
+          "parent_class": "Wizard",
+          "description": "You explore the forces of life, death, and undeath. As a necromancer, you learn to manipulate the energy that animates all creatures, and you draw increasing power from the forbidden secrets in your spellbook. Though many see Necromancers as menacing or villainous, not all Necromancers are evil.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Necromancy Savant",
+              "description": "Choose two Wizard spells from the Necromancy school, each of which must be no higher than level 2, and add them to your spellbook for free.\n\nIn addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Necromancy school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Necromancy Spellbook",
+              "description": "Your spellbook's necromantic secrets grant you additional powers. You gain the following benefits.\n\n*Necrotic Resistance.* You have Resistance to Necrotic damage.\n\n*Undead Familiar.* The [[spell:Find Familiar]] spell appears in your spellbook. When you cast the spell, you choose one of the normal forms for your familiar or one of the following special forms: Skeleton or Zombie (see appendix B of the Player's Handbook for the familiar's stat block). When you choose one of the normal forms, you can choose Undead as its creature type.\n\nAdditionally, when you take the Attack action, you can forgo one of your own attacks to allow your familiar to make one attack of its own with its Reaction.\n\n*Undead Vitality.* When you cast a Necromancy spell using a spell slot, you can choose an Undead creature you can see within 60 feet of yourself to regain a number of Hit Points equal to the level of the spell slot expended plus your Wizard level.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Grave Power",
+              "description": "You have discovered more necromantic insights and inscribed them in your spellbook. While holding your spellbook, you gain the following benefits.\n\n*Grave Resilience.* When you use Arcane Recovery, your Exhaustion level, if any, decreases by 1.\n\n*Overwhelming Necrosis.* Damage from your Wizard spells and Wizard features ignores Resistance to Necrotic damage.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Undead Thralls",
+              "description": "You always have [[spell:Animate Dead]] prepared and can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again. Whenever you start casting the spell, you can increase the spell's effective level by 1.\n\nIn addition, while holding your spellbook, you gain the following benefits.\n\n*Undead Fortitude.* Whenever you cast a Necromancy spell that creates or summons an Undead, the Undead's Hit Point maximum and current Hit Points increase by a number equal to your Intelligence modifier plus half your Wizard level (round down).\n\n*Withering Strike.* Whenever an Undead you control within 60 feet of you hits a creature with an attack roll, the Undead deals extra Necrotic damage equal to your Intelligence modifier (minimum of 1 Necrotic damage).",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Harvest Undead",
+              "description": "You have learned more secrets about the nuances of life and death. Immediately after you become Bloodied but aren't reduced to 0 Hit Points from taking damage, you can take a Reaction to reduce an Undead creature under your control that you can see to 0 Hit Points. You then immediately regain a number of Hit Points equal to your Wizard level.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Death's Master",
+              "description": "Abstruse rituals within your spellbook allow you mastery over undeath. While holding your spellbook, you gain the following benefits.\n\n*Bolster Undead.* As a Bonus Action, choose any number of Undead you have created or summoned with a Necromancy spell that are within 60 feet of you. Those Undead each gain Temporary Hit Points equal to your Wizard level. Once you use this Bonus Action, you can't do so again until you finish a Long Rest.\n\n*Extinguish Undead.* When an Undead creature you can see is reduced to 0 Hit Points, you can cause it to explode with necrotic energy. Roll a number of d6s equal to half the creature's unexpended Hit Dice (round up, minimum of 1d6), and add them together. Each creature in a 10-foot Emanation originating from the Undead makes a Dexterity saving throw. On a failed save, a target takes Necrotic damage equal to the number rolled and can't take Reactions until the start of its next turn. On a successful save, a target takes half as much damage only. When you use this feature to explode an Undead creature you don't control, you must take a Reaction and expend a level 5+ spell slot to do so.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
+          "is_custom": false,
+          "is_legacy": false
+        },
+        {
+          "name": "Transmuter",
+          "parent_class": "Wizard",
+          "description": "You study spells that modify energy and matter—to you, the world is eminently mutable. Using your magic, you become a smith at reality's forge.\n\nSome Transmuters are tinkerers and pranksters. Others seek the power to make and destroy worlds.",
+          "features": [
+            {
+              "level": 3,
+              "title": "Transmutation Savant",
+              "description": "Choose two Wizard spells from the Transmutation school, each of which must be no higher than level 2, and add them to your spellbook for free.\n\nIn addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Transmutation school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Transmuter's Stone",
+              "description": "When you finish a Long Rest, you can create a magic stone that lasts until you use this feature again. The stone is a Tiny object, and you can use it as a Spellcasting Focus for your Wizard spells. A creature with the stone in its possession gains proficiency in Constitution saving throws and one of the following benefits, which you choose when you create the stone. You can change the stone's benefit when you cast a Transmutation spell using a spell slot.\n\n*Darkvision.* The bearer gains Darkvision with a range of 60 feet or increases the range of its Darkvision by 60 feet.\n\n*Resistance.* The bearer gains Resistance to Acid, Cold, Fire, Lightning, Poison, or Thunder damage (your choice each time you choose this benefit).\n\n*Speed.* The bearer's Speed increases by 10 feet.",
+              "tables": []
+            },
+            {
+              "level": 3,
+              "title": "Wondrous Alteration",
+              "description": "You always have the [[spell:Alter Self]] spell prepared and can cast it once without expending a spell slot. You regain the ability to cast it in this way when you finish a Long Rest.\n\nWhile under the effects of [[spell:Alter Self]], you gain an additional benefit for each of its options.\n\n*Aquatic Adaptation.* While underwater, you can take the Dash action as a Bonus Action.\n\n*Change Appearance.* You have Advantage on Charisma (Deception) checks.\n\n*Natural Weapons.* The damage of your new growth increases to 2d6 damage of the type associated with the growth. You also have Advantage on Constitution saving throws to maintain Concentration.",
+              "tables": []
+            },
+            {
+              "level": 6,
+              "title": "Empowered Transmutation",
+              "description": "When you use a spell slot to cast a Transmutation spell that doesn't make an attack roll or force a saving throw, such as [[spell:Fly]] or [[spell:Magic Weapon]], you can increase the spell's effective level by 1.\n\nYou can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Potent Stone",
+              "description": "Your Transmuter's Stone is more versatile. When you create your Transmuter's Stone, you can choose up to two benefits. You can choose each option other than Resistance only once. If you choose Resistance twice, you must choose different damage types. You can change either or both benefits when you cast a Transmutation spell using a spell slot.\n\nIn addition, the following are now among your benefit options for Transmuter's Stone.\n\n*Mighty Build.* The bearer has Advantage on Strength saving throws. The bearer also counts as one size larger when determining its carrying capacity.\n\n*Tremorsense.* The bearer gains Tremorsense with a range of 30 feet.",
+              "tables": []
+            },
+            {
+              "level": 10,
+              "title": "Shape-Shifter",
+              "description": "You always have the [[spell:Polymorph]] spell prepared and can cast it once without expending a spell slot. You regain the ability to cast it in this way when you finish a Long Rest.\n\nIn addition, when you target yourself with the spell, you can modify the spell to gain the benefits below. Once you modify the spell using this feature, you can't do so again until you finish a Long Rest.\n\n*Game Statistics.* In addition to retaining the features specified in the spell, you retain your memories and ability to communicate. You also retain your Intelligence, Wisdom, and Charisma scores; proficiencies; class features; and feats.\n\n*Transmute Spells.* While shape-shifted, you can cast spells, but only Transmutation spells that don't have a Material component that has a specified cost or that is consumed by the spell.",
+              "tables": []
+            },
+            {
+              "level": 14,
+              "title": "Master Transmuter",
+              "description": "While you carry your Transmuter's Stone, you can take a Magic action to consume the reserve of transmutation magic stored inside and choose one of the following benefits. After you use the stone in this way, it crumbles to dust. You can prevent the stone from crumbling by expending a level 7+ spell slot as part of the Magic action you take using this feature.\n\n*Major Transformation.* You can transmute one nonmagical object—no larger than a 10-foot Cube or eight connected 5-foot Cubes—into another nonmagical object of similar size and mass and of equal or lesser value. You must spend 10 minutes handling the object to transform it.\n\n*Panacea.* You touch a creature as part of this Magic action, and the target regains a number of Hit Points equal to half its Hit Point maximum (round down). The target is cured of all magical contagions, and any curses affecting the target are lifted, including the target's Attunement to a cursed item. If the target has the Poisoned or Petrified condition, those conditions end.\n\n*Restore Life.* You cast the [[spell:Raise Dead]] spell without expending a spell slot, using the stone in place of the required Material components.\n\n*Restore Youth.* You touch one willing creature as part of this Magic action, and the target's Exhaustion level, if any, decreases to 0, and it permanently appears 3d10 years younger, to a minimum of young adulthood.",
+              "tables": []
+            }
+          ],
+          "subclass_spells": [],
+          "armor_proficiencies": [],
+          "weapon_proficiencies": [],
+          "unarmored_defense": "",
+          "trackable_features": [],
+          "source": "Arcana Unleashed",
           "is_custom": false,
           "is_legacy": false
         }

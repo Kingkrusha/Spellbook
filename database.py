@@ -17,7 +17,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 22  # Ship the bundled Rare magic items
+    SCHEMA_VERSION = 24  # Add mounts/vehicles/poisons and the Very Rare, Legendary and Artifact magic items
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -412,6 +412,34 @@ class SpellDatabase:
                 cursor.execute("UPDATE schema_version SET version = 22")
                 current_version = 22
 
+        # Migration to version 23: add the official content from the newer
+        # source books (backgrounds, species, feats, spells, subclasses; the
+        # summon stat blocks ride along with the spells at startup). Every
+        # insert is by name and skips what already exists, so nothing already
+        # there - or user-made - is touched. The link sweep is re-run so older
+        # text that mentions the new spells (Hallow, Teleportation Circle, ...)
+        # links to them. Idempotent, and retried on the next launch if either
+        # step can't run.
+        if current_version < 23:
+            if self._seed_new_official_content(cursor) and self._link_official_content(cursor):
+                cursor.execute("UPDATE schema_version SET version = 23")
+                current_version = 23
+
+        # Migration to version 24: add the mounts, vehicles and poisons, and the
+        # Very Rare, Legendary and Artifact magic items. Harkon's Bite first
+        # shipped under a mangled name ("The Horrors Within", no source), so it
+        # is renamed before seeding rather than duplicated. Seeding is
+        # INSERT OR IGNORE by name (nothing already there - or user-made - is
+        # touched) and the link sweep is re-run so older text that names the new
+        # items (Folding Boat -> Rowboat, ...) links to them. Idempotent, and
+        # retried on the next launch if the sweep can't run.
+        if current_version < 24:
+            self._fix_mangled_harkons_bite(cursor)
+            self._seed_equipment_and_magic_items(cursor)
+            if self._link_official_content(cursor):
+                cursor.execute("UPDATE schema_version SET version = 24")
+                current_version = 24
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -638,6 +666,18 @@ class SpellDatabase:
         except Exception as e:
             print(f"Error backfilling equipment crafting tools: {e}")
 
+    def _fix_mangled_harkons_bite(self, cursor):
+        """Rename the bundled magic item that was imported as "The Horrors Within".
+
+        It is Harkon's Bite: its source line ("Ravenloft - The Horrors Within")
+        was read as the item's name. Only the untouched bundled row (official,
+        empty source) is renamed, and only if that name is free.
+        """
+        cursor.execute(
+            "UPDATE OR IGNORE magic_items SET name = ?, source = ? "
+            "WHERE name = 'The Horrors Within' AND is_custom = 0 AND COALESCE(source, '') = ''",
+            ("Harkon's Bite", "Ravenloft - The Horrors Within"))
+
     def _seed_missing_subclasses(self, cursor) -> bool:
         """INSERT OR IGNORE the bundled classes.json subclasses.
 
@@ -700,8 +740,8 @@ class SpellDatabase:
 
             official_spells = {s['name'] for s in get_all_spells()}
 
-            def official_names(table):
-                cursor.execute(f"SELECT name FROM {table} WHERE is_custom = 0")
+            def official_names(table, extra=""):
+                cursor.execute(f"SELECT name FROM {table} WHERE is_custom = 0{extra}")
                 return [r[0] for r in cursor.fetchall()]
 
             uni = sweep.Universe({
@@ -711,7 +751,8 @@ class SpellDatabase:
                 'background': official_names('backgrounds'),
                 'class': official_names('classes'),
                 'subclass': official_names('subclasses'),
-                'equipment': official_names('equipment'),
+                # Mount animals are left out (prose naming them means the creature; see tools/link_sweep.py)
+                'equipment': official_names('equipment', " AND tags_json NOT LIKE '%\"Mount\"%'"),
                 'magic_item': official_names('magic_items'),
             })
             changes: list = []
@@ -847,6 +888,170 @@ class SpellDatabase:
             except Exception as e:
                 print(f"Error seeding magic items: {e}")
 
+    def _seed_lineages(self, cursor) -> bool:
+        """INSERT OR IGNORE the bundled lineages.json rows (name is UNIQUE)."""
+        import os
+
+        path = self._bundled_json_path('lineages.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for lin in data.get('lineages', []):
+                cursor.execute("""
+                    INSERT OR IGNORE INTO lineages
+                    (name, description, creature_type, size, speed, traits_json, source, is_official, is_custom, is_legacy)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    lin.get('name', ''),
+                    lin.get('description', ''),
+                    lin.get('creature_type', 'Humanoid'),
+                    lin.get('size', 'Medium'),
+                    lin.get('speed', 30),
+                    json.dumps(lin.get('traits', [])),
+                    lin.get('source', ''),
+                    1 if lin.get('is_official', True) else 0,
+                    1 if lin.get('is_custom', False) else 0,
+                    1 if lin.get('is_legacy', False) else 0
+                ))
+            print(f"Migrated {len(data.get('lineages', []))} lineages to database")
+        except Exception as e:
+            print(f"Error migrating lineages: {e}")
+            return False
+        return True
+
+    def _seed_feats(self, cursor) -> bool:
+        """INSERT OR IGNORE the bundled feats.json rows (name is UNIQUE)."""
+        import os
+
+        path = self._bundled_json_path('feats.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for feat in data.get('feats', []):
+                cursor.execute("""
+                    INSERT OR IGNORE INTO feats
+                    (name, type, is_spellcasting, spell_lists_json, spells_num_json, has_prereq, prereq,
+                     set_spells_json, description, source, is_official, is_custom, is_legacy)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    feat.get('name', ''),
+                    feat.get('type', ''),
+                    1 if feat.get('is_spellcasting', False) else 0,
+                    json.dumps(feat.get('spell_lists', [])),
+                    json.dumps(feat.get('spells_num', {})),
+                    1 if feat.get('has_prereq', False) else 0,
+                    feat.get('prereq', ''),
+                    json.dumps(feat.get('set_spells', [])),
+                    feat.get('description', ''),
+                    feat.get('source', ''),
+                    1 if feat.get('is_official', True) else 0,
+                    1 if feat.get('is_custom', False) else 0,
+                    1 if feat.get('is_legacy', False) else 0
+                ))
+            print(f"Migrated {len(data.get('feats', []))} feats to database")
+        except Exception as e:
+            print(f"Error migrating feats: {e}")
+            return False
+        return True
+
+    def _seed_backgrounds(self, cursor) -> bool:
+        """INSERT OR IGNORE the bundled backgrounds.json rows (name is UNIQUE)."""
+        import os
+
+        path = self._bundled_json_path('backgrounds.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for bg in data.get('backgrounds', []):
+                cursor.execute("""
+                    INSERT OR IGNORE INTO backgrounds
+                    (name, source, is_legacy, description, skills_json, other_proficiencies_json,
+                     ability_scores_json, feats_json, equipment, features_json, is_official, is_custom)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    bg.get('name', ''),
+                    bg.get('source', ''),
+                    1 if bg.get('is_legacy', False) else 0,
+                    bg.get('description', ''),
+                    json.dumps(bg.get('skills', [])),
+                    json.dumps(bg.get('other_proficiencies', [])),
+                    json.dumps(bg.get('ability_scores', [])),
+                    json.dumps(bg.get('feats', [])),
+                    bg.get('equipment', ''),
+                    json.dumps(bg.get('features', [])),
+                    1 if bg.get('is_official', True) else 0,
+                    1 if bg.get('is_custom', False) else 0
+                ))
+            print(f"Migrated {len(data.get('backgrounds', []))} backgrounds to database")
+        except Exception as e:
+            print(f"Error migrating backgrounds: {e}")
+            return False
+        return True
+
+    def _seed_missing_spells(self, cursor) -> int:
+        """Insert bundled official spells (tools/spell_data.py) whose name isn't in the table.
+
+        Matches by name, case-insensitively, so a spell the user already has -
+        official, edited or homebrew - is never touched or duplicated. Uses the
+        caller's cursor (bulk_insert_spells opens its own connection, which
+        would contend with the migration's open transaction).
+        """
+        from tools.spell_data import get_all_spells
+
+        added = 0
+        for spell in get_all_spells():
+            cursor.execute("SELECT 1 FROM spells WHERE name = ? COLLATE NOCASE", (spell['name'],))
+            if cursor.fetchone():
+                continue
+            cursor.execute("""
+                INSERT INTO spells (
+                    name, level, casting_time, ritual, range_value,
+                    components, duration, concentration, description, source, original_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                spell['name'], spell['level'], spell['casting_time'],
+                1 if spell.get('ritual', False) else 0, spell['range_value'],
+                spell['components'], spell['duration'],
+                1 if spell.get('concentration', False) else 0,
+                spell.get('description', ''), spell.get('source', ''),
+                spell.get('original_name', spell['name'])
+            ))
+            spell_id = cursor.lastrowid
+            cursor.executemany(
+                "INSERT OR IGNORE INTO spell_classes (spell_id, class_name) VALUES (?, ?)",
+                [(spell_id, c) for c in spell.get('classes', [])])
+            cursor.executemany(
+                "INSERT OR IGNORE INTO spell_tags (spell_id, tag) VALUES (?, ?)",
+                [(spell_id, self.normalize_tag(t)) for t in spell.get('tags', [])])
+            added += 1
+        return added
+
+    def _seed_new_official_content(self, cursor) -> bool:
+        """Backfill the bundled content that shipped after the tables were first seeded.
+
+        Everything is inserted only if its name is missing, so existing rows
+        (including user edits and homebrew that reuse a name) are left alone.
+        Returns True on success; on failure the schema version is not advanced
+        and the whole thing is retried on the next launch.
+        """
+        try:
+            ok = self._seed_lineages(cursor)
+            ok = self._seed_feats(cursor) and ok
+            ok = self._seed_backgrounds(cursor) and ok
+            added = self._seed_missing_spells(cursor)
+            if added:
+                print(f"Added {added} bundled spell(s)")
+            return self._seed_missing_subclasses(cursor) and ok
+        except Exception as e:
+            print(f"Error seeding new official content (will retry next launch): {e}")
+            return False
+
     def _migrate_json_to_database(self, cursor):
         """Migrate data from JSON files to database tables."""
         import os
@@ -860,97 +1065,16 @@ class SpellDatabase:
                 base = os.path.dirname(os.path.abspath(__file__))
             return os.path.join(base, filename)
         
-        # Migrate lineages
-        lineages_path = get_json_path('lineages.json')
-        if os.path.exists(lineages_path):
-            try:
-                with open(lineages_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                for lin in data.get('lineages', []):
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO lineages 
-                        (name, description, creature_type, size, speed, traits_json, source, is_official, is_custom, is_legacy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        lin.get('name', ''),
-                        lin.get('description', ''),
-                        lin.get('creature_type', 'Humanoid'),
-                        lin.get('size', 'Medium'),
-                        lin.get('speed', 30),
-                        json.dumps(lin.get('traits', [])),
-                        lin.get('source', ''),
-                        1 if lin.get('is_official', True) else 0,
-                        1 if lin.get('is_custom', False) else 0,
-                        1 if lin.get('is_legacy', False) else 0
-                    ))
-                print(f"Migrated {len(data.get('lineages', []))} lineages to database")
-            except Exception as e:
-                print(f"Error migrating lineages: {e}")
-        
-        # Migrate feats
-        feats_path = get_json_path('feats.json')
-        if os.path.exists(feats_path):
-            try:
-                with open(feats_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                for feat in data.get('feats', []):
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO feats 
-                        (name, type, is_spellcasting, spell_lists_json, spells_num_json, has_prereq, prereq, 
-                         set_spells_json, description, source, is_official, is_custom, is_legacy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        feat.get('name', ''),
-                        feat.get('type', ''),
-                        1 if feat.get('is_spellcasting', False) else 0,
-                        json.dumps(feat.get('spell_lists', [])),
-                        json.dumps(feat.get('spells_num', {})),
-                        1 if feat.get('has_prereq', False) else 0,
-                        feat.get('prereq', ''),
-                        json.dumps(feat.get('set_spells', [])),
-                        feat.get('description', ''),
-                        feat.get('source', ''),
-                        1 if feat.get('is_official', True) else 0,
-                        1 if feat.get('is_custom', False) else 0,
-                        1 if feat.get('is_legacy', False) else 0
-                    ))
-                print(f"Migrated {len(data.get('feats', []))} feats to database")
-            except Exception as e:
-                print(f"Error migrating feats: {e}")
+        # Migrate lineages and feats (shared with the v23 backfill migration)
+        self._seed_lineages(cursor)
+        self._seed_feats(cursor)
 
         # Migrate equipment + magic items (shared with the v16 backfill migration)
         self._seed_equipment_and_magic_items(cursor)
 
-        # Migrate backgrounds
-        backgrounds_path = get_json_path('backgrounds.json')
-        if os.path.exists(backgrounds_path):
-            try:
-                with open(backgrounds_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                for bg in data.get('backgrounds', []):
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO backgrounds 
-                        (name, source, is_legacy, description, skills_json, other_proficiencies_json,
-                         ability_scores_json, feats_json, equipment, features_json, is_official, is_custom)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        bg.get('name', ''),
-                        bg.get('source', ''),
-                        1 if bg.get('is_legacy', False) else 0,
-                        bg.get('description', ''),
-                        json.dumps(bg.get('skills', [])),
-                        json.dumps(bg.get('other_proficiencies', [])),
-                        json.dumps(bg.get('ability_scores', [])),
-                        json.dumps(bg.get('feats', [])),
-                        bg.get('equipment', ''),
-                        json.dumps(bg.get('features', [])),
-                        1 if bg.get('is_official', True) else 0,
-                        1 if bg.get('is_custom', False) else 0
-                    ))
-                print(f"Migrated {len(data.get('backgrounds', []))} backgrounds to database")
-            except Exception as e:
-                print(f"Error migrating backgrounds: {e}")
-        
+        # Migrate backgrounds (shared with the v23 backfill migration)
+        self._seed_backgrounds(cursor)
+
         # Migrate classes
         classes_path = get_json_path('classes.json')
         if os.path.exists(classes_path):

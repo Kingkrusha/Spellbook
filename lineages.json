@@ -580,6 +580,114 @@
       "is_official": true,
       "is_custom": false,
       "is_legacy": false
+    },
+    {
+      "name": "Hexblood",
+      "description": "Hexbloods are individuals infused with fey magic as a result of eldritch energy or mysterious witchcraft. Many hexbloods are transformed into such beings after making a deal with a powerful hag, but other strange forces can result in the birth of a hexblood. A hexblood's strange fey power manifests as eerie clairvoyance and beguiling magic.",
+      "creature_type": "Fey",
+      "size": "Medium or Small",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "description": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Eerie Token",
+          "description": "As a Bonus Action, you can create a magical token by harmlessly removing a lock of hair, detaching a nail, or using some other method. While the token exists, you gain the following benefits:\n\n**Distant Message.** As a Magic action, you can send a telepathic message of 25 words or fewer to a creature holding or carrying the token, as long as you are within 10 miles of it.\n\n**Remote Viewing.** If you are within 10 miles of the token, you can take a Magic action to extend your senses through the token for 1 minute, until you have the Incapacitated condition, or until you end this state (no action required). During this state, you can see and hear from the token as if you were located where it is. When this state ends, the token is harmlessly destroyed.\n\nUnless the token is destroyed early, it lasts until you finish a Long Rest. Once you create a token using this feature, you can't do so again until you finish a Long Rest."
+        },
+        {
+          "name": "Hex Magic",
+          "description": "You always have the [[spell:Disguise Self]] and [[spell:Hex]] spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select this species)."
+        }
+      ],
+      "source": "Ravenloft - The Horrors Within",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Lupin",
+      "description": "With their bristling fur and snarling muzzles, lupins cast imposing shadows in the Mists. Lupins often arise from encounters with werewolves in which the curse of lycanthropy didn't fully take hold. Unlike true werewolves, lupins can't shift between wolf and humanoid form but are instead stuck as a hybrid transformation. This cursed wolflike physiology affords lupins bestial might, enhanced instincts, and a dread-inducing howl.",
+      "creature_type": "Humanoid",
+      "size": "Medium or Small",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "description": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Feral Pounce",
+          "description": "Your Unarmed Strikes deal Slashing damage instead of Bludgeoning damage. In addition, when you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Shove options. You can use this benefit only once per turn."
+        },
+        {
+          "name": "Howl",
+          "description": "As a Bonus Action, you let out an unearthly howl. Each creature of your choice within 15 feet of you must succeed on a Wisdom saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus) or have Disadvantage on attack rolls and saving throws until the start of your next turn.\n\nYou can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+        },
+        {
+          "name": "Werewolf Instincts",
+          "description": "You have proficiency in the Perception, Stealth, or Survival skill."
+        }
+      ],
+      "source": "Ravenloft - The Horrors Within",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Reborn",
+      "description": "Reborn are individuals who have died yet inexplicably still live. Some reborn exhibit the scars of fatal ends, their ashen flesh or bloodless veins making it clear that they've escaped death. Other reborn are marvels of magic or science, being stitched together from disparate beings or bearing mysterious minds in manufactured bodies. Whatever their origins, reborn know a new life and seek experiences and answers all their own.",
+      "creature_type": "Humanoid",
+      "size": "Medium or Small",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Escaped Death",
+          "description": "You have Advantage on Death Saving Throws."
+        },
+        {
+          "name": "Everlasting",
+          "description": "You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in an inactive, motionless state, during which you retain consciousness."
+        },
+        {
+          "name": "Knowledge from a Past Life",
+          "description": "You gain proficiency in one skill of your choice.\n\nIn addition, you can temporarily peer into the past to aid you in the present. When you fail an ability check, you can roll 1d6 and add the number rolled to the d20, potentially turning the failure into a success. You can do this a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+        },
+        {
+          "name": "Strange Endurance",
+          "description": "You have Resistance to one of the following damage types of your choice: Cold, Necrotic, or Poison."
+        }
+      ],
+      "source": "Ravenloft - The Horrors Within",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
+    },
+    {
+      "name": "Duskling",
+      "description": "Dusklings are a people who've left the Feywild to settle in forested lands of both the Outer Planes and the Material Plane. The inherent magic of the Feywild still runs through them, giving dusklings the ability to suffuse themselves with magical effects.\n\nDusklings that travel the planes often live in migratory communities that follow livestock herds they tend. When the resources run out in one place, they move to another. Young dusklings play daring games that encourage them to harness and utilize their inner powers.",
+      "creature_type": "Fey",
+      "size": "Medium",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "description": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Enhanced Jump",
+          "description": "Add 2 feet to the distance you can leap with a running High Jump and 10 feet to the distance you can leap with a running Long Jump."
+        },
+        {
+          "name": "Inner Magic",
+          "description": "You have magic inside you that you can manipulate to enhance your physical or mental attributes. When you finish a Long Rest, choose one of the following benefits, which lasts until you choose a different ability.\n\nAs a Bonus Action, you can switch to a different benefit. You can switch the benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.\n\n**Ardor.** You have Advantage on Charisma ability checks and on saving throws to avoid or end the Frightened condition.\n\n**Mobility.** Your Speed increases by 10 feet, and climbing and swimming don't cost you extra movement.\n\n**Vigor.** You gain a number of Temporary Hit Points equal to your Proficiency Bonus, and you have Advantage on Strength (Athletics) and Dexterity (Acrobatics) checks."
+        }
+      ],
+      "source": "D&D Beyond Drops - September 2026",
+      "is_official": true,
+      "is_custom": false,
+      "is_legacy": false
     }
   ],
   "_version": 2

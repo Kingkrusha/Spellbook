@@ -55,7 +55,9 @@ def build_universe(src):
         "background": [b["name"] for b in src["backgrounds"]],
         "class": list(src["classes"]),
         "subclass": [sc["name"] for c in src["classes"].values() for sc in c["subclasses"]],
-        "equipment": [e["name"] for e in src["equipment"]],
+        # Mount animals (Horse, Elephant, ...) are left out: prose that names them almost always means the
+        # creature (a summoned Elephant, the Riding Horse stat block), not the purchasable mount.
+        "equipment": [e["name"] for e in src["equipment"] if "Mount" not in e.get("tags", [])],
         "magic_item": [m["name"] for m in src["magic_items"]],
     })
 

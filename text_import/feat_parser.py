@@ -55,6 +55,8 @@ _TYPE_PHRASES: List[Tuple[str, str]] = [
     ("Fighting Style", "fighting style"),
     ("Epic Boon", "epic boon"),
     ("Dragonmark", "dragonmark"),
+    ("Dark Gift", "dark gift"),
+    ("Planar Pact", "planar pact"),
     ("Origin", "origin"),
     ("", "general"),
 ]
