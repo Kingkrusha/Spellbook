@@ -13,7 +13,8 @@ from character_manager import CharacterManager
 from character_sheet import (
     CharacterSheet, AbilityScore, Skill, HitPoints, DeathSaves,
     CLASS_HIT_DICE, get_hit_dice_for_classes, calculate_hp_maximum, get_default_proficiencies,
-    calculate_proficiency_bonus, ArmorType, COMMON_ARMOR_OPTIONS, SHIELD_OPTIONS, calculate_ac
+    calculate_proficiency_bonus, ArmorType, COMMON_ARMOR_OPTIONS, SHIELD_OPTIONS, calculate_ac,
+    calculate_carry_capacity, calculate_encumbrance_threshold, calculate_push_drag_lift
 )
 from spell import CharacterClass
 from settings import get_settings_manager
@@ -23,7 +24,9 @@ from feat import get_feat_manager
 from atomic_io import atomic_write_json
 from paths import user_data_path
 from ui.platform_compat import bind_right_click
-from ui.object_link_widgets import attach_object_linking
+from ui.object_link_widgets import attach_object_linking, open_link_popup
+from ui.scrollable_combobox import ScrollableComboBox
+from ui.tooltip import HoverTooltip
 import json
 import os
 
@@ -442,7 +445,7 @@ class HitPointsWidget(ctk.CTkFrame):
         dice_total_entry.bind("<Return>", self._on_change)
         
         self.dice_type_var = ctk.StringVar(value=self.hp.hit_die_type)
-        dice_type_combo = ctk.CTkComboBox(
+        dice_type_combo = ScrollableComboBox(
             dice_row, width=60, height=28,
             values=["d6", "d8", "d10", "d12"],
             variable=self.dice_type_var,
@@ -614,7 +617,8 @@ class CharacterSheetView(ctk.CTkFrame):
         self.current_sheet: Optional[CharacterSheet] = None
         self._current_tab = "front"  # front, inventory, spells
         self._rebuilding_ui = False  # Flag to prevent saves during UI rebuild
-        
+        self._carry_weight_indicator_refresh = None  # Set while the inventory tab is built
+
         self._create_widgets()
     
     def _get_jack_of_all_trades_bonus(self) -> int:
@@ -761,7 +765,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Character dropdown
         self.char_var = ctk.StringVar(value="Select a character...")
-        self.char_combo = ctk.CTkComboBox(
+        self.char_combo = ScrollableComboBox(
             container, width=250, height=35,
             variable=self.char_var,
             values=self._get_character_names(),
@@ -1244,7 +1248,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 if len(subclass_names) > 1:
                     # Subclass dropdown
                     subclass_var = ctk.StringVar(value=current_subclass)
-                    subclass_combo = ctk.CTkComboBox(
+                    subclass_combo = ScrollableComboBox(
                         cl_row, width=120, height=22,
                         values=subclass_names,
                         variable=subclass_var,
@@ -1274,7 +1278,7 @@ class CharacterSheetView(ctk.CTkFrame):
         current_lineage = character.lineage if character.lineage else "(None)"
         
         self.lineage_var = ctk.StringVar(value=current_lineage)
-        self.lineage_combo = ctk.CTkComboBox(
+        self.lineage_combo = ScrollableComboBox(
             lineage_frame, width=130, height=24,
             values=lineage_names,
             variable=self.lineage_var,
@@ -1297,7 +1301,7 @@ class CharacterSheetView(ctk.CTkFrame):
         current_background = sheet.background if sheet.background else "(None)"
         
         self.background_var = ctk.StringVar(value=current_background)
-        bg_combo = ctk.CTkComboBox(
+        bg_combo = ScrollableComboBox(
             bg_frame, width=130, height=24,
             values=background_names,
             variable=self.background_var,
@@ -1310,7 +1314,7 @@ class CharacterSheetView(ctk.CTkFrame):
         align_frame.pack(side="left", padx=8)
         ctk.CTkLabel(align_frame, text="Alignment", font=ctk.CTkFont(size=9)).pack(anchor="w")
         self.alignment_var = ctk.StringVar(value=sheet.alignment)
-        align_combo = ctk.CTkComboBox(
+        align_combo = ScrollableComboBox(
             align_frame, width=120, height=24,
             values=["", "Lawful Good", "Neutral Good", "Chaotic Good",
                     "Lawful Neutral", "True Neutral", "Chaotic Neutral",
@@ -1436,21 +1440,24 @@ class CharacterSheetView(ctk.CTkFrame):
         
         lineage_name = value if value != "(None)" else ""
         character.lineage = lineage_name
-        
-        # Update speed from lineage if selected
+
+        # Update base speed from lineage if selected, then recalculate the
+        # derived speed (Monk's Unarmored Movement, carry-weight encumbrance)
+        # from it - setting sheet.speed directly here would just get
+        # overwritten by the next _recalculate_speed() call anyway.
         if lineage_name:
             from lineage import get_lineage_manager
             lineage = get_lineage_manager().get_lineage(lineage_name)
             if lineage and lineage.speed:
-                sheet.speed = lineage.speed
-                # Update speed display if widget exists
-                if hasattr(self, 'speed_var'):
-                    self.speed_var.set(str(lineage.speed))
-                # Save sheet
-                self.sheet_manager.save()
-        
+                sheet.base_speed = lineage.speed
+                self._recalculate_speed()
+
+        # A lineage change can also gain/lose Powerful Build, which doubles
+        # carrying capacity - recheck even when speed itself didn't change.
+        self._refresh_carry_weight_indicator()
+
         self.character_manager.save_characters()
-        
+
         # Refresh just the features section instead of whole sheet
         self._refresh_lineage_traits_section()
     
@@ -1865,13 +1872,15 @@ class CharacterSheetView(ctk.CTkFrame):
         speed_frame.pack_propagate(False)
         ctk.CTkLabel(speed_frame, text="SPEED", font=ctk.CTkFont(size=9, weight="bold")).pack(pady=(5, 0))
         self.speed_var = ctk.StringVar(value=str(sheet.speed))
-        speed_entry = ctk.CTkEntry(
+        self.speed_entry = ctk.CTkEntry(
             speed_frame, width=40, height=26,
             textvariable=self.speed_var, justify="center",
             font=ctk.CTkFont(size=12)
         )
-        speed_entry.pack(pady=3)
-        speed_entry.bind("<FocusOut>", lambda e: self._save_int_field("speed", self.speed_var.get()))
+        self.speed_entry.pack(pady=3)
+        self.speed_entry.bind("<FocusOut>", lambda e: self._save_int_field("speed", self.speed_var.get()))
+        self.speed_tooltip = HoverTooltip(self.speed_entry, "")
+        self._update_speed_display_style()
         
         # Proficiency Bonus (auto-calculated from level, displayed as label)
         prof_frame = ctk.CTkFrame(stats_row, fg_color=self.theme.get_current_color('bg_tertiary'),
@@ -1927,7 +1936,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 break
         
         self.armor_var = ctk.StringVar(value=current_display)
-        armor_dropdown = ctk.CTkComboBox(
+        armor_dropdown = ScrollableComboBox(
             armor_frame, values=armor_options,
             variable=self.armor_var, width=180, height=24,
             font=ctk.CTkFont(size=10),
@@ -1963,7 +1972,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 break
         
         self.shield_var = ctk.StringVar(value=current_shield_display)
-        shield_dropdown = ctk.CTkComboBox(
+        shield_dropdown = ScrollableComboBox(
             shield_frame, values=shield_options,
             variable=self.shield_var, width=120, height=24,
             font=ctk.CTkFont(size=10),
@@ -2051,15 +2060,119 @@ class CharacterSheetView(ctk.CTkFrame):
             self.sheet_manager.update_sheet(self.current_character.name, sheet)
             self.character_manager.save_characters()
     
+    def _has_powerful_build(self) -> bool:
+        """Check whether the character's lineage grants Powerful Build (doubles
+        carrying capacity - e.g. Goliath). Checked regardless of whether the
+        trait card is hidden: hidden_features only declutters the display,
+        it doesn't turn the trait off mechanically."""
+        if not self.current_character or not self.current_character.lineage:
+            return False
+        from lineage import get_lineage_manager
+        lineage = get_lineage_manager().get_lineage(self.current_character.lineage)
+        if not lineage:
+            return False
+        return any(t.name.strip().lower() == "powerful build" for t in lineage.traits)
+
+    def _compute_carry_weight(self) -> float:
+        """Sum the weight of every linked equipment and magic item row."""
+        if not self.current_sheet:
+            return 0.0
+        total = 0.0
+        for row in self.current_sheet.equipment_items:
+            total += float(row.get("weight", 0) or 0) * int(row.get("quantity", 1) or 1)
+        for row in self.current_sheet.magic_items:
+            total += float(row.get("weight", 0) or 0)
+        return total
+
+    def _get_carry_weight(self) -> float:
+        """Current carried weight: the manual override if set, else computed."""
+        if not self.current_sheet:
+            return 0.0
+        if self.current_sheet.carry_weight_override is not None:
+            return self.current_sheet.carry_weight_override
+        return self._compute_carry_weight()
+
+    def _get_carry_capacity(self) -> float:
+        """Carrying capacity: the manual override if set, else STR x 15
+        (doubled with Powerful Build)."""
+        if not self.current_sheet:
+            return 0.0
+        if self.current_sheet.carry_capacity_override is not None:
+            return self.current_sheet.carry_capacity_override
+        str_score = self.current_sheet.ability_scores.strength
+        return calculate_carry_capacity(str_score, self._has_powerful_build())
+
+    def _get_speed_reduction_info(self):
+        """Whether the current carried weight reduces speed right now, and why.
+
+        Pure/read-only (never touches sheet.speed) so it's safe to call for
+        display styling at any time, independent of when _recalculate_speed()
+        last actually applied the reduction to the stored value. Returns
+        (severity, tooltip_text): severity is "hard" (over full capacity, the
+        rules-always-on 5 ft floor), "soft" (the optional Encumbrance variant
+        rule's -10 ft), or None (no reduction).
+        """
+        if not self.current_sheet or not self.current_character:
+            return None, ""
+        settings = get_settings_manager().settings
+        if not settings.show_carry_weight_indicator:
+            return None, ""
+
+        weight = self._get_carry_weight()
+        capacity = self._get_carry_capacity()
+
+        if weight > capacity:
+            return "hard", (
+                f"Overloaded: carrying {weight:g} lb, capacity is {capacity:g} lb.\n"
+                f"Speed reduced to 5 ft."
+            )
+
+        if settings.enable_encumbrance_rule:
+            str_score = self.current_sheet.ability_scores.strength
+            threshold = calculate_encumbrance_threshold(str_score)
+            if weight > threshold:
+                return "soft", (
+                    f"Encumbered: carrying {weight:g} lb, more than {threshold:g} lb (5x STR score).\n"
+                    f"Speed reduced by 10 ft."
+                )
+
+        return None, ""
+
+    def _update_speed_display_style(self):
+        """Color the SPEED box and update its tooltip to reflect the current
+        encumbrance state, without touching the stored speed value itself."""
+        if not hasattr(self, 'speed_entry') or not self.speed_entry.winfo_exists():
+            return
+        severity, tooltip_text = self._get_speed_reduction_info()
+        if severity == "hard":
+            color = self.theme.get_current_color('button_danger')
+        elif severity == "soft":
+            color = self.theme.get_text_warning()
+        else:
+            color = self.theme.get_current_color('text_primary')
+        self.speed_entry.configure(text_color=color)
+        if hasattr(self, 'speed_tooltip'):
+            self.speed_tooltip.update_text(tooltip_text)
+
+    def _refresh_carry_weight_indicator(self):
+        """Update the inventory tab's weight indicator and the SPEED box's
+        styling. No-ops for parts that aren't currently built (e.g. the
+        indicator widgets when a different tab is showing)."""
+        self._update_speed_display_style()
+        refresh = getattr(self, '_carry_weight_indicator_refresh', None)
+        if refresh is not None:
+            refresh()
+
     def _recalculate_speed(self):
-        """Recalculate speed based on armor and Monk's Unarmored Movement."""
+        """Recalculate speed based on armor, Monk's Unarmored Movement, and
+        carrying-capacity encumbrance."""
         if not self.current_sheet or not self.current_character:
             return
-        
+
         sheet = self.current_sheet
         armor_type = ArmorType.from_name(sheet.armor_type)
         shield_bonus = sheet.shield_bonus if hasattr(sheet, 'shield_bonus') else (2 if sheet.has_shield else 0)
-        
+
         # Start with base speed
         speed = sheet.base_speed
         
@@ -2088,17 +2201,27 @@ class CharacterSheetView(ctk.CTkFrame):
                                     speed_bonus = int(match.group(1))
                                     speed += speed_bonus
                     break  # Only one Monk class matters
-        
+
+        # Carrying-capacity encumbrance: over full capacity always wins (5 ft
+        # floor) over the optional Encumbrance variant rule's -10 ft, since
+        # it's the more severe reduction.
+        severity, _ = self._get_speed_reduction_info()
+        if severity == "hard":
+            speed = 5
+        elif severity == "soft":
+            speed = max(0, speed - 10)
+
         # Update sheet and UI
         sheet.speed = speed
         if hasattr(self, 'speed_var'):
             self.speed_var.set(str(speed))
-        
+        self._update_speed_display_style()
+
         # Save
         if self.current_character:
             self.sheet_manager.update_sheet(self.current_character.name, sheet)
             self.character_manager.save_characters()
-    
+
     def _create_hp_section(self, parent, sheet: CharacterSheet):
         """Create the HP section."""
         hp_frame = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_tertiary'),
@@ -3824,6 +3947,11 @@ class CharacterSheetView(ctk.CTkFrame):
                 # Or if character has unarmored defense (any stat could affect AC)
                 if ability == AbilityScore.DEXTERITY or self.current_sheet.unarmored_defense:
                     self._recalculate_ac()
+
+            # STR drives carrying capacity - recheck the encumbrance effect on speed
+            if ability == AbilityScore.STRENGTH:
+                self._recalculate_speed()
+                self._refresh_carry_weight_indicator()
     
     def _on_save_change(self, ability: AbilityScore, proficient: bool):
         """Handle saving throw proficiency change."""
@@ -4062,48 +4190,184 @@ class CharacterSheetView(ctk.CTkFrame):
         self._on_character_selected(character_name)
     
     def _create_inventory_content(self):
-        """Create the inventory tab content with equipment and magic items."""
+        """Create the inventory tab content: carry weight, equipment and magic items."""
         # Clear existing content
         for widget in self.inventory_content.winfo_children():
             widget.destroy()
-        
+
         if not self.current_sheet:
             return
-        
+
+        # Carry weight indicator (if enabled in settings)
+        self._create_carry_weight_indicator(self.inventory_content)
+
         # Equipment Section (no nested scrolling)
         self._create_inventory_equipment_section(self.inventory_content)
-        
-        # Magic Items Section  
+
+        # Magic Items Section
         self._create_inventory_magic_items_section(self.inventory_content)
-    
-    def _create_inventory_equipment_section(self, parent):
-        """Create the equipment section in inventory tab."""
-        # Header
+
+    def _create_carry_weight_indicator(self, parent):
+        """Create the carrying-capacity indicator (weight vs. capacity, both
+        editable, with a Push/Drag/Lift tooltip). Hidden entirely when the
+        'show_carry_weight_indicator' setting is off."""
+        self._carry_weight_indicator_refresh = None
+        if not get_settings_manager().settings.show_carry_weight_indicator:
+            return
+
         header = ctk.CTkFrame(
-            parent, 
-            fg_color=self.theme.get_current_color('accent_primary'),
+            parent, fg_color=self.theme.get_current_color('accent_primary'),
             corner_radius=5, height=30
         )
         header.pack(fill="x", padx=10, pady=(10, 5))
         header.pack_propagate(False)
-        
+        ctk.CTkLabel(
+            header, text="CARRYING CAPACITY",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="white"
+        ).pack(side="left", padx=10, pady=5)
+
+        frame = ctk.CTkFrame(
+            parent, fg_color=self.theme.get_current_color('bg_secondary'),
+            corner_radius=8
+        )
+        frame.pack(fill="x", padx=10, pady=(0, 15))
+
+        row = ctk.CTkFrame(frame, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(row, text="Weight:", font=ctk.CTkFont(size=11)).pack(side="left")
+        self.carry_weight_var = ctk.StringVar()
+        weight_entry = ctk.CTkEntry(row, width=65, height=26, textvariable=self.carry_weight_var, justify="center")
+        weight_entry.pack(side="left", padx=(5, 2))
+        weight_entry.bind("<FocusOut>", lambda e: self._save_carry_weight_override(self.carry_weight_var.get()))
+        ctk.CTkButton(
+            row, text="↺", width=24, height=24,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._reset_carry_weight_override
+        ).pack(side="left", padx=(0, 15))
+
+        ctk.CTkLabel(row, text="/  Capacity:", font=ctk.CTkFont(size=11)).pack(side="left")
+        self.carry_capacity_var = ctk.StringVar()
+        capacity_entry = ctk.CTkEntry(row, width=65, height=26, textvariable=self.carry_capacity_var, justify="center")
+        capacity_entry.pack(side="left", padx=(5, 2))
+        capacity_entry.bind("<FocusOut>", lambda e: self._save_carry_capacity_override(self.carry_capacity_var.get()))
+        ctk.CTkButton(
+            row, text="↺", width=24, height=24,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._reset_carry_capacity_override
+        ).pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(row, text="lbs", font=ctk.CTkFont(size=11)).pack(side="left")
+
+        self.carry_progress = ctk.CTkProgressBar(frame, height=10)
+        self.carry_progress.pack(fill="x", padx=10, pady=(5, 10))
+
+        self._carry_weight_tooltip = HoverTooltip(frame, "")
+        self._carry_weight_indicator_refresh = self._update_carry_weight_indicator_display
+        self._update_carry_weight_indicator_display()
+
+    def _update_carry_weight_indicator_display(self):
+        """Refresh the carry-weight entries, progress bar color, and tooltip."""
+        if not self.current_sheet or not hasattr(self, 'carry_weight_var'):
+            return
+        weight = self._get_carry_weight()
+        capacity = self._get_carry_capacity()
+        self.carry_weight_var.set(f"{weight:g}")
+        self.carry_capacity_var.set(f"{capacity:g}")
+
+        self.carry_progress.set(min(1.0, weight / capacity) if capacity > 0 else 0.0)
+        severity, _ = self._get_speed_reduction_info()
+        if severity == "hard":
+            bar_color = self.theme.get_current_color('button_danger')
+        elif severity == "soft":
+            bar_color = self.theme.get_text_warning()
+        else:
+            bar_color = self.theme.get_current_color('accent_primary')
+        self.carry_progress.configure(progress_color=bar_color)
+
+        str_score = self.current_sheet.ability_scores.strength
+        push_drag_lift = calculate_push_drag_lift(str_score)
+        self._carry_weight_tooltip.update_text(f"Push/Drag/Lift limit: {push_drag_lift:g} lb")
+
+    def _save_carry_weight_override(self, value: str):
+        """Save a manually-typed carry weight override."""
+        if not self.current_sheet:
+            return
+        try:
+            self.current_sheet.carry_weight_override = float(value)
+        except ValueError:
+            self._update_carry_weight_indicator_display()  # revert to last valid value
+            return
+        self._recalculate_speed()
+        self._update_carry_weight_indicator_display()
+
+    def _reset_carry_weight_override(self):
+        """Clear the carry weight override, reverting to the computed total."""
+        if not self.current_sheet:
+            return
+        self.current_sheet.carry_weight_override = None
+        self._recalculate_speed()
+        self._update_carry_weight_indicator_display()
+
+    def _save_carry_capacity_override(self, value: str):
+        """Save a manually-typed carry capacity override."""
+        if not self.current_sheet:
+            return
+        try:
+            self.current_sheet.carry_capacity_override = float(value)
+        except ValueError:
+            self._update_carry_weight_indicator_display()
+            return
+        self._recalculate_speed()
+        self._update_carry_weight_indicator_display()
+
+    def _reset_carry_capacity_override(self):
+        """Clear the carry capacity override, reverting to STR x 15 (x2 with Powerful Build)."""
+        if not self.current_sheet:
+            return
+        self.current_sheet.carry_capacity_override = None
+        self._recalculate_speed()
+        self._update_carry_weight_indicator_display()
+
+    def _create_inventory_equipment_section(self, parent):
+        """Create the equipment section in inventory tab."""
+        # Header
+        header = ctk.CTkFrame(
+            parent,
+            fg_color=self.theme.get_current_color('accent_primary'),
+            corner_radius=5, height=30
+        )
+        header.pack(fill="x", padx=10, pady=(0, 5))
+        header.pack_propagate(False)
+
         ctk.CTkLabel(
             header, text="EQUIPMENT",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="white"
         ).pack(side="left", padx=10, pady=5)
-        
+
+        add_btn = ctk.CTkButton(
+            header, text="+ Add Equipment", width=110, height=24,
+            fg_color="white", text_color=self.theme.get_current_color('accent_primary'),
+            hover_color="#e0e0e0",
+            command=self._add_equipment_item
+        )
+        add_btn.pack(side="right", padx=10, pady=3)
+
         # Equipment frame
         equip_frame = ctk.CTkFrame(
             parent, fg_color=self.theme.get_current_color('bg_secondary'),
             corner_radius=8
         )
         equip_frame.pack(fill="x", padx=10, pady=(0, 15))
-        
+
         # Currency row
         currency_row = ctk.CTkFrame(equip_frame, fg_color="transparent")
         currency_row.pack(fill="x", padx=10, pady=8)
-        
+
         currencies = [
             ("CP", "copper", self.current_sheet.copper),
             ("SP", "silver", self.current_sheet.silver),
@@ -4111,7 +4375,7 @@ class CharacterSheetView(ctk.CTkFrame):
             ("GP", "gold", self.current_sheet.gold),
             ("PP", "platinum", self.current_sheet.platinum)
         ]
-        
+
         self.currency_vars = {}
         for abbr, field, value in currencies:
             frame = ctk.CTkFrame(currency_row, fg_color="transparent")
@@ -4122,41 +4386,135 @@ class CharacterSheetView(ctk.CTkFrame):
             entry = ctk.CTkEntry(frame, width=55, height=26, textvariable=var, justify="center")
             entry.pack()
             entry.bind("<FocusOut>", lambda e, f=field, v=var: self._save_int_field(f, v.get()))
-        
-        # Equipment text
+
+        # Linked equipment list
+        if not self.current_sheet.equipment_items:
+            self.current_sheet.equipment_items = []
+
+        items_frame = ctk.CTkFrame(equip_frame, fg_color="transparent")
+        items_frame.pack(fill="x", padx=10, pady=(2, 8))
+        for i, item in enumerate(self.current_sheet.equipment_items):
+            self._create_equipment_item_row(items_frame, i, item)
+
+        # Other equipment / notes
         ctk.CTkLabel(
-            equip_frame, text="Equipment List:",
+            equip_frame, text="Other Equipment / Notes:",
             font=ctk.CTkFont(size=10, weight="bold")
         ).pack(anchor="w", padx=10, pady=(5, 2))
-        
+        ctk.CTkLabel(
+            equip_frame, text="Doesn't count toward carried weight - use \"+ Add Equipment\" above for that.",
+            font=ctk.CTkFont(size=9), text_color=self.theme.get_text_secondary()
+        ).pack(anchor="w", padx=10)
+
         self.equipment_text = ctk.CTkTextbox(
-            equip_frame, height=120,
+            equip_frame, height=100,
             font=ctk.CTkFont(size=11)
         )
-        self.equipment_text.pack(fill="x", padx=10, pady=(0, 10))
+        self.equipment_text.pack(fill="x", padx=10, pady=(2, 10))
         attach_object_linking(self.equipment_text, self.theme)
         self.equipment_text.insert("1.0", self.current_sheet.equipment)
         self.equipment_text.bind("<FocusOut>", lambda e: self._save_text_field(
             "equipment", self.equipment_text.get("1.0", "end-1c")
         ))
-    
+
+    def _create_equipment_item_row(self, parent, index: int, item: dict):
+        """Create a row for a linked equipment item."""
+        row = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_tertiary'), corner_radius=8)
+        row.pack(fill="x", pady=3)
+
+        content = ctk.CTkFrame(row, fg_color="transparent")
+        content.pack(fill="x", padx=10, pady=6)
+
+        name = item.get("name", "")
+        name_btn = ctk.CTkButton(
+            content, text=name or "(unknown item)", anchor="w",
+            width=220, height=26,
+            fg_color="transparent",
+            hover_color=self.theme.get_current_color('bg_secondary'),
+            text_color=self.theme.get_current_color('spell_link'),
+            font=ctk.CTkFont(size=12, weight="bold", underline=True),
+            command=lambda n=name: open_link_popup(self, "equipment", n)
+        )
+        name_btn.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(content, text="Qty:", font=ctk.CTkFont(size=10)).pack(side="left")
+        qty_var = ctk.StringVar(value=str(item.get("quantity", 1)))
+        qty_entry = ctk.CTkEntry(content, textvariable=qty_var, width=45, height=26, justify="center")
+        qty_entry.pack(side="left", padx=(5, 10))
+        qty_entry.bind("<FocusOut>", lambda e, idx=index, var=qty_var: self._save_equipment_item_quantity(idx, var.get()))
+
+        weight = float(item.get("weight", 0) or 0)
+        qty = int(item.get("quantity", 1) or 1)
+        ctk.CTkLabel(
+            content, text=f"{weight:g} lb each ({weight * qty:g} lb total)",
+            font=ctk.CTkFont(size=10), text_color=self.theme.get_text_secondary()
+        ).pack(side="left", padx=(0, 10), fill="x", expand=True)
+
+        ctk.CTkButton(
+            content, text="✕", width=26, height=26,
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
+            command=lambda idx=index: self._delete_equipment_item(idx)
+        ).pack(side="right")
+
+    def _add_equipment_item(self):
+        """Open the equipment picker and add the chosen item as a linked row."""
+        if not self.current_sheet:
+            return
+        from ui.item_picker import pick_equipment
+
+        picked = pick_equipment(self.winfo_toplevel())
+        if picked is None:
+            return
+
+        self.current_sheet.equipment_items.append({
+            "name": picked.name,
+            "quantity": 1,
+            "weight": picked.weight,
+        })
+        self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+        self._recalculate_speed()
+        self._create_inventory_content()
+
+    def _save_equipment_item_quantity(self, index: int, value: str):
+        """Save a linked equipment row's quantity."""
+        if not self.current_sheet or index >= len(self.current_sheet.equipment_items):
+            return
+        try:
+            qty = max(1, int(value))
+        except ValueError:
+            qty = 1
+        self.current_sheet.equipment_items[index]["quantity"] = qty
+        self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+        self._recalculate_speed()
+        self._refresh_carry_weight_indicator()
+        self._create_inventory_content()
+
+    def _delete_equipment_item(self, index: int):
+        """Delete a linked equipment row."""
+        if self.current_sheet and index < len(self.current_sheet.equipment_items):
+            del self.current_sheet.equipment_items[index]
+            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+            self._recalculate_speed()
+            self._create_inventory_content()
+
     def _create_inventory_magic_items_section(self, parent):
         """Create the magic items section in inventory tab."""
         # Header
         header = ctk.CTkFrame(
-            parent, 
+            parent,
             fg_color=self.theme.get_current_color('accent_primary'),
             corner_radius=5, height=30
         )
         header.pack(fill="x", padx=10, pady=(0, 5))
         header.pack_propagate(False)
-        
+
         ctk.CTkLabel(
             header, text="MAGIC ITEMS",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="white"
         ).pack(side="left", padx=10, pady=5)
-        
+
         # Add item button
         add_btn = ctk.CTkButton(
             header, text="+ Add Item", width=80, height=24,
@@ -4165,7 +4523,7 @@ class CharacterSheetView(ctk.CTkFrame):
             command=self._add_magic_item
         )
         add_btn.pack(side="right", padx=10, pady=3)
-        
+
         # Attunement info
         attunement_count = sum(1 for item in self.current_sheet.magic_items if item.get("attuned", False))
         attunement_limit = self._get_attunement_limit()
@@ -4177,58 +4535,67 @@ class CharacterSheetView(ctk.CTkFrame):
         )
         info_label.pack(anchor="w", padx=10, pady=(0, 5))
         self._attunement_label = info_label
-        
+
         # Items container frame
         items_frame = ctk.CTkFrame(parent, fg_color="transparent")
         items_frame.pack(fill="x")
-        
+
         # Initialize magic items if empty
         if not self.current_sheet.magic_items:
             self.current_sheet.magic_items = []
-        
+
         self._magic_item_widgets = []
         self._magic_items_container = items_frame
         for i, item in enumerate(self.current_sheet.magic_items):
             self._create_magic_item_row(items_frame, i, item)
-    
+
     def _create_magic_item_row(self, parent, index: int, item: dict):
         """Create a row for a magic item."""
         row = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
         row.pack(fill="x", pady=3, padx=5)
-        
+
         content = ctk.CTkFrame(row, fg_color="transparent")
         content.pack(fill="x", padx=10, pady=8)
-        
-        # Item name
-        name_var = ctk.StringVar(value=item.get("name", ""))
-        name_entry = ctk.CTkEntry(
-            content, textvariable=name_var,
-            width=200, height=26,
-            font=ctk.CTkFont(size=12, weight="bold"),
-            placeholder_text="Item Name"
+
+        # Item name - clickable, opens the catalog description popup
+        name = item.get("name", "")
+        name_btn = ctk.CTkButton(
+            content, text=name or "(unknown item)", anchor="w",
+            width=190, height=26,
+            fg_color="transparent",
+            hover_color=self.theme.get_current_color('bg_tertiary'),
+            text_color=self.theme.get_current_color('spell_link'),
+            font=ctk.CTkFont(size=12, weight="bold", underline=True),
+            command=lambda n=name: open_link_popup(self, "magic_item", n)
         )
-        name_entry.pack(side="left", padx=(0, 10))
-        name_entry.bind("<FocusOut>", lambda e, idx=index, var=name_var: self._save_magic_item_field(idx, "name", var.get()))
-        
-        # Description
-        desc_var = ctk.StringVar(value=item.get("description", ""))
-        desc_entry = ctk.CTkEntry(
-            content, textvariable=desc_var,
-            width=300, height=26,
-            placeholder_text="Description"
+        name_btn.pack(side="left", padx=(0, 10))
+
+        weight = float(item.get("weight", 0) or 0)
+        if weight:
+            ctk.CTkLabel(
+                content, text=f"{weight:g} lb", font=ctk.CTkFont(size=10),
+                text_color=self.theme.get_text_secondary()
+            ).pack(side="left", padx=(0, 10))
+
+        # Extra properties - free text for anything beyond the catalog description
+        extra_var = ctk.StringVar(value=item.get("extra_properties", ""))
+        extra_entry = ctk.CTkEntry(
+            content, textvariable=extra_var,
+            height=26, placeholder_text="Extra properties (e.g. charges remaining)"
         )
-        desc_entry.pack(side="left", padx=(0, 10), fill="x", expand=True)
-        desc_entry.bind("<FocusOut>", lambda e, idx=index, var=desc_var: self._save_magic_item_field(idx, "description", var.get()))
-        
-        # Attuned checkbox
-        attuned_var = ctk.BooleanVar(value=item.get("attuned", False))
-        attuned_check = ctk.CTkCheckBox(
-            content, text="Attuned",
-            variable=attuned_var,
-            command=lambda idx=index, var=attuned_var: self._save_magic_item_attuned(idx, var.get())
-        )
-        attuned_check.pack(side="left", padx=10)
-        
+        extra_entry.pack(side="left", padx=(0, 10), fill="x", expand=True)
+        extra_entry.bind("<FocusOut>", lambda e, idx=index, var=extra_var: self._save_magic_item_field(idx, "extra_properties", var.get()))
+
+        # Attuned checkbox - only meaningful (and shown) for items that need it
+        if item.get("requires_attunement", False):
+            attuned_var = ctk.BooleanVar(value=item.get("attuned", False))
+            attuned_check = ctk.CTkCheckBox(
+                content, text="Attuned",
+                variable=attuned_var,
+                command=lambda idx=index, var=attuned_var: self._save_magic_item_attuned(idx, var.get())
+            )
+            attuned_check.pack(side="left", padx=10)
+
         # Delete button
         del_btn = ctk.CTkButton(
             content, text="✕", width=26, height=26,
@@ -4237,45 +4604,58 @@ class CharacterSheetView(ctk.CTkFrame):
             command=lambda idx=index: self._delete_magic_item(idx)
         )
         del_btn.pack(side="right")
-        
-        self._magic_item_widgets.append((row, name_var, desc_var, attuned_var))
-    
+
+        self._magic_item_widgets.append((row, name, extra_var))
+
     def _add_magic_item(self):
-        """Add a new magic item."""
+        """Open the magic item picker and add the chosen item as a linked row."""
         if not self.current_sheet:
             return
-        
-        self.current_sheet.magic_items.append({"name": "", "description": "", "attuned": False})
+        from ui.item_picker import pick_magic_item
+
+        picked = pick_magic_item(self.winfo_toplevel())
+        if picked is None:
+            return
+
+        self.current_sheet.magic_items.append({
+            "name": picked.name,
+            "description": picked.description,
+            "attuned": False,
+            "requires_attunement": picked.requires_attunement,
+            "extra_properties": "",
+            "weight": picked.weight,
+        })
         self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+        self._recalculate_speed()
         self._create_inventory_content()
-    
+
     def _save_magic_item_field(self, index: int, field: str, value: str):
         """Save a magic item field."""
         if self.current_sheet and index < len(self.current_sheet.magic_items):
             self.current_sheet.magic_items[index][field] = value
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
-    
+
     def _save_magic_item_attuned(self, index: int, attuned: bool):
         """Save magic item attunement status."""
         if self.current_sheet and index < len(self.current_sheet.magic_items):
             # Check if at attunement limit
             attunement_limit = self._get_attunement_limit()
             if attuned:
-                current_attuned = sum(1 for i, item in enumerate(self.current_sheet.magic_items) 
+                current_attuned = sum(1 for i, item in enumerate(self.current_sheet.magic_items)
                                      if item.get("attuned", False) and i != index)
                 if current_attuned >= attunement_limit:
                     messagebox.showwarning("Attunement Limit", f"You can only attune to {attunement_limit} magic items at a time.")
                     # Reset the checkbox
                     self._create_inventory_content()
                     return
-            
+
             self.current_sheet.magic_items[index]["attuned"] = attuned
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
-            
+
             # Update attunement count
             attunement_count = sum(1 for item in self.current_sheet.magic_items if item.get("attuned", False))
             self._attunement_label.configure(text=f"Attuned: {attunement_count}/{attunement_limit}")
-    
+
     def _get_attunement_limit(self) -> int:
         """Get the attunement limit for the current character.
         
@@ -4310,6 +4690,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if self.current_sheet and index < len(self.current_sheet.magic_items):
             del self.current_sheet.magic_items[index]
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+            self._recalculate_speed()
             self._create_inventory_content()
     
     def _create_spells_content(self):
@@ -4416,7 +4797,7 @@ class NewCharacterDialog(ctk.CTkToplevel):
         self.class_var = ctk.StringVar(value="Fighter")
         class_manager = get_class_manager()
         class_names = [c.name for c in class_manager.classes if c.name != "Custom"]
-        class_combo = ctk.CTkComboBox(
+        class_combo = ScrollableComboBox(
             container, width=300,
             values=class_names,
             variable=self.class_var
@@ -4522,7 +4903,7 @@ class AddClassDialog(ctk.CTkToplevel):
         ).pack(anchor="w", pady=(0, 10))
         
         self.class_var = ctk.StringVar(value=self.available_class_names[0] if self.available_class_names else "")
-        class_combo = ctk.CTkComboBox(
+        class_combo = ScrollableComboBox(
             container, width=260,
             values=self.available_class_names,
             variable=self.class_var

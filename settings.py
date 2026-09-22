@@ -41,6 +41,10 @@ class AppSettings:
     auto_apply_saving_throws: bool = True  # Automatically apply saving throw proficiencies from starting class
     warn_multiclass_removal: bool = True  # Show warning when removing a multiclass by setting level to 0
     long_rest_hit_dice: str = "all"  # "all", "half", or "none" - how many hit dice to restore on long rest
+
+    # Carrying capacity / encumbrance (inventory tab)
+    show_carry_weight_indicator: bool = True  # Show the carry-weight indicator and apply its speed-5ft-at-full-capacity effect
+    enable_encumbrance_rule: bool = False  # Optional variant rule: -10 ft speed past 5x STR score (on top of the indicator above)
     
     # Updates
     auto_check_updates: bool = True  # Check GitHub for a newer release on startup
@@ -101,6 +105,7 @@ class AppSettings:
             'allow_delete_official_spells', 'auto_calculate_hp', 'auto_calculate_ac',
             'auto_fill_proficiencies', 'auto_apply_saving_throws',
             'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter',
+            'show_carry_weight_indicator', 'enable_encumbrance_rule',
             'preload_classes', 'preload_feats', 'preload_lineages', 'preload_backgrounds',
             'preload_equipment', 'preload_magic_items', 'preload_character_sheets',
             'link_suggest_spells', 'link_suggest_feats', 'link_suggest_lineages',

@@ -418,7 +418,47 @@ class SettingsView(ctk.CTkFrame):
             font=ctk.CTkFont(size=12),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
-        
+
+        # Carry weight indicator toggle
+        self._show_carry_weight_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.show_carry_weight_indicator
+        )
+
+        self._create_toggle_row(
+            charsheet_content,
+            "Show carrying capacity indicator on the inventory tab",
+            self._show_carry_weight_var,
+            self._on_setting_change,
+            pady=(15, 0)
+        )
+
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, the inventory tab totals the weight of linked equipment and\nmagic items against carrying capacity (STR score x 15, doubled with Powerful\nBuild) and drops speed to 5 ft when it's exceeded. Disabling this also turns\noff that speed reduction, not just the display.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+
+        # Optional encumbrance variant rule toggle
+        self._enable_encumbrance_var = ctk.BooleanVar(
+            value=self.settings_manager.settings.enable_encumbrance_rule
+        )
+
+        self._create_toggle_row(
+            charsheet_content,
+            "Enable the optional Encumbrance variant rule",
+            self._enable_encumbrance_var,
+            self._on_setting_change,
+            pady=(15, 0)
+        )
+
+        ctk.CTkLabel(
+            charsheet_content,
+            text="When enabled, carrying more than 5x STR score also reduces speed by 10 ft\n(on top of the indicator above). Has no effect if the indicator is off.",
+            font=ctk.CTkFont(size=12),
+            text_color=text_secondary
+        ).pack(anchor="w", pady=(10, 0))
+
         # === Official Spells Section ===
         self._create_section(self.container, "Official Spells")
         
@@ -790,6 +830,8 @@ class SettingsView(ctk.CTkFrame):
             auto_apply_saving_throws=self._auto_apply_saves_var.get(),
             warn_multiclass_removal=self._warn_multiclass_var.get(),
             long_rest_hit_dice=self._hit_dice_rest_var.get(),
+            show_carry_weight_indicator=self._show_carry_weight_var.get(),
+            enable_encumbrance_rule=self._enable_encumbrance_var.get(),
             legacy_content_filter=self._legacy_filter_var.get(),
             preload_classes=self._preload_classes_var.get(),
             preload_feats=self._preload_feats_var.get(),
@@ -913,6 +955,8 @@ class SettingsView(ctk.CTkFrame):
         self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
+        self._show_carry_weight_var.set(settings.show_carry_weight_indicator)
+        self._enable_encumbrance_var.set(settings.enable_encumbrance_rule)
         self._legacy_filter_var.set(settings.legacy_content_filter)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
         self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
@@ -948,6 +992,8 @@ class SettingsView(ctk.CTkFrame):
         self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
         self._warn_multiclass_var.set(settings.warn_multiclass_removal)
         self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
+        self._show_carry_weight_var.set(settings.show_carry_weight_indicator)
+        self._enable_encumbrance_var.set(settings.enable_encumbrance_rule)
         self._legacy_filter_var.set(settings.legacy_content_filter)
         self._preload_classes_var.set(settings.preload_classes)
         self._preload_feats_var.set(settings.preload_feats)
