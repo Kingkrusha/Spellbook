@@ -2093,18 +2093,22 @@ class MainWindow(ctk.CTkFrame):
             self.spell_detail.set_spell(None)
     
     def _on_export_spell(self, spell):
-        """Export a single spell to a file."""
+        """Export a single spell to an importable JSON file (Collections > Import reads it back)."""
+        import content_io
+
         file_path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-            initialfile=f"{spell.name.replace(' ', '_')}.txt"
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialfile=f"{spell.name.replace(' ', '_')}.json"
         )
         
-        if file_path:
-            if self.spell_manager.export_spells(file_path, [spell]):
-                messagebox.showinfo("Success", f"Spell exported to {file_path}")
-            else:
-                messagebox.showerror("Error", "Failed to export spell.")
+        if not file_path:
+            return
+        try:
+            content_io.export_objects(file_path, {"spells": [spell]}, self.spell_manager)
+            messagebox.showinfo("Success", f"Spell exported to {file_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to export spell:\n{e}")
     
     def _on_add_to_list(self, spell, character_name: str):
         """Add a spell to a character's known spells."""
@@ -2117,38 +2121,3 @@ class MainWindow(ctk.CTkFrame):
             messagebox.showinfo("Info", 
                 f"'{spell.name}' is already in {character_name}'s spell list.")
     
-    def _on_import(self):
-        """Import spells from a file."""
-        file_path = filedialog.askopenfilename(
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
-        )
-        
-        if file_path:
-            # Ask whether to merge or replace
-            result = messagebox.askyesnocancel(
-                "Import Options",
-                "Do you want to replace all existing spells?\n\n"
-                "Yes = Replace all spells\n"
-                "No = Merge (add new spells only)\n"
-                "Cancel = Abort import"
-            )
-            
-            if result is not None:  # Not cancelled
-                count = self.spell_manager.import_spells(file_path, replace=result)
-                messagebox.showinfo("Import Complete", 
-                    f"Imported {count} spell(s).")
-    
-    def _on_export_all(self):
-        """Export all spells to a file."""
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-            initialfile="spells_export.txt"
-        )
-        
-        if file_path:
-            if self.spell_manager.export_spells(file_path):
-                messagebox.showinfo("Success", 
-                    f"Exported {len(self.spell_manager.spells)} spell(s) to {file_path}")
-            else:
-                messagebox.showerror("Error", "Failed to export spells.")

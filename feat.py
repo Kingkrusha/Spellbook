@@ -336,30 +336,20 @@ class FeatManager:
             return 0
     
     def import_from_json(self, file_path: str) -> int:
-        """Import feats from a JSON file."""
+        """Import feats from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
+        """
+        import content_io
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            feats_data = data.get("feats", [])
-            imported_count = 0
-            
-            for feat_dict in feats_data:
-                try:
-                    feat = Feat.from_dict(feat_dict)
-                    # Imported feats are always custom and unofficial
-                    feat.is_custom = True
-                    feat.is_official = False
-                    self.add_feat(feat)
-                    imported_count += 1
-                except Exception as e:
-                    print(f"Error importing feat: {e}")
-                    continue
-            
-            return imported_count
+            report = content_io.import_file(file_path, kinds=["feats"], link_mentions=False)
         except Exception as e:
-            print(f"Error importing from JSON: {e}")
+            print(f"Error importing feats from JSON: {e}")
             return 0
+        return report.added["feats"] + report.updated["feats"]
+
 
 
 def get_feat_manager() -> FeatManager:

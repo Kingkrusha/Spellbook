@@ -5,4 +5,4 @@ GitHub Actions release workflow builds matching binaries. The in-app update
 checker (:mod:`updater`) compares this against the newest GitHub Release.
 """
 
-__version__ = "1.6.0"
+__version__ = "1.6.1"

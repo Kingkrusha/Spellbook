@@ -357,28 +357,20 @@ class MagicItemManager:
             return 0
 
     def import_from_json(self, file_path: str) -> int:
-        """Import magic items from a JSON file."""
+        """Import magic items from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
+        """
+        import content_io
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            imported_count = 0
-            for item_dict in data.get("magic_items", []):
-                try:
-                    item = MagicItem.from_dict(item_dict)
-                    # Imported items are always custom and unofficial
-                    item.is_custom = True
-                    item.is_official = False
-                    self.add_item(item)
-                    imported_count += 1
-                except Exception as e:
-                    print(f"Error importing magic item: {e}")
-                    continue
-
-            return imported_count
+            report = content_io.import_file(file_path, kinds=["magic_items"], link_mentions=False)
         except Exception as e:
-            print(f"Error importing from JSON: {e}")
+            print(f"Error importing magic items from JSON: {e}")
             return 0
+        return report.added["magic_items"] + report.updated["magic_items"]
+
 
 
 def get_magic_item_manager() -> MagicItemManager:

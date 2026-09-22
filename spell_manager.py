@@ -800,48 +800,20 @@ class SpellManager:
             return 0
     
     def import_from_json(self, file_path: str) -> int:
+        """Import spells from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
         """
-        Import spells from a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file
-        
-        Returns:
-            Number of spells imported
-        """
-        import json
-        
+        import content_io
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            spells_data = data.get("spells", [])
-            imported_count = 0
-            
-            for spell_dict in spells_data:
-                try:
-                    spell = self._dict_to_spell(spell_dict)
-                    # Enforce unofficial status: remove Official, add Unofficial
-                    tags = [t for t in spell.tags if t != "Official"]
-                    if "Unofficial" not in tags:
-                        tags.append("Unofficial")
-                    spell.tags = tags
-                    # Add or update the spell
-                    existing = self.get_spell(spell.name)
-                    if existing:
-                        self.update_spell(spell.name, spell)
-                    else:
-                        self.add_spell(spell)
-                    imported_count += 1
-                except Exception as e:
-                    print(f"Error importing spell: {e}")
-                    continue
-            
-            return imported_count
+            report = content_io.import_file(file_path, spell_manager=self, kinds=["spells"], link_mentions=False)
         except Exception as e:
-            print(f"Error importing from JSON: {e}")
+            print(f"Error importing spells from JSON: {e}")
             return 0
-    
+        return report.added["spells"] + report.updated["spells"]
+
     def import_from_text_file(self, file_path: str) -> int:
         """
         Import spells from a pipe-delimited text file.
