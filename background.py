@@ -289,22 +289,20 @@ class BackgroundManager:
         return len(backgrounds)
     
     def import_from_json(self, file_path: str) -> int:
-        """Import backgrounds from a JSON file."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        count = 0
-        backgrounds_data = data.get("backgrounds", [])
-        
-        for bg_data in backgrounds_data:
-            background = Background.from_dict(bg_data)
-            # Mark as custom/non-official when importing
-            background.is_custom = True
-            background.is_official = False
-            self.add_background(background)
-            count += 1
-        
-        return count
+        """Import backgrounds from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
+        """
+        import content_io
+
+        try:
+            report = content_io.import_file(file_path, kinds=["backgrounds"], link_mentions=False)
+        except Exception as e:
+            print(f"Error importing backgrounds from JSON: {e}")
+            return 0
+        return report.added["backgrounds"] + report.updated["backgrounds"]
+
 
 
 # Singleton instance

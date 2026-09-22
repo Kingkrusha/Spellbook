@@ -247,23 +247,20 @@ class LineageManager:
         return len(lineages)
     
     def import_from_json(self, file_path: str) -> int:
-        """Import lineages from a JSON file."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        count = 0
-        lineages_data = data.get("lineages", [])
-        
-        for lineage_data in lineages_data:
-            lineage = Lineage.from_dict(lineage_data)
-            # Mark as custom/non-official when importing
-            lineage.is_custom = True
-            lineage.is_official = False
-            self.add_lineage(lineage)
-            count += 1
-        
-        return count
-    
+        """Import lineages from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
+        """
+        import content_io
+
+        try:
+            report = content_io.import_file(file_path, kinds=["lineages"], link_mentions=False)
+        except Exception as e:
+            print(f"Error importing lineages from JSON: {e}")
+            return 0
+        return report.added["lineages"] + report.updated["lineages"]
+
     def get_lineage_names(self) -> List[str]:
         """Get list of all lineage names."""
         return [l.name for l in self.lineages]

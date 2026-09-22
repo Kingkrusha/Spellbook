@@ -352,28 +352,20 @@ class EquipmentManager:
             return 0
 
     def import_from_json(self, file_path: str) -> int:
-        """Import equipment from a JSON file."""
+        """Import equipment from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
+        """
+        import content_io
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            imported_count = 0
-            for item_dict in data.get("equipment", []):
-                try:
-                    item = Equipment.from_dict(item_dict)
-                    # Imported items are always custom and unofficial
-                    item.is_custom = True
-                    item.is_official = False
-                    self.add_item(item)
-                    imported_count += 1
-                except Exception as e:
-                    print(f"Error importing equipment item: {e}")
-                    continue
-
-            return imported_count
+            report = content_io.import_file(file_path, kinds=["equipment"], link_mentions=False)
         except Exception as e:
-            print(f"Error importing from JSON: {e}")
+            print(f"Error importing equipment from JSON: {e}")
             return 0
+        return report.added["equipment"] + report.updated["equipment"]
+
 
 
 def get_equipment_manager() -> EquipmentManager:

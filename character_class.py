@@ -2326,6 +2326,30 @@ While carrying the map, a target gains the following benefits.
                     sources.add(sub.source)
         return sorted(sources)
     
+    def save_subclass(self, subclass: SubclassDefinition) -> str:
+        """Add or update one subclass under its parent class, touching nothing else.
+
+        Returns 'added', 'updated', 'official' (the name is already used by an
+        official subclass, which is never overwritten) or 'missing_parent'.
+        """
+        parent = self.db.get_class_by_name(subclass.parent_class)
+        if not parent:
+            return "missing_parent"
+        existing = self.db.get_subclass_by_name(subclass.name, subclass.parent_class)
+        if existing and existing.get('is_official') and not existing.get('is_custom'):
+            return "official"
+        subclass_dict = self._subclass_to_dict(subclass, parent['id'])
+        subclass_dict['parent_class'] = subclass.parent_class
+        if existing:
+            self.db.update_subclass(existing['id'], subclass_dict)
+            result = "updated"
+        else:
+            self.db.insert_subclass(subclass_dict)
+            result = "added"
+        self._invalidate_cache()
+        self._notify_listeners()
+        return result
+
     def export_classes_to_json(self, file_path: str, classes: Optional[List[CharacterClassDefinition]] = None) -> int:
         """
         Export classes to a JSON file.
@@ -2377,86 +2401,35 @@ While carrying the map, a target gains the following benefits.
             return 0
     
     def import_classes_from_json(self, file_path: str) -> int:
+        """Import classes from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
         """
-        Import classes from a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file
-        
-        Returns:
-            Number of classes imported
-        """
+        import content_io
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            classes_data = data.get("classes", {})
-            imported_count = 0
-            
-            for name, class_dict in classes_data.items():
-                try:
-                    class_def = CharacterClassDefinition.from_dict(class_dict)
-                    # Imported classes are always custom
-                    class_def.is_custom = True
-                    self.add_class(class_def)
-                    imported_count += 1
-                except Exception as e:
-                    print(f"Error importing class {name}: {e}")
-                    continue
-            
-            return imported_count
+            report = content_io.import_file(file_path, kinds=["classes"], link_mentions=False)
         except Exception as e:
-            print(f"Error importing from JSON: {e}")
+            print(f"Error importing classes from JSON: {e}")
             return 0
-    
+        return report.added["classes"] + report.updated["classes"]
+
     def import_subclasses_from_json(self, file_path: str) -> int:
+        """Import subclasses from a JSON file; returns how many were added or updated.
+
+        Goes through content_io, so an entry whose name belongs to official content
+        is skipped instead of overwritten.
         """
-        Import subclasses from a JSON file.
-        
-        Args:
-            file_path: Path to the JSON file
-        
-        Returns:
-            Number of subclasses imported
-        """
+        import content_io
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            subclasses_data = data.get("subclasses", [])
-            imported_count = 0
-            
-            for sub_dict in subclasses_data:
-                try:
-                    subclass = SubclassDefinition.from_dict(sub_dict)
-                    subclass.is_custom = True
-                    
-                    # Find parent class in database
-                    parent_class_data = self.db.get_class_by_name(subclass.parent_class)
-                    if parent_class_data:
-                        # Check if subclass already exists
-                        existing_sub = self.db.get_subclass_by_name(subclass.name, subclass.parent_class)
-                        
-                        subclass_dict = self._subclass_to_dict(subclass, parent_class_data['id'])
-                        subclass_dict['parent_class'] = subclass.parent_class
-                        
-                        if existing_sub:
-                            self.db.update_subclass(existing_sub['id'], subclass_dict)
-                        else:
-                            self.db.insert_subclass(subclass_dict)
-                        imported_count += 1
-                except Exception as e:
-                    print(f"Error importing subclass: {e}")
-                    continue
-            
-            if imported_count > 0:
-                self._invalidate_cache()
-                self._notify_listeners()
-            
-            return imported_count
+            report = content_io.import_file(file_path, kinds=["subclasses"], link_mentions=False)
         except Exception as e:
-            print(f"Error importing from JSON: {e}")
+            print(f"Error importing subclasses from JSON: {e}")
             return 0
+        return report.added["subclasses"] + report.updated["subclasses"]
+
 
 
 # Singleton instance

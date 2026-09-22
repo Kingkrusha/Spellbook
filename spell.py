@@ -369,6 +369,9 @@ class Spell:
         """Serialize spell to pipe-delimited file format."""
         classes_str = ",".join(c.value for c in self.classes)
         tags_str = ",".join(self.tags)
+        # One spell per line: a real line break in the description is stored as
+        # U+2028 (LINE SEPARATOR), which file iteration doesn't split on.
+        description = self.description.replace("\r\n", "\n").replace("\n", "\u2028")
         
         return "|".join([
             self.name,
@@ -380,7 +383,7 @@ class Spell:
             self.duration,
             str(self.concentration).lower(),
             classes_str,
-            self.description,
+            description,
             self.source,
             tags_str
         ])
@@ -389,6 +392,12 @@ class Spell:
     def from_file_line(cls, line: str) -> "Spell":
         """Deserialize spell from pipe-delimited file format."""
         parts = line.strip().split("|")
+        
+        if len(parts) > 12:
+            # A "|" inside the description (a markdown table, or a [[category:Name|shown]]
+            # link) shifts the fields. The description sits between the classes and the
+            # last two fields (source, tags), so glue it back together.
+            parts = parts[:9] + ["|".join(parts[9:-2]), parts[-2], parts[-1]]
         
         if len(parts) < 12:
             # Pad with empty strings if fields are missing
@@ -412,7 +421,7 @@ class Spell:
                 except ValueError:
                     pass  # Skip unknown classes
         
-        description = parts[9]
+        description = parts[9].replace("\u2028", "\n")
         source = parts[10]
         
         # Parse tags
