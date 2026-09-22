@@ -11,6 +11,7 @@ from background import Background, BackgroundFeature, BackgroundManager, get_bac
 from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.platform_compat import bind_right_click, unbind_right_click
+from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
 
 
 class BackgroundListPanel(ctk.CTkFrame):
@@ -703,7 +704,11 @@ class BackgroundsView(ctk.CTkFrame):
         self._compare_mode = False
         self._compare_background: Optional[Background] = None
         self._context_background: Optional[Background] = None
-        
+
+        # Source and official-content filter state
+        self._selected_sources: List[str] = []
+        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
+
         # Debouncing for filter changes
         self._filter_debounce_id: Optional[str] = None
         self._filter_debounce_delay = 150  # ms for text input
@@ -811,19 +816,21 @@ class BackgroundsView(ctk.CTkFrame):
         )
         search_entry.pack(side="left", padx=(0, 15))
         
-        # Source filter dropdown
+        # Source filter (multi-select)
         ctk.CTkLabel(filter_bar, text="Source:").pack(side="left", padx=(0, 5))
-        
-        self.source_var = ctk.StringVar(value="All Sources")
-        self.source_combo = ctk.CTkComboBox(
-            filter_bar, width=180, height=35,
-            values=["All Sources"],
-            variable=self.source_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
+        self.source_btn = ctk.CTkButton(
+            filter_bar, text="Select Sources...", width=130, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_source_filter
         )
-        self.source_combo.pack(side="left", padx=(0, 15))
-        
+        self.source_btn.pack(side="left", padx=(0, 8))
+        self.source_label = ctk.CTkLabel(
+            filter_bar, text="None selected",
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+        )
+        self.source_label.pack(side="left", padx=(0, 15))
+
         # Add background button (right side)
         add_btn = ctk.CTkButton(
             filter_bar, text="+ Add Background",
@@ -833,7 +840,41 @@ class BackgroundsView(ctk.CTkFrame):
             command=self._on_add_background
         )
         add_btn.pack(side="right")
-        
+
+        # Second row: official content, skill, clear
+        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
+        filter_bar2.pack(fill="x", padx=10, pady=(0, 10))
+
+        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
+        self.official_var = ctk.StringVar(value="Any Content")
+        self.official_combo = ctk.CTkComboBox(
+            filter_bar2, width=140, height=35,
+            values=["Any Content", "Official Only", "Homebrew Only"],
+            variable=self.official_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.official_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Grants Skill:").pack(side="left", padx=(0, 5))
+        self.skill_var = ctk.StringVar(value="All Skills")
+        self.skill_combo = ctk.CTkComboBox(
+            filter_bar2, width=160, height=35,
+            values=["All Skills"],
+            variable=self.skill_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.skill_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkButton(
+            filter_bar2, text="Clear Filters", width=110, height=35,
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._clear_filters
+        ).pack(side="right")
+
         # Edit/Delete buttons
         self.delete_btn = ctk.CTkButton(
             filter_bar, text="Delete",
@@ -911,19 +952,56 @@ class BackgroundsView(ctk.CTkFrame):
     
     def _update_filter_options(self):
         """Update filter dropdown options based on loaded backgrounds."""
-        # Update source options
-        sources = self.background_manager.get_all_sources()
-        source_options = ["All Sources"] + sources
-        self.source_combo.configure(values=source_options)
-    
+        # Update skill options
+        skills = self.background_manager.get_all_skills()
+        skill_options = ["All Skills"] + skills
+        self.skill_combo.configure(values=skill_options)
+
+    def _open_source_filter(self):
+        """Open the source filter dialog."""
+        available_sources = self.background_manager.get_all_sources()
+        dialog = SourceFilterDialog(
+            self.winfo_toplevel(), available_sources,
+            self._selected_sources, self._source_filter_mode,
+            empty_message="No sources found in your backgrounds."
+        )
+        self.wait_window(dialog)
+        self._selected_sources = dialog.result
+        self._source_filter_mode = dialog.result_mode
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
+    def _update_source_label(self):
+        """Update the source label with selected source count and mode."""
+        count = len(self._selected_sources)
+        if count == 0:
+            self.source_label.configure(text="None selected")
+        else:
+            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
+            if count == 1:
+                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
+            else:
+                self.source_label.configure(text=f"{count} sources ({mode_str})")
+
+    def _clear_filters(self):
+        """Reset every filter to its default value."""
+        self.search_var.set("")
+        self.official_var.set("Any Content")
+        self.skill_var.set("All Skills")
+        self._selected_sources = []
+        self._source_filter_mode = SourceFilterMode.INCLUDE
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
     def _apply_filters(self):
         """Apply current filters to the background list."""
         search = self.search_var.get().lower()
-        source_filter = self.source_var.get()
-        
+        official_filter = self.official_var.get()
+        skill_filter = self.skill_var.get()
+
         # Get legacy filter from settings
         legacy_filter = self.settings_manager.settings.legacy_content_filter
-        
+
         filtered = []
         for background in self._all_backgrounds:
             # Search filter
@@ -931,17 +1009,31 @@ class BackgroundsView(ctk.CTkFrame):
                 if not any(search in skill.lower() for skill in background.skills):
                     if not any(search in feat.lower() for feat in background.feats):
                         continue
-            
+
             # Source filter
-            if source_filter != "All Sources" and background.source != source_filter:
+            if self._selected_sources:
+                source_selected = background.source in self._selected_sources
+                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
+                    continue
+                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
+                    continue
+
+            # Official content filter
+            if official_filter == "Official Only" and not background.is_official:
                 continue
-            
+            if official_filter == "Homebrew Only" and background.is_official:
+                continue
+
+            # Grants skill filter
+            if skill_filter != "All Skills" and skill_filter not in background.skills:
+                continue
+
             # Legacy filter from settings
             if legacy_filter == "no_legacy" and background.is_legacy:
                 continue
             elif legacy_filter == "legacy_only" and not background.is_legacy:
                 continue
-            
+
             filtered.append(background)
         
         self._filtered_backgrounds = filtered

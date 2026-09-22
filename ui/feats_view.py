@@ -11,6 +11,7 @@ from feat import Feat, FeatManager, get_feat_manager
 from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.platform_compat import bind_right_click, unbind_right_click
+from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
 
 
 class FeatListPanel(ctk.CTkFrame):
@@ -475,7 +476,11 @@ class FeatsView(ctk.CTkFrame):
         self._compare_mode = False
         self._compare_feat: Optional[Feat] = None
         self._context_feat: Optional[Feat] = None
-        
+
+        # Source and official-content filter state
+        self._selected_sources: List[str] = []
+        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
+
         # Debouncing for filter changes
         self._filter_debounce_id: Optional[str] = None
         self._filter_debounce_delay = 150  # ms for text input
@@ -621,7 +626,55 @@ class FeatsView(ctk.CTkFrame):
             command=self._on_add_feat
         )
         add_btn.pack(side="right")
-        
+
+        # Second row: source, official content, prerequisite, clear
+        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
+        filter_bar2.pack(fill="x", padx=10, pady=(0, 10))
+
+        ctk.CTkLabel(filter_bar2, text="Source:").pack(side="left", padx=(0, 5))
+        self.source_btn = ctk.CTkButton(
+            filter_bar2, text="Select Sources...", width=130, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_source_filter
+        )
+        self.source_btn.pack(side="left", padx=(0, 8))
+        self.source_label = ctk.CTkLabel(
+            filter_bar2, text="None selected",
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+        )
+        self.source_label.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
+        self.official_var = ctk.StringVar(value="Any Content")
+        self.official_combo = ctk.CTkComboBox(
+            filter_bar2, width=140, height=35,
+            values=["Any Content", "Official Only", "Homebrew Only"],
+            variable=self.official_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.official_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Prerequisite:").pack(side="left", padx=(0, 5))
+        self.prereq_var = ctk.StringVar(value="Any")
+        self.prereq_combo = ctk.CTkComboBox(
+            filter_bar2, width=110, height=35,
+            values=["Any", "Has Prerequisite", "No Prerequisite"],
+            variable=self.prereq_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.prereq_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkButton(
+            filter_bar2, text="Clear Filters", width=110, height=35,
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._clear_filters
+        ).pack(side="right")
+
         # Edit/Delete buttons
         self.delete_btn = ctk.CTkButton(
             filter_bar, text="Delete",
@@ -783,31 +836,91 @@ class FeatsView(ctk.CTkFrame):
         else:
             self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
     
+    def _open_source_filter(self):
+        """Open the source filter dialog."""
+        available_sources = self.feat_manager.get_all_sources()
+        dialog = SourceFilterDialog(
+            self.winfo_toplevel(), available_sources,
+            self._selected_sources, self._source_filter_mode,
+            empty_message="No sources found in your feats."
+        )
+        self.wait_window(dialog)
+        self._selected_sources = dialog.result
+        self._source_filter_mode = dialog.result_mode
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
+    def _update_source_label(self):
+        """Update the source label with selected source count and mode."""
+        count = len(self._selected_sources)
+        if count == 0:
+            self.source_label.configure(text="None selected")
+        else:
+            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
+            if count == 1:
+                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
+            else:
+                self.source_label.configure(text=f"{count} sources ({mode_str})")
+
+    def _clear_filters(self):
+        """Reset every filter to its default value."""
+        self.search_var.set("")
+        self.type_var.set("All Types")
+        self.spellcasting_var.set(False)
+        self.official_var.set("Any Content")
+        self.prereq_var.set("Any")
+        self._selected_sources = []
+        self._source_filter_mode = SourceFilterMode.INCLUDE
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
     def _apply_filters(self):
         """Apply current filters to the feat list."""
         search_text = self.search_var.get().lower()
         type_filter = self.type_var.get()
         spellcasting_only = self.spellcasting_var.get()
+        official_filter = self.official_var.get()
+        prereq_filter = self.prereq_var.get()
         legacy_filter = self.settings_manager.settings.legacy_content_filter
-        
+
         filtered = []
         for feat in self._all_feats:
             # Search filter
             if search_text:
-                if (search_text not in feat.name.lower() and 
+                if (search_text not in feat.name.lower() and
                     search_text not in feat.plain_description().lower()):
                     continue
-            
+
             # Type filter
             if type_filter != "All Types":
                 feat_type = feat.type if feat.type else "General"
                 if feat_type != type_filter:
                     continue
-            
+
             # Spellcasting filter
             if spellcasting_only and not feat.is_spellcasting:
                 continue
-            
+
+            # Source filter
+            if self._selected_sources:
+                source_selected = feat.source in self._selected_sources
+                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
+                    continue
+                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
+                    continue
+
+            # Official content filter
+            if official_filter == "Official Only" and not feat.is_official:
+                continue
+            if official_filter == "Homebrew Only" and feat.is_official:
+                continue
+
+            # Prerequisite filter
+            if prereq_filter == "Has Prerequisite" and not feat.has_prereq:
+                continue
+            if prereq_filter == "No Prerequisite" and feat.has_prereq:
+                continue
+
             filtered.append(feat)
         
         # Apply legacy content filter

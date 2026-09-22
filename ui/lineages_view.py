@@ -11,6 +11,7 @@ from lineage import Lineage, LineageTrait, LineageManager, get_lineage_manager
 from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.platform_compat import bind_right_click, unbind_right_click
+from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
 
 
 class LineageListPanel(ctk.CTkFrame):
@@ -476,7 +477,11 @@ class LineagesView(ctk.CTkFrame):
         self._compare_mode = False
         self._compare_lineage: Optional[Lineage] = None
         self._context_lineage: Optional[Lineage] = None
-        
+
+        # Source and official-content filter state
+        self._selected_sources: List[str] = []
+        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
+
         # Debouncing for filter changes
         self._filter_debounce_id: Optional[str] = None
         self._filter_debounce_delay = 150  # ms for text input
@@ -609,7 +614,7 @@ class LineagesView(ctk.CTkFrame):
             state="readonly"
         )
         self.type_combo.pack(side="left", padx=(0, 15))
-        
+
         # Add lineage button (right side)
         add_btn = ctk.CTkButton(
             filter_bar, text="+ Add Lineage",
@@ -619,7 +624,55 @@ class LineagesView(ctk.CTkFrame):
             command=self._on_add_lineage
         )
         add_btn.pack(side="right")
-        
+
+        # Second row: source, official content, min speed, clear
+        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
+        filter_bar2.pack(fill="x", padx=10, pady=(0, 10))
+
+        ctk.CTkLabel(filter_bar2, text="Source:").pack(side="left", padx=(0, 5))
+        self.source_btn = ctk.CTkButton(
+            filter_bar2, text="Select Sources...", width=130, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_source_filter
+        )
+        self.source_btn.pack(side="left", padx=(0, 8))
+        self.source_label = ctk.CTkLabel(
+            filter_bar2, text="None selected",
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+        )
+        self.source_label.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
+        self.official_var = ctk.StringVar(value="Any Content")
+        self.official_combo = ctk.CTkComboBox(
+            filter_bar2, width=140, height=35,
+            values=["Any Content", "Official Only", "Homebrew Only"],
+            variable=self.official_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.official_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Min Speed:").pack(side="left", padx=(0, 5))
+        self.min_speed_var = ctk.StringVar(value="Any")
+        self.min_speed_combo = ctk.CTkComboBox(
+            filter_bar2, width=90, height=35,
+            values=["Any"],
+            variable=self.min_speed_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.min_speed_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkButton(
+            filter_bar2, text="Clear Filters", width=110, height=35,
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._clear_filters
+        ).pack(side="right")
+
         # Edit/Delete buttons
         self.delete_btn = ctk.CTkButton(
             filter_bar, text="Delete",
@@ -701,35 +754,99 @@ class LineagesView(ctk.CTkFrame):
         sizes = self.lineage_manager.get_all_sizes()
         size_options = ["All Sizes"] + sizes
         self.size_combo.configure(values=size_options)
-        
+
         # Update type options
         types = self.lineage_manager.get_all_creature_types()
         type_options = ["All Types"] + types
         self.type_combo.configure(values=type_options)
-    
+
+        # Update min speed options, preserving the current selection if valid
+        current_speed = self.min_speed_var.get()
+        speed_options = ["Any"] + [str(s) for s in self.lineage_manager.get_all_speeds()]
+        self.min_speed_combo.configure(values=speed_options)
+        self.min_speed_var.set(current_speed if current_speed in speed_options else "Any")
+
+    def _open_source_filter(self):
+        """Open the source filter dialog."""
+        available_sources = self.lineage_manager.get_all_sources()
+        dialog = SourceFilterDialog(
+            self.winfo_toplevel(), available_sources,
+            self._selected_sources, self._source_filter_mode,
+            empty_message="No sources found in your lineages."
+        )
+        self.wait_window(dialog)
+        self._selected_sources = dialog.result
+        self._source_filter_mode = dialog.result_mode
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
+    def _update_source_label(self):
+        """Update the source label with selected source count and mode."""
+        count = len(self._selected_sources)
+        if count == 0:
+            self.source_label.configure(text="None selected")
+        else:
+            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
+            if count == 1:
+                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
+            else:
+                self.source_label.configure(text=f"{count} sources ({mode_str})")
+
+    def _clear_filters(self):
+        """Reset every filter (search, size, type, source, content, speed) to defaults."""
+        self.search_var.set("")
+        self.size_var.set("All Sizes")
+        self.type_var.set("All Types")
+        self.official_var.set("Any Content")
+        self.min_speed_var.set("Any")
+        self._selected_sources = []
+        self._source_filter_mode = SourceFilterMode.INCLUDE
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
     def _apply_filters(self):
         """Apply current filters to the lineage list."""
         search = self.search_var.get().lower()
         size_filter = self.size_var.get()
         type_filter = self.type_var.get()
-        
+        official_filter = self.official_var.get()
+        min_speed = self.min_speed_var.get()
+
         filtered = []
         for lineage in self._all_lineages:
             # Search filter
             if search and search not in lineage.name.lower():
                 if not any(search in t.name.lower() for t in lineage.traits):
                     continue
-            
+
             # Size filter
             if size_filter != "All Sizes" and lineage.size != size_filter:
                 # Handle "Small or Medium" type sizes
                 if size_filter not in lineage.size:
                     continue
-            
+
             # Type filter
             if type_filter != "All Types" and lineage.creature_type != type_filter:
                 continue
-            
+
+            # Source filter
+            if self._selected_sources:
+                source_selected = lineage.source in self._selected_sources
+                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
+                    continue
+                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
+                    continue
+
+            # Official content filter
+            if official_filter == "Official Only" and not lineage.is_official:
+                continue
+            if official_filter == "Homebrew Only" and lineage.is_official:
+                continue
+
+            # Min speed filter
+            if min_speed != "Any" and lineage.speed < int(min_speed):
+                continue
+
             filtered.append(lineage)
         
         self._filtered_lineages = filtered

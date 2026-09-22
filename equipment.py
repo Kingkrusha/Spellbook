@@ -4,6 +4,7 @@ Represents mundane gear: weapons, armor, tools, consumables, and general items.
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -72,6 +73,33 @@ def _clean_properties(raw) -> List[dict]:
         if name:
             result.append({"name": name, "description": desc})
     return result
+
+
+# Copper-piece value of each coin, for converting a cost string to one
+# comparable number (D&D's coin denominations, smallest to largest).
+_COIN_TO_COPPER = {"cp": 1, "sp": 10, "ep": 50, "gp": 100, "pp": 1000}
+_COST_PATTERN = re.compile(r"^([\d,]+)\s*(cp|sp|ep|gp|pp)$", re.IGNORECASE)
+
+
+def parse_cost_to_copper(cost: str) -> Optional[int]:
+    """Parse a cost string like ``"15 gp"`` or ``"2,000 gp"`` into copper pieces.
+
+    Returns ``None`` for anything that isn't a plain "<number> <coin>" value
+    (blank costs, and non-numeric ones like magic items' "Varies") so callers
+    can treat those as "unknown price" rather than zero.
+    """
+    if not cost:
+        return None
+    match = _COST_PATTERN.match(cost.strip())
+    if not match:
+        return None
+    amount = int(match.group(1).replace(",", ""))
+    return amount * _COIN_TO_COPPER[match.group(2).lower()]
+
+
+def copper_to_gp(copper: int) -> float:
+    """Convert a copper-piece amount back to gold pieces (may be fractional)."""
+    return copper / _COIN_TO_COPPER["gp"]
 
 
 @dataclass
@@ -327,6 +355,18 @@ class EquipmentManager:
         """Get all unique sources from equipment."""
         sources = {i.source for i in self.items if i.source}
         return sorted(sources)
+
+    def get_all_crafting_tools(self) -> List[str]:
+        """Get all unique crafting tools in use."""
+        tools = {i.crafting_tool for i in self.items if i.crafting_tool}
+        return sorted(tools)
+
+    def get_all_crafting_materials(self) -> List[str]:
+        """Get all unique crafting materials in use."""
+        materials = set()
+        for item in self.items:
+            materials.update(item.crafting_materials)
+        return sorted(materials)
 
     def get_unofficial_sources(self) -> List[str]:
         """Get sources that have unofficial (non-official/custom) equipment."""

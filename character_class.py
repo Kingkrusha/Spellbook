@@ -700,7 +700,18 @@ class ClassManager:
         if self._classes_cache is None:
             self._reload_cache()
         return self._classes_cache.get(name) if self._classes_cache else None
-    
+
+    def get_all_sources(self) -> List[str]:
+        """Get all unique sources from classes and their subclasses."""
+        sources = set()
+        for class_def in self.classes:
+            if class_def.source:
+                sources.add(class_def.source)
+            for subclass in class_def.subclasses:
+                if subclass.source:
+                    sources.add(subclass.source)
+        return sorted(sources)
+
     def add_listener(self, callback):
         """Add a listener for class changes."""
         self._listeners.append(callback)

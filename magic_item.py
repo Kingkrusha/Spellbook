@@ -333,6 +333,13 @@ class MagicItemManager:
         sources = {i.source for i in self.items if i.source}
         return sorted(sources)
 
+    def get_all_enchanting_materials(self) -> List[str]:
+        """Get all unique enchanting materials in use."""
+        materials = set()
+        for item in self.items:
+            materials.update(item.enchanting_materials)
+        return sorted(materials)
+
     def get_unofficial_sources(self) -> List[str]:
         """Get sources that have unofficial (non-official/custom) magic items."""
         sources = {i.source for i in self.items if (not i.is_official or i.is_custom) and i.source}
