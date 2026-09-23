@@ -118,14 +118,80 @@ class ImportProgressSplash(ctk.CTkToplevel):
             self.set_count(current, total, item_type)
         self.update()
 
+
+class ImportResultDialog(ctk.CTkToplevel):
+    """Shown when an import finishes. Managers are reloaded automatically, but any collection
+    list already open (spells, feats, etc.) was built before the import and won't show the new
+    content until it's told to refresh - the Reload button does that without a restart."""
+
+    def __init__(self, parent, title: str, message: str, on_reload: Optional[Callable] = None, warning: bool = False):
+        super().__init__(parent)
+
+        self.theme = get_theme_manager()
+        self.on_reload = on_reload
+
+        self.title(title)
+        self.geometry("480x380")
+        self.minsize(420, 280)
+
+        self.transient(parent)
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 480) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 380) // 2
+        self.geometry(f"+{x}+{y}")
+
+        self._create_widgets(title, message, warning)
+        self.grab_set()
+
+    def _create_widgets(self, title, message, warning):
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
+
+        icon = "⚠️" if warning else "✅"
+        ctk.CTkLabel(
+            container, text=f"{icon} {title}",
+            font=ctk.CTkFont(size=18, weight="bold")
+        ).pack(anchor="w", pady=(0, 12))
+
+        text_box = ctk.CTkTextbox(container, wrap="word", fg_color=self.theme.get_current_color('bg_secondary'))
+        text_box.pack(fill="both", expand=True, pady=(0, 15))
+        text_box.insert("1.0", message)
+        text_box.configure(state="disabled")
+
+        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        self.reload_btn = ctk.CTkButton(
+            btn_frame, text="🔄 Reload Collections Lists",
+            fg_color=self.theme.get_current_color('accent_primary'),
+            hover_color=self.theme.get_current_color('accent_secondary'),
+            command=self._do_reload
+        )
+        self.reload_btn.pack(side="left")
+
+        ctk.CTkButton(
+            btn_frame, text="Close",
+            width=100,
+            fg_color="transparent",
+            hover_color=self.theme.get_current_color('bg_tertiary'),
+            command=self.destroy
+        ).pack(side="right")
+
+    def _do_reload(self):
+        if self.on_reload:
+            self.on_reload()
+        self.reload_btn.configure(text="✓ Reloaded", state="disabled")
+
+
 class CollectionsView(ctk.CTkFrame):
     """Main collections hub with buttons for different content types."""
     
     def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[..., None]] = None):
         super().__init__(parent, fg_color="transparent")
-        
+
         self.spell_manager = spell_manager
         self.on_navigate = on_navigate  # Callback for navigation to sub-pages
+        self.main_window = parent  # the MainWindow instance (not the Tk root winfo_toplevel() gives)
         self.theme = get_theme_manager()
         
         self._create_widgets()
@@ -326,31 +392,37 @@ class CollectionsView(ctk.CTkFrame):
         """Handle import button click."""
         # Show import options dialog
         dialog = ImportDialog(
-            self.winfo_toplevel(), 
+            self.winfo_toplevel(),
             self.spell_manager,
-            on_import_complete=self._on_import_complete
+            on_import_complete=self._on_import_complete,
+            main_window=self.main_window
         )
         dialog.grab_set()
-    
+
     def _on_import_complete(self):
-        """Handle post-import refresh of all views and managers."""
+        """Handle post-import refresh of all managers (the underlying data). The visible
+        collection lists are refreshed separately, by the Reload button on the import result
+        dialog - see ImportDialog._reload_collection_views."""
         # Reload all managers to pick up new content
         from character_class import get_class_manager
         from feat import get_feat_manager
         from lineage import get_lineage_manager
-        
+        from magic_item import get_magic_item_manager
+        from equipment import get_equipment_manager
+
         # Reload class manager (which also updates CharacterClass custom classes)
         class_manager = get_class_manager()
         class_manager.load()
-        
+
         # Reload feat manager
         feat_manager = get_feat_manager()
         feat_manager.load()
-        
+
         # Reload lineage manager
         lineage_manager = get_lineage_manager()
         lineage_manager.load_lineages()
 
+<<<<<<< Updated upstream
         # Reload backgrounds, equipment and magic items
         from background import get_background_manager
         from equipment import get_equipment_manager
@@ -358,20 +430,24 @@ class CollectionsView(ctk.CTkFrame):
         get_background_manager().load_backgrounds()
         get_equipment_manager().load()
         get_magic_item_manager().load()
+=======
+        # Reload magic item and equipment managers
+        get_magic_item_manager().load()
+        get_equipment_manager().load()
+>>>>>>> Stashed changes
 
         # Reload spell manager if available
         if self.spell_manager:
             self.spell_manager.load_spells()
-        
+
         # Try to refresh the main window's class filter dropdown
         try:
-            main_window = self.winfo_toplevel()
-            refresh_class_filter = getattr(main_window, 'refresh_class_filter', None)
+            refresh_class_filter = getattr(self.main_window, 'refresh_class_filter', None)
             if callable(refresh_class_filter):
                 refresh_class_filter()
         except Exception:
             pass
-    
+
     def _on_character_export(self):
         """Handle character sheet export button click."""
         dialog = CharacterSheetExportDialog(self.winfo_toplevel())
@@ -528,15 +604,26 @@ class CollectionsView(ctk.CTkFrame):
 
 
 class ImportDialog(ctk.CTkToplevel):
+<<<<<<< Updated upstream
     """Dialog for importing content files (JSON bundles) with auto-detection."""
 
     def __init__(self, parent, spell_manager=None, on_import_complete: Optional[Callable] = None):
+=======
+    """Dialog for importing content with auto-detection."""
+    
+    def __init__(self, parent, spell_manager=None, on_import_complete: Optional[Callable] = None,
+                 main_window=None):
+>>>>>>> Stashed changes
         super().__init__(parent)
 
         self.spell_manager = spell_manager
         self.on_import_complete = on_import_complete
+        self.main_window = main_window  # the MainWindow instance, for refreshing collection lists
         self.theme = get_theme_manager()
+<<<<<<< Updated upstream
         self.link_mentions_var = ctk.BooleanVar(value=True)
+=======
+>>>>>>> Stashed changes
 
         self.title("Import Content")
         self.geometry("540x520")
@@ -609,6 +696,7 @@ class ImportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             info_frame,
+<<<<<<< Updated upstream
             text="ℹ️ JSON files can contain any of these content types:\n"
                  "   • Spells (with summon stat blocks), Feats, Classes, Subclasses\n"
                  "   • Lineages, Backgrounds, Equipment, Magic Items\n"
@@ -616,6 +704,13 @@ class ImportDialog(ctk.CTkToplevel):
                  "   • Official content is never overwritten: an entry with the\n"
                  "     same name as an official one is skipped and reported\n"
                  "   • Importing the same file again updates your earlier import",
+=======
+            text="ℹ️ JSON files can contain multiple content types:\n"
+                 "   • Spells, Feats, Classes, Subclasses, Lineages, Backgrounds,\n"
+                 "     Magic Items, Equipment, and stat blocks attached to a spell\n"
+                 "   • All detected types will be imported automatically\n"
+                 "   • Imported content is marked as custom (non-official)",
+>>>>>>> Stashed changes
             font=ctk.CTkFont(size=11),
             text_color=self.theme.get_text_secondary(),
             justify="left"
@@ -630,6 +725,7 @@ class ImportDialog(ctk.CTkToplevel):
         ).pack(pady=(20, 0))
 
     def _import_json(self):
+<<<<<<< Updated upstream
         """Import content from one or more JSON files, with progress and a full report."""
         import content_io
 
@@ -681,6 +777,354 @@ class ImportDialog(ctk.CTkToplevel):
         if total_report.imported and self.on_import_complete:
             self.on_import_complete()
 
+=======
+        """Import content from a JSON file with auto-detection and progress tracking."""
+        import json
+        from feat import get_feat_manager
+        from character_class import get_class_manager
+        from lineage import get_lineage_manager
+        from magic_item import get_magic_item_manager
+        from equipment import get_equipment_manager
+
+        file_path = filedialog.askopenfilename(
+            title="Select JSON File to Import",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            parent=self
+        )
+
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Calculate total items for progress
+            total_items = 0
+            if "spells" in data:
+                total_items += len(data["spells"])
+                total_items += sum(len(s.get("stat_blocks", []) or []) for s in data["spells"])
+            if "feats" in data:
+                total_items += len(data["feats"])
+            if "classes" in data:
+                total_items += len(data["classes"])
+            if "subclasses" in data:
+                total_items += len(data["subclasses"])
+            if "lineages" in data:
+                total_items += len(data["lineages"])
+            if "backgrounds" in data:
+                total_items += len(data["backgrounds"])
+            if "magic_items" in data:
+                total_items += len(data["magic_items"])
+            if "equipment" in data:
+                total_items += len(data["equipment"])
+
+            if total_items == 0:
+                messagebox.showwarning(
+                    "No Content Found",
+                    "No recognized content types found in the file.\n\n"
+                    "Expected keys: spells, feats, classes, subclasses, lineages, backgrounds, "
+                    "magic_items, equipment",
+                    parent=self
+                )
+                return
+            
+            # Show progress splash
+            progress_splash = ImportProgressSplash(self)
+            current_item = 0
+            results = []
+            import_warnings = []  # Track missing references
+            
+            try:
+                # Import classes FIRST (so custom class names are registered for spells)
+                if "classes" in data:
+                    class_manager = get_class_manager()
+                    class_count = 0
+                    spells_updated = 0
+                    class_total = len(data["classes"])
+                    for i, class_data in enumerate(data["classes"]):
+                        from character_class import CharacterClassDefinition
+                        cls = CharacterClassDefinition.from_dict(class_data)
+                        cls.is_custom = True
+                        class_manager.add_class(cls)
+                        class_count += 1
+                        
+                        # Register custom class name with CharacterClass enum
+                        from spell import CharacterClass
+                        CharacterClass.register_custom_class(cls.name)
+                        
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing class: {class_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, class_total, "classes"
+                        )
+                    
+                    if class_count > 0:
+                        results.append(f"{class_count} class(es)")
+                
+                # Import subclasses SECOND
+                if "subclasses" in data:
+                    class_manager = get_class_manager()
+                    subclass_count = 0
+                    subclass_total = len(data["subclasses"])
+                    for i, subclass_data in enumerate(data["subclasses"]):
+                        from character_class import SubclassDefinition
+                        subclass = SubclassDefinition.from_dict(subclass_data)
+                        subclass.is_custom = True
+                        parent_class = class_manager.get_class(subclass.parent_class)
+                        if parent_class:
+                            # Check for missing subclass spells
+                            if self.spell_manager and subclass.subclass_spells:
+                                for spell in subclass.subclass_spells:
+                                    spell_name = spell.spell_name if hasattr(spell, 'spell_name') else str(spell)
+                                    if not self.spell_manager._db.get_spell_by_name(spell_name):
+                                        import_warnings.append(f"Subclass '{subclass.name}': Spell '{spell_name}' not found")
+                            
+                            parent_class.subclasses.append(subclass)
+                            class_manager.add_class(parent_class)
+                            subclass_count += 1
+                        else:
+                            import_warnings.append(f"Subclass '{subclass.name}': Parent class '{subclass.parent_class}' not found")
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing subclass: {subclass_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, subclass_total, "subclasses"
+                        )
+                    if subclass_count > 0:
+                        results.append(f"{subclass_count} subclass(es)")
+                
+                # Import spells THIRD (after classes are registered) - using bulk import
+                if "spells" in data and self.spell_manager:
+                    spell_total = len(data["spells"])
+                    
+                    # Convert all spell dicts to Spell objects first
+                    spells_to_add = []
+                    for i, spell_data in enumerate(data["spells"]):
+                        try:
+                            spell = self.spell_manager._dict_to_spell(spell_data)
+                            spells_to_add.append(spell)
+                        except Exception as e:
+                            print(f"Error converting spell: {e}")
+                        # Update progress every 20 spells during conversion
+                        if (i + 1) % 20 == 0 or i == spell_total - 1:
+                            progress_splash.update_progress(
+                                f"Preparing spell {i + 1} of {spell_total}...",
+                                current_item / total_items,
+                                i + 1, spell_total, "spells"
+                            )
+                    
+                    # Bulk add with progress callback
+                    def spell_progress(current, total):
+                        progress_splash.update_progress(
+                            f"Saving spells to database ({current}/{total})...",
+                            (current_item + current) / total_items,
+                            current, total, "spells"
+                        )
+                    
+                    spell_count = self.spell_manager.bulk_add_spells(spells_to_add, spell_progress)
+                    current_item += spell_total
+
+                    if spell_count > 0:
+                        results.append(f"{spell_count} spell(s)")
+
+                    # Import stat blocks embedded in spells (e.g. a summoning spell's creature),
+                    # a separate DB table keyed by spell id rather than a field on the spell itself
+                    sb_total = sum(len(s.get("stat_blocks", []) or []) for s in data["spells"])
+                    if sb_total > 0:
+                        from stat_block import StatBlock
+                        db = self.spell_manager._db
+                        sb_count = 0
+                        sb_done = 0
+                        for spell_data in data["spells"]:
+                            raw_blocks = spell_data.get("stat_blocks") or []
+                            if not raw_blocks:
+                                continue
+                            spell_id = db.get_spell_id_by_name(spell_data.get("name", ""))
+                            if spell_id is None:
+                                import_warnings.append(
+                                    f"Stat block(s) for '{spell_data.get('name')}': spell not found, skipped")
+                                sb_done += len(raw_blocks)
+                                continue
+                            existing = {sb["name"]: sb["id"] for sb in db.get_stat_blocks_for_spell(spell_id)}
+                            for raw in raw_blocks:
+                                block = StatBlock.from_dict(raw).to_dict()
+                                block["spell_id"] = spell_id
+                                if raw.get("name") in existing:
+                                    db.update_stat_block(existing[raw["name"]], block)
+                                else:
+                                    db.insert_stat_block(block)
+                                sb_count += 1
+                                sb_done += 1
+                                current_item += 1
+                                progress_splash.update_progress(
+                                    f"Importing stat block: {raw.get('name', 'Unknown')}",
+                                    current_item / total_items,
+                                    sb_done, sb_total, "stat blocks"
+                                )
+                        if sb_count > 0:
+                            results.append(f"{sb_count} stat block(s)")
+
+                # Now add class spell lists to existing spells
+                if "classes" in data:
+                    class_manager = get_class_manager()
+                    spells_updated = 0
+                    for class_data in data["classes"]:
+                        cls = class_manager.get_class(class_data.get('name', ''))
+                        if cls and cls.spell_list:
+                            from database import SpellDatabase
+                            db = SpellDatabase()
+                            
+                            # Check for missing spells before linking
+                            if self.spell_manager:
+                                for spell_name in cls.spell_list:
+                                    if not self.spell_manager._db.get_spell_by_name(spell_name):
+                                        import_warnings.append(f"Class '{cls.name}' spell list: '{spell_name}' not found")
+                            
+                            updated = db.add_class_to_spells(cls.name, cls.spell_list)
+                            spells_updated += updated
+                    
+                    if spells_updated > 0:
+                        results.append(f"({spells_updated} spells linked to classes)")
+                        if self.spell_manager:
+                            self.spell_manager.load_spells()
+                
+                # Import feats
+                if "feats" in data:
+                    feat_manager = get_feat_manager()
+                    feat_count = 0
+                    feat_total = len(data["feats"])
+                    for i, feat_data in enumerate(data["feats"]):
+                        from feat import Feat
+                        feat = Feat.from_dict(feat_data)
+                        feat.is_custom = True
+                        feat.is_official = False
+                        feat_manager.add_feat(feat)
+                        feat_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing feat: {feat_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, feat_total, "feats"
+                        )
+                    if feat_count > 0:
+                        results.append(f"{feat_count} feat(s)")
+                
+                # Import lineages
+                if "lineages" in data:
+                    lineage_manager = get_lineage_manager()
+                    lineage_count = 0
+                    lineage_total = len(data["lineages"])
+                    for i, lineage_data in enumerate(data["lineages"]):
+                        from lineage import Lineage
+                        lineage = Lineage.from_dict(lineage_data)
+                        lineage.is_custom = True
+                        lineage.is_official = False
+                        lineage_manager.add_lineage(lineage)
+                        lineage_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing lineage: {lineage_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, lineage_total, "lineages"
+                        )
+                    if lineage_count > 0:
+                        results.append(f"{lineage_count} lineage(s)")
+                
+                # Import backgrounds
+                if "backgrounds" in data:
+                    from background import get_background_manager, Background
+                    background_manager = get_background_manager()
+                    bg_count = 0
+                    bg_total = len(data["backgrounds"])
+                    for i, bg_data in enumerate(data["backgrounds"]):
+                        background = Background.from_dict(bg_data)
+                        background.is_custom = True
+                        background.is_official = False
+                        background_manager.add_background(background)
+                        bg_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing background: {bg_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, bg_total, "backgrounds"
+                        )
+                    if bg_count > 0:
+                        results.append(f"{bg_count} background(s)")
+
+                # Import magic items
+                if "magic_items" in data:
+                    from magic_item import MagicItem
+                    magic_item_manager = get_magic_item_manager()
+                    item_count = 0
+                    item_total = len(data["magic_items"])
+                    for i, item_data in enumerate(data["magic_items"]):
+                        item = MagicItem.from_dict(item_data)
+                        item.is_custom = True
+                        item.is_official = False
+                        magic_item_manager.add_item(item)
+                        item_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing magic item: {item_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, item_total, "magic items"
+                        )
+                    if item_count > 0:
+                        results.append(f"{item_count} magic item(s)")
+
+                # Import equipment
+                if "equipment" in data:
+                    from equipment import Equipment
+                    equipment_manager = get_equipment_manager()
+                    equip_count = 0
+                    equip_total = len(data["equipment"])
+                    for i, equip_data in enumerate(data["equipment"]):
+                        item = Equipment.from_dict(equip_data)
+                        item.is_custom = True
+                        item.is_official = False
+                        equipment_manager.add_item(item)
+                        equip_count += 1
+                        current_item += 1
+                        progress_splash.update_progress(
+                            f"Importing equipment: {equip_data.get('name', 'Unknown')}",
+                            current_item / total_items,
+                            i + 1, equip_total, "equipment"
+                        )
+                    if equip_count > 0:
+                        results.append(f"{equip_count} equipment item(s)")
+
+                # Complete
+                progress_splash.update_progress("Import complete!", 1.0)
+                
+            finally:
+                progress_splash.destroy()
+            
+            if results:
+                msg = f"Successfully imported:\n• " + "\n• ".join(results)
+
+                # Reload managers now, so the data is correct even before the user clicks Reload
+                if self.on_import_complete:
+                    self.on_import_complete()
+
+                if import_warnings:
+                    msg += f"\n\nWarnings ({len(import_warnings)}):\n"
+                    # Deduplicate and limit warnings
+                    unique_warnings = list(dict.fromkeys(import_warnings))
+                    msg += "\n".join(unique_warnings[:10])
+                    if len(unique_warnings) > 10:
+                        msg += f"\n... and {len(unique_warnings) - 10} more"
+                    ImportResultDialog(self.winfo_toplevel(), "Import Complete with Warnings", msg,
+                                        on_reload=self._reload_collection_views, warning=True)
+                else:
+                    ImportResultDialog(self.winfo_toplevel(), "Import Complete", msg,
+                                        on_reload=self._reload_collection_views)
+
+        except Exception as e:
+            messagebox.showerror("Import Error", f"Failed to import content:\n{e}", parent=self)
+    
+>>>>>>> Stashed changes
     def _import_spells_txt(self):
         """Import spells from a legacy pipe-delimited text file."""
         file_path = filedialog.askopenfilename(
@@ -692,9 +1136,22 @@ class ImportDialog(ctk.CTkToplevel):
         if file_path and self.spell_manager:
             try:
                 count = self.spell_manager.import_from_text_file(file_path)
-                messagebox.showinfo("Import Complete", f"Successfully imported {count} spells.", parent=self)
+                self.spell_manager.load_spells()
+                ImportResultDialog(self.winfo_toplevel(), "Import Complete",
+                                    f"Successfully imported {count} spells.",
+                                    on_reload=self._reload_collection_views)
             except Exception as e:
                 messagebox.showerror("Import Error", f"Failed to import spells:\n{e}", parent=self)
+
+    def _reload_collection_views(self):
+        """Refresh whichever collection lists are already open in the main window, so this
+        import's content shows up immediately instead of needing an app restart."""
+        try:
+            refresh_all = getattr(self.main_window, 'refresh_all_collection_views', None)
+            if callable(refresh_all):
+                refresh_all()
+        except Exception:
+            pass
 
 
 class ImportResultDialog(ctk.CTkToplevel):

@@ -1950,7 +1950,20 @@ class MainWindow(ctk.CTkFrame):
             # Preserve current selection if still valid
             if current_value not in class_options:
                 self.class_var.set("All")
-    
+
+    def refresh_all_collection_views(self):
+        """Reload every already-open collection list so freshly imported content shows up
+        without restarting the app. Each sub-view is lazily created on first visit, so only
+        refresh the ones that actually exist; managers themselves are reloaded separately."""
+        self.refresh_class_filter()
+        self._refresh_spell_list()
+        if hasattr(self, 'classes_view'):
+            self.classes_view._populate_class_list()
+        for attr in ('feats_view', 'lineages_view', 'backgrounds_view', 'equipment_view', 'magic_items_view'):
+            view = getattr(self, attr, None)
+            if view is not None:
+                view.refresh()
+
     def _on_spells_changed(self):
         """Called when the spell collection changes."""
         self._update_filter_dropdowns()
