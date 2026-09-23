@@ -323,6 +323,25 @@ def calculate_proficiency_bonus(total_level: int) -> int:
     return 2 + (total_level - 1) // 4
 
 
+# ===== Carrying Capacity / Encumbrance (2024 rules) =====
+
+def calculate_carry_capacity(str_score: int, powerful_build: bool = False) -> int:
+    """Maximum weight (lb) a character can carry: STR score x 15, doubled by
+    the Powerful Build lineage trait (e.g. Goliath)."""
+    capacity = max(0, str_score) * 15
+    return capacity * 2 if powerful_build else capacity
+
+
+def calculate_encumbrance_threshold(str_score: int) -> int:
+    """Weight (lb) past which the optional Encumbrance variant rule kicks in: STR score x 5."""
+    return max(0, str_score) * 5
+
+
+def calculate_push_drag_lift(str_score: int) -> int:
+    """Maximum weight (lb) a character can push, drag, or lift: STR score x 30."""
+    return max(0, str_score) * 30
+
+
 def get_default_proficiencies(class_levels: List[Tuple[str, int]]) -> str:
     """
     Get default proficiencies text based on character classes.
@@ -726,13 +745,26 @@ class CharacterSheet:
     proficiency_bonus: int = 2
     
     # Equipment & Features
-    equipment: str = ""
+    equipment: str = ""  # Free-text "Other Equipment / Notes" - doesn't count toward carried weight
     features_and_traits: str = ""
     other_proficiencies: str = ""  # Languages, tools, weapons, armor
-    
-    # Magic Items (list of dicts with name, description, attuned)
+
+    # Linked equipment (list of dicts: name, quantity, weight - name links
+    # to the Equipment collection; weight is a per-unit snapshot taken when added,
+    # so totals survive the catalog entry being edited or removed later)
+    equipment_items: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Magic Items (list of dicts: name, description, attuned, requires_attunement,
+    # extra_properties, weight - name links to the Magic Items collection; weight,
+    # description and requires_attunement are snapshotted when added)
     magic_items: List[Dict[str, Any]] = field(default_factory=list)
-    
+
+    # Carrying capacity - None means "use the calculated value"; a number means
+    # the user has manually overridden it (see character_sheet.py's
+    # calculate_carry_capacity() and CharacterSheetView's weight indicator).
+    carry_weight_override: Optional[float] = None
+    carry_capacity_override: Optional[float] = None
+
     # Class Feature Uses (tracks current uses for class features like rage, bardic inspiration, etc.)
     # Format: {"class_name:feature_name": current_value}
     class_feature_uses: Dict[str, int] = field(default_factory=dict)
@@ -897,7 +929,10 @@ class CharacterSheet:
             "equipment": self.equipment,
             "features_and_traits": self.features_and_traits,
             "other_proficiencies": self.other_proficiencies,
+            "equipment_items": self.equipment_items,
             "magic_items": self.magic_items,
+            "carry_weight_override": self.carry_weight_override,
+            "carry_capacity_override": self.carry_capacity_override,
             "class_feature_uses": self.class_feature_uses,
             "ability_bonuses": self.ability_bonuses,
             "personality_traits": self.personality_traits,
@@ -947,7 +982,10 @@ class CharacterSheet:
             equipment=data.get("equipment", ""),
             features_and_traits=data.get("features_and_traits", ""),
             other_proficiencies=data.get("other_proficiencies", ""),
+            equipment_items=data.get("equipment_items", []),
             magic_items=data.get("magic_items", []),
+            carry_weight_override=data.get("carry_weight_override"),
+            carry_capacity_override=data.get("carry_capacity_override"),
             class_feature_uses=data.get("class_feature_uses", {}),
             ability_bonuses=data.get("ability_bonuses", {}),
             personality_traits=data.get("personality_traits", ""),

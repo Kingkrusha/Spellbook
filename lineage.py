@@ -219,6 +219,11 @@ class LineageManager:
             if lineage.source:
                 sources.add(lineage.source)
         return sorted(sources)
+
+    def get_all_speeds(self) -> List[int]:
+        """Get all unique speeds from lineages, ascending."""
+        speeds = {lineage.speed for lineage in self.lineages}
+        return sorted(speeds)
     
     def get_unofficial_lineages(self) -> List[Lineage]:
         """Get all non-official lineages."""

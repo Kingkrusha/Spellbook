@@ -28,6 +28,7 @@ class ThemeColors:
     text_secondary: ThemeColor = ("#4a4a4a", "#b0b0b0")  # Secondary/muted text
     text_disabled: ThemeColor = ("#808080", "#606060")  # Disabled text
     text_on_accent: ThemeColor = ("#ffffff", "#ffffff")  # Text on accent backgrounds
+    text_warning: ThemeColor = ("#b45309", "#fb923c")  # Encumbered/reduced-speed warning text
     
     # === Background Colors ===
     bg_primary: ThemeColor = ("#f5f5f5", "#1a1a1a")  # Main background
@@ -421,6 +422,10 @@ class ThemeManager:
     def get_text_disabled(self) -> str:
         """Get disabled text color (theme-aware)."""
         return self.get_current_color("text_disabled")
+
+    def get_text_warning(self) -> str:
+        """Get warning text color (theme-aware) - used for a moderate speed reduction."""
+        return self.get_current_color("text_warning")
     
     def load_custom_theme(self) -> bool:
         """Load custom theme from file. Returns True if loaded."""
@@ -531,6 +536,7 @@ COLOR_GROUPS = {
         ("text_primary", "Primary Text"),
         ("text_secondary", "Secondary Text"),
         ("text_disabled", "Disabled Text"),
+        ("text_warning", "Warning Text (encumbered)"),
     ],
     "Backgrounds": [
         ("bg_primary", "Primary Background"),

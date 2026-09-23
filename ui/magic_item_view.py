@@ -13,11 +13,13 @@ from magic_item import (
     MagicItem, Rarity, MAGIC_ITEM_TYPE_OPTIONS, DEFAULT_MAGIC_ITEM_TYPE,
     get_magic_item_manager,
 )
+from equipment import parse_cost_to_copper
 from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.tag_editor import TagEditor
 from ui.properties_editor import PropertiesEditor
 from ui.tooltip import HoverTooltip
+from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 
 # Conventional rarity colors, independent of the app's colour theme so
 # rarity reads consistently at a glance regardless of theme choice.
@@ -730,6 +732,14 @@ class MagicItemView(ctk.CTkFrame):
         self._filter_debounce_id: Optional[str] = None
         self._filter_debounce_delay = 150
 
+        # Source, tag, and enchanting-material filter state
+        self._selected_sources: List[str] = []
+        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
+        self._selected_tags: List[str] = []
+        self._tag_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
+        self._selected_materials: List[str] = []
+        self._material_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
+
         self._create_widgets()
         self._load_items()
         self.theme.add_listener(self._on_theme_changed)
@@ -834,12 +844,184 @@ class MagicItemView(ctk.CTkFrame):
         self.edit_btn.configure(state="disabled")
         self.delete_btn.configure(state="disabled")
 
+        # Second row: source, official content, tags
+        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
+        filter_bar2.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(filter_bar2, text="Source:").pack(side="left", padx=(0, 5))
+        self.source_btn = ctk.CTkButton(
+            filter_bar2, text="Select Sources...", width=130, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_source_filter
+        )
+        self.source_btn.pack(side="left", padx=(0, 8))
+        self.source_label = ctk.CTkLabel(
+            filter_bar2, text="None selected",
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+        )
+        self.source_label.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
+        self.official_var = ctk.StringVar(value="Any Content")
+        self.official_combo = ctk.CTkComboBox(
+            filter_bar2, width=140, height=35,
+            values=["Any Content", "Official Only", "Homebrew Only"],
+            variable=self.official_var,
+            command=lambda _: self._on_filter_changed(immediate=True),
+            state="readonly"
+        )
+        self.official_combo.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar2, text="Tags:").pack(side="left", padx=(0, 5))
+        self.tags_btn = ctk.CTkButton(
+            filter_bar2, text="Select Tags...", width=120, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_tag_filter
+        )
+        self.tags_btn.pack(side="left", padx=(0, 8))
+        self.tags_label = ctk.CTkLabel(
+            filter_bar2, text="None selected",
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+        )
+        self.tags_label.pack(side="left")
+
+        # Third row: enchanting materials, price range, clear
+        filter_bar3 = ctk.CTkFrame(self, fg_color="transparent")
+        filter_bar3.pack(fill="x", padx=10, pady=(0, 10))
+
+        ctk.CTkLabel(filter_bar3, text="Enchanting Materials:").pack(side="left", padx=(0, 5))
+        self.materials_btn = ctk.CTkButton(
+            filter_bar3, text="Select Materials...", width=140, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_material_filter
+        )
+        self.materials_btn.pack(side="left", padx=(0, 8))
+        self.materials_label = ctk.CTkLabel(
+            filter_bar3, text="None selected",
+            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+        )
+        self.materials_label.pack(side="left", padx=(0, 20))
+
+        ctk.CTkLabel(filter_bar3, text="Price (gp):").pack(side="left", padx=(0, 5))
+        self.min_price_var = ctk.StringVar()
+        self.min_price_var.trace_add("write", lambda *args: self._on_filter_changed())
+        ctk.CTkEntry(
+            filter_bar3, width=70, height=35, placeholder_text="Min", textvariable=self.min_price_var
+        ).pack(side="left", padx=(0, 5))
+        ctk.CTkLabel(filter_bar3, text="-").pack(side="left", padx=(0, 5))
+        self.max_price_var = ctk.StringVar()
+        self.max_price_var.trace_add("write", lambda *args: self._on_filter_changed())
+        ctk.CTkEntry(
+            filter_bar3, width=70, height=35, placeholder_text="Max", textvariable=self.max_price_var
+        ).pack(side="left", padx=(0, 20))
+
+        ctk.CTkButton(
+            filter_bar3, text="Clear Filters", width=110, height=35,
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._clear_filters
+        ).pack(side="right")
+
     def _load_items(self):
         self._all_items = sorted(self.magic_item_manager.items, key=lambda i: i.name.lower())
 
         type_options = ["All Types"] + self.magic_item_manager.get_all_types()
         self.type_combo.configure(values=type_options)
 
+        self._on_filter_changed(immediate=True)
+
+    def _open_source_filter(self):
+        available_sources = self.magic_item_manager.get_all_sources()
+        dialog = SourceFilterDialog(
+            self.winfo_toplevel(), available_sources,
+            self._selected_sources, self._source_filter_mode,
+            empty_message="No sources found in your magic items."
+        )
+        self.wait_window(dialog)
+        self._selected_sources = dialog.result
+        self._source_filter_mode = dialog.result_mode
+        self._update_source_label()
+        self._on_filter_changed(immediate=True)
+
+    def _update_source_label(self):
+        count = len(self._selected_sources)
+        if count == 0:
+            self.source_label.configure(text="None selected")
+        else:
+            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
+            if count == 1:
+                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
+            else:
+                self.source_label.configure(text=f"{count} sources ({mode_str})")
+
+    def _open_tag_filter(self):
+        available_tags = self.magic_item_manager.get_all_tags()
+        dialog = TagFilterDialog(
+            self.winfo_toplevel(), available_tags, self._selected_tags, self._tag_filter_mode,
+            noun="tags", empty_message="No tags found in your magic items."
+        )
+        self.wait_window(dialog)
+        self._selected_tags = dialog.result
+        self._tag_filter_mode = dialog.result_mode
+        self._update_tags_label()
+        self._on_filter_changed(immediate=True)
+
+    def _update_tags_label(self):
+        count = len(self._selected_tags)
+        if count == 0:
+            self.tags_label.configure(text="None selected")
+        else:
+            mode_str = {"has_all": "all", "has_any": "any", "has_none": "none"}[self._tag_filter_mode.value]
+            if count == 1:
+                self.tags_label.configure(text=f"1 tag ({mode_str}): {self._selected_tags[0]}")
+            else:
+                self.tags_label.configure(text=f"{count} tags ({mode_str})")
+
+    def _open_material_filter(self):
+        available_materials = self.magic_item_manager.get_all_enchanting_materials()
+        dialog = TagFilterDialog(
+            self.winfo_toplevel(), available_materials, self._selected_materials, self._material_filter_mode,
+            window_title="Select Enchanting Materials", prompt="Select enchanting materials to filter by:",
+            noun="materials", empty_message="No enchanting materials found in your magic items."
+        )
+        self.wait_window(dialog)
+        self._selected_materials = dialog.result
+        self._material_filter_mode = dialog.result_mode
+        self._update_materials_label()
+        self._on_filter_changed(immediate=True)
+
+    def _update_materials_label(self):
+        count = len(self._selected_materials)
+        if count == 0:
+            self.materials_label.configure(text="None selected")
+        else:
+            mode_str = {"has_all": "all", "has_any": "any", "has_none": "none"}[self._material_filter_mode.value]
+            if count == 1:
+                self.materials_label.configure(text=f"1 material ({mode_str}): {self._selected_materials[0]}")
+            else:
+                self.materials_label.configure(text=f"{count} materials ({mode_str})")
+
+    def _clear_filters(self):
+        self.search_var.set("")
+        self.type_var.set("All Types")
+        self.rarity_var.set("All Rarities")
+        self.attunement_var.set(False)
+        self.official_var.set("Any Content")
+        self.min_price_var.set("")
+        self.max_price_var.set("")
+        self._selected_sources = []
+        self._source_filter_mode = SourceFilterMode.INCLUDE
+        self._selected_tags = []
+        self._tag_filter_mode = TagFilterMode.HAS_ALL
+        self._selected_materials = []
+        self._material_filter_mode = TagFilterMode.HAS_ALL
+        self._update_source_label()
+        self._update_tags_label()
+        self._update_materials_label()
         self._on_filter_changed(immediate=True)
 
     def _on_filter_changed(self, immediate: bool = False):
@@ -850,11 +1032,39 @@ class MagicItemView(ctk.CTkFrame):
         delay = 10 if immediate else self._filter_debounce_delay
         self._filter_debounce_id = self.after(delay, self._apply_filters)
 
+    def _matches_tag_filter(self, item_values: List[str], selected: List[str], mode: TagFilterMode) -> bool:
+        """Check an item's tags/materials list against a multi-select filter."""
+        if not selected:
+            return True
+        values_lower = [v.lower() for v in item_values]
+        selected_lower = [s.lower() for s in selected]
+        if mode == TagFilterMode.HAS_ALL:
+            return all(s in values_lower for s in selected_lower)
+        if mode == TagFilterMode.HAS_ANY:
+            return any(s in values_lower for s in selected_lower)
+        # HAS_NONE
+        return not any(s in values_lower for s in selected_lower)
+
+    @staticmethod
+    def _price_field_to_copper(text: str) -> Optional[int]:
+        """Parse a min/max price entry (gp, possibly fractional) into copper."""
+        text = text.strip()
+        if not text:
+            return None
+        try:
+            return round(float(text) * 100)  # 1 gp = 100 cp
+        except ValueError:
+            return None
+
     def _apply_filters(self):
         search_text = self.search_var.get().lower()
         type_filter = self.type_var.get()
         rarity_filter = self.rarity_var.get()
         attunement_only = self.attunement_var.get()
+        official_filter = self.official_var.get()
+
+        min_price_cp = self._price_field_to_copper(self.min_price_var.get())
+        max_price_cp = self._price_field_to_copper(self.max_price_var.get())
 
         filtered = []
         for item in self._all_items:
@@ -872,6 +1082,33 @@ class MagicItemView(ctk.CTkFrame):
 
             if attunement_only and not item.requires_attunement:
                 continue
+
+            if not self._matches_tag_filter(item.tags, self._selected_tags, self._tag_filter_mode):
+                continue
+
+            if not self._matches_tag_filter(item.enchanting_materials, self._selected_materials, self._material_filter_mode):
+                continue
+
+            if self._selected_sources:
+                source_selected = item.source in self._selected_sources
+                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
+                    continue
+                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
+                    continue
+
+            if official_filter == "Official Only" and not item.is_official:
+                continue
+            if official_filter == "Homebrew Only" and item.is_official:
+                continue
+
+            if min_price_cp is not None or max_price_cp is not None:
+                item_cp = parse_cost_to_copper(item.cost)
+                if item_cp is None:
+                    continue  # Unknown/"Varies" price can't satisfy a numeric bound
+                if min_price_cp is not None and item_cp < min_price_cp:
+                    continue
+                if max_price_cp is not None and item_cp > max_price_cp:
+                    continue
 
             filtered.append(item)
 

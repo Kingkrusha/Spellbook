@@ -12,6 +12,7 @@ from character_class import (
     SubclassDefinition
 )
 from .class_editor import ClassEditorDialog, SubclassEditorDialog
+from .filter_widgets import SourceFilterDialog, SourceFilterMode
 
 
 def get_spell_manager():
@@ -55,7 +56,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Pending subclass to select after class page loads
         self._pending_subclass: Optional[str] = None
         self._class_loaded: bool = False
-        
+
+        # Filter state
+        self._selected_sources: List[str] = []
+        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
+
         self._create_widgets()
         
         # Load first class by default
@@ -98,11 +103,70 @@ class ClassesCollectionView(ctk.CTkFrame):
             command=self._open_class_editor
         )
         self.add_class_btn.pack(fill="x", padx=10, pady=(0, 10))
-        
+
+        # Search box
+        self.search_var = ctk.StringVar()
+        self.search_var.trace_add("write", lambda *args: self._populate_class_list())
+        ctk.CTkEntry(
+            sidebar, placeholder_text="Search classes...", textvariable=self.search_var
+        ).pack(fill="x", padx=10, pady=(0, 5))
+
+        # Filters toggle (narrow sidebar - controls stack vertically when shown)
+        self.filters_btn = ctk.CTkButton(
+            sidebar, text="▼ Filters", height=26,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._toggle_filters
+        )
+        self.filters_btn.pack(fill="x", padx=10, pady=(0, 5))
+
+        self._filters_expanded = False
+        self.filters_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
+        # Not packed yet - shown by _toggle_filters
+
+        self.source_btn = ctk.CTkButton(
+            self.filters_frame, text="Select Sources...", height=28,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._open_source_filter
+        )
+        self.source_btn.pack(fill="x", pady=(0, 2))
+        self.source_label = ctk.CTkLabel(
+            self.filters_frame, text="Sources: None selected",
+            font=ctk.CTkFont(size=10), text_color=self.theme.get_text_secondary(),
+            anchor="w", justify="left", wraplength=190
+        )
+        self.source_label.pack(fill="x", pady=(0, 8))
+
+        ctk.CTkLabel(self.filters_frame, text="Content:", anchor="w").pack(fill="x")
+        self.official_var = ctk.StringVar(value="Any Content")
+        self.official_combo = ctk.CTkComboBox(
+            self.filters_frame, values=["Any Content", "Official Only", "Homebrew Only"],
+            variable=self.official_var, command=lambda _: self._populate_class_list(),
+            state="readonly"
+        )
+        self.official_combo.pack(fill="x", pady=(0, 8))
+
+        self.spellcaster_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            self.filters_frame, text="Spellcasting Only",
+            variable=self.spellcaster_var,
+            command=self._populate_class_list
+        ).pack(fill="x", pady=(0, 5))
+
+        ctk.CTkButton(
+            self.filters_frame, text="Clear Filters", height=26,
+            fg_color=self.theme.get_current_color('button_danger'),
+            hover_color=self.theme.get_current_color('button_danger_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._clear_filters
+        ).pack(fill="x", pady=(0, 5))
+
         # Class list
         self.class_list_frame = ctk.CTkScrollableFrame(sidebar, fg_color="transparent")
         self.class_list_frame.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         self._populate_class_list()
         
         # Main content area (scrollable)
@@ -113,13 +177,94 @@ class ClassesCollectionView(ctk.CTkFrame):
         self.content = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=20, pady=20)
     
+    def _toggle_filters(self):
+        """Toggle the filters panel visibility."""
+        self._filters_expanded = not self._filters_expanded
+        if self._filters_expanded:
+            self.filters_btn.configure(text="▲ Filters")
+            # Anchored after filters_btn (a plain, always-packed CTkButton)
+            # rather than before class_list_frame: CTkScrollableFrame wraps a
+            # canvas + inner frame internally, and customtkinter's pack()
+            # resolves a `before=` scrollable-frame reference to that inner
+            # widget instead of the outer one, raising "isn't packed".
+            self.filters_frame.pack(fill="x", padx=10, pady=(0, 5), after=self.filters_btn)
+        else:
+            self.filters_btn.configure(text="▼ Filters")
+            self.filters_frame.pack_forget()
+
+    def _open_source_filter(self):
+        """Open the source filter dialog."""
+        available_sources = self.class_manager.get_all_sources()
+        dialog = SourceFilterDialog(
+            self.winfo_toplevel(), available_sources,
+            self._selected_sources, self._source_filter_mode,
+            empty_message="No sources found in your classes."
+        )
+        self.wait_window(dialog)
+        self._selected_sources = dialog.result
+        self._source_filter_mode = dialog.result_mode
+        self._update_source_label()
+        self._populate_class_list()
+
+    def _update_source_label(self):
+        """Update the source label with selected source count and mode."""
+        count = len(self._selected_sources)
+        if count == 0:
+            self.source_label.configure(text="Sources: None selected")
+        else:
+            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
+            self.source_label.configure(text=f"Sources: {count} ({mode_str})")
+
+    def _clear_filters(self):
+        """Reset every filter to its default value."""
+        self.search_var.set("")
+        self.official_var.set("Any Content")
+        self.spellcaster_var.set(False)
+        self._selected_sources = []
+        self._source_filter_mode = SourceFilterMode.INCLUDE
+        self._update_source_label()
+        self._populate_class_list()
+
+    def _get_filtered_classes(self) -> List[CharacterClassDefinition]:
+        """Apply the current search/source/content/spellcasting filters."""
+        search = self.search_var.get().strip().lower()
+        official_filter = self.official_var.get()
+        spellcaster_only = self.spellcaster_var.get()
+
+        filtered = []
+        for class_def in self.class_manager.classes:
+            if search and search not in class_def.name.lower():
+                continue
+
+            if self._selected_sources:
+                source_selected = class_def.source in self._selected_sources
+                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
+                    continue
+                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
+                    continue
+
+            # Classes/subclasses have no is_official field of their own -
+            # is_custom is the only signal, and every bundled class already
+            # sets is_official = not is_custom when written to the database.
+            if official_filter == "Official Only" and class_def.is_custom:
+                continue
+            if official_filter == "Homebrew Only" and not class_def.is_custom:
+                continue
+
+            if spellcaster_only and not class_def.is_spellcaster:
+                continue
+
+            filtered.append(class_def)
+
+        return filtered
+
     def _populate_class_list(self):
         """Populate the class list sidebar."""
         for widget in self.class_list_frame.winfo_children():
             widget.destroy()
-        
-        classes = self.class_manager.classes
-        
+
+        classes = self._get_filtered_classes()
+
         for class_def in classes:
             # Create a row frame for each class
             row = ctk.CTkFrame(self.class_list_frame, fg_color="transparent")
