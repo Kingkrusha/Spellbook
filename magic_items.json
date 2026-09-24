@@ -3,7 +3,7 @@
     {
       "name": "Adventurer's Ring",
       "type": "Ring",
-      "cost": "",
+      "cost": "250 GP",
       "weight": 0.0,
       "source": "Forgotten Realms - Heroes of Faerun",
       "enchanting_materials": [],
@@ -20,7 +20,7 @@
     {
       "name": "Armor of Gleaming",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -37,7 +37,7 @@
     {
       "name": "Bead of Nourishment",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -54,7 +54,7 @@
     {
       "name": "Bead of Refreshment",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -71,7 +71,7 @@
     {
       "name": "Boots of False Tracks",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -88,7 +88,7 @@
     {
       "name": "Candle of the Deep",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -105,7 +105,7 @@
     {
       "name": "Cast-Off Armor",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -122,7 +122,7 @@
     {
       "name": "Charlatan's Die",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -139,7 +139,7 @@
     {
       "name": "Cloak of Billowing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -156,7 +156,7 @@
     {
       "name": "Cloak of Many Fashions",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -173,7 +173,7 @@
     {
       "name": "Clockwork Amulet",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -190,7 +190,7 @@
     {
       "name": "Clothes of Mending",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -207,7 +207,7 @@
     {
       "name": "Conjurer's Canopy",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -224,7 +224,7 @@
     {
       "name": "Dark Shard Amulet",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -241,7 +241,7 @@
     {
       "name": "Dictation Quill",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -258,7 +258,7 @@
     {
       "name": "Dread Helm",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -275,7 +275,7 @@
     {
       "name": "Ear Horn of Hearing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -292,7 +292,7 @@
     {
       "name": "Elocutionist's Lexicon",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -309,7 +309,7 @@
     {
       "name": "Enduring Spellbook",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -326,7 +326,7 @@
     {
       "name": "Ensorcelled Missive",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -343,7 +343,7 @@
     {
       "name": "Ersatz Eye",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -360,7 +360,7 @@
     {
       "name": "Eternal Chalk",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "D&D Beyond Drops - June 2026",
       "enchanting_materials": [],
@@ -377,7 +377,7 @@
     {
       "name": "Evergreen Fertilizer",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -394,7 +394,7 @@
     {
       "name": "Hat of Vermin",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -411,7 +411,7 @@
     {
       "name": "Hat of Wizardry",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -428,7 +428,7 @@
     {
       "name": "Heward's Handy Spice Pouch",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -445,7 +445,7 @@
     {
       "name": "Homeward Compass",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -462,7 +462,7 @@
     {
       "name": "Horn of Silent Alarm",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -479,7 +479,7 @@
     {
       "name": "Instrument of Illusions",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -496,7 +496,7 @@
     {
       "name": "Instrument of Scribing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -513,7 +513,7 @@
     {
       "name": "Lock of Trickery",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -530,7 +530,7 @@
     {
       "name": "Lucky Foot",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -547,7 +547,7 @@
     {
       "name": "Manifold Tool",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -564,7 +564,7 @@
     {
       "name": "Mask of Changed Appearance",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -581,7 +581,7 @@
     {
       "name": "Mechanical Wonder",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Forgotten Realms - Heroes of Faerun",
       "enchanting_materials": [],
@@ -598,7 +598,7 @@
     {
       "name": "Moon-Touched Sword",
       "type": "Weapon (Glaive, Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -615,7 +615,7 @@
     {
       "name": "Mystery Key",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -632,7 +632,7 @@
     {
       "name": "Mythallar Bracelet",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -649,7 +649,7 @@
     {
       "name": "Orb of Direction",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -666,7 +666,7 @@
     {
       "name": "Orb of Time",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -683,7 +683,7 @@
     {
       "name": "Perfume of Bewitching",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -700,7 +700,7 @@
     {
       "name": "Pipe of Smoke Monsters",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -717,7 +717,7 @@
     {
       "name": "Pole of Angling",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -734,7 +734,7 @@
     {
       "name": "Pole of Collapsing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -751,7 +751,7 @@
     {
       "name": "Pot of Awakening",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -768,7 +768,7 @@
     {
       "name": "Potion of Climbing",
       "type": "Potion",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -785,7 +785,7 @@
     {
       "name": "Potion of Comprehension",
       "type": "Potion",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -802,7 +802,7 @@
     {
       "name": "Potion of Healing",
       "type": "Potion",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Player's Handbook",
       "enchanting_materials": [],
@@ -819,7 +819,7 @@
     {
       "name": "Prosthetic Limb",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -836,7 +836,7 @@
     {
       "name": "Rival Coin",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -853,7 +853,7 @@
     {
       "name": "Rope of Mending",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -870,7 +870,7 @@
     {
       "name": "Ruby of the War Mage",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -887,7 +887,7 @@
     {
       "name": "Shield of Expression",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -904,7 +904,7 @@
     {
       "name": "Silvered Weapon",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -921,7 +921,7 @@
     {
       "name": "Smoldering Armor",
       "type": "Armor (Any Heavy, Medium, or Light)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -938,7 +938,7 @@
     {
       "name": "Sniper's Bracelet",
       "type": "Weapon (Heavy Crossbow, Light Crossbow, Longbow, Musket, Pistol, or Shortbow)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -955,7 +955,7 @@
     {
       "name": "Spell Component Ring",
       "type": "Ring",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -972,7 +972,7 @@
     {
       "name": "Spell Scroll",
       "type": "Scroll",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -989,7 +989,7 @@
     {
       "name": "Staff of Adornment",
       "type": "Staff",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1006,7 +1006,7 @@
     {
       "name": "Staff of Birdcalls",
       "type": "Staff",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1023,7 +1023,7 @@
     {
       "name": "Staff of Flowers",
       "type": "Staff",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1040,7 +1040,7 @@
     {
       "name": "Sweeping Broom",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -1057,7 +1057,7 @@
     {
       "name": "Sylvan Talon",
       "type": "Weapon (Dagger, Rapier, Scimitar, Shortsword, Sickle, or Spear)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1074,7 +1074,7 @@
     {
       "name": "Talking Doll",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1091,7 +1091,7 @@
     {
       "name": "Tankard of Sobriety",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1108,7 +1108,7 @@
     {
       "name": "Trick Weapon",
       "type": "Weapon (Any Simple or Martial Melee Weapon)",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -1125,7 +1125,7 @@
     {
       "name": "Unraveling Cloak",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - August 2026",
       "enchanting_materials": [],
@@ -1142,7 +1142,7 @@
     {
       "name": "Veteran's Cane",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1159,7 +1159,7 @@
     {
       "name": "Walloping Ammunition",
       "type": "Weapon (Any Ammunition)",
-      "cost": "",
+      "cost": "50 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1176,7 +1176,7 @@
     {
       "name": "Wand of Conducting",
       "type": "Wand",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1193,7 +1193,7 @@
     {
       "name": "Wand of Pyrotechnics",
       "type": "Wand",
-      "cost": "",
+      "cost": "100 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1210,7 +1210,7 @@
     {
       "name": "Adamantine Armor",
       "type": "Armor (Any Medium or Heavy, Except Hide Armor)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1227,7 +1227,7 @@
     {
       "name": "Adamantine Weapon",
       "type": "Weapon (Any Ammunition or Melee Weapon)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1244,7 +1244,7 @@
     {
       "name": "Alarm Pylon",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "D&D Beyond Drops - August 2026",
       "enchanting_materials": [],
@@ -1261,7 +1261,7 @@
     {
       "name": "Alchemy Jug",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1278,7 +1278,7 @@
     {
       "name": "Ammunition, +1, +2, or +3",
       "type": "Weapon (Any Ammunition)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1295,7 +1295,7 @@
     {
       "name": "Amulet of Proof against Detection and Location",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1312,7 +1312,7 @@
     {
       "name": "Arcane Battery",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -1329,7 +1329,7 @@
     {
       "name": "Baba Yaga's Dancing Broom",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1346,7 +1346,7 @@
     {
       "name": "Bag of Holding",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1363,7 +1363,7 @@
     {
       "name": "Bag of Tricks",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1380,7 +1380,7 @@
     {
       "name": "Blossom Rod",
       "type": "Rod",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -1397,7 +1397,7 @@
     {
       "name": "Boon Companion's Bands",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -1414,7 +1414,7 @@
     {
       "name": "Boots of Elvenkind",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1431,7 +1431,7 @@
     {
       "name": "Boots of Striding and Springing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1448,7 +1448,7 @@
     {
       "name": "Boots of the Winding Path",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -1465,7 +1465,7 @@
     {
       "name": "Boots of the Winterlands",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1482,7 +1482,7 @@
     {
       "name": "Bracers of Archery",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1499,7 +1499,7 @@
     {
       "name": "Brooch of Shielding",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1516,7 +1516,7 @@
     {
       "name": "Broom of Flying",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1533,7 +1533,7 @@
     {
       "name": "Cap of Vanishing",
       "type": "Wondrous item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Welcome to the Hellfire Club",
       "enchanting_materials": [],
@@ -1550,7 +1550,7 @@
     {
       "name": "Cap of Water Breathing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1567,7 +1567,7 @@
     {
       "name": "Circlet of Blasting",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1584,7 +1584,7 @@
     {
       "name": "Climber's Ammunition",
       "type": "Weapon (any ammunition)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - July 2026",
       "enchanting_materials": [],
@@ -1601,7 +1601,7 @@
     {
       "name": "Cloak of Elvenkind",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1618,7 +1618,7 @@
     {
       "name": "Cloak of Protection",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1635,7 +1635,7 @@
     {
       "name": "Cloak of the Manta Ray",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1652,7 +1652,7 @@
     {
       "name": "Decanter of Endless Water",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1669,7 +1669,7 @@
     {
       "name": "Deck of Illusions",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1686,7 +1686,7 @@
     {
       "name": "Dispelling Ammunition",
       "type": "Weapon (Any Ammunition)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -1703,7 +1703,7 @@
     {
       "name": "Driftglobe",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1720,7 +1720,7 @@
     {
       "name": "Dust of Disappearance",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1737,7 +1737,7 @@
     {
       "name": "Dust of Dryness",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1754,7 +1754,7 @@
     {
       "name": "Dust of Sneezing and Choking",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1771,7 +1771,7 @@
     {
       "name": "Elemental Gem",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1788,7 +1788,7 @@
     {
       "name": "Enspelled Armor",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1805,7 +1805,7 @@
     {
       "name": "Enspelled Staff",
       "type": "Staff",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1822,7 +1822,7 @@
     {
       "name": "Enspelled Weapon",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1839,7 +1839,7 @@
     {
       "name": "Eversmoking Bottle",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1856,7 +1856,7 @@
     {
       "name": "Eyes of Charming",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1873,7 +1873,7 @@
     {
       "name": "Eyes of Deceit",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -1890,7 +1890,7 @@
     {
       "name": "Eyes of Minute Seeing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1907,7 +1907,7 @@
     {
       "name": "Eyes of the Eagle",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1924,7 +1924,7 @@
     {
       "name": "Figurine of Wondrous Power",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1941,7 +1941,7 @@
     {
       "name": "Gauntlets of Ogre Power",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1958,7 +1958,7 @@
     {
       "name": "Gem of Brightness",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1975,7 +1975,7 @@
     {
       "name": "Gloves of Missile Snaring",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -1992,7 +1992,7 @@
     {
       "name": "Gloves of Swimming and Climbing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2009,7 +2009,7 @@
     {
       "name": "Gloves of Thievery",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2026,7 +2026,7 @@
     {
       "name": "Goading Ammunition",
       "type": "Weapon (Any Ammunition)",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2043,7 +2043,7 @@
     {
       "name": "Goggles of Night",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2060,7 +2060,7 @@
     {
       "name": "Hag Eye",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2077,7 +2077,7 @@
     {
       "name": "Harkon's Bite",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Ravenloft - The Horrors Within",
       "enchanting_materials": [],
@@ -2094,7 +2094,7 @@
     {
       "name": "Harper Pin",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Forgotten Realms - Adventures in Faerun",
       "enchanting_materials": [],
@@ -2111,7 +2111,7 @@
     {
       "name": "Hat of Disguise",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2128,7 +2128,7 @@
     {
       "name": "Hat of Vortexes",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -2145,7 +2145,7 @@
     {
       "name": "Headband of Intellect",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2162,7 +2162,7 @@
     {
       "name": "Helm of Awareness",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -2179,7 +2179,7 @@
     {
       "name": "Helm of Comprehending Languages",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2196,7 +2196,7 @@
     {
       "name": "Helm of Telepathy",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2213,7 +2213,7 @@
     {
       "name": "Idol of Good Fortunes",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2230,7 +2230,7 @@
     {
       "name": "Immovable Rod",
       "type": "Rod",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2247,7 +2247,7 @@
     {
       "name": "Instrument of the Bards",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2264,7 +2264,7 @@
     {
       "name": "Javelin of Lightning",
       "type": "Weapon (Javelin)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2281,7 +2281,7 @@
     {
       "name": "Keoghtom's Ointment",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2298,7 +2298,7 @@
     {
       "name": "Keyholes Dagger",
       "type": "Weapon (Dagger)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2315,7 +2315,7 @@
     {
       "name": "Lantern of Revealing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2332,7 +2332,7 @@
     {
       "name": "Magewright's Gloves",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2349,7 +2349,7 @@
     {
       "name": "Mariner's Armor",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2366,7 +2366,7 @@
     {
       "name": "Martialist's Quarterstaff",
       "type": "Weapon (Quarterstaff)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2383,7 +2383,7 @@
     {
       "name": "Medallion of Thoughts",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2400,7 +2400,7 @@
     {
       "name": "Mind Sharpener",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -2417,7 +2417,7 @@
     {
       "name": "Mithral Armor",
       "type": "Armor (Any Medium or Heavy, Except Hide Armor)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2434,7 +2434,7 @@
     {
       "name": "Nature's Mantle",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2451,7 +2451,7 @@
     {
       "name": "Necklace of Adaptation",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2468,7 +2468,7 @@
     {
       "name": "Necklace of the Beastly Familiar",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2485,7 +2485,7 @@
     {
       "name": "Oil of Slipperiness",
       "type": "Potion",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2502,7 +2502,7 @@
     {
       "name": "Orb of Divination Detection",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2519,7 +2519,7 @@
     {
       "name": "Orb of Sorcery",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2536,7 +2536,7 @@
     {
       "name": "Pearl of Power",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2553,7 +2553,7 @@
     {
       "name": "Periapt of Health",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2570,7 +2570,7 @@
     {
       "name": "Periapt of Wound Closure",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2587,7 +2587,7 @@
     {
       "name": "Philter of Love",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2604,7 +2604,7 @@
     {
       "name": "Pipes of Haunting",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2621,7 +2621,7 @@
     {
       "name": "Pipes Of Pestilence",
       "type": "Wondrous item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Welcome to the Hellfire Club",
       "enchanting_materials": [],
@@ -2638,7 +2638,7 @@
     {
       "name": "Pipes of the Sewers",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2655,7 +2655,7 @@
     {
       "name": "Poison Soaked Kukri",
       "type": "Weapon",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Welcome to the Hellfire Club",
       "enchanting_materials": [],
@@ -2672,7 +2672,7 @@
     {
       "name": "Potion of Animal Friendship",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2689,7 +2689,7 @@
     {
       "name": "Potion of Dragon's Breath",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2706,7 +2706,7 @@
     {
       "name": "Potion of Fire Breath",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2723,7 +2723,7 @@
     {
       "name": "Potion of Giant Strength",
       "type": "Potion",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2740,7 +2740,7 @@
     {
       "name": "Potion of Growth",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2757,7 +2757,7 @@
     {
       "name": "Potion of Poison",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2774,7 +2774,7 @@
     {
       "name": "Potion of Pugilism",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2791,7 +2791,7 @@
     {
       "name": "Potion of Resistance",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2808,7 +2808,7 @@
     {
       "name": "Potion of Tirelessness",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2825,7 +2825,7 @@
     {
       "name": "Potion of Water Breathing",
       "type": "Potion",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2842,7 +2842,7 @@
     {
       "name": "Quaal's Feather Token",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2859,7 +2859,7 @@
     {
       "name": "Quiver of Ehlonna",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -2876,7 +2876,7 @@
     {
       "name": "Reliquary of Dawn",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Lorwyn - First Light",
       "enchanting_materials": [],
@@ -2893,7 +2893,7 @@
     {
       "name": "Reliquary of Twilight",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Lorwyn - First Light",
       "enchanting_materials": [],
@@ -2910,7 +2910,7 @@
     {
       "name": "Repeating Shot",
       "type": "Weapon (Any Simple or Martial with the Ammunition Property)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -2927,7 +2927,7 @@
     {
       "name": "Repulsion Shield",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -2944,7 +2944,7 @@
     {
       "name": "Returning Weapon",
       "type": "Weapon (Any Simple or Martial with the Thrown Property)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -2961,7 +2961,7 @@
     {
       "name": "Ring of Candor",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -2978,7 +2978,7 @@
     {
       "name": "Ring of Dedicated Focus",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -2995,7 +2995,7 @@
     {
       "name": "Ring of Jumping",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3012,7 +3012,7 @@
     {
       "name": "Ring of Mind Shielding",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3029,7 +3029,7 @@
     {
       "name": "Ring of Swimming",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3046,7 +3046,7 @@
     {
       "name": "Ring of Warmth",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3063,7 +3063,7 @@
     {
       "name": "Ring of Water Walking",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3080,7 +3080,7 @@
     {
       "name": "Robe of Useful Items",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3097,7 +3097,7 @@
     {
       "name": "Rod of the Pact Keeper",
       "type": "Rod",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3114,7 +3114,7 @@
     {
       "name": "Rope of Climbing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3131,7 +3131,7 @@
     {
       "name": "Saddle of the Cavalier",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3148,7 +3148,7 @@
     {
       "name": "Sending Stones",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3165,7 +3165,7 @@
     {
       "name": "Sentinel Shield",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3182,7 +3182,7 @@
     {
       "name": "Shield, +1, +2, or +3",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3199,7 +3199,7 @@
     {
       "name": "Silencing Satchel",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - August 2026",
       "enchanting_materials": [],
@@ -3216,7 +3216,7 @@
     {
       "name": "Slippers of Spider Climbing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3233,7 +3233,7 @@
     {
       "name": "Spell-Refueling Ring",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -3250,7 +3250,7 @@
     {
       "name": "Spell-Slinger's Puppet",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3267,7 +3267,7 @@
     {
       "name": "Spiked Shield",
       "type": "Armor (shield)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Welcome to the Hellfire Club",
       "enchanting_materials": [],
@@ -3284,7 +3284,7 @@
     {
       "name": "Staff of Skulls",
       "type": "Staff",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3301,7 +3301,7 @@
     {
       "name": "Staff of the Adder",
       "type": "Staff",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3318,7 +3318,7 @@
     {
       "name": "Staff of the Python",
       "type": "Staff",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3335,7 +3335,7 @@
     {
       "name": "Stone of Good Luck (Luckstone)",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3352,7 +3352,7 @@
     {
       "name": "Sword of Vengeance",
       "type": "Weapon (Glaive, Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3369,7 +3369,7 @@
     {
       "name": "Sync Ring",
       "type": "Ring",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - August 2026",
       "enchanting_materials": [],
@@ -3386,7 +3386,7 @@
     {
       "name": "Thayan Spell Tattoo",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Forgotten Realms - Heroes of Faerun",
       "enchanting_materials": [],
@@ -3403,7 +3403,7 @@
     {
       "name": "Thespian's Playbill",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3420,7 +3420,7 @@
     {
       "name": "Thief's Thimble",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3437,7 +3437,7 @@
     {
       "name": "Trident of Fish Command",
       "type": "Weapon (Trident)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3454,7 +3454,7 @@
     {
       "name": "Wand of Enthralling",
       "type": "Wand",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -3471,7 +3471,7 @@
     {
       "name": "Wand of Freshness",
       "type": "Wand",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3488,7 +3488,7 @@
     {
       "name": "Wand of Magic Detection",
       "type": "Wand",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3505,7 +3505,7 @@
     {
       "name": "Wand of Magic Missiles",
       "type": "Wand",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3522,7 +3522,7 @@
     {
       "name": "Wand of Secrets",
       "type": "Wand",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3539,7 +3539,7 @@
     {
       "name": "Wand of the War Mage, +1, +2 or +3",
       "type": "Wand",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3556,7 +3556,7 @@
     {
       "name": "Wand of Web",
       "type": "Wand",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3573,7 +3573,7 @@
     {
       "name": "Wave-Swept Weapon",
       "type": "Weapon (Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3590,7 +3590,7 @@
     {
       "name": "Weapon, +1, +2 or +3",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3607,7 +3607,7 @@
     {
       "name": "Weapon of Warning",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3624,7 +3624,7 @@
     {
       "name": "Wind Fan",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3641,7 +3641,7 @@
     {
       "name": "Winged Boots",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "400 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3658,7 +3658,7 @@
     {
       "name": "Wraps of Unarmed Power",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3675,7 +3675,7 @@
     {
       "name": "Amulet of Health",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3692,7 +3692,7 @@
     {
       "name": "Amulet of Retributive Healing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "D&D Beyond Drops - June 2026",
       "enchanting_materials": [],
@@ -3709,7 +3709,7 @@
     {
       "name": "Arcane Chantelaine",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3726,7 +3726,7 @@
     {
       "name": "Arcanist's Bestiary",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3743,7 +3743,7 @@
     {
       "name": "Armor, +1, +2, or +3",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3760,7 +3760,7 @@
     {
       "name": "Armor of Resistance",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3777,7 +3777,7 @@
     {
       "name": "Armor of Vulnerability",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3794,7 +3794,7 @@
     {
       "name": "Arrow-Catching Shield",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3811,7 +3811,7 @@
     {
       "name": "Bag of Beans",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3828,7 +3828,7 @@
     {
       "name": "Bead of Force",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3845,7 +3845,7 @@
     {
       "name": "Bellows of Strangulation",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3862,7 +3862,7 @@
     {
       "name": "Belt of Dwarvenkind",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3879,7 +3879,7 @@
     {
       "name": "Belt of Giant Strength",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3896,7 +3896,7 @@
     {
       "name": "Berserker Axe",
       "type": "Weapon (Battleaxe, Greataxe, or Halberd)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3913,7 +3913,7 @@
     {
       "name": "Blood Amulet",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -3930,7 +3930,7 @@
     {
       "name": "Boots of Levitation",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3947,7 +3947,7 @@
     {
       "name": "Boots of Speed",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3964,7 +3964,7 @@
     {
       "name": "Bowl of Commanding Water Elementals",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3981,7 +3981,7 @@
     {
       "name": "Bracers of Defense",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -3998,7 +3998,7 @@
     {
       "name": "Brazier of Commanding Fire Elementals",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4015,7 +4015,7 @@
     {
       "name": "Brooch of the Elements",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -4032,7 +4032,7 @@
     {
       "name": "Cape of the Mountebank",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4049,7 +4049,7 @@
     {
       "name": "Censer of Controlling Air Elementals",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4066,7 +4066,7 @@
     {
       "name": "Chime of Opening",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4083,7 +4083,7 @@
     {
       "name": "Cloak of Displacement",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4100,7 +4100,7 @@
     {
       "name": "Cloak of the Bat",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4117,7 +4117,7 @@
     {
       "name": "Cube of Force",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4134,7 +4134,7 @@
     {
       "name": "Cube of Summoning",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4151,7 +4151,7 @@
     {
       "name": "Daern's Instant Fortress",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4168,7 +4168,7 @@
     {
       "name": "Dagger of Venom",
       "type": "Weapon (Dagger)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4185,7 +4185,7 @@
     {
       "name": "Dazzling Weapon",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Eberron - Forge of the Artificer",
       "enchanting_materials": [],
@@ -4202,7 +4202,7 @@
     {
       "name": "Dimensional Shackles",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4219,7 +4219,7 @@
     {
       "name": "Dissuader",
       "type": "Staff",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -4236,7 +4236,7 @@
     {
       "name": "Dragon Slayer",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4253,7 +4253,7 @@
     {
       "name": "Dream Weaver",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -4270,7 +4270,7 @@
     {
       "name": "Elixir of Health",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4287,7 +4287,7 @@
     {
       "name": "Elven Chain",
       "type": "Armor (Chain Mail or Chain Shirt)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4304,7 +4304,7 @@
     {
       "name": "Flame Tongue",
       "type": "Weapon (Any Melee Weapon)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4321,7 +4321,7 @@
     {
       "name": "Folding Boat",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4338,7 +4338,7 @@
     {
       "name": "Fork of Eddy Summoning",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -4355,7 +4355,7 @@
     {
       "name": "Gem of Seeing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4372,7 +4372,7 @@
     {
       "name": "Giant Slayer",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4389,7 +4389,7 @@
     {
       "name": "Glamoured Studded Leather",
       "type": "Armor (Studded Leather Armor)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4406,7 +4406,7 @@
     {
       "name": "Goggles of Foe-Finding",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - July 2026",
       "enchanting_materials": [],
@@ -4423,7 +4423,7 @@
     {
       "name": "Helm of Teleportation",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4440,7 +4440,7 @@
     {
       "name": "Heward's Handy Haversack",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4457,7 +4457,7 @@
     {
       "name": "Horn of Blasting",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4474,7 +4474,7 @@
     {
       "name": "Horn of Valhalla",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4491,7 +4491,7 @@
     {
       "name": "Horseshoes of Speed",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4508,7 +4508,7 @@
     {
       "name": "Ioun Stone",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Varies",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4525,7 +4525,7 @@
     {
       "name": "Iron Bands of Bilarro",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4542,7 +4542,7 @@
     {
       "name": "Life-Sapping Blade",
       "type": "Weapon (Any Melee Weapon with the Finesse Property)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -4559,7 +4559,7 @@
     {
       "name": "Mace of Disruption",
       "type": "Weapon (Mace)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4576,7 +4576,7 @@
     {
       "name": "Mace of Smiting",
       "type": "Weapon (Mace)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4593,7 +4593,7 @@
     {
       "name": "Mace of Terror",
       "type": "Weapon (Mace)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4610,7 +4610,7 @@
     {
       "name": "Mage Breaker",
       "type": "Weapon (Dagger)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -4627,7 +4627,7 @@
     {
       "name": "Magen Handbell",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -4644,7 +4644,7 @@
     {
       "name": "Mage's Manacle",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -4661,7 +4661,7 @@
     {
       "name": "Mantle of Spell Resistance",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4678,7 +4678,7 @@
     {
       "name": "Masquerader's Brooch",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -4695,7 +4695,7 @@
     {
       "name": "Mythallar Cloak",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Netheril's Fall",
       "enchanting_materials": [],
@@ -4712,7 +4712,7 @@
     {
       "name": "Namer's Needle",
       "type": "Weapon (Dagger)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -4729,7 +4729,7 @@
     {
       "name": "Necklace of Fireballs",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4746,7 +4746,7 @@
     {
       "name": "Necklace of Prayer Beads",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4763,7 +4763,7 @@
     {
       "name": "Oil of Etherealness",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4780,7 +4780,7 @@
     {
       "name": "Periapt of Proof against Poison",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4797,7 +4797,7 @@
     {
       "name": "Portable Hole",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4814,7 +4814,7 @@
     {
       "name": "Potion of Clairvoyance",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4831,7 +4831,7 @@
     {
       "name": "Potion of Diminution",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4848,7 +4848,7 @@
     {
       "name": "Potion of Gaseous Form",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4865,7 +4865,7 @@
     {
       "name": "Potion of Heroism",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4882,7 +4882,7 @@
     {
       "name": "Potion of Invisibility",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4899,7 +4899,7 @@
     {
       "name": "Potion of Invulnerability",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4916,7 +4916,7 @@
     {
       "name": "Potion of Mind Reading",
       "type": "Potion",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4933,7 +4933,7 @@
     {
       "name": "Prismatic Rune",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -4950,7 +4950,7 @@
     {
       "name": "Ring of Animal Influence",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4967,7 +4967,7 @@
     {
       "name": "Ring of Evasion",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -4984,7 +4984,7 @@
     {
       "name": "Ring of Feather Falling",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5001,7 +5001,7 @@
     {
       "name": "Ring of Free Action",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5018,7 +5018,7 @@
     {
       "name": "Ring of Protection",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5035,7 +5035,7 @@
     {
       "name": "Ring of Resistance",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5052,7 +5052,7 @@
     {
       "name": "Ring of Spell Storing",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5069,7 +5069,7 @@
     {
       "name": "Ring of the Ram",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5086,7 +5086,7 @@
     {
       "name": "Ring of X-ray Vision",
       "type": "Ring",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5103,7 +5103,7 @@
     {
       "name": "Robe of Eyes",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5120,7 +5120,7 @@
     {
       "name": "Rod of Rulership",
       "type": "Rod",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5137,7 +5137,7 @@
     {
       "name": "Rope of Entanglement",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5154,7 +5154,7 @@
     {
       "name": "Salubrious Armor",
       "type": "Armor (Plate Armor or Scale Mail)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "D&D Beyond Drops - June 2026",
       "enchanting_materials": [],
@@ -5171,7 +5171,7 @@
     {
       "name": "Scarlet Spellbook",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -5188,7 +5188,7 @@
     {
       "name": "Scholar's Anchoring Bangle",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -5205,7 +5205,7 @@
     {
       "name": "Scroll of Protection",
       "type": "Scroll",
-      "cost": "",
+      "cost": "2,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5222,7 +5222,7 @@
     {
       "name": "Secret Keeper's Circlet",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -5239,7 +5239,7 @@
     {
       "name": "Shield of Missile Attraction",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5256,7 +5256,7 @@
     {
       "name": "Spell Duelist's Trophy",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -5273,7 +5273,7 @@
     {
       "name": "Staff of Charming",
       "type": "Staff",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5290,7 +5290,7 @@
     {
       "name": "Staff of Healing",
       "type": "Staff",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5307,7 +5307,7 @@
     {
       "name": "Staff of Swarming Insects",
       "type": "Staff",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5324,7 +5324,7 @@
     {
       "name": "Staff of the Woodlands",
       "type": "Staff",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5341,7 +5341,7 @@
     {
       "name": "Staff of Withering",
       "type": "Staff",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5358,7 +5358,7 @@
     {
       "name": "Stone of Controlling Earth Elementals",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5375,7 +5375,7 @@
     {
       "name": "Stormwalker's Cloak",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - July 2026",
       "enchanting_materials": [],
@@ -5392,7 +5392,7 @@
     {
       "name": "Sun Blade",
       "type": "Weapon (Longsword)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5409,7 +5409,7 @@
     {
       "name": "Sword of Life Stealing",
       "type": "Weapon (Glaive, Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5426,7 +5426,7 @@
     {
       "name": "Sword of Wounding",
       "type": "Weapon (Glaive, Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5443,7 +5443,7 @@
     {
       "name": "Tentacle Rod",
       "type": "Rod",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5460,7 +5460,7 @@
     {
       "name": "Thayan Sword",
       "type": "Weapon (Greatsword, Longsword, or Scimitar)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -5477,7 +5477,7 @@
     {
       "name": "Vicious Weapon",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5494,7 +5494,7 @@
     {
       "name": "Wand of Binding",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5511,7 +5511,7 @@
     {
       "name": "Wand of Enemy Detection",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5528,7 +5528,7 @@
     {
       "name": "Wand of Fear",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5545,7 +5545,7 @@
     {
       "name": "Wand of Fireballs",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5562,7 +5562,7 @@
     {
       "name": "Wand of Lightning Bolts",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5579,7 +5579,7 @@
     {
       "name": "Wand of Misdirection",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "DND Beyond Drops - August 2026",
       "enchanting_materials": [],
@@ -5596,7 +5596,7 @@
     {
       "name": "Wand of Paralysis",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5613,7 +5613,7 @@
     {
       "name": "Wand of Slumber",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -5630,7 +5630,7 @@
     {
       "name": "Wand of Teeth",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -5647,7 +5647,7 @@
     {
       "name": "Wand of Wonder",
       "type": "Wand",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5664,7 +5664,7 @@
     {
       "name": "Windskiff",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Forgotten Realms - Heroes of Faerun",
       "enchanting_materials": [],
@@ -5681,7 +5681,7 @@
     {
       "name": "Wings of Flying",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "4,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5698,7 +5698,7 @@
     {
       "name": "Ammunition of Slaying",
       "type": "Weapon (Any Ammunition)",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5715,7 +5715,7 @@
     {
       "name": "Amulet of the Planes",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5732,7 +5732,7 @@
     {
       "name": "Animated Shield",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5749,7 +5749,7 @@
     {
       "name": "Bag of Devouring",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5766,7 +5766,7 @@
     {
       "name": "Candle of Invocation",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5783,7 +5783,7 @@
     {
       "name": "Carpet of Flying",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5800,7 +5800,7 @@
     {
       "name": "Cauldron of Rebirth",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5817,7 +5817,7 @@
     {
       "name": "Cloak of Arachnida",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5834,7 +5834,7 @@
     {
       "name": "Crystal Ball",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5851,7 +5851,7 @@
     {
       "name": "Dancing Sword",
       "type": "Weapon (Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5868,7 +5868,7 @@
     {
       "name": "Demon Armor",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5885,7 +5885,7 @@
     {
       "name": "Dragon Scale Mail",
       "type": "Armor (Scale Mail)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5902,7 +5902,7 @@
     {
       "name": "Dwarven Plate",
       "type": "Armor (Half Plate or Plate Armor)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5919,7 +5919,7 @@
     {
       "name": "Dwarven Thrower",
       "type": "Weapon (Warhammer)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5936,7 +5936,7 @@
     {
       "name": "Efreeti Bottle",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5953,7 +5953,7 @@
     {
       "name": "Energy Bow",
       "type": "Weapon (Longbow or Shortbow)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5970,7 +5970,7 @@
     {
       "name": "Executioner's Axe",
       "type": "Weapon (Battleaxe, Greataxe, Halberd, or Handaxe)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -5987,7 +5987,7 @@
     {
       "name": "Frost Brand",
       "type": "Weapon (Glaive, Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6004,7 +6004,7 @@
     {
       "name": "Hat of Many Spells",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6021,7 +6021,7 @@
     {
       "name": "Helm of Brilliance",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6038,7 +6038,7 @@
     {
       "name": "Horseshoes of a Zephyr",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6055,7 +6055,7 @@
     {
       "name": "Lute of Thunderous Thumping",
       "type": "Weapon (Club)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6072,7 +6072,7 @@
     {
       "name": "Manual of Bodily Health",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6089,7 +6089,7 @@
     {
       "name": "Manual of Gainful Exercise",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6106,7 +6106,7 @@
     {
       "name": "Manual of Golems",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6123,7 +6123,7 @@
     {
       "name": "Manual of Quickness of Action",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6140,7 +6140,7 @@
     {
       "name": "Mirror of Life Trapping",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6157,7 +6157,7 @@
     {
       "name": "Niko's Mace",
       "type": "Weapon (Mace)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Uni and the Hunt for the Lost Horn",
       "enchanting_materials": [],
@@ -6174,7 +6174,7 @@
     {
       "name": "Nine Lives Stealer",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6191,7 +6191,7 @@
     {
       "name": "Nolzur's Marvelous Pigments",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6208,7 +6208,7 @@
     {
       "name": "Oathbow",
       "type": "Weapon (Longbow or Shortbow)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6225,7 +6225,7 @@
     {
       "name": "Oil of Sharpness",
       "type": "Potion",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6242,7 +6242,7 @@
     {
       "name": "Potion of Flying",
       "type": "Potion",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6259,7 +6259,7 @@
     {
       "name": "Potion of Greater Invisibility",
       "type": "Potion",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6276,7 +6276,7 @@
     {
       "name": "Potion of Longevity",
       "type": "Potion",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6293,7 +6293,7 @@
     {
       "name": "Potion of Speed",
       "type": "Potion",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6310,7 +6310,7 @@
     {
       "name": "Potion of Vitality",
       "type": "Potion",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6327,7 +6327,7 @@
     {
       "name": "Quarterstaff of the Acrobat",
       "type": "Weapon (Quarterstaff)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6344,7 +6344,7 @@
     {
       "name": "Ring of Regeneration",
       "type": "Ring",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6361,7 +6361,7 @@
     {
       "name": "Ring of Shooting Stars",
       "type": "Ring",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6378,7 +6378,7 @@
     {
       "name": "Ring of Telekinesis",
       "type": "Ring",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6395,7 +6395,7 @@
     {
       "name": "Robe of Scintillating Colors",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6412,7 +6412,7 @@
     {
       "name": "Robe of Stars",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6429,7 +6429,7 @@
     {
       "name": "Robe of Thayan Arcana",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -6446,7 +6446,7 @@
     {
       "name": "Rod of Absorption",
       "type": "Rod",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6463,7 +6463,7 @@
     {
       "name": "Rod of Alertness",
       "type": "Rod",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6480,7 +6480,7 @@
     {
       "name": "Rod of Security",
       "type": "Rod",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6497,7 +6497,7 @@
     {
       "name": "Scimitar of Speed",
       "type": "Weapon (Scimitar)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6514,7 +6514,7 @@
     {
       "name": "Shield of the Cavalier",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6531,7 +6531,7 @@
     {
       "name": "Spell-Fuelling Armor",
       "type": "Armor (Any Light, Medium, or Heavy)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -6548,7 +6548,7 @@
     {
       "name": "Spellguard Shield",
       "type": "Armor (Shield)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6565,7 +6565,7 @@
     {
       "name": "Spirit Board",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6582,7 +6582,7 @@
     {
       "name": "Staff of Fire",
       "type": "Staff",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6599,7 +6599,7 @@
     {
       "name": "Staff of Frost",
       "type": "Staff",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6616,7 +6616,7 @@
     {
       "name": "Staff of Power",
       "type": "Staff",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6633,7 +6633,7 @@
     {
       "name": "Staff of Striking",
       "type": "Staff",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6650,7 +6650,7 @@
     {
       "name": "Staff of the Lost",
       "type": "Staff",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -6667,7 +6667,7 @@
     {
       "name": "Staff of Thunder and Lightning",
       "type": "Staff",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6684,7 +6684,7 @@
     {
       "name": "Sword of Sharpness",
       "type": "Weapon (Glaive, Greatsword, Longsword, or Scimitar)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6701,7 +6701,7 @@
     {
       "name": "Thunderous Greatclub",
       "type": "Weapon (Greatclub)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6718,7 +6718,7 @@
     {
       "name": "Tome of Clear Thought",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6735,7 +6735,7 @@
     {
       "name": "Tome of Leadership and Influence",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6752,7 +6752,7 @@
     {
       "name": "Tome of Understanding",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "20,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6769,7 +6769,7 @@
     {
       "name": "Tramontane Armor",
       "type": "Armor (Any Light or Medium)",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -6786,7 +6786,7 @@
     {
       "name": "Wand of Polymorph",
       "type": "Wand",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6803,7 +6803,7 @@
     {
       "name": "Workshop Wrecker",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "40,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -6820,7 +6820,7 @@
     {
       "name": "Apparatus of Kwalish",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6837,7 +6837,7 @@
     {
       "name": "Armor of Invulnerability",
       "type": "Armor (Plate Armor)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6854,7 +6854,7 @@
     {
       "name": "Cloak of Invisibility",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6871,7 +6871,7 @@
     {
       "name": "Crystal Ball of Mind Reading",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6888,7 +6888,7 @@
     {
       "name": "Crystal Ball of Ominous Portent",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -6905,7 +6905,7 @@
     {
       "name": "Crystal Ball of Telepathy",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6922,7 +6922,7 @@
     {
       "name": "Crystal Ball of True Seeing",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6939,7 +6939,7 @@
     {
       "name": "Cubic Gate",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6956,7 +6956,7 @@
     {
       "name": "Deck of Many Things",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6973,7 +6973,7 @@
     {
       "name": "Defender",
       "type": "Weapon (Any Melee Weapon)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -6990,7 +6990,7 @@
     {
       "name": "Diamond Staff",
       "type": "Staff",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -7007,7 +7007,7 @@
     {
       "name": "Efreeti Chain",
       "type": "Armor (Chain Mail or Chain Shirt)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7024,7 +7024,7 @@
     {
       "name": "Grave Reaper",
       "type": "Weapon (Sickle)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -7041,7 +7041,7 @@
     {
       "name": "Hammer of Thunderbolts",
       "type": "Weapon (Maul or Warhammer)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7058,7 +7058,7 @@
     {
       "name": "Holy Avenger",
       "type": "Weapon (Any Simple or Martial)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7075,7 +7075,7 @@
     {
       "name": "Iron Flask",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7092,7 +7092,7 @@
     {
       "name": "Luck Blade",
       "type": "Weapon (Glaive, Greatsword, Longsword, Rapier, Scimitar, Sickle, or Shortsword)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7109,7 +7109,7 @@
     {
       "name": "Moonblade",
       "type": "Weapon (Greatsword, Longsword, Rapier, Scimitar, or Shortsword)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7126,7 +7126,7 @@
     {
       "name": "Plate Armor of Etherealness",
       "type": "Armor (Half Plate Armor or Plate Armor)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7143,7 +7143,7 @@
     {
       "name": "Ring of Djinni Summoning",
       "type": "Ring",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7160,7 +7160,7 @@
     {
       "name": "Ring of Elemental Command",
       "type": "Ring",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7177,7 +7177,7 @@
     {
       "name": "Ring of Invisibility",
       "type": "Ring",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7194,7 +7194,7 @@
     {
       "name": "Ring of Spell Turning",
       "type": "Ring",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7211,7 +7211,7 @@
     {
       "name": "Ring of Three Wishes",
       "type": "Ring",
-      "cost": "",
+      "cost": "100,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7228,7 +7228,7 @@
     {
       "name": "Robe of the Archmagi",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7245,7 +7245,7 @@
     {
       "name": "Rod of Lordly Might",
       "type": "Rod",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7262,7 +7262,7 @@
     {
       "name": "Rod of Resurrection",
       "type": "Rod",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7279,7 +7279,7 @@
     {
       "name": "Scarab of Protection",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7296,7 +7296,7 @@
     {
       "name": "Scroll of Titan Summoning",
       "type": "Scroll",
-      "cost": "",
+      "cost": "100,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7313,7 +7313,7 @@
     {
       "name": "Sovereign Glue",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7330,7 +7330,7 @@
     {
       "name": "Sphere of Annihilation",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7347,7 +7347,7 @@
     {
       "name": "Staff of the Magi",
       "type": "Staff",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7364,7 +7364,7 @@
     {
       "name": "Staff of the Spirit Aegis",
       "type": "Staff",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -7381,7 +7381,7 @@
     {
       "name": "Sword of Answering",
       "type": "Weapon (Longsword)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7398,7 +7398,7 @@
     {
       "name": "Talisman of Pure Good",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7415,7 +7415,7 @@
     {
       "name": "Talisman of the Sphere",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7432,7 +7432,7 @@
     {
       "name": "Talisman of Ultimate Evil",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7449,7 +7449,7 @@
     {
       "name": "Tome of the Dragon",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Forgotten Realms - Adventures in Faerun",
       "enchanting_materials": [],
@@ -7466,7 +7466,7 @@
     {
       "name": "Tome of the Stilled Tongue",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7483,7 +7483,7 @@
     {
       "name": "Traveler's Pearl",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -7500,7 +7500,7 @@
     {
       "name": "Universal Solvent",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "100,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7517,7 +7517,7 @@
     {
       "name": "Vorpal Sword",
       "type": "Weapon (Glaive, Greatsword, Longsword, or Scimitar)",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7534,7 +7534,7 @@
     {
       "name": "Well of Many Worlds",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "200,000 GP",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7551,7 +7551,7 @@
     {
       "name": "Axe of the Dwarvish Lords",
       "type": "Weapon (Battleaxe)",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7568,7 +7568,7 @@
     {
       "name": "Blackrazor",
       "type": "Weapon (Greatsword)",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7585,7 +7585,7 @@
     {
       "name": "Book of Exalted Deeds",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7602,7 +7602,7 @@
     {
       "name": "Book of Vile Darkness",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7619,7 +7619,7 @@
     {
       "name": "Calimemnon Crystal",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Forgotten Realms - Adventures in Faerun",
       "enchanting_materials": [],
@@ -7636,7 +7636,7 @@
     {
       "name": "Crown of Horns",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Forgotten Realms - Adventures in Faerun",
       "enchanting_materials": [],
@@ -7653,7 +7653,7 @@
     {
       "name": "Demonomicon of Iggwilv",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7670,7 +7670,7 @@
     {
       "name": "Ebonbane",
       "type": "Weapon (Longsword)",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Ravenloft - The Horrors Within",
       "enchanting_materials": [],
@@ -7687,7 +7687,7 @@
     {
       "name": "Eye and Hand of Vecna",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7704,7 +7704,7 @@
     {
       "name": "Orb of Damara",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Forgotten Realms - Adventures in Faerun",
       "enchanting_materials": [],
@@ -7721,7 +7721,7 @@
     {
       "name": "Orb of Dragonkind",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7738,7 +7738,7 @@
     {
       "name": "Queen Ehlissa's Marvelous Nightingale",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -7755,7 +7755,7 @@
     {
       "name": "Spirit-Binding Censer",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Arcana Unleashed - Deadfall",
       "enchanting_materials": [],
@@ -7772,7 +7772,7 @@
     {
       "name": "Sword of Kas",
       "type": "Weapon (Longsword)",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7789,7 +7789,7 @@
     {
       "name": "Universal Pantograph",
       "type": "Wondrous Item",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Arcana Unleashed",
       "enchanting_materials": [],
@@ -7806,7 +7806,7 @@
     {
       "name": "Wand of Orcus",
       "type": "Wand",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7823,7 +7823,7 @@
     {
       "name": "Wave",
       "type": "Weapon (Trident)",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],
@@ -7840,7 +7840,7 @@
     {
       "name": "Whelm",
       "type": "Weapon (Warhammer)",
-      "cost": "",
+      "cost": "Priceless",
       "weight": 0.0,
       "source": "Dungeon Master's Guide",
       "enchanting_materials": [],

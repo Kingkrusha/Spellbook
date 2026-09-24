@@ -211,6 +211,7 @@ class MainWindow(ctk.CTkFrame):
                     from ui.equipment_view import EquipmentView
                     self.equipment_view = EquipmentView(
                         self,
+                        character_manager=self.character_manager,
                         on_back=self._back_to_collections
                     )
             except Exception as e:
@@ -223,6 +224,7 @@ class MainWindow(ctk.CTkFrame):
                     from ui.magic_item_view import MagicItemView
                     self.magic_items_view = MagicItemView(
                         self,
+                        character_manager=self.character_manager,
                         on_back=self._back_to_collections
                     )
             except Exception as e:
@@ -721,6 +723,7 @@ class MainWindow(ctk.CTkFrame):
         if not hasattr(self, 'equipment_view'):
             self.equipment_view = EquipmentView(
                 self,
+                character_manager=self.character_manager,
                 on_back=self._back_to_collections
             )
 
@@ -733,6 +736,7 @@ class MainWindow(ctk.CTkFrame):
         if not hasattr(self, 'magic_items_view'):
             self.magic_items_view = MagicItemView(
                 self,
+                character_manager=self.character_manager,
                 on_back=self._back_to_collections
             )
 

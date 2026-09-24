@@ -17,7 +17,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 24  # Add mounts/vehicles/poisons and the Very Rare, Legendary and Artifact magic items
+    SCHEMA_VERSION = 25  # Backfill magic item costs from the bundled magic_items.json
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -440,6 +440,15 @@ class SpellDatabase:
                 cursor.execute("UPDATE schema_version SET version = 24")
                 current_version = 24
 
+        # Migration to version 25: backfill magic item cost onto existing
+        # installs (magic_items.json shipped with every cost blank until now).
+        # Only official rows whose cost is still empty are touched, so a
+        # user-edited or custom item's cost is never overwritten.
+        if current_version < 25:
+            self._backfill_magic_item_costs(cursor)
+            cursor.execute("UPDATE schema_version SET version = 25")
+            current_version = 25
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -665,6 +674,31 @@ class SpellDatabase:
                     (tool, item.get('name', '')))
         except Exception as e:
             print(f"Error backfilling equipment crafting tools: {e}")
+
+    def _backfill_magic_item_costs(self, cursor):
+        """Copy cost from the bundled magic_items.json onto existing rows.
+
+        Only official rows whose cost is still empty are touched, so anything
+        the user has typed in (or a custom item) is left alone.
+        """
+        import os
+
+        path = self._bundled_json_path('magic_items.json')
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for item in data.get('magic_items', []):
+                cost = (item.get('cost') or '').strip()
+                if not cost:
+                    continue
+                cursor.execute(
+                    "UPDATE magic_items SET cost = ? "
+                    "WHERE name = ? AND is_custom = 0 AND COALESCE(cost, '') = ''",
+                    (cost, item.get('name', '')))
+        except Exception as e:
+            print(f"Error backfilling magic item costs: {e}")
 
     def _fix_mangled_harkons_bite(self, cursor):
         """Rename the bundled magic item that was imported as "The Horrors Within".

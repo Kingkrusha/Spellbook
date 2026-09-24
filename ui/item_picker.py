@@ -15,6 +15,13 @@ import customtkinter as ctk
 from theme import get_theme_manager
 
 _DEBOUNCE_MS = 150
+# Building a real widget (a button plus its overlay frame/labels) per row gets
+# noticeably slow past a few dozen rows - the magic items collection alone is
+# 400+ entries, which took several seconds to render and made the dialog look
+# like it had frozen before the search box ever got a chance to paint. Cap how
+# many rows get built at once; searching narrows the underlying list instead
+# of paging through this cap, so it stays useful even on a big collection.
+_MAX_RENDERED_ROWS = 60
 
 
 class ItemPickerDialog(ctk.CTkToplevel):
@@ -108,8 +115,18 @@ class ItemPickerDialog(ctk.CTkToplevel):
             ).pack(pady=30)
             return
 
-        for item in sorted(items, key=lambda i: i.name.lower()):
+        ordered = sorted(items, key=lambda i: i.name.lower())
+        shown = ordered[:_MAX_RENDERED_ROWS]
+        for item in shown:
             self._create_row(item)
+
+        if len(ordered) > len(shown):
+            ctk.CTkLabel(
+                self.list_frame,
+                text=f"Showing {len(shown)} of {len(ordered)} - type to narrow the search.",
+                font=ctk.CTkFont(size=11),
+                text_color=self.theme.get_text_secondary(),
+            ).pack(pady=(6, 4))
 
     def _create_row(self, item):
         theme = self.theme
@@ -141,6 +158,61 @@ class ItemPickerDialog(ctk.CTkToplevel):
 
     def _on_cancel(self):
         self.result = None
+        self.destroy()
+
+
+class PickCharacterDialog(ctk.CTkToplevel):
+    """Small modal that just asks "which character?" - used by the Equipment
+    and Magic Items collection pages' "Add to Character" right-click action.
+    ``self.result`` is the chosen character's name, or ``None`` if cancelled.
+    """
+
+    def __init__(self, parent, prompt: str, characters: List):
+        super().__init__(parent)
+        self.theme = get_theme_manager()
+        self.result: Optional[str] = None
+
+        self.title("Add to Character")
+        self.geometry("350x200")
+        self.transient(parent)
+        self.grab_set()
+
+        content = ctk.CTkFrame(self, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(
+            content, text=prompt, font=ctk.CTkFont(size=14, weight="bold"),
+            wraplength=300, justify="left"
+        ).pack(anchor="w", pady=(0, 15))
+
+        character_names = [c.name for c in characters]
+        self.char_var = ctk.StringVar(value=character_names[0] if character_names else "")
+        self.char_combo = ctk.CTkComboBox(
+            content, width=280, height=35,
+            values=character_names, variable=self.char_var, state="readonly"
+        )
+        self.char_combo.pack(fill="x", pady=(0, 20))
+
+        btn_frame = ctk.CTkFrame(content, fg_color="transparent")
+        btn_frame.pack(fill="x")
+        ctk.CTkButton(
+            btn_frame, text="Cancel", width=100,
+            fg_color="transparent", border_width=1,
+            command=self.destroy
+        ).pack(side="right", padx=(5, 0))
+        ctk.CTkButton(
+            btn_frame, text="Add", width=100,
+            fg_color=self.theme.get_current_color('accent_primary'),
+            command=self._on_add
+        ).pack(side="right")
+
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+    def _on_add(self):
+        self.result = self.char_var.get()
         self.destroy()
 
 

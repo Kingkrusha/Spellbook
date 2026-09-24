@@ -20,6 +20,7 @@ from ui.tag_editor import TagEditor
 from ui.properties_editor import PropertiesEditor
 from ui.tooltip import HoverTooltip
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
+from ui.platform_compat import bind_right_click, unbind_right_click
 
 
 class EquipmentListPanel(ctk.CTkFrame):
@@ -28,10 +29,12 @@ class EquipmentListPanel(ctk.CTkFrame):
     BATCH_SIZE = 15
     BATCH_DELAY_MS = 5
 
-    def __init__(self, parent, on_select: Callable[[Optional[Equipment]], None]):
+    def __init__(self, parent, on_select: Callable[[Optional[Equipment]], None],
+                 on_right_click: Optional[Callable[[Equipment, int, int], None]] = None):
         super().__init__(parent, corner_radius=10)
 
         self.on_select = on_select
+        self.on_right_click = on_right_click
         self._items: List[Equipment] = []
         self._selected_index: Optional[int] = None
         self._item_buttons: List[ctk.CTkButton] = []
@@ -78,7 +81,17 @@ class EquipmentListPanel(ctk.CTkFrame):
             command=lambda i=index: self._on_item_click(i)
         )
         btn.pack(fill="x", pady=2)
+
+        if self.on_right_click:
+            bind_right_click(btn, lambda e, i=index: self._on_item_right_click(e, i))
+            for child in btn.winfo_children():
+                bind_right_click(child, lambda e, i=index: self._on_item_right_click(e, i))
+
         return btn
+
+    def _on_item_right_click(self, event, index: int):
+        if self.on_right_click and 0 <= index < len(self._items):
+            self.on_right_click(self._items[index], event.x_root, event.y_root)
 
     def _on_item_click(self, index: int):
         old_index = self._selected_index
@@ -102,6 +115,13 @@ class EquipmentListPanel(ctk.CTkFrame):
                       else self.theme.get_current_color('accent_primary')),
             command=lambda i=index: self._on_item_click(i)
         )
+
+        if self.on_right_click:
+            unbind_right_click(btn)
+            bind_right_click(btn, lambda e, i=index: self._on_item_right_click(e, i))
+            for child in btn.winfo_children():
+                unbind_right_click(child)
+                bind_right_click(child, lambda e, i=index: self._on_item_right_click(e, i))
 
     def _cancel_pending_load(self):
         if self._pending_after_id is not None:
@@ -641,14 +661,16 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
 class EquipmentView(ctk.CTkFrame):
     """Main view for browsing and managing equipment."""
 
-    def __init__(self, parent, on_back=None):
+    def __init__(self, parent, character_manager=None, on_back=None):
         self.theme = get_theme_manager()
         super().__init__(parent, fg_color=self.theme.get_current_color('bg_primary'))
 
         self.equipment_manager = get_equipment_manager()
         self.settings_manager = get_settings_manager()
+        self.character_manager = character_manager
         self.on_back = on_back
         self._all_items: List[Equipment] = []
+        self._context_item: Optional[Equipment] = None
         self._filter_debounce_id: Optional[str] = None
         self._filter_debounce_delay = 150
 
@@ -661,13 +683,84 @@ class EquipmentView(ctk.CTkFrame):
         self._material_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
 
         self._create_widgets()
+        self._create_context_menu()
         self._load_items()
         self.theme.add_listener(self._on_theme_changed)
 
+    def set_character_manager(self, character_manager):
+        """Set the character manager for the "Add to Character" context menu action."""
+        self.character_manager = character_manager
+
     def _on_theme_changed(self):
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+        self._update_context_menu_colors()
         if hasattr(self, 'paned'):
             self._update_paned_colors()
+
+    def _update_context_menu_colors(self):
+        if not hasattr(self, 'context_menu'):
+            return
+        bg_color = self.theme.get_current_color('bg_secondary')
+        fg_color = self.theme.get_current_color('text_primary')
+        self.context_menu.configure(
+            bg=bg_color, fg=fg_color,
+            activebackground=self.theme.get_current_color('accent_primary'),
+            activeforeground=fg_color
+        )
+
+    def _create_context_menu(self):
+        """Create the right-click context menu for equipment."""
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self._update_context_menu_colors()
+        self.context_menu.add_command(
+            label="Add to Character",
+            command=self._context_add_to_character
+        )
+
+    def _on_item_right_click(self, item: Equipment, x: int, y: int):
+        """Handle right-click on an equipment item - show context menu."""
+        self._context_item = item
+        try:
+            self.context_menu.tk_popup(x, y)
+        finally:
+            self.context_menu.grab_release()
+
+    def _context_add_to_character(self):
+        """Context menu: add this equipment item to a character's inventory."""
+        if not self._context_item:
+            return
+        if not self.character_manager:
+            messagebox.showwarning("No Characters", "No character manager available.")
+            return
+
+        characters = self.character_manager.characters
+        if not characters:
+            messagebox.showwarning("No Characters", "No characters available. Create a character first.")
+            return
+
+        from ui.item_picker import PickCharacterDialog
+        dialog = PickCharacterDialog(
+            self.winfo_toplevel(), f"Add '{self._context_item.name}' to:", characters
+        )
+        self.wait_window(dialog)
+        if not dialog.result:
+            return
+
+        from ui.character_sheet_view import get_sheet_manager
+        character = self.character_manager.get_character(dialog.result)
+        if not character:
+            return
+        sheet_manager = get_sheet_manager()
+        sheet = sheet_manager.get_or_create_sheet(character.name, character)
+        sheet.equipment_items.append({
+            "name": self._context_item.name,
+            "quantity": 1,
+            "weight": self._context_item.weight,
+        })
+        sheet_manager.update_sheet(character.name, sheet)
+        messagebox.showinfo(
+            "Added", f"Added '{self._context_item.name}' to {character.name}'s inventory."
+        )
 
     def _create_widgets(self):
         self._create_filter_bar()
@@ -682,7 +775,9 @@ class EquipmentView(ctk.CTkFrame):
         self.paned.pack(fill="both", expand=True)
         self._update_paned_colors()
 
-        self.list_panel = EquipmentListPanel(self.paned, on_select=self._on_item_selected)
+        self.list_panel = EquipmentListPanel(
+            self.paned, on_select=self._on_item_selected, on_right_click=self._on_item_right_click
+        )
         self.detail_panel = EquipmentDetailPanel(self.paned)
 
         self.paned.add(self.list_panel, minsize=280, stretch="always")
