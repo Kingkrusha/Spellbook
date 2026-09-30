@@ -4,6 +4,8 @@ Displays a searchable/filterable list of feats with details panel.
 """
 
 import customtkinter as ctk
+from typography import ui_font
+from ui.label_text import LabeledLabel
 import tkinter as tk
 from tkinter import messagebox
 from typing import List, Optional, Callable
@@ -12,9 +14,10 @@ from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.platform_compat import bind_right_click, unbind_right_click
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.list_batching import BatchedListMixin
 
 
-class FeatListPanel(ctk.CTkFrame):
+class FeatListPanel(BatchedListMixin, ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting feats."""
     
     # Batch size for progressive loading - smaller batches = smoother UI
@@ -49,11 +52,11 @@ class FeatListPanel(ctk.CTkFrame):
         header_frame.pack(fill="x", padx=15, pady=(15, 10))
         
         ctk.CTkLabel(header_frame, text="Feats", 
-                     font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+                     font=ui_font("heading", bold=True)).pack(side="left")
         
         text_secondary = self.theme.get_text_secondary()
         self.count_label = ctk.CTkLabel(header_frame, text="0 feats",
-                                         font=ctk.CTkFont(size=12),
+                                         font=ui_font("body"),
                                          text_color=text_secondary)
         self.count_label.pack(side="right")
         
@@ -89,7 +92,7 @@ class FeatListPanel(ctk.CTkFrame):
                       else self.theme.get_current_color('accent_primary')),
             hover_color=self.theme.get_current_color('button_hover'),
             text_color=self.theme.get_current_color('text_primary'),
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             command=lambda i=index: self._on_feat_click(i)
         )
         btn.pack(fill="x", pady=2)
@@ -217,7 +220,7 @@ class FeatListPanel(ctk.CTkFrame):
         
         current_button_count = len(self._feat_buttons)
         new_feat_count = len(self._feats)
-        end_index = min(start_index + self.BATCH_SIZE, new_feat_count)
+        end_index = min(start_index + self._batch_size(), new_feat_count)
         
         # Process this batch
         for i in range(start_index, end_index):
@@ -241,7 +244,7 @@ class FeatListPanel(ctk.CTkFrame):
             self._pending_after_id = None
         else:
             # Schedule next batch
-            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_feats_batch(end_index))
+            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_feats_batch(end_index))
     
     def _refresh_buttons(self):
         """Refresh button colors after theme change."""
@@ -295,7 +298,7 @@ class FeatDetailPanel(ctk.CTkFrame):
         # Feat name
         self.name_label = ctk.CTkLabel(
             self.scroll_frame, text="Select a feat",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ui_font("title", bold=True),
             wraplength=400
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
@@ -306,16 +309,16 @@ class FeatDetailPanel(ctk.CTkFrame):
         
         self.type_badge = ctk.CTkLabel(
             self.type_frame, text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             fg_color=self.theme.get_current_color('accent_primary'),
             corner_radius=5,
             padx=8, pady=2
         )
         
         # Source info
-        self.source_label = ctk.CTkLabel(
+        self.source_label = LabeledLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(anchor="w", pady=(0, 10))
@@ -324,9 +327,9 @@ class FeatDetailPanel(ctk.CTkFrame):
         self.prereq_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.prereq_frame.pack(fill="x", pady=(0, 10))
         
-        self.prereq_label = ctk.CTkLabel(
+        self.prereq_label = LabeledLabel(
             self.prereq_frame, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('button_danger'),
             wraplength=400,
             justify="left"
@@ -339,9 +342,9 @@ class FeatDetailPanel(ctk.CTkFrame):
             corner_radius=8
         )
         
-        self.spell_info_label = ctk.CTkLabel(
+        self.spell_info_label = LabeledLabel(
             self.spell_frame, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             wraplength=380,
             justify="left"
         )
@@ -641,7 +644,7 @@ class FeatsView(ctk.CTkFrame):
         self.source_btn.pack(side="left", padx=(0, 8))
         self.source_label = ctk.CTkLabel(
             filter_bar2, text="None selected",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+            font=ui_font("small"), text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(side="left", padx=(0, 20))
 
@@ -720,7 +723,7 @@ class FeatsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header, text="Compare Feat",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(side="left")
         
         close_btn = ctk.CTkButton(
@@ -1117,14 +1120,14 @@ class FeatEditorDialog(ctk.CTkToplevel):
         self.feat_manager = get_feat_manager()
         
         # Name
-        ctk.CTkLabel(scroll, text="Name:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(scroll, text="Name:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.name_entry = ctk.CTkEntry(scroll, width=400)
         self.name_entry.pack(fill="x", pady=(0, 10))
         
         # Type (editable combobox for custom types)
-        ctk.CTkLabel(scroll, text="Type:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(scroll, text="Type:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         ctk.CTkLabel(scroll, text="Select or type a custom type (blank = General)",
-                     font=ctk.CTkFont(size=11), text_color="gray").pack(anchor="w")
+                     font=ui_font("small"), text_color="gray").pack(anchor="w")
         # Get all types from feat manager (auto-populated)
         all_types = self.feat_manager.get_all_types()
         type_options = [t if t else "General" for t in all_types]
@@ -1136,7 +1139,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         self.type_combo.pack(anchor="w", pady=(0, 10))
         
         # Source
-        ctk.CTkLabel(scroll, text="Source:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(scroll, text="Source:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.source_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="e.g., Homebrew, Custom Campaign")
         self.source_entry.pack(fill="x", pady=(0, 10))
         
@@ -1181,7 +1184,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         self.set_spells_entry.pack(fill="x", pady=(0, 10))
         
         # Description with rich text toolbar
-        ctk.CTkLabel(scroll, text="Description:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(10, 0))
+        ctk.CTkLabel(scroll, text="Description:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w", pady=(10, 0))
         
         self.desc_text = ctk.CTkTextbox(scroll, height=200)
         self._rich_editor = RichTextEditor(self, self.desc_text, self.theme)
@@ -1270,7 +1273,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         if self._batch_progress:
             heading = f"{heading}   ({self._batch_progress})"
         ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ui_font("subheading", 13, bold=True),
                      text_color=warn, anchor="w",
                      justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
 
@@ -1280,7 +1283,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
             msg = f"Fields to double-check (outlined below): {names}"
         else:
             msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
                      text_color=self.theme.get_text_secondary(), anchor="w",
                      justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
 
@@ -1290,7 +1293,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
                   "irregularly formatted text, and feats vary a lot. Spellcasting "
                   "fields especially are a best guess. Nothing is saved until you "
                   "click Save."),
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary(),
+            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
             anchor="w", justify="left", wraplength=520,
         ).pack(fill="x", padx=12, pady=(0, 8))
 
@@ -1397,7 +1400,7 @@ class AddFeatToCharacterDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             content, 
             text=f"Add '{feat_name}' to:",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(anchor="w", pady=(0, 15))
         
         # Character dropdown

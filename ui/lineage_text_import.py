@@ -13,6 +13,7 @@ No LLM / network use - parsing is entirely rule-based (see ``text_import``).
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox
 from typing import List, Optional
 
@@ -42,14 +43,14 @@ class AddLineageSourceDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             container, text="How would you like to add this lineage?",
-            font=ctk.CTkFont(size=15, weight="bold"),
+            font=ui_font("subheading", 15, bold=True),
         ).pack(fill="x", pady=(0, 4))
 
         ctk.CTkLabel(
             container,
             text="You can fill in every field yourself, or paste a block of lineage "
                  "text and let Spellbook fill in what it can for you to review.",
-            font=ctk.CTkFont(size=11), text_color=theme.get_text_secondary(),
+            font=ui_font("small"), text_color=theme.get_text_secondary(),
             justify="left", wraplength=380,
         ).pack(fill="x", pady=(0, 16))
 
@@ -132,7 +133,7 @@ class LineageTextImportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             container, text="Paste lineage text below",
-            font=ctk.CTkFont(size=15, weight="bold"), anchor="w",
+            font=ui_font("subheading", 15, bold=True), anchor="w",
         ).pack(fill="x")
 
         ctk.CTkLabel(
@@ -141,7 +142,7 @@ class LineageTextImportDialog(ctk.CTkToplevel):
                  "separators needed. Spellbook looks for a name followed by "
                  "creature type / size / speed to tell them apart, and splits "
                  "traits from run-in headings like \"Darkvision. You have...\".",
-            font=ctk.CTkFont(size=11), text_color=theme.get_text_secondary(),
+            font=ui_font("small"), text_color=theme.get_text_secondary(),
             justify="left", wraplength=580, anchor="w",
         ).pack(fill="x", pady=(2, 8))
 
@@ -160,19 +161,19 @@ class LineageTextImportDialog(ctk.CTkToplevel):
                  "the base description is a best guess. Every detected lineage "
                  "opens in the editor for you to review and correct before it is "
                  "saved.",
-            font=ctk.CTkFont(size=11, weight="bold"), text_color=warn,
+            font=ui_font("small", bold=True), text_color=warn,
             justify="left", wraplength=580, anchor="w",
         ).pack(fill="x", padx=12, pady=8)
 
         self._text = ctk.CTkTextbox(container, corner_radius=8,
-                                    font=ctk.CTkFont(size=12))
+                                    font=ui_font("body"))
         self._text.pack(fill="both", expand=True, pady=(0, 8))
         self._text.insert("1.0", _PLACEHOLDER)
         self._placeholder_active = True
         self._text.bind("<FocusIn>", self._clear_placeholder)
 
         self._status = ctk.CTkLabel(
-            container, text="", font=ctk.CTkFont(size=12),
+            container, text="", font=ui_font("body"),
             text_color=theme.get_text_secondary(), anchor="w",
         )
         self._status.pack(fill="x", pady=(0, 8))

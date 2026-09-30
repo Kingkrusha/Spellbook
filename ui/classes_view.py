@@ -5,6 +5,7 @@ Displays class information with feature tables like the PHB 2024.
 
 import re
 import customtkinter as ctk
+from typography import ui_font
 from typing import Optional, Callable, List
 from theme import get_theme_manager
 from character_class import (
@@ -90,7 +91,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Header
         ctk.CTkLabel(
             sidebar, text="Classes",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(padx=15, pady=10, anchor="w")
         
         # Add Class button
@@ -134,7 +135,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         self.source_btn.pack(fill="x", pady=(0, 2))
         self.source_label = ctk.CTkLabel(
             self.filters_frame, text="Sources: None selected",
-            font=ctk.CTkFont(size=10), text_color=self.theme.get_text_secondary(),
+            font=ui_font("small", 10), text_color=self.theme.get_text_secondary(),
             anchor="w", justify="left", wraplength=190
         )
         self.source_label.pack(fill="x", pady=(0, 8))
@@ -488,20 +489,20 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header_frame, text=class_def.name,
-            font=ctk.CTkFont(size=28, weight="bold"),
+            font=ui_font("title", 28, bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(side="left")
         
         ctk.CTkLabel(
             header_frame, text="Class Details",
-            font=ctk.CTkFont(size=16),
+            font=ui_font("heading", 16),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(side="left", padx=15)
         
         if class_def.source:
             ctk.CTkLabel(
                 header_frame, text=f"Source: {class_def.source}",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
         
@@ -509,7 +510,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         self._loading_label = ctk.CTkLabel(
             self.content,
             text="Loading class details...",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         )
         self._loading_label.pack(pady=20)
@@ -544,7 +545,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             table_header, text=f"{class_def.name} Features",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(side="left")
         
         # Create the feature table
@@ -587,7 +588,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         header.pack(fill="x")
         ctk.CTkLabel(
             header, text=f"Core {class_def.name} Traits",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color="white"
         ).pack(anchor="w", padx=10, pady=6)
         
@@ -614,7 +615,8 @@ class ClassesCollectionView(ctk.CTkFrame):
             # Label column
             ctk.CTkLabel(
                 row, text=label,
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
+                text_color=get_theme_manager().get_current_color('text_label'),
                 width=150,
                 anchor="w"
             ).pack(side="left", padx=5, pady=4)
@@ -622,7 +624,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             # Value column
             ctk.CTkLabel(
                 row, text=value,
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 anchor="w",
                 wraplength=550,
                 justify="left"
@@ -728,7 +730,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             width = col_widths.get(col, 90)
             label = ctk.CTkLabel(
                 header_row, text=col,
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color="white",
                 width=width
             )
@@ -747,7 +749,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             # Level
             ctk.CTkLabel(
                 row, text=str(level),
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 width=col_widths["Level"]
             ).pack(side="left", padx=5, pady=5)
             
@@ -755,7 +757,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             prof_bonus = level_data.proficiency_bonus if level_data else self._get_proficiency_bonus(level)
             ctk.CTkLabel(
                 row, text=f"+{prof_bonus}",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 width=col_widths["Proficiency Bonus"]
             ).pack(side="left", padx=5, pady=5)
             
@@ -776,7 +778,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             
             features_label = ctk.CTkLabel(
                 row, text=features_text if features_text else "—",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 width=col_widths["Class Features"],
                 anchor="w",
                 wraplength=270
@@ -800,7 +802,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                 
                 ctk.CTkLabel(
                     row, text=value,
-                    font=ctk.CTkFont(size=11),
+                    font=ui_font("small"),
                     width=col_widths.get(col, 90)
                 ).pack(side="left", padx=5, pady=5)
             
@@ -833,7 +835,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             features_header, text=f"{class_def.name} Class Features",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             text_color="white"
         ).pack(anchor="w", padx=10, pady=8)
         
@@ -841,7 +843,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             self.content,
             text=f"As a {class_def.name}, you gain the following class features when you reach the specified {class_def.name} levels. These features are listed in the {class_def.name} Features table.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             wraplength=750,
             justify="left"
         ).pack(anchor="w", pady=(0, 15))
@@ -931,7 +933,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             title_frame,
             text=title_text,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
             text_color="white"
         ).pack(anchor="w", padx=10, pady=6)
         
@@ -1022,7 +1024,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header_frame, text=f"{class_def.subclass_name or 'Subclasses'}",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(side="left")
         
         # Add Subclass button
@@ -1038,7 +1040,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         desc_text = f"At level {class_def.subclass_level}, you choose a subclass that grants you features at specific levels."
         ctk.CTkLabel(
             self.content, text=desc_text,
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(anchor="w", pady=(0, 15))
         
@@ -1079,7 +1081,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Expand/collapse indicator and name
         expand_indicator = ctk.CTkLabel(
             header_frame, text="▶",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             width=20
         )
         expand_indicator.pack(side="left")
@@ -1090,7 +1092,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         name_label = ctk.CTkLabel(
             header_frame, text=variant_text,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         )
         name_label.pack(side="left", padx=5)
@@ -1098,7 +1100,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         if template.source:
             ctk.CTkLabel(
                 header_frame, text=f"Source: {template.source}",
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
         
@@ -1138,7 +1140,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         shared_description = "Druids of the Circle of the Land are mystics and sages who safeguard ancient knowledge and rites through a vast oral tradition. These Druids meet within sacred circles of trees or standing stones to whisper primal secrets in Druidic. The circle's wisest members preside as the chief priests of communities that hold to the Old Faith and serve as advisors to the rulers of those folk.\n\nAs a member of this circle, your magic is influenced by the land where you were initiated into the circle's mysterious rites. Choose your land type from the options below."
         ctk.CTkLabel(
             content_frame, text=shared_description,
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             wraplength=700,
             justify="left",
             text_color=self.theme.get_current_color('text_secondary')
@@ -1150,7 +1152,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             spell_section, text="Circle Spells by Land Type",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(anchor="w", pady=(0, 10))
         
@@ -1163,7 +1165,8 @@ class ClassesCollectionView(ctk.CTkFrame):
                 
                 ctk.CTkLabel(
                     land_frame, text=f"{land_type}:",
-                    font=ctk.CTkFont(size=11, weight="bold"),
+                    font=ui_font("small", bold=True),
+                    text_color=get_theme_manager().get_current_color('text_label'),
                     width=90,
                     anchor="w"
                 ).pack(side="left")
@@ -1171,7 +1174,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                 spell_names = [s.spell_name for s in variant.subclass_spells]
                 ctk.CTkLabel(
                     land_frame, text=", ".join(spell_names),
-                    font=ctk.CTkFont(size=11),
+                    font=ui_font("small"),
                     text_color=self.theme.get_current_color('text_secondary'),
                     wraplength=580,
                     justify="left"
@@ -1201,7 +1204,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             title_frame,
             text="Level 10: Nature's Ward",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color="white"
         ).pack(anchor="w", padx=8, pady=4)
         
@@ -1212,7 +1215,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         common_desc = "You are immune to the Poisoned condition, and you have Resistance to a damage type based on your land choice:"
         ctk.CTkLabel(
             desc_frame, text=common_desc,
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             wraplength=680,
             justify="left",
             text_color=self.theme.get_current_color('text_secondary')
@@ -1235,14 +1238,15 @@ class ClassesCollectionView(ctk.CTkFrame):
             
             ctk.CTkLabel(
                 resist_frame, text=f"• {land_type}:",
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
+                text_color=get_theme_manager().get_current_color('text_label'),
                 width=100,
                 anchor="w"
             ).pack(side="left")
             
             ctk.CTkLabel(
                 resist_frame, text=f"Resistance to {resistance} damage",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="left")
     
@@ -1263,14 +1267,14 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Expand/collapse indicator and name
         expand_indicator = ctk.CTkLabel(
             header_frame, text="▶",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             width=20
         )
         expand_indicator.pack(side="left")
         
         name_label = ctk.CTkLabel(
             header_frame, text=subclass.name,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         )
         name_label.pack(side="left", padx=5)
@@ -1298,7 +1302,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         if subclass.source:
             ctk.CTkLabel(
                 header_frame, text=f"Source: {subclass.source}",
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
         
@@ -1365,7 +1369,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             spell_section, text=title,
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(anchor="w", pady=(0, 8))
         
@@ -1398,7 +1402,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header_frame, text=level_header,
-            font=ctk.CTkFont(size=11, weight="bold"),
+            font=ui_font("small", bold=True),
             text_color="white",
             width=100,
             anchor="w"
@@ -1406,7 +1410,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header_frame, text="Spells",
-            font=ctk.CTkFont(size=11, weight="bold"),
+            font=ui_font("small", bold=True),
             text_color="white",
             anchor="w"
         ).pack(side="left", padx=6, pady=3)
@@ -1421,7 +1425,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             # Level column
             ctk.CTkLabel(
                 row_frame, text=str(level),
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 width=100,
                 anchor="w"
             ).pack(side="left", padx=6, pady=2)
@@ -1437,7 +1441,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                 spell_label = ctk.CTkLabel(
                     spells_container,
                     text=display_text,
-                    font=ctk.CTkFont(size=11),
+                    font=ui_font("small"),
                     text_color=self.theme.get_current_color('spell_link'),
                     cursor="hand2"
                 )
@@ -1451,9 +1455,9 @@ class ClassesCollectionView(ctk.CTkFrame):
                 
                 # Hover effect
                 def make_enter_handler(lbl):
-                    return lambda e: lbl.configure(font=ctk.CTkFont(size=11, underline=True))
+                    return lambda e: lbl.configure(font=ui_font("small", underline=True))
                 def make_leave_handler(lbl):
-                    return lambda e: lbl.configure(font=ctk.CTkFont(size=11))
+                    return lambda e: lbl.configure(font=ui_font("small"))
                 spell_label.bind("<Enter>", make_enter_handler(spell_label))
                 spell_label.bind("<Leave>", make_leave_handler(spell_label))
     
@@ -1473,7 +1477,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             title_frame,
             text=f"Level {feature.level}: {feature.title}",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color="white"
         ).pack(anchor="w", padx=8, pady=4)
         
@@ -1528,7 +1532,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             ctk.CTkLabel(
                 table_frame,
                 text=title,
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color=self.theme.get_current_color('accent_primary')
             ).pack(anchor="w", pady=(0, 4))
         
@@ -1565,7 +1569,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                     ctk.CTkLabel(
                         row_frame,
                         text=cell,
-                        font=ctk.CTkFont(size=10),
+                        font=ui_font("small", 10),
                         width=140,
                         anchor="w"
                     ).pack(side="left", padx=3)
@@ -1595,7 +1599,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             ctk.CTkLabel(
                 header_cell,
                 text=col,
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color="white",
                 anchor="w"
             ).pack(side="left", padx=6, pady=3, fill="x")
@@ -1617,7 +1621,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                     ctk.CTkLabel(
                         cell_frame,
                         text=cell,
-                        font=ctk.CTkFont(size=11),
+                        font=ui_font("small"),
                         anchor="w",
                         wraplength=width - 10 if width > 50 else 0,
                         justify="left"
@@ -1660,7 +1664,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             spell_label = ctk.CTkLabel(
                 inner_frame,
                 text=display_text,
-                font=ctk.CTkFont(size=font_size),
+                font=ui_font("body", font_size),
                 text_color=self.theme.get_current_color('spell_link'),
                 cursor="hand2"
             )
@@ -1676,9 +1680,9 @@ class ClassesCollectionView(ctk.CTkFrame):
             
             # Hover effect - use proper closures
             def make_enter_handler(lbl, fs):
-                return lambda e: lbl.configure(font=ctk.CTkFont(size=fs, underline=True))
+                return lambda e: lbl.configure(font=ui_font("body", fs, underline=True))
             def make_leave_handler(lbl, fs):
-                return lambda e: lbl.configure(font=ctk.CTkFont(size=fs))
+                return lambda e: lbl.configure(font=ui_font("body", fs))
             spell_label.bind("<Enter>", make_enter_handler(spell_label, font_size))
             spell_label.bind("<Leave>", make_leave_handler(spell_label, font_size))
     
@@ -1733,7 +1737,7 @@ class FeatureDetailPopup(ctk.CTkToplevel):
         # Title
         ctk.CTkLabel(
             container, text=title,
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ui_font("heading", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(anchor="w", pady=(0, 15))
         

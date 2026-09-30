@@ -4,6 +4,7 @@ Displays and manages character spell lists.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 import tkinter as tk
 from tkinter import messagebox
 from typing import Callable, Optional, List, Dict
@@ -76,7 +77,7 @@ class CharacterCard(ctk.CTkFrame):
         
         self.name_label = ctk.CTkLabel(
             header, text=self.character.name,
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ui_font("heading", 16, bold=True),
             anchor="w"
         )
         self.name_label.pack(side="left", fill="x", expand=True)
@@ -99,7 +100,7 @@ class CharacterCard(ctk.CTkFrame):
         text_secondary = theme.get_text_secondary()
         class_label = ctk.CTkLabel(
             content, text=self.character.display_classes(),
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=text_secondary,
             anchor="w"
         )
@@ -110,7 +111,7 @@ class CharacterCard(ctk.CTkFrame):
         count_label = ctk.CTkLabel(
             content, 
             text=f"{spell_count} spell{'s' if spell_count != 1 else ''} known",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary,
             anchor="w"
         )
@@ -183,7 +184,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         
         self.title_label = ctk.CTkLabel(
             header, text="Known Spells",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         )
         self.title_label.pack(side="left")
         
@@ -191,7 +192,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         text_secondary = theme.get_text_secondary()
         self.count_label = ctk.CTkLabel(
             header, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         )
         self.count_label.pack(side="right")
@@ -199,7 +200,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         # Prepared spells count label (for prepared casters)
         self.prepared_label = ctk.CTkLabel(
             header, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         )
         self.prepared_label.pack(side="right", padx=(0, 15))
@@ -248,7 +249,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         text_secondary = theme.get_text_secondary()
         self.hint_label = ctk.CTkLabel(
             self, text="Click a spell name to view details",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=text_secondary
         )
         
@@ -262,7 +263,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         self.placeholder = ctk.CTkLabel(
             self,
             text="Select a character to view their spells",
-            font=ctk.CTkFont(size=14),
+            font=ui_font("subheading"),
             text_color=text_secondary
         )
 
@@ -673,7 +674,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         text_secondary = self.theme.get_text_secondary()
         ctk.CTkLabel(
             self.warlock_frame, text=title_text,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             text_color=text_primary
         ).pack(pady=(10, 5))
         
@@ -681,7 +682,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         slots_row.pack(pady=(0, 5))
 
         slot_label = "Warlock Spell Slots:" if is_multiclass else "Spell Slots:"
-        ctk.CTkLabel(slots_row, text=slot_label, font=ctk.CTkFont(size=12), text_color=text_primary).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(slots_row, text=slot_label, font=ui_font("body"), text_color=text_primary).pack(side="left", padx=(0, 8))
 
         self.warlock_slot_var = ctk.StringVar(value=str(character.warlock_slots_current))
         self.warlock_entry = ctk.CTkEntry(
@@ -695,19 +696,19 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         self.warlock_entry.bind("<FocusOut>", lambda e: self._on_warlock_slot_change())
         self.warlock_entry.bind("<Return>", lambda e: self._on_warlock_slot_change())
         
-        ctk.CTkLabel(slots_row, text=f"/ {warlock_slots}", font=ctk.CTkFont(size=12), text_color=text_secondary).pack(side="left", padx=(2, 0))
+        ctk.CTkLabel(slots_row, text=f"/ {warlock_slots}", font=ui_font("body"), text_color=text_secondary).pack(side="left", padx=(2, 0))
 
         level_row = ctk.CTkFrame(self.warlock_frame, fg_color="transparent")
         level_row.pack(pady=(0, 5))
 
         level_label = "Warlock Spell Level:" if is_multiclass else "Spell Slot Level:"
-        ctk.CTkLabel(level_row, text=f"{level_label} {slot_level}", font=ctk.CTkFont(size=12), text_color=text_secondary).pack()
+        ctk.CTkLabel(level_row, text=f"{level_label} {slot_level}", font=ui_font("body"), text_color=text_secondary).pack()
         
         arcanum_levels = get_warlock_mystic_arcanum_levels(warlock_level)
         if arcanum_levels:
             ctk.CTkLabel(
                 self.warlock_frame, text="Mystic Arcanum:",
-                font=ctk.CTkFont(size=12, weight="bold")
+                font=ui_font("body", bold=True)
             ).pack(pady=(5, 3))
             
             arcanum_row = ctk.CTkFrame(self.warlock_frame, fg_color="transparent")
@@ -820,7 +821,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         level_text = "Cantrips" if level == 0 else f"Level {level}"
         ctk.CTkLabel(
             header_content, text=level_text,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             text_color=self.theme.get_current_color('text_primary')
         ).pack(side="left")
 
@@ -833,7 +834,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             slots_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
             slots_frame.pack(side="left", padx=(0, 20))
 
-            ctk.CTkLabel(slots_frame, text="Slots:", font=ctk.CTkFont(size=11), text_color=self.theme.get_current_color('text_primary')).pack(side="left", padx=(0, 5))
+            ctk.CTkLabel(slots_frame, text="Slots:", font=ui_font("small"), text_color=self.theme.get_current_color('text_primary')).pack(side="left", padx=(0, 5))
 
             slot_var = ctk.StringVar(value=str(character.get_current_slots(level)))
             self._slot_vars[level] = slot_var
@@ -855,7 +856,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 slots_frame, text=f"/ {max_slots[level]}",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 text_color=self.theme.get_text_secondary()
             ).pack(side="left", padx=(2, 0))
 
@@ -883,7 +884,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         text_secondary = theme.get_text_secondary()
         ctk.CTkLabel(
             right_frame, text="Prepared",
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             text_color=text_secondary,
             width=60
         ).pack(side="right")
@@ -913,7 +914,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         
         name_label = ctk.CTkLabel(
             row, text=spell.name,
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w",
             cursor="hand2",
             text_color=default_text
@@ -934,7 +935,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             text_secondary = theme.get_text_secondary()
             ctk.CTkLabel(
                 row, text=f"({', '.join(indicators)})",
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 text_color=text_secondary
             ).pack(side="left", padx=(0, 4))
         
@@ -962,7 +963,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                 # Add "(Always Prepared)" indicator
                 ctk.CTkLabel(
                     row, text="★",
-                    font=ctk.CTkFont(size=10),
+                    font=ui_font("small", 10),
                     text_color=self.theme.get_current_color('accent_primary')
                 ).pack(side="right", padx=(0, 2))
         else:
@@ -1103,7 +1104,7 @@ class SpellListsView(ctk.CTkFrame):
         header.pack(fill="x", padx=15, pady=(15, 10))
         
         ctk.CTkLabel(header, text="Character Spell Lists",
-                     font=ctk.CTkFont(size=20, weight="bold")).pack(side="left")
+                     font=ui_font("heading", 20, bold=True)).pack(side="left")
         
         theme = get_theme_manager()
         btn_text = theme.get_current_color('text_primary')
@@ -1137,13 +1138,13 @@ class SpellListsView(ctk.CTkFrame):
         char_header.pack(fill="x", padx=15, pady=(15, 10))
         
         ctk.CTkLabel(char_header, text="Characters",
-                     font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+                     font=ui_font("heading", 16, bold=True)).pack(side="left")
         
         theme = get_theme_manager()
         text_secondary = theme.get_text_secondary()
         self.char_count_label = ctk.CTkLabel(
             char_header, text="0 characters",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         )
         self.char_count_label.pack(side="right")
@@ -1154,7 +1155,7 @@ class SpellListsView(ctk.CTkFrame):
         self.empty_placeholder = ctk.CTkLabel(
             self.cards_frame,
             text="No characters yet.\nClick '+ New Character' to create one.",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=text_secondary,
             justify="center"
         )

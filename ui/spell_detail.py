@@ -4,18 +4,18 @@ Displays detailed information about a selected spell.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 import tkinter as tk
 import re
 from typing import Callable, Optional, List, Dict
 from spell import Spell, CharacterClass, SpellComparison
-from stat_block import StatBlock
+from monster import Monster, get_monster_manager
 from theme import get_theme_manager
 from validation import validate_spell_for_character
 from character_manager import CharacterManager
 from spell_manager import SpellManager
 from database import SpellDatabase
-from ui.stat_block_display import StatBlockDisplay
-from ui.stat_block_editor import StatBlockEditorDialog
+from ui.monster_stat_block import CollapsibleMonsterCard
 from ui.rich_text_utils import RichTextRenderer, preprocess_html_to_markdown
 
 
@@ -55,13 +55,13 @@ class SpellWarningDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header_frame, text="⚠️",
-            font=ctk.CTkFont(size=32)
+            font=ui_font("title", 32)
         ).pack(side="left", padx=(0, 10))
         
         ctk.CTkLabel(
             header_frame,
             text=f"Warning: Adding '{spell_name}'",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ui_font("heading", 16, bold=True),
             anchor="w"
         ).pack(side="left", fill="x", expand=True)
         
@@ -77,7 +77,7 @@ class SpellWarningDialog(ctk.CTkToplevel):
             warning_label = ctk.CTkLabel(
                 warnings_frame,
                 text=f"• {warning}",
-                font=ctk.CTkFont(size=13),
+                font=ui_font("body", 13),
                 text_color=warning_color,
                 anchor="w",
                 wraplength=380,
@@ -89,7 +89,7 @@ class SpellWarningDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text="Do you still want to add this spell?",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=text_secondary
         ).pack(pady=(0, 10))
         
@@ -155,7 +155,7 @@ class AddToListDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container, 
             text=f"Select a character to add\n'{spell_name}' to:",
-            font=ctk.CTkFont(size=14),
+            font=ui_font("subheading"),
             justify="center"
         ).pack(pady=(0, 15))
         
@@ -165,7 +165,7 @@ class AddToListDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 container,
                 text="No characters found.\n\nGo to the 'Spell Lists' tab\nto create a character first.",
-                font=ctk.CTkFont(size=13),
+                font=ui_font("body", 13),
                 text_color=text_secondary,
                 justify="center"
             ).pack(pady=30)
@@ -258,7 +258,7 @@ class SpellDetailPanel(ctk.CTkFrame):
         # Spell name (title)
         self.name_label = ctk.CTkLabel(
             self.content_frame, text="",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ui_font("title", bold=True),
             anchor="w"
         )
         self.name_label.pack(fill="x", pady=(0, 5))
@@ -269,7 +269,7 @@ class SpellDetailPanel(ctk.CTkFrame):
         
         self.level_badge = ctk.CTkLabel(
             self.level_frame, text="",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             fg_color=get_theme_manager().get_current_color('accent_primary'),
             corner_radius=6,
             padx=10, pady=3
@@ -288,16 +288,17 @@ class SpellDetailPanel(ctk.CTkFrame):
         ct_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             ct_row, text="Casting Time:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         self.prop_labels["casting_time"] = ctk.CTkLabel(
-            ct_row, text="", font=ctk.CTkFont(size=13), anchor="w"
+            ct_row, text="", font=ui_font("body", 13), anchor="w"
         )
         self.prop_labels["casting_time"].pack(side="left")
         # Ritual label (separate for independent coloring)
         self.ritual_label = ctk.CTkLabel(
-            ct_row, text=", Ritual", font=ctk.CTkFont(size=13), anchor="w"
+            ct_row, text=", Ritual", font=ui_font("body", 13), anchor="w"
         )
         # Will be packed/unpacked based on spell
         
@@ -306,11 +307,12 @@ class SpellDetailPanel(ctk.CTkFrame):
         range_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             range_row, text="Range:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         self.prop_labels["range"] = ctk.CTkLabel(
-            range_row, text="", font=ctk.CTkFont(size=13), anchor="w"
+            range_row, text="", font=ui_font("body", 13), anchor="w"
         )
         self.prop_labels["range"].pack(side="left", fill="x", expand=True)
         
@@ -319,11 +321,12 @@ class SpellDetailPanel(ctk.CTkFrame):
         comp_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             comp_row, text="Components:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         self.prop_labels["components"] = ctk.CTkLabel(
-            comp_row, text="", font=ctk.CTkFont(size=13), anchor="w", wraplength=400
+            comp_row, text="", font=ui_font("body", 13), anchor="w", wraplength=400
         )
         self.prop_labels["components"].pack(side="left", fill="x", expand=True)
         
@@ -332,16 +335,17 @@ class SpellDetailPanel(ctk.CTkFrame):
         dur_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             dur_row, text="Duration:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         # Concentration label (separate for independent coloring)
         self.concentration_label = ctk.CTkLabel(
-            dur_row, text="Concentration, up to ", font=ctk.CTkFont(size=13), anchor="w"
+            dur_row, text="Concentration, up to ", font=ui_font("body", 13), anchor="w"
         )
         # Will be packed/unpacked based on spell
         self.prop_labels["duration"] = ctk.CTkLabel(
-            dur_row, text="", font=ctk.CTkFont(size=13), anchor="w"
+            dur_row, text="", font=ui_font("body", 13), anchor="w"
         )
         self.prop_labels["duration"].pack(side="left", fill="x", expand=True)
         
@@ -350,11 +354,12 @@ class SpellDetailPanel(ctk.CTkFrame):
         class_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             class_row, text="Classes:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         self.prop_labels["classes"] = ctk.CTkLabel(
-            class_row, text="", font=ctk.CTkFont(size=13), anchor="w", wraplength=400
+            class_row, text="", font=ui_font("body", 13), anchor="w", wraplength=400
         )
         self.prop_labels["classes"].pack(side="left", fill="x", expand=True)
         
@@ -396,12 +401,13 @@ class SpellDetailPanel(ctk.CTkFrame):
         source_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             source_row, text="Source:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         self.source_label = ctk.CTkLabel(
             source_row, text="",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             anchor="w",
             wraplength=400
         )
@@ -412,12 +418,13 @@ class SpellDetailPanel(ctk.CTkFrame):
         tags_row.pack(fill="x", pady=3)
         ctk.CTkLabel(
             tags_row, text="Tags:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
         self.tags_label = ctk.CTkLabel(
             tags_row, text="",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             anchor="w",
             wraplength=400
         )
@@ -481,7 +488,7 @@ class SpellDetailPanel(ctk.CTkFrame):
         self.placeholder = ctk.CTkLabel(
             self, 
             text="Select a spell to view details",
-            font=ctk.CTkFont(size=16),
+            font=ui_font("heading", 16),
             text_color=text_secondary
         )
     
@@ -494,7 +501,7 @@ class SpellDetailPanel(ctk.CTkFrame):
                 self._tooltip_label = ctk.CTkLabel(
                     self.winfo_toplevel(),
                     text="* This official spell has been modified",
-                    font=ctk.CTkFont(size=11),
+                    font=ui_font("small"),
                     fg_color=get_theme_manager().get_current_color('bg_secondary'),
                     corner_radius=4,
                     padx=8, pady=4
@@ -935,59 +942,58 @@ class SpellDetailPanel(ctk.CTkFrame):
                     if self.on_add_to_list:
                         self.on_add_to_list(self._current_spell, dialog.result)
     
-    def _on_edit_stat_block(self, stat_block: StatBlock):
-        """Handle edit button click on a stat block."""
-        if not stat_block or not self._current_spell:
+    def _on_edit_summoned_monster(self, monster: Monster):
+        """Handle the Edit button on a summoned creature's stat block."""
+        if not monster or not self._current_spell:
             return
-        
-        # Open the stat block editor dialog
-        dialog = StatBlockEditorDialog(
+
+        from tkinter import messagebox
+        from ui.monster_view import MonsterEditorDialog
+
+        dialog = MonsterEditorDialog(
             self.winfo_toplevel(),
-            title=f"Edit Stat Block: {stat_block.name}",
-            stat_block=stat_block
+            title=f"Edit Summoned Creature: {monster.name}",
+            monster=monster
         )
         self.wait_window(dialog)
-        
-        if dialog.result:
-            # Get the edited stat block
-            edited_stat_block = dialog.result
-            
-            # Update the stat block in the database
-            if edited_stat_block.id:
-                success = self._db.update_stat_block(
-                    edited_stat_block.id,
-                    edited_stat_block.to_dict()
+
+        if not dialog.result:
+            return
+
+        try:
+            success = get_monster_manager().update_monster(monster.name, dialog.result)
+        except Exception as e:  # e.g. the new name is already another monster's
+            messagebox.showerror("Error", f"Could not save '{dialog.result.name}':\n{e}",
+                                 parent=self.winfo_toplevel())
+            return
+
+        if success:
+            # If this is an official spell, mark it as modified
+            if self._current_spell.is_official and self.spell_manager:
+                modified_spell = Spell(
+                    name=self._current_spell.name,
+                    level=self._current_spell.level,
+                    casting_time=self._current_spell.casting_time,
+                    ritual=self._current_spell.ritual,
+                    range_value=self._current_spell.range_value,
+                    components=self._current_spell.components,
+                    duration=self._current_spell.duration,
+                    concentration=self._current_spell.concentration,
+                    classes=list(self._current_spell.classes),
+                    description=self._current_spell.description,
+                    source=self._current_spell.source,
+                    tags=list(self._current_spell.tags),
+                    is_modified=True  # Mark as modified
                 )
-                
-                if success:
-                    # If this is an official spell, mark it as modified
-                    if self._current_spell.is_official and self.spell_manager:
-                        # Create a new spell with is_modified=True
-                        modified_spell = Spell(
-                            name=self._current_spell.name,
-                            level=self._current_spell.level,
-                            casting_time=self._current_spell.casting_time,
-                            ritual=self._current_spell.ritual,
-                            range_value=self._current_spell.range_value,
-                            components=self._current_spell.components,
-                            duration=self._current_spell.duration,
-                            concentration=self._current_spell.concentration,
-                            classes=list(self._current_spell.classes),
-                            description=self._current_spell.description,
-                            source=self._current_spell.source,
-                            tags=list(self._current_spell.tags),
-                            is_modified=True  # Mark as modified
-                        )
-                        self.spell_manager.update_spell(
-                            self._current_spell.name, 
-                            modified_spell
-                        )
-                        # Update the current spell reference
-                        self._current_spell = modified_spell
-                    
-                    # Refresh the stat blocks section
-                    self._update_stat_blocks_section(self._current_spell)
-    
+                self.spell_manager.update_spell(
+                    self._current_spell.name,
+                    modified_spell
+                )
+                self._current_spell = modified_spell
+
+            # Refresh the summoned creatures section
+            self._update_stat_blocks_section(self._current_spell)
+
     def _validate_spell_for_character(self, spell: Spell, character) -> List[str]:
         """
         Validate if a spell is appropriate for a character.
@@ -1002,11 +1008,11 @@ class SpellDetailPanel(ctk.CTkFrame):
         for widget in self._stat_blocks_frame.winfo_children():
             widget.destroy()
         
-        # Load stat blocks for this spell
-        stat_blocks = self._db.get_stat_blocks_for_spell_by_name(spell.name)
+        # Load the creatures this spell summons
+        monsters = get_monster_manager().get_monsters_for_spell(spell.name)
         
-        if not stat_blocks:
-            # No stat blocks - hide the section
+        if not monsters:
+            # Nothing summoned - hide the section
             self._stat_blocks_frame.pack_forget()
             return
         
@@ -1020,8 +1026,8 @@ class SpellDetailPanel(ctk.CTkFrame):
         # Section title
         title_label = ctk.CTkLabel(
             header_frame,
-            text=f"SUMMONED CREATURES ({len(stat_blocks)})",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            text=f"SUMMONED CREATURES ({len(monsters)})",
+            font=ui_font("subheading", bold=True),
             anchor="w"
         )
         title_label.pack(side="left")
@@ -1044,14 +1050,13 @@ class SpellDetailPanel(ctk.CTkFrame):
         self._stat_blocks_container = ctk.CTkFrame(self._stat_blocks_frame, fg_color="transparent")
         self._stat_blocks_container.pack(fill="x", pady=(2, 0))
         
-        # Add each stat block (convert from dict to StatBlock object)
-        for stat_block_dict in stat_blocks:
-            stat_block_obj = StatBlock.from_dict(stat_block_dict)
-            display = StatBlockDisplay(
+        # Add each creature's stat block
+        for monster in monsters:
+            display = CollapsibleMonsterCard(
                 self._stat_blocks_container,
-                stat_block=stat_block_obj,
-                on_edit=self._on_edit_stat_block,
-                collapsed=len(stat_blocks) > 1  # Collapse by default if multiple
+                monster,
+                on_edit=self._on_edit_summoned_monster,
+                collapsed=len(monsters) > 1  # Collapse by default if multiple
             )
             display.pack(fill="x", pady=(2, 2))
     
@@ -1124,7 +1129,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             scroll_frame,
             text=spell.name.upper(),
-            font=ctk.CTkFont(size=22, weight="bold"),
+            font=ui_font("title", 22, bold=True),
             anchor="w"
         ).pack(fill="x", pady=(0, 5))
         
@@ -1140,7 +1145,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             badge_frame,
             text=level_text,
-            font=ctk.CTkFont(size=11, weight="bold"),
+            font=ui_font("small", bold=True),
             fg_color=badge_color,
             text_color="white",
             corner_radius=5,
@@ -1164,13 +1169,14 @@ class SpellPopupDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=f"{label}:",
-                font=ctk.CTkFont(size=12, weight="bold"),
+                font=ui_font("body", bold=True),
+                text_color=get_theme_manager().get_current_color('text_label'),
                 width=100, anchor="w"
             ).pack(side="left")
             
             ctk.CTkLabel(
                 row, text=value,
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 anchor="w",
                 wraplength=350
             ).pack(side="left", fill="x", expand=True)
@@ -1182,7 +1188,8 @@ class SpellPopupDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 classes_frame, text="Classes:",
-                font=ctk.CTkFont(size=12, weight="bold"),
+                font=ui_font("body", bold=True),
+                text_color=get_theme_manager().get_current_color('text_label'),
                 anchor="w"
             ).pack(side="left")
             
@@ -1190,7 +1197,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
             classes_text = ", ".join(spell.get_class_names())
             ctk.CTkLabel(
                 classes_frame, text=classes_text,
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 anchor="w",
                 wraplength=400
             ).pack(side="left", padx=(5, 0))
@@ -1198,7 +1205,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
         # Description
         desc_label = ctk.CTkLabel(
             scroll_frame, text="Description",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             anchor="w"
         )
         desc_label.pack(fill="x", pady=(0, 5))
@@ -1221,14 +1228,14 @@ class SpellPopupDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 source_frame, text="Source:",
-                font=ctk.CTkFont(size=11, weight="bold"),
-                text_color=self.theme.get_text_secondary(),
+                font=ui_font("small", bold=True),
+                text_color=get_theme_manager().get_current_color('text_label'),
                 anchor="w"
             ).pack(side="left")
             
             ctk.CTkLabel(
                 source_frame, text=spell.source,
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 text_color=self.theme.get_text_secondary(),
                 anchor="w"
             ).pack(side="left", padx=(5, 0))

@@ -17,7 +17,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 25  # Backfill magic item costs from the bundled magic_items.json
+    SCHEMA_VERSION = 29  # Flesh Golem speed fix (the epithet column rename is self-healing)
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -449,6 +449,45 @@ class SpellDatabase:
             cursor.execute("UPDATE schema_version SET version = 25")
             current_version = 25
 
+        # Migration to version 26: the monsters table. It is created by
+        # _create_content_tables (CREATE TABLE IF NOT EXISTS, run on every
+        # initialize()), so there is nothing to copy - no monster content ships
+        # with the app yet, only what the user creates or imports.
+        if current_version < 26:
+            cursor.execute("UPDATE schema_version SET version = 26")
+            current_version = 26
+
+        # Migration to version 27: summon-spell stat blocks are now monsters
+        # (flagged spell_only, linked to their spell). Every row of the legacy
+        # stat_blocks table - bundled or user-made, edited or not - is converted;
+        # the old table is left in place, unused. Retried on the next launch if
+        # the conversion can't run.
+        if current_version < 27:
+            if self._convert_stat_blocks_to_monsters(cursor):
+                cursor.execute("UPDATE schema_version SET version = 27")
+                current_version = 27
+
+        # Migration to version 28: add the bundled monsters (monsters.json).
+        # Inserted only if the name is missing, so nothing already there - or
+        # user-made - is touched; the link sweep is re-run so older text that
+        # names the new monsters links to them. Idempotent, and retried on the
+        # next launch if either step can't run.
+        if current_version < 28:
+            if self._seed_official_monsters(cursor) and self._link_official_content(cursor):
+                cursor.execute("UPDATE schema_version SET version = 28")
+                current_version = 28
+
+        # Migration to version 29: Flesh Golem shipped with no speed (its source
+        # page left the line blank). Only a bundled row that still has none is
+        # touched, so a user's edit is never overwritten.
+        if current_version < 29:
+            cursor.execute(
+                "UPDATE monsters SET speeds_json = ? WHERE name = 'Flesh Golem' COLLATE NOCASE "
+                "AND is_custom = 0 AND spell_only = 0 AND speeds_json IN ('{}', '')",
+                (json.dumps({"walk": 30}),))
+            cursor.execute("UPDATE schema_version SET version = 29")
+            current_version = 29
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -545,6 +584,66 @@ class SpellDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_type ON magic_items(type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_rarity ON magic_items(rarity)")
 
+        # Monsters table (creature stat blocks). Plain values get their own
+        # column; lists / dicts are stored as JSON (see _MONSTER_SCALARS/_JSONS).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS monsters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                epithet TEXT DEFAULT '',
+                size TEXT DEFAULT 'Medium',
+                creature_type TEXT DEFAULT '',
+                creature_subtype TEXT DEFAULT '',
+                alignment TEXT DEFAULT 'Unaligned',
+                ac INTEGER NOT NULL DEFAULT 10,
+                initiative_proficiency INTEGER NOT NULL DEFAULT 0,
+                hp INTEGER NOT NULL DEFAULT 1,
+                hit_dice TEXT DEFAULT '',
+                can_hover INTEGER NOT NULL DEFAULT 0,
+                ac_text TEXT DEFAULT '',
+                hp_text TEXT DEFAULT '',
+                speed_text TEXT DEFAULT '',
+                cr_text TEXT DEFAULT '',
+                skills_text TEXT DEFAULT '',
+                show_initiative INTEGER NOT NULL DEFAULT 1,
+                challenge_rating TEXT NOT NULL DEFAULT '0',
+                lair_xp INTEGER,
+                legendary_action_uses INTEGER NOT NULL DEFAULT 3,
+                legendary_action_uses_in_lair INTEGER,
+                legendary_actions_intro TEXT DEFAULT '',
+                lair_actions_intro TEXT DEFAULT '',
+                description TEXT DEFAULT '',
+                source TEXT DEFAULT '',
+                speeds_json TEXT DEFAULT '{}',
+                ability_scores_json TEXT DEFAULT '{}',
+                saving_throws_json TEXT DEFAULT '{}',
+                skills_json TEXT DEFAULT '{}',
+                damage_vulnerabilities_json TEXT DEFAULT '[]',
+                damage_resistances_json TEXT DEFAULT '[]',
+                damage_immunities_json TEXT DEFAULT '[]',
+                condition_immunities_json TEXT DEFAULT '[]',
+                senses_json TEXT DEFAULT '[]',
+                languages_json TEXT DEFAULT '[]',
+                gear_json TEXT DEFAULT '[]',
+                traits_json TEXT DEFAULT '[]',
+                actions_json TEXT DEFAULT '[]',
+                bonus_actions_json TEXT DEFAULT '[]',
+                reactions_json TEXT DEFAULT '[]',
+                legendary_actions_json TEXT DEFAULT '[]',
+                lair_actions_json TEXT DEFAULT '[]',
+                habitat_json TEXT DEFAULT '[]',
+                treasure_json TEXT DEFAULT '[]',
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                spell_only INTEGER NOT NULL DEFAULT 0,
+                spell_id INTEGER REFERENCES spells(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_monsters_name ON monsters(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_monsters_type ON monsters(creature_type)")
+
         # Backgrounds table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS backgrounds (
@@ -624,10 +723,25 @@ class SpellDatabase:
         # equipment / magic_items tables first shipped. CREATE TABLE IF NOT
         # EXISTS never alters an existing table, so backfill them here (this
         # method runs on every initialize()).
+        # monsters.epitaph was renamed epithet ("epitaph" implies the creature is dead)
+        cursor.execute("PRAGMA table_info(monsters)")
+        _monster_columns = {row[1] for row in cursor.fetchall()}
+        if "epitaph" in _monster_columns and "epithet" not in _monster_columns:
+            cursor.execute("ALTER TABLE monsters RENAME COLUMN epitaph TO epithet")
+
         for _table, _col, _coldef in (
             ("equipment", "properties_json", "TEXT DEFAULT '[]'"),
             ("magic_items", "properties_json", "TEXT DEFAULT '[]'"),
             ("magic_items", "requires_attunement", "INTEGER NOT NULL DEFAULT 0"),
+            ("monsters", "ac_text", "TEXT DEFAULT ''"),
+            ("monsters", "hp_text", "TEXT DEFAULT ''"),
+            ("monsters", "speed_text", "TEXT DEFAULT ''"),
+            ("monsters", "cr_text", "TEXT DEFAULT ''"),
+            ("monsters", "show_initiative", "INTEGER NOT NULL DEFAULT 1"),
+            ("monsters", "spell_only", "INTEGER NOT NULL DEFAULT 0"),
+            ("monsters", "spell_id", "INTEGER REFERENCES spells(id) ON DELETE CASCADE"),
+            ("monsters", "gear_json", "TEXT DEFAULT '[]'"),
+            ("monsters", "skills_text", "TEXT DEFAULT ''"),
         ):
             cursor.execute(f"PRAGMA table_info({_table})")
             _existing = {row[1] for row in cursor.fetchall()}
@@ -639,6 +753,7 @@ class SpellDatabase:
                     cursor.execute(
                         "UPDATE magic_items SET requires_attunement = 1 "
                         "WHERE TRIM(COALESCE(attunement_requirement, '')) != ''")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_monsters_spell_id ON monsters(spell_id)")
 
     def _bundled_json_path(self, filename):
         """Absolute path to a bundled JSON seed file (PyInstaller-aware)."""
@@ -788,6 +903,8 @@ class SpellDatabase:
                 # Mount animals are left out (prose naming them means the creature; see tools/link_sweep.py)
                 'equipment': official_names('equipment', " AND tags_json NOT LIKE '%\"Mount\"%'"),
                 'magic_item': official_names('magic_items'),
+                # Summoned creatures belong to their spell, not to the prose universe
+                'monster': official_names('monsters', " AND spell_only = 0"),
             })
             changes: list = []
 
@@ -812,6 +929,20 @@ class SpellDatabase:
                     if swept(fn, rec):
                         cursor.execute(f"UPDATE {table} SET description = ? WHERE id = ?",
                                        (rec['description'], row_id))
+
+            monster_groups = ('traits', 'actions', 'bonus_actions', 'reactions',
+                              'legendary_actions', 'lair_actions')
+            cursor.execute("SELECT id, name, description, " + ", ".join(f"{g}_json" for g in monster_groups)
+                           + " FROM monsters WHERE is_custom = 0 AND spell_only = 0")
+            for row in cursor.fetchall():
+                rec = {'name': row[1], 'description': row[2]}
+                for group, raw in zip(monster_groups, row[3:]):
+                    rec[group] = json.loads(raw or '[]')
+                if swept(sweep.sweep_monster, rec):
+                    cursor.execute(
+                        "UPDATE monsters SET description = ?, "
+                        + ", ".join(f"{g}_json = ?" for g in monster_groups) + " WHERE id = ?",
+                        [rec['description']] + [json.dumps(rec[g]) for g in monster_groups] + [row[0]])
 
             cursor.execute("SELECT id, name, description, traits_json FROM lineages WHERE is_custom = 0")
             for row_id, name, desc, traits in cursor.fetchall():
@@ -1105,6 +1236,9 @@ class SpellDatabase:
 
         # Migrate equipment + magic items (shared with the v16 backfill migration)
         self._seed_equipment_and_magic_items(cursor)
+
+        # Bundled monsters (shared with the v28 backfill migration)
+        self._seed_official_monsters(cursor)
 
         # Migrate backgrounds (shared with the v23 backfill migration)
         self._seed_backgrounds(cursor)
@@ -1400,79 +1534,127 @@ class SpellDatabase:
         spells = get_all_spells()
         count = self.bulk_insert_spells(spells)
         
-        # Also populate stat blocks
-        self._populate_initial_stat_blocks()
+        # Also add the summon-spell creatures
+        self._populate_initial_summon_monsters()
         
         return count
     
-    def _populate_initial_stat_blocks(self):
-        """Populate stat blocks for summoning spells."""
+    def _seed_official_monsters(self, cursor) -> bool:
+        """Insert the bundled monsters.json records whose name is not in the table.
+
+        Idempotent (existing rows - user edits, homebrew or summons that reuse a
+        name - are left alone), so it serves both a fresh database and the
+        backfill migration. Returns True on success.
+        """
+        import os
+        path = self._bundled_json_path('monsters.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            from monster import Monster
+            with open(path, 'r', encoding='utf-8') as f:
+                records = json.load(f).get('monsters', [])
+            added = 0
+            for rec in records:
+                name = rec.get('name', '')
+                if not name:
+                    continue
+                cursor.execute("SELECT 1 FROM monsters WHERE name = ? COLLATE NOCASE", (name,))
+                if cursor.fetchone():
+                    continue
+                monster = Monster.from_dict(rec)
+                monster.is_official, monster.is_custom, monster.spell_only = True, False, False
+                monster.spell_name = ''
+                self._insert_monster_row(cursor, monster.to_dict())
+                added += 1
+            if added:
+                print(f"Seeded {added} monsters")
+            return True
+        except Exception as e:
+            print(f"Error seeding monsters (will retry next launch): {e}")
+            return False
+
+    def _populate_initial_summon_monsters(self):
+        """Add the official summon-spell creatures (tools/stat_block_data) as
+        spell-only monsters. Skips any the spell already has, so it is safe to
+        run at every startup and picks up creatures added in a later release."""
+        from monster import Monster
         from tools.stat_block_data import get_all_stat_blocks
-        
-        stat_blocks = get_all_stat_blocks()
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            for sb in stat_blocks:
-                # Get the spell_id from the spell_name
+
+            for sb in get_all_stat_blocks():
                 spell_name = sb.get('spell_name')
                 if not spell_name:
                     continue
-                    
-                cursor.execute(
-                    "SELECT id FROM spells WHERE name = ? COLLATE NOCASE",
-                    (spell_name,)
-                )
-                row = cursor.fetchone()
-                if not row:
-                    print(f"Warning: Spell '{spell_name}' not found for stat block '{sb.get('name')}'")
+
+                cursor.execute("SELECT id, source FROM spells WHERE name = ? COLLATE NOCASE",
+                               (spell_name,))
+                spell = cursor.fetchone()
+                if not spell:
+                    print(f"Warning: Spell '{spell_name}' not found for summon '{sb.get('name')}'")
                     continue
-                
-                spell_id = row['id']
-                
-                # Check if stat block already exists
-                cursor.execute(
-                    "SELECT id FROM stat_blocks WHERE spell_id = ? AND name = ?",
-                    (spell_id, sb.get('name'))
-                )
-                if cursor.fetchone():
-                    continue  # Skip duplicates
-                
-                # Insert stat block
-                cursor.execute("""
-                    INSERT INTO stat_blocks (
-                        spell_id, name, size, creature_type, creature_subtype, alignment,
-                        armor_class, hit_points, speed, abilities_json,
-                        damage_resistances, damage_immunities, condition_immunities,
-                        senses, languages, challenge_rating,
-                        traits_json, actions_json, bonus_actions_json,
-                        reactions_json, legendary_actions_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    spell_id,
-                    sb.get('name', ''),
-                    sb.get('size', 'Medium'),
-                    sb.get('creature_type', ''),
-                    sb.get('creature_subtype', ''),
-                    sb.get('alignment', 'Neutral'),
-                    sb.get('armor_class', ''),
-                    sb.get('hit_points', ''),
-                    sb.get('speed', ''),
-                    sb.get('abilities_json', '{}'),
-                    sb.get('damage_resistances', ''),
-                    sb.get('damage_immunities', ''),
-                    sb.get('condition_immunities', ''),
-                    sb.get('senses', ''),
-                    sb.get('languages', ''),
-                    sb.get('challenge_rating', ''),
-                    sb.get('traits_json', '[]'),
-                    sb.get('actions_json', '[]'),
-                    sb.get('bonus_actions_json', '[]'),
-                    sb.get('reactions_json', '[]'),
-                    sb.get('legendary_actions_json', '[]')
-                ))
-    
+
+                cursor.execute("SELECT spell_id FROM monsters WHERE name = ? COLLATE NOCASE",
+                               (sb.get('name', ''),))
+                existing = cursor.fetchone()
+                if existing:
+                    if existing['spell_id'] != spell['id']:
+                        print(f"Warning: a monster named '{sb.get('name')}' already exists; "
+                              f"not adding the summon for '{spell_name}'")
+                    continue
+
+                monster = Monster.from_stat_block(sb, source=spell['source'] or '')
+                monster.spell_name = spell_name
+                self._insert_monster_row(cursor, monster.to_dict())
+
+    def _convert_stat_blocks_to_monsters(self, cursor) -> bool:
+        """Convert each row of the legacy stat_blocks table into a spell-only
+        monster (migration 27). Blocks that match the bundled data stay official
+        (with whatever edits the user made); the rest are the user's own. A name
+        already taken by another spell's creature gets "(Spell)" appended.
+        Idempotent. Returns True on success."""
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'stat_blocks'")
+            if cursor.fetchone() is None:
+                return True
+
+            from monster import Monster
+            from tools.stat_block_data import get_all_stat_blocks
+            bundled = {(sb['spell_name'].lower(), sb['name'].lower())
+                       for sb in get_all_stat_blocks() if sb.get('spell_name')}
+
+            cursor.execute("""
+                SELECT sb.*, s.name AS spell_name, s.source AS spell_source
+                FROM stat_blocks sb JOIN spells s ON s.id = sb.spell_id
+                ORDER BY sb.id
+            """)
+            converted = 0
+            for row in cursor.fetchall():
+                data = dict(row)
+                cursor.execute("SELECT spell_id FROM monsters WHERE name = ? COLLATE NOCASE",
+                               (data['name'],))
+                clash = cursor.fetchone()
+                if clash and clash[0] == data['spell_id']:
+                    continue                      # converted on an earlier attempt
+                monster = Monster.from_stat_block(data, source=data.get('spell_source') or '')
+                if clash:
+                    monster.name = f"{data['name']} ({data['spell_name']})"
+                    cursor.execute("SELECT 1 FROM monsters WHERE name = ? COLLATE NOCASE", (monster.name,))
+                    if cursor.fetchone():
+                        continue
+                official = (data['spell_name'].lower(), data['name'].lower()) in bundled
+                monster.is_official, monster.is_custom = official, not official
+                self._insert_monster_row(cursor, monster.to_dict())
+                converted += 1
+            if converted:
+                print(f"Converted {converted} summon stat block(s) to monsters")
+            return True
+        except Exception as e:
+            print(f"Error converting stat blocks to monsters (will retry next launch): {e}")
+            return False
+
     def get_schema_version(self) -> int:
         """Get current schema version."""
         with self.get_connection() as conn:
@@ -2164,175 +2346,6 @@ class SpellDatabase:
             cursor.execute("UPDATE spells SET is_modified = 0 WHERE is_modified = 1")
             return cursor.rowcount
     
-    # ==================== Stat Block Methods ====================
-    
-    def insert_stat_block(self, stat_block_data: dict) -> int:
-        """
-        Insert a new stat block into the database.
-        
-        Args:
-            stat_block_data: Dictionary with stat block fields
-        
-        Returns:
-            The new stat block's ID
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT INTO stat_blocks (
-                    spell_id, name, size, creature_type, creature_subtype, alignment,
-                    armor_class, hit_points, speed, abilities_json,
-                    damage_resistances, damage_immunities, condition_immunities,
-                    senses, languages, challenge_rating,
-                    traits_json, actions_json, bonus_actions_json, 
-                    reactions_json, legendary_actions_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                stat_block_data['spell_id'],
-                stat_block_data['name'],
-                stat_block_data.get('size', 'Medium'),
-                stat_block_data.get('creature_type', ''),
-                stat_block_data.get('creature_subtype', ''),
-                stat_block_data.get('alignment', 'Neutral'),
-                stat_block_data.get('armor_class', ''),
-                stat_block_data.get('hit_points', ''),
-                stat_block_data.get('speed', ''),
-                json.dumps(stat_block_data.get('abilities')) if stat_block_data.get('abilities') else None,
-                stat_block_data.get('damage_resistances', ''),
-                stat_block_data.get('damage_immunities', ''),
-                stat_block_data.get('condition_immunities', ''),
-                stat_block_data.get('senses', ''),
-                stat_block_data.get('languages', ''),
-                stat_block_data.get('challenge_rating', ''),
-                json.dumps(stat_block_data.get('traits', [])),
-                json.dumps(stat_block_data.get('actions', [])),
-                json.dumps(stat_block_data.get('bonus_actions', [])),
-                json.dumps(stat_block_data.get('reactions', [])),
-                json.dumps(stat_block_data.get('legendary_actions', []))
-            ))
-            
-            stat_block_id = cursor.lastrowid
-            assert stat_block_id is not None, "Failed to get stat block ID after insert"
-            return stat_block_id
-    
-    def update_stat_block(self, stat_block_id: int, stat_block_data: dict) -> bool:
-        """Update an existing stat block."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                UPDATE stat_blocks SET
-                    name = ?, size = ?, creature_type = ?, creature_subtype = ?,
-                    alignment = ?, armor_class = ?, hit_points = ?, speed = ?,
-                    abilities_json = ?, damage_resistances = ?, damage_immunities = ?,
-                    condition_immunities = ?, senses = ?, languages = ?,
-                    challenge_rating = ?, traits_json = ?, actions_json = ?,
-                    bonus_actions_json = ?, reactions_json = ?, legendary_actions_json = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                stat_block_data['name'],
-                stat_block_data.get('size', 'Medium'),
-                stat_block_data.get('creature_type', ''),
-                stat_block_data.get('creature_subtype', ''),
-                stat_block_data.get('alignment', 'Neutral'),
-                stat_block_data.get('armor_class', ''),
-                stat_block_data.get('hit_points', ''),
-                stat_block_data.get('speed', ''),
-                json.dumps(stat_block_data.get('abilities')) if stat_block_data.get('abilities') else None,
-                stat_block_data.get('damage_resistances', ''),
-                stat_block_data.get('damage_immunities', ''),
-                stat_block_data.get('condition_immunities', ''),
-                stat_block_data.get('senses', ''),
-                stat_block_data.get('languages', ''),
-                stat_block_data.get('challenge_rating', ''),
-                json.dumps(stat_block_data.get('traits', [])),
-                json.dumps(stat_block_data.get('actions', [])),
-                json.dumps(stat_block_data.get('bonus_actions', [])),
-                json.dumps(stat_block_data.get('reactions', [])),
-                json.dumps(stat_block_data.get('legendary_actions', [])),
-                stat_block_id
-            ))
-            
-            return cursor.rowcount > 0
-    
-    def delete_stat_block(self, stat_block_id: int) -> bool:
-        """Delete a stat block by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM stat_blocks WHERE id = ?", (stat_block_id,))
-            return cursor.rowcount > 0
-    
-    def get_stat_blocks_for_spell(self, spell_id: int) -> List[dict]:
-        """Get all stat blocks linked to a spell."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM stat_blocks WHERE spell_id = ? ORDER BY name", (spell_id,))
-            rows = cursor.fetchall()
-            
-            return [self._row_to_stat_block_dict(row) for row in rows]
-    
-    def get_stat_blocks_for_spell_by_name(self, spell_name: str) -> List[dict]:
-        """Get all stat blocks linked to a spell by spell name."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            # Join with spells table to get by name
-            cursor.execute("""
-                SELECT sb.* FROM stat_blocks sb
-                JOIN spells s ON sb.spell_id = s.id
-                WHERE s.name = ? COLLATE NOCASE
-                ORDER BY sb.name
-            """, (spell_name,))
-            rows = cursor.fetchall()
-            
-            return [self._row_to_stat_block_dict(row) for row in rows]
-    
-    def get_stat_block_by_id(self, stat_block_id: int) -> Optional[dict]:
-        """Get a single stat block by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM stat_blocks WHERE id = ?", (stat_block_id,))
-            row = cursor.fetchone()
-            
-            if row:
-                return self._row_to_stat_block_dict(row)
-            return None
-    
-    def _row_to_stat_block_dict(self, row) -> dict:
-        """Convert a database row to a stat block dictionary."""
-        return {
-            'id': row['id'],
-            'spell_id': row['spell_id'],
-            'name': row['name'],
-            'size': row['size'],
-            'creature_type': row['creature_type'],
-            'creature_subtype': row['creature_subtype'] or '',
-            'alignment': row['alignment'] or 'Neutral',
-            'armor_class': row['armor_class'],
-            'hit_points': row['hit_points'],
-            'speed': row['speed'],
-            'abilities': json.loads(row['abilities_json']) if row['abilities_json'] else None,
-            'damage_resistances': row['damage_resistances'] or '',
-            'damage_immunities': row['damage_immunities'] or '',
-            'condition_immunities': row['condition_immunities'] or '',
-            'senses': row['senses'] or '',
-            'languages': row['languages'] or '',
-            'challenge_rating': row['challenge_rating'] or '',
-            'traits': json.loads(row['traits_json']) if row['traits_json'] else [],
-            'actions': json.loads(row['actions_json']) if row['actions_json'] else [],
-            'bonus_actions': json.loads(row['bonus_actions_json']) if row['bonus_actions_json'] else [],
-            'reactions': json.loads(row['reactions_json']) if row['reactions_json'] else [],
-            'legendary_actions': json.loads(row['legendary_actions_json']) if row['legendary_actions_json'] else []
-        }
-    
-    def get_spells_with_stat_blocks(self) -> List[int]:
-        """Get list of spell IDs that have stat blocks."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT spell_id FROM stat_blocks")
-            return [row['spell_id'] for row in cursor.fetchall()]
-    
     # ==================== LINEAGE METHODS ====================
     
     def get_all_lineages(self) -> List[dict]:
@@ -2738,6 +2751,133 @@ class SpellDatabase:
         except (IndexError, KeyError):
             return default
         return bool(val)
+
+    # ==================== MONSTER METHODS ====================
+
+    # (column, default) for every plain-valued monster column, and for every
+    # JSON-valued one (stored as "<key>_json"). The dict keys match
+    # Monster.to_dict(), so a monster dict maps straight onto a row. The spell a
+    # summoned creature belongs to is stored as spell_id but travels as
+    # `spell_name` (see _MONSTER_SELECT).
+    _MONSTER_SCALARS = (
+        ("epithet", ""), ("size", "Medium"), ("creature_type", ""), ("creature_subtype", ""),
+        ("alignment", "Unaligned"), ("ac", 10), ("initiative_proficiency", 0), ("hp", 1),
+        ("hit_dice", ""), ("can_hover", False),
+        ("ac_text", ""), ("hp_text", ""), ("speed_text", ""), ("cr_text", ""), ("skills_text", ""),
+        ("show_initiative", True), ("challenge_rating", "0"), ("lair_xp", None),
+        ("legendary_action_uses", 3), ("legendary_action_uses_in_lair", None),
+        ("legendary_actions_intro", ""), ("lair_actions_intro", ""), ("description", ""),
+        ("source", ""), ("is_official", True), ("is_custom", False), ("spell_only", False),
+    )
+    _MONSTER_BOOL_COLUMNS = {"can_hover", "show_initiative", "is_official", "is_custom", "spell_only"}
+    _MONSTER_JSONS = (
+        ("speeds", {}), ("ability_scores", {}), ("saving_throws", {}), ("skills", {}),
+        ("damage_vulnerabilities", []), ("damage_resistances", []),
+        ("damage_immunities", []), ("condition_immunities", []),
+        ("senses", []), ("languages", []), ("gear", []),
+        ("traits", []), ("actions", []), ("bonus_actions", []), ("reactions", []),
+        ("legendary_actions", []), ("lair_actions", []),
+        ("habitat", []), ("treasure", []),
+    )
+
+    # Every monster read joins its spell so the dict carries `spell_name`.
+    _MONSTER_SELECT = ("SELECT m.*, s.name AS spell_name FROM monsters m "
+                       "LEFT JOIN spells s ON s.id = m.spell_id")
+
+    def _monster_columns(self) -> List[str]:
+        """Every writable monster column, in the order _monster_values() yields."""
+        return (["name"] + [c for c, _ in self._MONSTER_SCALARS]
+                + [f"{k}_json" for k, _ in self._MONSTER_JSONS] + ["spell_id"])
+
+    def _monster_values(self, cursor, data: dict) -> list:
+        values = [data['name']]
+        for column, default in self._MONSTER_SCALARS:
+            value = data.get(column, default)
+            values.append(int(bool(value)) if column in self._MONSTER_BOOL_COLUMNS else value)
+        for key, default in self._MONSTER_JSONS:
+            values.append(json.dumps(data.get(key, default)))
+        values.append(self._spell_id_by_name(cursor, data.get('spell_name')))
+        return values
+
+    @staticmethod
+    def _spell_id_by_name(cursor, name: Optional[str]) -> Optional[int]:
+        if not name:
+            return None
+        cursor.execute("SELECT id FROM spells WHERE name = ? COLLATE NOCASE", (name,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def _insert_monster_row(self, cursor, monster_data: dict) -> int:
+        columns = self._monster_columns()
+        cursor.execute(
+            f"INSERT INTO monsters ({', '.join(columns)}) "
+            f"VALUES ({', '.join('?' * len(columns))})",
+            self._monster_values(cursor, monster_data))
+        return cursor.lastrowid or 0
+
+    def get_all_monsters(self) -> List[dict]:
+        """Get all monsters (including spell-only summons) from the database."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"{self._MONSTER_SELECT} ORDER BY m.name")
+            return [self._row_to_monster_dict(row) for row in cursor.fetchall()]
+
+    def get_monster_by_name(self, name: str) -> Optional[dict]:
+        """Get a monster by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"{self._MONSTER_SELECT} WHERE m.name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_monster_dict(row) if row else None
+
+    def get_monsters_for_spell_by_name(self, spell_name: str) -> List[dict]:
+        """Get the creatures a spell summons."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"{self._MONSTER_SELECT} WHERE s.name = ? COLLATE NOCASE ORDER BY m.name",
+                           (spell_name,))
+            return [self._row_to_monster_dict(row) for row in cursor.fetchall()]
+
+    def insert_monster(self, monster_data: dict) -> int:
+        """Insert a new monster."""
+        with self.get_connection() as conn:
+            return self._insert_monster_row(conn.cursor(), monster_data)
+
+    def update_monster(self, monster_id: int, monster_data: dict) -> bool:
+        """Update an existing monster."""
+        columns = self._monster_columns()
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE monsters SET {', '.join(f'{c} = ?' for c in columns)}, "
+                f"updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                self._monster_values(cursor, monster_data) + [monster_id])
+            return cursor.rowcount > 0
+
+    def delete_monster(self, monster_id: int) -> bool:
+        """Delete a monster by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM monsters WHERE id = ?", (monster_id,))
+            return cursor.rowcount > 0
+
+    def _row_to_monster_dict(self, row) -> dict:
+        """Convert a database row to a monster dictionary (Monster.to_dict() shape)."""
+        result = {'id': row['id'], 'name': row['name'], 'spell_name': row['spell_name'] or ''}
+        for column, default in self._MONSTER_SCALARS:
+            value = row[column]
+            if column in self._MONSTER_BOOL_COLUMNS:
+                value = bool(value)
+            elif value is None and default is not None:
+                value = default
+            result[column] = value
+        for key, default in self._MONSTER_JSONS:
+            try:
+                value = json.loads(row[f"{key}_json"])
+            except (ValueError, TypeError):
+                value = None
+            result[key] = value if isinstance(value, type(default)) else default
+        return result
 
     # ==================== BACKGROUND METHODS ====================
     

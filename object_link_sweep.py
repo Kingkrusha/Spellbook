@@ -30,7 +30,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 # Order in which categories are tried when one written name is shared by
 # several objects (e.g. "Potion of Healing" is both a magic item and gear).
 PRIORITY = ["spell", "magic_item", "equipment", "feat", "subclass", "class",
-            "lineage", "background"]
+            "lineage", "background", "monster"]
 
 # Single-word names that are really rules vocabulary, never linked on their own.
 _SCHOOLS = {"Abjuration", "Conjuration", "Divination", "Enchantment",
@@ -338,6 +338,8 @@ def _run_anchors(before: str, after: str) -> Dict[str, str]:
         anchors["class"] = "spell-list"
     if re.match(r"\s+background\b", rest):
         anchors["background"] = "background"
+    if re.match(r"\s+stat\s+blocks?\b", rest):
+        anchors["monster"] = "stat-block"
     return anchors
 
 
@@ -389,6 +391,10 @@ def _decide(text: str, tok: _Token, anchors: Dict[str, str], equipment_like: int
                 continue
             if anchors.get("spell") and not adjacent:
                 return cat, name, f"anchor:{anchors['spell']}"
+        elif cat == "monster":
+            # "use the Wolf stat block": a lone creature name is also an ordinary word
+            if not tok.suffix and anchors.get("monster") and not adjacent:
+                return cat, name, f"anchor:{anchors['monster']}"
         elif cat in ("feat", "subclass", "class", "background"):
             if tok.suffix:
                 continue
@@ -438,7 +444,7 @@ def strip_links(text: str) -> str:
         head, sep, rest = body.partition(":")
         if sep and head.strip().lower().replace(" ", "_") in (
                 "spell", "feat", "lineage", "background", "class", "subclass",
-                "equipment", "magic_item"):
+                "equipment", "magic_item", "monster"):
             return rest.strip()
         return body.strip()
     return _LINK_RE.sub(sub, text)
@@ -506,3 +512,14 @@ def sweep_equipment(rec, uni, changes):
 
 def sweep_magic_item(rec, uni, changes):
     _apply(rec, "description", uni, ("magic_item", rec["name"]), changes, "description")
+
+
+def sweep_monster(rec, uni, changes):
+    """A monster's description and the text of its traits, actions and so on
+    ("cast Mind Spike", "the Web spell"). Its numbers, defenses and names are left alone."""
+    owner = ("monster", rec["name"])
+    _apply(rec, "description", uni, owner, changes, "description")
+    for group in ("traits", "actions", "bonus_actions", "reactions",
+                  "legendary_actions", "lair_actions"):
+        for feature in rec.get(group, []) or []:
+            _apply(feature, "description", uni, owner, changes, f"{group}:{feature.get('name', '')}")

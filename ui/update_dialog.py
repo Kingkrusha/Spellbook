@@ -12,6 +12,7 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
+from typography import ui_font
 from theme import get_theme_manager
 from updater import UpdateInfo, open_release_page
 from version import __version__
@@ -81,13 +82,13 @@ class UpdateDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text=f"Spellbook {self._info.version} is available",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ui_font("heading", bold=True),
         ).pack(anchor="w")
 
         ctk.CTkLabel(
             container,
             text=f"You have version {__version__}.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary,
         ).pack(anchor="w", pady=(2, 12))
 
@@ -95,13 +96,13 @@ class UpdateDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text=notes_header,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
         ).pack(anchor="w")
 
         notes_box = ctk.CTkTextbox(
             container,
             wrap="word",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             fg_color=theme.get_current_color("bg_secondary"),
             text_color=theme.get_current_color("text_primary"),
         )
@@ -115,7 +116,7 @@ class UpdateDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text="Download it from GitHub and run it to update - Spellbook doesn't install updates automatically.",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=text_secondary,
             wraplength=420,
             justify="left",

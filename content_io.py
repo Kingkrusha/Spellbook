@@ -2,7 +2,7 @@
 One import/export path for user (unofficial) content.
 
 Every content kind the app stores - spells, feats, lineages, backgrounds,
-classes, subclasses, equipment and magic items - goes through the functions
+classes, subclasses, equipment, magic items and monsters - goes through the functions
 here, so the Import/Export dialogs, the single-spell export and the managers'
 ``import_from_json`` helpers all behave the same way.
 
@@ -13,11 +13,14 @@ A UTF-8 JSON object. The header is optional (older exports and the bundled
 
     {"format": "spellbook-content", "version": 1, "exported_at": "...",
      "spells": [...], "feats": [...], "lineages": [...], "backgrounds": [...],
-     "classes": [...], "subclasses": [...], "equipment": [...], "magic_items": [...]}
+     "classes": [...], "subclasses": [...], "equipment": [...], "magic_items": [...],
+     "monsters": [...]}
 
 Classes may also be a ``{"Name": {...}}`` dict (what ``classes.json`` and the
 old per-manager export used). Spells may carry a ``stat_blocks`` list (summon
-spells). Text fields may contain ``[[category:Name|shown]]`` object links; they
+spells): the monsters the spell summons, in the same shape as a ``monsters``
+record (files from before summoned creatures were monsters hold the old stat
+block shape, which is converted on import). Text fields may contain ``[[category:Name|shown]]`` object links; they
 travel with the content untouched and resolve by name on the importing side.
 
 Rules
@@ -59,17 +62,18 @@ KINDS: "OrderedDict[str, str]" = OrderedDict([
     ("backgrounds", "Backgrounds"),
     ("equipment", "Equipment"),
     ("magic_items", "Magic Items"),
+    ("monsters", "Monsters"),
 ])
 
 # Order shown to users (dialogs, summaries).
 DISPLAY_ORDER = ["spells", "feats", "classes", "subclasses", "lineages",
-                 "backgrounds", "equipment", "magic_items"]
+                 "backgrounds", "equipment", "magic_items", "monsters"]
 
 # sweep category used for each kind (object_link_sweep / object_links)
 _LINK_CATEGORY = {
     "spells": "spell", "feats": "feat", "lineages": "lineage",
     "backgrounds": "background", "classes": "class", "subclasses": "subclass",
-    "equipment": "equipment", "magic_items": "magic_item",
+    "equipment": "equipment", "magic_items": "magic_item", "monsters": "monster",
 }
 
 ProgressFn = Callable[[str, float], None]
@@ -82,7 +86,7 @@ def label(kind: str) -> str:
 _SINGULAR = {
     "spells": "Spell", "feats": "Feat", "lineages": "Lineage", "backgrounds": "Background",
     "classes": "Class", "subclasses": "Subclass", "equipment": "Equipment item",
-    "magic_items": "Magic item",
+    "magic_items": "Magic item", "monsters": "Monster",
 }
 
 
@@ -173,6 +177,9 @@ def _mgr(kind: str):
     if kind == "magic_items":
         from magic_item import get_magic_item_manager
         return get_magic_item_manager()
+    if kind == "monsters":
+        from monster import get_monster_manager
+        return get_monster_manager()
     raise KeyError(kind)
 
 
@@ -198,6 +205,8 @@ def unofficial_objects(kind: str, spell_manager=None) -> list:
         return m.get_unofficial_classes()
     if kind == "subclasses":
         return m.get_unofficial_subclasses()
+    if kind == "monsters":
+        return m.get_unofficial_monsters()
     return m.get_unofficial_items()          # equipment, magic_items
 
 
@@ -220,12 +229,21 @@ def unofficial_sources(kind: Optional[str] = None, spell_manager=None) -> List[s
 def _spell_record(spell, spell_manager) -> dict:
     rec = spell_manager._spell_to_dict(spell)
     try:
-        blocks = spell_manager._db.get_stat_blocks_for_spell_by_name(spell.name)
+        blocks = spell_manager._db.get_monsters_for_spell_by_name(spell.name)
     except Exception:
         blocks = []
     if blocks:
-        rec["stat_blocks"] = [{k: v for k, v in b.items() if k not in ("id", "spell_id")} for b in blocks]
+        rec["stat_blocks"] = [{k: v for k, v in b.items() if k not in ("id", "spell_name")} for b in blocks]
     return rec
+
+
+def _summoned_monster(block: dict):
+    """A ``stat_blocks`` entry of a spell record as a Monster (old-shape entries
+    are converted)."""
+    from monster import Monster
+    if "armor_class" in block and "ac" not in block:
+        return Monster.from_stat_block(block)
+    return Monster.from_dict(block)
 
 
 def _record(kind: str, obj, spell_manager=None) -> dict:
@@ -316,7 +334,7 @@ def load_bundle_file(path: str) -> dict:
         raise ValueError("The file must contain a JSON object with keys such as "
                          "'spells', 'feats' or 'magic_items'.")
     if "character_sheets" in data or "character_spell_lists" in data:
-        raise ValueError("This is a character-sheet export. Use 'Char Import' for it.")
+        raise ValueError("This is a character-sheet export. Import it from the Characters page instead.")
     if not any(k in data for k in KINDS):
         raise ValueError("No recognised content found. Expected at least one of: "
                          + ", ".join(DISPLAY_ORDER))
@@ -428,6 +446,8 @@ def _build_universe(bundle: "OrderedDict[str, List[dict]]", spell_manager=None):
     # Mount animals are left out on purpose (see tools/link_sweep.py)
     names["equipment"].update(i.name for i in _mgr("equipment").items if "Mount" not in (i.tags or []))
     names["magic_item"].update(i.name for i in _mgr("magic_items").items)
+    # Spell-only summons are left out: they belong to their spell, not to prose
+    names["monster"].update(m.name for m in _mgr("monsters").monsters if not m.spell_only)
     for kind, recs in bundle.items():
         cat = _LINK_CATEGORY[kind]
         for r in recs:
@@ -460,6 +480,8 @@ def link_record(kind: str, rec: dict, universe) -> int:
             sweep.sweep_equipment(rec, universe, changes)
         elif kind == "magic_items":
             sweep.sweep_magic_item(rec, universe, changes)
+        elif kind == "monsters":
+            sweep.sweep_monster(rec, universe, changes)
         elif kind == "subclasses":
             sweep.sweep_subclass(rec, universe, changes)
         elif kind == "classes":
@@ -487,6 +509,7 @@ _SIMPLE = {
     "backgrounds": ("background", "Background", "get_background", "add_background"),
     "equipment": ("equipment", "Equipment", "get_item", "add_item"),
     "magic_items": ("magic_item", "MagicItem", "get_item", "add_item"),
+    "monsters": ("monster", "Monster", "get_monster", "add_monster"),
 }
 
 
@@ -576,25 +599,19 @@ def _import_spells(recs: List[dict], report: ImportReport, spell_manager, tick):
                 if spell_manager.get_spell(n) is None:
                     report.failed.append(("spells", n, "could not be saved"))
 
-    # Summon spells: replace the spell's stat blocks with the file's
-    db = spell_manager._db
+    # Summon spells: give the spell the creatures in the file (its own earlier
+    # imports are replaced)
+    monsters = _mgr("monsters")
     for spell in to_add + to_update:
         blocks = stat_blocks.get(spell.name.lower())
         if not blocks:
             continue
-        spell_id = db.get_spell_id_by_name(spell.name)
-        if spell_id is None:
-            continue
         try:
-            for old in db.get_stat_blocks_for_spell(spell_id):
-                db.delete_stat_block(old["id"])
-            for sb in blocks:
-                sb = {k: v for k, v in sb.items() if k not in ("id", "spell_id")}
-                sb["spell_id"] = spell_id
-                if sb.get("name"):
-                    db.insert_stat_block(sb)
+            summoned = [_summoned_monster(b) for b in blocks
+                        if isinstance(b, dict) and b.get("name")]
+            monsters.replace_spell_monsters(spell.name, summoned)
         except Exception as e:
-            report.warnings.append(f"Stat block for '{spell.name}' could not be saved: {e}")
+            report.warnings.append(f"Summoned creature(s) for '{spell.name}' could not be saved: {e}")
 
 
 def _import_classes(recs: List[dict], report: ImportReport, tick):

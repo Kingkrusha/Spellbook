@@ -4,6 +4,7 @@ Allows users to create and edit custom classes and subclasses.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox
 from typing import Optional, List, Dict, Callable
 from theme import get_theme_manager
@@ -99,7 +100,7 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         # Title
         ctk.CTkLabel(
             container, text="Feature Title *",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=ui_font("subheading", 13, bold=True)
         ).pack(fill="x", pady=(0, 5))
         
         self.title_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Extra Attack")
@@ -108,11 +109,11 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         # Description
         ctk.CTkLabel(
             container, text="Description *",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=ui_font("subheading", 13, bold=True)
         ).pack(fill="x", pady=(0, 5))
         
         # Rich text toolbar
-        self.description_text = ctk.CTkTextbox(container, height=180, font=ctk.CTkFont(size=12))
+        self.description_text = ctk.CTkTextbox(container, height=180, font=ui_font("body"))
         self._rich_editor = RichTextEditor(self, self.description_text, self.theme)
         toolbar = self._rich_editor.create_toolbar(container)
         toolbar.pack(fill="x", pady=(0, 5))
@@ -123,7 +124,7 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         self.is_subclass_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
             container, text="Is Subclass Feature (placeholder for subclass abilities)",
-            variable=self.is_subclass_var, font=ctk.CTkFont(size=12)
+            variable=self.is_subclass_var, font=ui_font("body")
         ).pack(fill="x", pady=(0, 15))
         
         # Buttons
@@ -221,7 +222,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text=f"Level {self._level} Features",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ui_font("heading", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(side="left")
         
@@ -242,13 +243,13 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         ctk.CTkCheckBox(
             subclass_frame, text="This level has a Subclass Feature",
             variable=self.has_subclass_var,
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=ui_font("body", bold=True)
         ).pack(padx=15, pady=10, anchor="w")
         
         ctk.CTkLabel(
             subclass_frame,
             text="Check this if subclasses gain features at this level (e.g., levels 3, 6, 10, 14 for most classes)",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(padx=15, pady=(0, 10), anchor="w")
         
@@ -262,7 +263,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         # Class-specific values section
         ctk.CTkLabel(
             container, text="Class-Specific Table Values",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(fill="x", pady=(0, 10))
         
         self.class_specific_frame = ctk.CTkFrame(
@@ -302,7 +303,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.class_specific_frame,
                 text="No class-specific columns defined.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=15)
             return
@@ -314,7 +315,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=f"{col_name}:",
-                font=ctk.CTkFont(size=12, weight="bold"),
+                font=ui_font("body", bold=True),
                 width=150, anchor="w"
             ).pack(side="left")
             
@@ -332,7 +333,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.features_frame,
                 text="No features at this level. Click '+ Add Feature' to add one.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=20)
             return
@@ -352,7 +353,7 @@ class LevelFeaturesEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             row, text=title_text,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
             anchor="w"
         ).pack(side="left", fill="x", expand=True)
         
@@ -449,17 +450,17 @@ class TrackableFeatureEditorDialog(ctk.CTkToplevel):
         scroll.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Title
-        ctk.CTkLabel(scroll, text="Feature Title *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Feature Title *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.title_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Rage")
         self.title_entry.pack(fill="x", pady=(0, 15))
         
         # Description
-        ctk.CTkLabel(scroll, text="Description", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.desc_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="Brief description")
         self.desc_entry.pack(fill="x", pady=(0, 15))
         
         # Tracked Value Label
-        ctk.CTkLabel(scroll, text="Tracked Value Label", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Tracked Value Label", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.tracked_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Uses, Dice, Points")
         self.tracked_entry.pack(fill="x", pady=(0, 15))
         
@@ -467,7 +468,7 @@ class TrackableFeatureEditorDialog(ctk.CTkToplevel):
         uses_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         uses_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(uses_frame, text="Max Uses:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(uses_frame, text="Max Uses:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.max_uses_entry = ctk.CTkEntry(uses_frame, width=80, height=35, placeholder_text="0")
         self.max_uses_entry.pack(side="left", padx=(10, 0))
         
@@ -475,7 +476,7 @@ class TrackableFeatureEditorDialog(ctk.CTkToplevel):
         recharge_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         recharge_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(recharge_frame, text="Recharge:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(recharge_frame, text="Recharge:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.recharge_var = ctk.StringVar(value="long_rest")
         self.recharge_combo = ctk.CTkComboBox(
             recharge_frame, variable=self.recharge_var,
@@ -487,7 +488,7 @@ class TrackableFeatureEditorDialog(ctk.CTkToplevel):
         # Level Scaling Note
         ctk.CTkLabel(
             scroll, text="Level scaling can be configured after saving.",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 15))
         
@@ -697,7 +698,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         scroll.pack(fill="both", expand=True)
         
         # Name
-        ctk.CTkLabel(scroll, text="Class Name *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Class Name *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.name_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Fighter")
         self.name_entry.pack(fill="x", pady=(0, 15))
         
@@ -705,7 +706,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         hit_die_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         hit_die_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(hit_die_frame, text="Hit Die *", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(hit_die_frame, text="Hit Die *", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.hit_die_var = ctk.StringVar(value="d8")
         self.hit_die_combo = ctk.CTkComboBox(
             hit_die_frame, variable=self.hit_die_var,
@@ -715,12 +716,12 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.hit_die_combo.pack(side="left", padx=(15, 0))
         
         # Primary Ability
-        ctk.CTkLabel(scroll, text="Primary Ability", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Primary Ability", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.primary_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Strength or Dexterity")
         self.primary_entry.pack(fill="x", pady=(0, 15))
         
         # Saving Throws
-        ctk.CTkLabel(scroll, text="Saving Throw Proficiencies", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Saving Throw Proficiencies", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         
         saves_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         saves_frame.pack(fill="x", pady=(0, 15))
@@ -732,17 +733,17 @@ class ClassEditorDialog(ctk.CTkToplevel):
             ctk.CTkCheckBox(saves_frame, text=save, variable=var, width=70).pack(side="left", padx=(0, 10))
         
         # Armor Proficiencies
-        ctk.CTkLabel(scroll, text="Armor Proficiencies (comma-separated)", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Armor Proficiencies (comma-separated)", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.armor_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Light armor, Medium armor, Shields")
         self.armor_entry.pack(fill="x", pady=(0, 15))
         
         # Weapon Proficiencies
-        ctk.CTkLabel(scroll, text="Weapon Proficiencies (comma-separated)", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Weapon Proficiencies (comma-separated)", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.weapon_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Simple weapons, Martial weapons")
         self.weapon_entry.pack(fill="x", pady=(0, 15))
         
         # Tool Proficiencies
-        ctk.CTkLabel(scroll, text="Tool Proficiencies (comma-separated)", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Tool Proficiencies (comma-separated)", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.tool_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Thieves' Tools")
         self.tool_entry.pack(fill="x", pady=(0, 15))
         
@@ -750,12 +751,12 @@ class ClassEditorDialog(ctk.CTkToplevel):
         skill_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         skill_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(skill_frame, text="Number of Skill Choices:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(skill_frame, text="Number of Skill Choices:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.skill_choices_entry = ctk.CTkEntry(skill_frame, width=60, height=35, placeholder_text="2")
         self.skill_choices_entry.pack(side="left", padx=(10, 0))
         
         # Skill Options - Checkboxes
-        ctk.CTkLabel(scroll, text="Available Skill Options", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Available Skill Options", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         
         skill_options_frame = ctk.CTkFrame(scroll, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
         skill_options_frame.pack(fill="x", pady=(0, 5))
@@ -790,14 +791,14 @@ class ClassEditorDialog(ctk.CTkToplevel):
             var = ctk.BooleanVar(value=False)
             self.skill_vars[skill] = var
             cb = ctk.CTkCheckBox(skills_grid, text=skill, variable=var, width=150,
-                                 font=ctk.CTkFont(size=11))
+                                 font=ui_font("small"))
             cb.grid(row=idx // 3, column=idx % 3, sticky="w", padx=5, pady=2)
         
         # Subclass Level
         subclass_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         subclass_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(subclass_frame, text="Subclass Level:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(subclass_frame, text="Subclass Level:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.subclass_level_var = ctk.StringVar(value="3")
         self.subclass_level_combo = ctk.CTkComboBox(
             subclass_frame, variable=self.subclass_level_var,
@@ -806,16 +807,16 @@ class ClassEditorDialog(ctk.CTkToplevel):
         )
         self.subclass_level_combo.pack(side="left", padx=(10, 0))
         
-        ctk.CTkLabel(subclass_frame, text="Subclass Name:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=(30, 0))
+        ctk.CTkLabel(subclass_frame, text="Subclass Name:", font=ui_font("subheading", 13, bold=True)).pack(side="left", padx=(30, 0))
         self.subclass_name_entry = ctk.CTkEntry(subclass_frame, width=200, height=35, placeholder_text="e.g., Martial Archetype")
         self.subclass_name_entry.pack(side="left", padx=(10, 0))
         
         # Description with rich text toolbar
-        ctk.CTkLabel(scroll, text="Description", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         
         from ui.rich_text_utils import RichTextEditor
         
-        self.description_text = ctk.CTkTextbox(scroll, height=120, font=ctk.CTkFont(size=12))
+        self.description_text = ctk.CTkTextbox(scroll, height=120, font=ui_font("body"))
         self._class_desc_rich_editor = RichTextEditor(self, self.description_text, self.theme)
         class_desc_toolbar = self._class_desc_rich_editor.create_toolbar(scroll)
         class_desc_toolbar.pack(fill="x", pady=(0, 5))
@@ -823,7 +824,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         self.description_text.pack(fill="x", pady=(0, 15))
         
         # Source
-        ctk.CTkLabel(scroll, text="Source", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Source", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.source_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Player's Handbook (2024)")
         self.source_entry.pack(fill="x", pady=(0, 15))
     
@@ -838,7 +839,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         caster_cb = ctk.CTkCheckBox(
             scroll, text="This class is a spellcaster",
             variable=self.is_caster_var,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             command=self._on_caster_toggle
         )
         caster_cb.pack(fill="x", pady=(0, 20))
@@ -851,7 +852,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         ability_frame = ctk.CTkFrame(self.spell_options_frame, fg_color="transparent")
         ability_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(ability_frame, text="Spellcasting Ability:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(ability_frame, text="Spellcasting Ability:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.spell_ability_var = ctk.StringVar(value="INT")
         self.spell_ability_combo = ctk.CTkComboBox(
             ability_frame, variable=self.spell_ability_var,
@@ -863,7 +864,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         # Spell Slot Progression
         ctk.CTkLabel(
             self.spell_options_frame, text="Spell Slot Progression:",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=ui_font("subheading", 13, bold=True)
         ).pack(fill="x", pady=(0, 10))
         
         self.slot_progression_var = ctk.StringVar(value="none")
@@ -874,26 +875,26 @@ class ClassEditorDialog(ctk.CTkToplevel):
         ctk.CTkRadioButton(
             prog_frame, text="Full Caster (Wizard/Cleric/etc.)",
             variable=self.slot_progression_var, value="full",
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         ).pack(anchor="w", pady=3)
         
         ctk.CTkRadioButton(
             prog_frame, text="Half Caster (Paladin/Ranger)",
             variable=self.slot_progression_var, value="half",
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         ).pack(anchor="w", pady=3)
         
         ctk.CTkRadioButton(
             prog_frame, text="Custom (configure manually)",
             variable=self.slot_progression_var, value="custom",
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         ).pack(anchor="w", pady=3)
         
         # Note about custom
         ctk.CTkLabel(
             self.spell_options_frame,
             text="Note: Custom spell slots can be configured in the Level Features tab.",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 15))
         
@@ -921,7 +922,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text="Click a level to edit its features",
-            font=ctk.CTkFont(size=14),
+            font=ui_font("subheading"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(side="left")
         
@@ -1007,13 +1008,13 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             scroll, text="Trackable Features (max 3)",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(fill="x", pady=(0, 5))
         
         ctk.CTkLabel(
             scroll,
             text="These features appear in the Class Features widget on the character sheet.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 15))
         
@@ -1045,7 +1046,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.trackable_frame,
                 text="No trackable features defined.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=15)
             return
@@ -1056,7 +1057,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=f"{feature.title} ({feature.tracked_value})",
-                font=ctk.CTkFont(size=13, weight="bold"),
+                font=ui_font("subheading", 13, bold=True),
                 anchor="w"
             ).pack(side="left", fill="x", expand=True)
             
@@ -1114,13 +1115,13 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             scroll, text="Custom Feature Table Columns",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(fill="x", pady=(0, 5))
         
         ctk.CTkLabel(
             scroll,
             text="Add custom columns to the class features table (e.g., Rage Damage, Martial Arts Die).",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 15))
         
@@ -1158,7 +1159,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.columns_frame,
                 text="No custom columns defined.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=15)
             return
@@ -1169,7 +1170,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=col_name,
-                font=ctk.CTkFont(size=13, weight="bold"),
+                font=ui_font("subheading", 13, bold=True),
                 anchor="w"
             ).pack(side="left", fill="x", expand=True)
             
@@ -1242,13 +1243,13 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             scroll, text="Column Values by Level",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(fill="x", pady=(0, 5))
         
         ctk.CTkLabel(
             scroll,
             text="Set values for each custom column across all levels. This is easier than editing each level individually.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 15))
         
@@ -1273,7 +1274,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self._column_values_frame,
                 text="No custom columns defined. Add columns in the 'Custom Columns' tab first.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=15)
             return
@@ -1293,7 +1294,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text=col_name,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ui_font("subheading", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(side="left")
         
@@ -1301,7 +1302,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
         fill_frame = ctk.CTkFrame(header, fg_color="transparent")
         fill_frame.pack(side="right")
         
-        ctk.CTkLabel(fill_frame, text="Fill:", font=ctk.CTkFont(size=11)).pack(side="left", padx=(0, 5))
+        ctk.CTkLabel(fill_frame, text="Fill:", font=ui_font("small")).pack(side="left", padx=(0, 5))
         
         fill_entry = ctk.CTkEntry(fill_frame, width=60, height=25, placeholder_text="value")
         fill_entry.pack(side="left", padx=(0, 5))
@@ -1327,7 +1328,7 @@ class ClassEditorDialog(ctk.CTkToplevel):
             cell = ctk.CTkFrame(grid_frame, fg_color="transparent")
             cell.grid(row=row, column=col, padx=5, pady=2, sticky="w")
             
-            ctk.CTkLabel(cell, text=f"L{lvl}:", font=ctk.CTkFont(size=11), width=30).pack(side="left")
+            ctk.CTkLabel(cell, text=f"L{lvl}:", font=ui_font("small"), width=30).pack(side="left")
             
             # Get current value
             current_val = "-"
@@ -1602,26 +1603,26 @@ class SubclassEditorDialog(ctk.CTkToplevel):
         scroll.pack(fill="both", expand=True)
         
         # Name
-        ctk.CTkLabel(scroll, text="Subclass Name *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Subclass Name *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.name_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Path of the Berserker")
         self.name_entry.pack(fill="x", pady=(0, 15))
         
         # Parent Class (read-only)
-        ctk.CTkLabel(scroll, text="Parent Class", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Parent Class", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         parent_label = ctk.CTkLabel(
             scroll, text=self._parent_class.name,
-            font=ctk.CTkFont(size=14),
+            font=ui_font("subheading"),
             fg_color=self.theme.get_current_color('bg_secondary'),
             corner_radius=6, height=35
         )
         parent_label.pack(fill="x", pady=(0, 15))
         
         # Description
-        ctk.CTkLabel(scroll, text="Description", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         
         from ui.rich_text_utils import RichTextEditor
         
-        self.description_text = ctk.CTkTextbox(scroll, height=150, font=ctk.CTkFont(size=12))
+        self.description_text = ctk.CTkTextbox(scroll, height=150, font=ui_font("body"))
         self._desc_rich_editor = RichTextEditor(self, self.description_text, self.theme)
         desc_toolbar = self._desc_rich_editor.create_toolbar(scroll)
         desc_toolbar.pack(fill="x", pady=(0, 5))
@@ -1629,7 +1630,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
         self.description_text.pack(fill="x", pady=(0, 15))
         
         # Source
-        ctk.CTkLabel(scroll, text="Source", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(scroll, text="Source", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.source_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Player's Handbook (2024)")
         self.source_entry.pack(fill="x", pady=(0, 15))
     
@@ -1643,7 +1644,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text="Subclass Features",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(side="left")
         
         btn_text = self.theme.get_current_color('text_primary')
@@ -1673,7 +1674,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.features_scroll,
                 text="No features defined. Click '+ Add Feature' to add one.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=20)
             return
@@ -1687,7 +1688,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=f"Level {feature.level}: {feature.title}",
-                font=ctk.CTkFont(size=13, weight="bold"),
+                font=ui_font("subheading", 13, bold=True),
                 anchor="w"
             ).pack(side="left", fill="x", expand=True)
             
@@ -1748,7 +1749,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text="Subclass Spells (Always Prepared)",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(side="left")
         
         btn_text = self.theme.get_current_color('text_primary')
@@ -1763,7 +1764,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             tab,
             text="These spells are always prepared and don't count against the character's prepared spell limit.",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 10))
         
@@ -1785,7 +1786,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.spells_scroll,
                 text="No spells defined. Click '+ Add Spell' to add one.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(padx=15, pady=20)
             return
@@ -1799,7 +1800,7 @@ class SubclassEditorDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=f"Level {spell.level_gained}: {spell.spell_name}",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 anchor="w"
             ).pack(side="left", fill="x", expand=True)
             
@@ -1915,7 +1916,7 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
         level_frame = ctk.CTkFrame(container, fg_color="transparent")
         level_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(level_frame, text="Level *", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(level_frame, text="Level *", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.level_var = ctk.StringVar(value=str(self._min_level))
         self.level_combo = ctk.CTkComboBox(
             level_frame, variable=self.level_var,
@@ -1925,14 +1926,14 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
         self.level_combo.pack(side="left", padx=(15, 0))
         
         # Title
-        ctk.CTkLabel(container, text="Feature Title *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(container, text="Feature Title *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.title_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Frenzy")
         self.title_entry.pack(fill="x", pady=(0, 15))
         
         # Description with rich text toolbar
-        ctk.CTkLabel(container, text="Description *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(container, text="Description *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         
-        self.description_text = ctk.CTkTextbox(container, height=180, font=ctk.CTkFont(size=12))
+        self.description_text = ctk.CTkTextbox(container, height=180, font=ui_font("body"))
         self._rich_editor = RichTextEditor(self, self.description_text, self.theme)
         toolbar = self._rich_editor.create_toolbar(container)
         toolbar.pack(fill="x", pady=(0, 5))
@@ -2022,7 +2023,7 @@ class SubclassSpellEditorDialog(ctk.CTkToplevel):
         container.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Spell Name
-        ctk.CTkLabel(container, text="Spell Name *", font=ctk.CTkFont(size=13, weight="bold")).pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(container, text="Spell Name *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
         self.name_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Bless")
         self.name_entry.pack(fill="x", pady=(0, 15))
         
@@ -2030,7 +2031,7 @@ class SubclassSpellEditorDialog(ctk.CTkToplevel):
         level_frame = ctk.CTkFrame(container, fg_color="transparent")
         level_frame.pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(level_frame, text="Level Gained *", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(level_frame, text="Level Gained *", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.level_var = ctk.StringVar(value=str(self._min_level))
         self.level_combo = ctk.CTkComboBox(
             level_frame, variable=self.level_var,

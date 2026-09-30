@@ -17,6 +17,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import customtkinter as ctk
 
+from typography import ui_font
+from ui.label_text import LabeledLabel
 from theme import get_theme_manager
 from ui.platform_compat import bind_right_click
 from object_links import (
@@ -69,9 +71,9 @@ def open_link_popup(parent, category: str, name: str):
 class LinkPopup(ctk.CTkToplevel):
     """Read-only detail popup for any non-spell link target.
 
-    Classes and subclasses get a taller window and a features list, since
-    dumping their full text at the same size as a one-line item description
-    reads badly.
+    Classes, subclasses and monsters get a taller window (a features list, a
+    full stat block), since dumping their text at the same size as a one-line
+    item description reads badly.
     """
 
     def __init__(self, parent, target: LinkTarget):
@@ -80,7 +82,7 @@ class LinkPopup(ctk.CTkToplevel):
         self.target = target
         self.obj = target.get_object()
 
-        big = target.category in ("class", "subclass")
+        big = target.category in ("class", "subclass", "monster")
         self.title(target.name)
         self.geometry("560x680" if big else "480x520")
         self.minsize(420, 380)
@@ -101,19 +103,19 @@ class LinkPopup(ctk.CTkToplevel):
         scroll.pack(fill="both", expand=True, padx=15, pady=15)
 
         ctk.CTkLabel(
-            scroll, text=self.target.name, font=ctk.CTkFont(size=22, weight="bold"),
+            scroll, text=self.target.name, font=ui_font("title", 22, bold=True),
             wraplength=460, justify="left", anchor="w",
         ).pack(anchor="w", pady=(0, 4))
 
         badge_row = ctk.CTkFrame(scroll, fg_color="transparent")
         badge_row.pack(anchor="w", pady=(0, 8))
         ctk.CTkLabel(
-            badge_row, text=self.target.category_label, font=ctk.CTkFont(size=11),
+            badge_row, text=self.target.category_label, font=ui_font("small"),
             fg_color=theme.get_current_color('accent_primary'), corner_radius=5, padx=8, pady=2,
         ).pack(side="left", padx=(0, 6))
         if self.target.subtitle:
             ctk.CTkLabel(
-                badge_row, text=self.target.subtitle, font=ctk.CTkFont(size=11),
+                badge_row, text=self.target.subtitle, font=ui_font("small"),
                 text_color=theme.get_text_secondary(),
             ).pack(side="left")
 
@@ -132,6 +134,7 @@ class LinkPopup(ctk.CTkToplevel):
             "magic_item": self._render_equipment_like,
             "class": self._render_class,
             "subclass": self._render_subclass,
+            "monster": self._render_monster,
         }.get(self.target.category)
         if renderer:
             renderer(scroll)
@@ -143,14 +146,14 @@ class LinkPopup(ctk.CTkToplevel):
     def _stat_line(self, parent, parts: List[str]):
         if not parts:
             return
-        ctk.CTkLabel(
-            parent, text="   •   ".join(parts), font=ctk.CTkFont(size=13),
+        LabeledLabel(
+            parent, text="   •   ".join(parts), font=ui_font("body", 13),
             text_color=self.theme.get_text_secondary(), anchor="w", justify="left",
         ).pack(anchor="w", pady=(0, 8))
 
     def _section_title(self, parent, text: str):
         ctk.CTkLabel(
-            parent, text=text, font=ctk.CTkFont(size=14, weight="bold"),
+            parent, text=text, font=ui_font("subheading", bold=True),
         ).pack(anchor="w", pady=(12, 4))
 
     def _render_description(self, parent, text: str):
@@ -174,12 +177,12 @@ class LinkPopup(ctk.CTkToplevel):
             row = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
             row.pack(fill="x", pady=3)
             ctk.CTkLabel(
-                row, text=name, font=ctk.CTkFont(size=13, weight="bold"),
+                row, text=name, font=ui_font("subheading", 13, bold=True),
                 text_color=self.theme.get_current_color('accent_primary'), anchor="w",
             ).pack(anchor="w", padx=10, pady=(6, 0))
             if desc:
                 ctk.CTkLabel(
-                    row, text=desc, font=ctk.CTkFont(size=11), wraplength=460,
+                    row, text=desc, font=ui_font("small"), wraplength=460,
                     justify="left", anchor="w",
                 ).pack(anchor="w", padx=10, pady=(0, 8))
             else:
@@ -236,7 +239,7 @@ class LinkPopup(ctk.CTkToplevel):
         tags = getattr(item, "tags", None)
         if tags:
             ctk.CTkLabel(
-                parent, text=item.display_tags(), font=ctk.CTkFont(size=12),
+                parent, text=item.display_tags(), font=ui_font("body"),
                 text_color=self.theme.get_current_color('accent_primary'),
                 wraplength=460, justify="left", anchor="w",
             ).pack(anchor="w", pady=(0, 8))
@@ -248,13 +251,17 @@ class LinkPopup(ctk.CTkToplevel):
 
         self._render_description(parent, item.description)
 
+    def _render_monster(self, parent):
+        from ui.monster_stat_block import MonsterStatBlock
+        MonsterStatBlock(parent, self.obj, bg_key="bg_primary", show_name=False).pack(fill="x")
+
     def _render_class(self, parent):
         c = self.obj
         self._stat_line(parent, [f"Hit Die: {c.hit_die}", c.primary_ability or ""])
         if c.saving_throw_proficiencies:
-            ctk.CTkLabel(
+            LabeledLabel(
                 parent, text="Saving Throws: " + ", ".join(c.saving_throw_proficiencies),
-                font=ctk.CTkFont(size=12), text_color=self.theme.get_text_secondary(), anchor="w",
+                font=ui_font("body"), text_color=self.theme.get_text_secondary(), anchor="w",
             ).pack(anchor="w", pady=(0, 8))
         self._render_description(parent, c.description)
 
@@ -269,7 +276,7 @@ class LinkPopup(ctk.CTkToplevel):
                         continue
                     ctk.CTkLabel(
                         list_frame, text=f"Level {level} — {ability.title}",
-                        font=ctk.CTkFont(size=12), anchor="w", justify="left", wraplength=460,
+                        font=ui_font("body"), anchor="w", justify="left", wraplength=460,
                     ).pack(anchor="w", pady=1)
 
     def _render_subclass(self, parent):
@@ -283,7 +290,7 @@ class LinkPopup(ctk.CTkToplevel):
             for feature in sorted(s.features, key=lambda x: x.level):
                 ctk.CTkLabel(
                     list_frame, text=f"Level {feature.level} — {feature.title}",
-                    font=ctk.CTkFont(size=12), anchor="w", justify="left", wraplength=460,
+                    font=ui_font("body"), anchor="w", justify="left", wraplength=460,
                 ).pack(anchor="w", pady=1)
 
 
@@ -315,13 +322,13 @@ class LinkSuggestionPopup(ctk.CTkToplevel):
         header.pack(fill="x", padx=8, pady=(6, 2))
         ctk.CTkLabel(
             header, text=f"{len(matches)} link suggestion{'s' if len(matches) != 1 else ''}",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary(),
+            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
         ).pack(side="left")
         ctk.CTkButton(
             header, text="×", width=20, height=20, fg_color="transparent",
             hover_color=self.theme.get_current_color('button_danger'),
             text_color=self.theme.get_current_color('text_primary'),
-            font=ctk.CTkFont(size=13, weight="bold"), command=self._on_close,
+            font=ui_font("subheading", 13, bold=True), command=self._on_close,
         ).pack(side="right")
 
         if scrollable and len(matches) > 6:
@@ -338,7 +345,7 @@ class LinkSuggestionPopup(ctk.CTkToplevel):
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('accent_primary'),
                 text_color=self.theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 command=lambda t=target: on_pick(t),
             )
             row.pack(fill="x", pady=1)

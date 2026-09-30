@@ -4,6 +4,8 @@ Displays a searchable/filterable list of lineages with details panel.
 """
 
 import customtkinter as ctk
+from typography import ui_font
+from ui.label_text import LabeledLabel
 import tkinter as tk
 from tkinter import messagebox
 from typing import List, Optional, Callable
@@ -12,9 +14,10 @@ from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.platform_compat import bind_right_click, unbind_right_click
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.list_batching import BatchedListMixin
 
 
-class LineageListPanel(ctk.CTkFrame):
+class LineageListPanel(BatchedListMixin, ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting lineages."""
     
     # Batch size for progressive loading - smaller batches = smoother UI
@@ -49,11 +52,11 @@ class LineageListPanel(ctk.CTkFrame):
         header_frame.pack(fill="x", padx=15, pady=(15, 10))
         
         ctk.CTkLabel(header_frame, text="Lineages", 
-                     font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+                     font=ui_font("heading", bold=True)).pack(side="left")
         
         text_secondary = self.theme.get_text_secondary()
         self.count_label = ctk.CTkLabel(header_frame, text="0 lineages",
-                                         font=ctk.CTkFont(size=12),
+                                         font=ui_font("body"),
                                          text_color=text_secondary)
         self.count_label.pack(side="right")
         
@@ -77,7 +80,7 @@ class LineageListPanel(ctk.CTkFrame):
                       else self.theme.get_current_color('accent_primary')),
             hover_color=self.theme.get_current_color('button_hover'),
             text_color=self.theme.get_current_color('text_primary'),
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             command=lambda i=index: self._on_lineage_click(i)
         )
         btn.pack(fill="x", pady=2)
@@ -184,7 +187,7 @@ class LineageListPanel(ctk.CTkFrame):
         
         current_button_count = len(self._lineage_buttons)
         new_lineage_count = len(self._lineages)
-        end_index = min(start_index + self.BATCH_SIZE, new_lineage_count)
+        end_index = min(start_index + self._batch_size(), new_lineage_count)
         
         # Process this batch
         for i in range(start_index, end_index):
@@ -211,7 +214,7 @@ class LineageListPanel(ctk.CTkFrame):
             self._pending_after_id = None
         else:
             # Schedule next batch
-            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_lineages_batch(end_index))
+            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_lineages_batch(end_index))
     
     def _refresh_buttons(self):
         """Refresh button colors after theme change."""
@@ -265,15 +268,15 @@ class LineageDetailPanel(ctk.CTkFrame):
         # Lineage name
         self.name_label = ctk.CTkLabel(
             self.scroll_frame, text="Select a lineage",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ui_font("title", bold=True),
             wraplength=800
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
         
         # Source info
-        self.source_label = ctk.CTkLabel(
+        self.source_label = LabeledLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(anchor="w", pady=(0, 10))
@@ -289,23 +292,23 @@ class LineageDetailPanel(ctk.CTkFrame):
         self.stats_inner.pack(fill="x", padx=10, pady=8)
         
         # Create stats labels - left aligned
-        self.creature_type_label = ctk.CTkLabel(
+        self.creature_type_label = LabeledLabel(
             self.stats_inner, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w"
         )
         self.creature_type_label.pack(fill="x", anchor="w", pady=1)
         
-        self.size_label = ctk.CTkLabel(
+        self.size_label = LabeledLabel(
             self.stats_inner, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w"
         )
         self.size_label.pack(fill="x", anchor="w", pady=1)
         
-        self.speed_label = ctk.CTkLabel(
+        self.speed_label = LabeledLabel(
             self.stats_inner, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w"
         )
         self.speed_label.pack(fill="x", anchor="w", pady=1)
@@ -313,7 +316,7 @@ class LineageDetailPanel(ctk.CTkFrame):
         # Description
         self.desc_header = ctk.CTkLabel(
             self.scroll_frame, text="Description",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         
         # Description container for rich text rendering
@@ -323,7 +326,7 @@ class LineageDetailPanel(ctk.CTkFrame):
         # Traits section
         self.traits_header = ctk.CTkLabel(
             self.scroll_frame, text="Traits",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         
         # Container for trait widgets
@@ -364,7 +367,7 @@ class LineageDetailPanel(ctk.CTkFrame):
         # Trait name
         name_label = ctk.CTkLabel(
             inner, text=trait.name,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
             anchor="w"
         )
         name_label.pack(fill="x", anchor="w")
@@ -639,7 +642,7 @@ class LineagesView(ctk.CTkFrame):
         self.source_btn.pack(side="left", padx=(0, 8))
         self.source_label = ctk.CTkLabel(
             filter_bar2, text="None selected",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+            font=ui_font("small"), text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(side="left", padx=(0, 20))
 
@@ -717,7 +720,7 @@ class LineagesView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header, text="Compare Lineages",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(side="left")
         
         ctk.CTkButton(
@@ -1083,7 +1086,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Name
-        ctk.CTkLabel(self.scroll, text="Name:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Name:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.name_entry = ctk.CTkEntry(self.scroll, width=400, height=35)
         self.name_entry.pack(fill="x", pady=(5, 15))
         
@@ -1094,7 +1097,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         # Creature Type
         type_frame = ctk.CTkFrame(stats_frame, fg_color="transparent")
         type_frame.pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(type_frame, text="Creature Type:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(type_frame, text="Creature Type:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.creature_type_entry = ctk.CTkEntry(type_frame, width=150, height=35)
         self.creature_type_entry.pack()
         self.creature_type_entry.insert(0, "Humanoid")
@@ -1102,7 +1105,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         # Size
         size_frame = ctk.CTkFrame(stats_frame, fg_color="transparent")
         size_frame.pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(size_frame, text="Size:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(size_frame, text="Size:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.size_combo = ctk.CTkComboBox(
             size_frame, width=150, height=35,
             values=["Small", "Medium", "Large", "Small or Medium"],
@@ -1114,18 +1117,18 @@ class LineageEditorDialog(ctk.CTkToplevel):
         # Speed
         speed_frame = ctk.CTkFrame(stats_frame, fg_color="transparent")
         speed_frame.pack(side="left")
-        ctk.CTkLabel(speed_frame, text="Speed (feet):", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(speed_frame, text="Speed (feet):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.speed_entry = ctk.CTkEntry(speed_frame, width=80, height=35)
         self.speed_entry.pack()
         self.speed_entry.insert(0, "30")
         
         # Source
-        ctk.CTkLabel(self.scroll, text="Source:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Source:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.source_entry = ctk.CTkEntry(self.scroll, width=300, height=35)
         self.source_entry.pack(anchor="w", pady=(5, 15))
         
         # Description
-        ctk.CTkLabel(self.scroll, text="Description:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Description:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         
         self.desc_text = ctk.CTkTextbox(self.scroll, height=100)
         
@@ -1141,7 +1144,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         traits_header = ctk.CTkFrame(self.scroll, fg_color="transparent")
         traits_header.pack(fill="x", pady=(10, 5))
         
-        ctk.CTkLabel(traits_header, text="Traits:", font=ctk.CTkFont(weight="bold")).pack(side="left")
+        ctk.CTkLabel(traits_header, text="Traits:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         
         ctk.CTkButton(
             traits_header, text="+ Add Trait", width=100,
@@ -1192,7 +1195,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         header = ctk.CTkFrame(inner, fg_color="transparent")
         header.pack(fill="x")
         
-        ctk.CTkLabel(header, text="Trait Name:", font=ctk.CTkFont(size=12)).pack(side="left")
+        ctk.CTkLabel(header, text="Trait Name:", font=ui_font("body")).pack(side="left")
         
         remove_btn = ctk.CTkButton(
             header, text="✕", width=25, height=25,
@@ -1206,7 +1209,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         name_entry.pack(fill="x", pady=(5, 10))
         name_entry.insert(0, name)
         
-        ctk.CTkLabel(inner, text="Description:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        ctk.CTkLabel(inner, text="Description:", font=ui_font("body")).pack(anchor="w")
         
         desc_entry = ctk.CTkTextbox(inner, height=80)
         
@@ -1266,7 +1269,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         if self._batch_progress:
             heading = f"{heading}   ({self._batch_progress})"
         ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ui_font("subheading", 13, bold=True),
                      text_color=warn, anchor="w",
                      justify="left", wraplength=620).pack(fill="x", padx=12, pady=(8, 2))
 
@@ -1276,7 +1279,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
             msg = f"Fields to double-check (outlined below): {names}"
         else:
             msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
                      text_color=self.theme.get_text_secondary(), anchor="w",
                      justify="left", wraplength=620).pack(fill="x", padx=12, pady=(0, 2))
 
@@ -1285,7 +1288,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
             text=("Auto-detection is rule-based, not perfect - accuracy drops for "
                   "irregularly formatted text. Splitting the description from its "
                   "traits is a best guess. Nothing is saved until you click Save."),
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary(),
+            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
             anchor="w", justify="left", wraplength=620,
         ).pack(fill="x", padx=12, pady=(0, 8))
 

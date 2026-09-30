@@ -5,8 +5,11 @@ Provides a full character sheet interface with D&D 5e standard layout.
 # pyright: reportOptionalMemberAccess=false
 
 import customtkinter as ctk
+from typography import ui_font
+from ui.restyle import style_name, widget_kind
+from ui.sheet_style import SheetStyler, StylePanel, PANEL_WIDTH
 import re
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 from typing import Optional, Callable, List, Dict
 from character import CharacterSpellList
 from character_manager import CharacterManager
@@ -147,7 +150,10 @@ class CharacterSheetManager:
     def delete_sheet(self, character_name: str):
         """Delete a character sheet."""
         if character_name in self._sheets:
-            del self._sheets[character_name]
+            sheet = self._sheets.pop(character_name)
+            if sheet.portrait:
+                import portraits
+                portraits.delete_portrait(sheet.portrait, [x.portrait for x in self._sheets.values()])
             self.save()
     
     def rename_sheet(self, old_name: str, new_name: str):
@@ -187,7 +193,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
         # Ability name
         ctk.CTkLabel(
             self, text=AbilityScore.short_name(ability),
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=ui_font("body", bold=True)
         ).pack(pady=(8, 2))
         
         # Score entry
@@ -196,7 +202,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
             self, width=50, height=28,
             textvariable=self.score_var,
             justify="center",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         self.score_entry.pack(pady=2)
         self.score_entry.bind("<FocusOut>", self._on_score_change)
@@ -207,7 +213,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
         mod_text = f"+{modifier}" if modifier >= 0 else str(modifier)
         self.modifier_label = ctk.CTkLabel(
             self, text=mod_text,
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ui_font("heading", 16, bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         )
         self.modifier_label.pack(pady=(2, 8))
@@ -261,14 +267,14 @@ class SavingThrowWidget(ctk.CTkFrame):
         mod_text = f"+{modifier}" if modifier >= 0 else str(modifier)
         self.mod_label = ctk.CTkLabel(
             self, text=mod_text, width=35,
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         )
         self.mod_label.pack(side="left", padx=(0, 5))
         
         # Ability name
         ctk.CTkLabel(
             self, text=ability.value,
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         ).pack(side="left")
     
     def _on_change(self):
@@ -300,7 +306,7 @@ class SkillWidget(ctk.CTkFrame):
         self.prof_btn = ctk.CTkButton(
             self, text=self._get_prof_symbol(),
             width=24, height=24,
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             fg_color=self._get_prof_color(),
             hover_color=self.theme.get_current_color('button_hover'),
             command=self._cycle_proficiency
@@ -311,7 +317,7 @@ class SkillWidget(ctk.CTkFrame):
         mod_text = f"+{modifier}" if modifier >= 0 else str(modifier)
         self.mod_label = ctk.CTkLabel(
             self, text=mod_text, width=35,
-            font=ctk.CTkFont(size=11)
+            font=ui_font("small")
         )
         self.mod_label.pack(side="left", padx=(0, 5))
         
@@ -319,7 +325,7 @@ class SkillWidget(ctk.CTkFrame):
         ability_short = AbilityScore.short_name(skill.ability)
         ctk.CTkLabel(
             self, text=f"{skill.display_name} ({ability_short})",
-            font=ctk.CTkFont(size=11)
+            font=ui_font("small")
         ).pack(side="left")
     
     def _get_prof_symbol(self) -> str:
@@ -370,7 +376,7 @@ class HitPointsWidget(ctk.CTkFrame):
         # Title
         ctk.CTkLabel(
             self, text="HIT POINTS",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=ui_font("body", bold=True)
         ).pack(pady=(10, 5))
         
         # Main HP row
@@ -378,7 +384,7 @@ class HitPointsWidget(ctk.CTkFrame):
         hp_row.pack(fill="x", padx=15, pady=5)
         
         # Current HP
-        ctk.CTkLabel(hp_row, text="Current:", font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkLabel(hp_row, text="Current:", font=ui_font("small")).pack(side="left")
         self.current_var = ctk.StringVar(value=str(self.hp.current))
         current_entry = ctk.CTkEntry(
             hp_row, width=50, height=28,
@@ -389,7 +395,7 @@ class HitPointsWidget(ctk.CTkFrame):
         current_entry.bind("<FocusOut>", self._on_change)
         current_entry.bind("<Return>", self._on_change)
         
-        ctk.CTkLabel(hp_row, text="/", font=ctk.CTkFont(size=14)).pack(side="left")
+        ctk.CTkLabel(hp_row, text="/", font=ui_font("subheading")).pack(side="left")
         
         # Max HP
         self.max_var = ctk.StringVar(value=str(self.hp.maximum))
@@ -406,7 +412,7 @@ class HitPointsWidget(ctk.CTkFrame):
         temp_row = ctk.CTkFrame(self, fg_color="transparent")
         temp_row.pack(fill="x", padx=15, pady=5)
         
-        ctk.CTkLabel(temp_row, text="Temp HP:", font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkLabel(temp_row, text="Temp HP:", font=ui_font("small")).pack(side="left")
         self.temp_var = ctk.StringVar(value=str(self.hp.temporary))
         temp_entry = ctk.CTkEntry(
             temp_row, width=50, height=28,
@@ -421,7 +427,7 @@ class HitPointsWidget(ctk.CTkFrame):
         dice_row = ctk.CTkFrame(self, fg_color="transparent")
         dice_row.pack(fill="x", padx=15, pady=(5, 10))
         
-        ctk.CTkLabel(dice_row, text="Hit Dice:", font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkLabel(dice_row, text="Hit Dice:", font=ui_font("small")).pack(side="left")
         self.dice_remaining_var = ctk.StringVar(value=str(self.hp.hit_dice_remaining))
         dice_remaining_entry = ctk.CTkEntry(
             dice_row, width=40, height=28,
@@ -432,7 +438,7 @@ class HitPointsWidget(ctk.CTkFrame):
         dice_remaining_entry.bind("<FocusOut>", self._on_change)
         dice_remaining_entry.bind("<Return>", self._on_change)
         
-        ctk.CTkLabel(dice_row, text="/", font=ctk.CTkFont(size=12)).pack(side="left")
+        ctk.CTkLabel(dice_row, text="/", font=ui_font("body")).pack(side="left")
         
         self.dice_total_var = ctk.StringVar(value=str(self.hp.hit_dice_total))
         dice_total_entry = ctk.CTkEntry(
@@ -505,13 +511,13 @@ class DeathSavesWidget(ctk.CTkFrame):
         
         ctk.CTkLabel(
             death_col, text="DEATH SAVES",
-            font=ctk.CTkFont(size=10, weight="bold")
+            font=ui_font("small", 10, bold=True)
         ).pack(anchor="w")
         
         # Successes row - aligned checkboxes
         success_row = ctk.CTkFrame(death_col, fg_color="transparent")
         success_row.pack(fill="x", pady=2)
-        ctk.CTkLabel(success_row, text="Successes", font=ctk.CTkFont(size=9), width=60).pack(side="left")
+        ctk.CTkLabel(success_row, text="Successes", font=ui_font("small", 9), width=60).pack(side="left")
         
         self.success_vars = []
         for i in range(3):
@@ -525,7 +531,7 @@ class DeathSavesWidget(ctk.CTkFrame):
         # Failures row - aligned checkboxes
         fail_row = ctk.CTkFrame(death_col, fg_color="transparent")
         fail_row.pack(fill="x", pady=2)
-        ctk.CTkLabel(fail_row, text="Failures", font=ctk.CTkFont(size=9), width=60).pack(side="left")
+        ctk.CTkLabel(fail_row, text="Failures", font=ui_font("small", 9), width=60).pack(side="left")
         
         self.fail_vars = []
         for i in range(3):
@@ -542,7 +548,7 @@ class DeathSavesWidget(ctk.CTkFrame):
         
         ctk.CTkLabel(
             insp_col, text="INSPIRATION",
-            font=ctk.CTkFont(size=10, weight="bold")
+            font=ui_font("small", 10, bold=True)
         ).pack(anchor="center")
         
         self.inspiration_var = ctk.BooleanVar(value=self.inspiration)
@@ -604,7 +610,8 @@ class CharacterSheetView(ctk.CTkFrame):
     ]
     
     def __init__(self, parent, character_manager: CharacterManager,
-                 spell_manager=None, on_navigate_to_spell=None, on_character_changed=None):
+                 spell_manager=None, on_navigate_to_spell=None, on_character_changed=None,
+                 on_back=None):
         self.theme = get_theme_manager()
         super().__init__(parent, fg_color=self.theme.get_current_color('bg_primary'))
         
@@ -612,14 +619,18 @@ class CharacterSheetView(ctk.CTkFrame):
         self.spell_manager = spell_manager
         self.on_navigate_to_spell = on_navigate_to_spell
         self.on_character_changed = on_character_changed  # Callback when character changes
+        self.on_back = on_back  # Callback for the "Characters" back button (None = no button)
         self.sheet_manager = get_sheet_manager()
         self.current_character: Optional[CharacterSpellList] = None
         self.current_sheet: Optional[CharacterSheet] = None
         self._current_tab = "front"  # front, inventory, spells
         self._rebuilding_ui = False  # Flag to prevent saves during UI rebuild
         self._carry_weight_indicator_refresh = None  # Set while the inventory tab is built
+        self._style_panel: Optional[StylePanel] = None
 
         self._create_widgets()
+        # Local (per-sheet) colours, fonts and per-widget styling
+        self._styler = SheetStyler(self, on_save=self._save_sheet)
     
     def _get_jack_of_all_trades_bonus(self) -> int:
         """Get Jack of All Trades bonus (half proficiency, rounded down) if character has the feature.
@@ -680,6 +691,10 @@ class CharacterSheetView(ctk.CTkFrame):
     def destroy(self):
         """Persist pending edits before this view is torn down."""
         self.commit_pending_edits()
+        try:
+            self._styler.destroy()
+        except Exception:
+            pass
         super().destroy()
     
     def _get_filtered_subclasses(self, class_def) -> list:
@@ -710,6 +725,7 @@ class CharacterSheetView(ctk.CTkFrame):
         self.grid_rowconfigure(1, weight=1)  # Content - expands
         self.grid_rowconfigure(2, weight=0)  # Bottom bar - fixed height
         self.grid_columnconfigure(0, weight=1)  # Full width
+        self.grid_columnconfigure(1, weight=0)  # Style panel (when shown)
         
         # Top bar with character selector
         self._create_top_bar()
@@ -717,6 +733,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Main content area (scrollable) - middle section
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.content_frame.grid(row=1, column=0, sticky="nsew")
+        style_name(self.content_frame, "content")
         
         self.content_scroll = ctk.CTkScrollableFrame(
             self.content_frame, fg_color="transparent"
@@ -733,18 +750,18 @@ class CharacterSheetView(ctk.CTkFrame):
         ctk.CTkLabel(
             self.placeholder,
             text="Select a character from the dropdown above\nor click '+ New Character' to create one.",
-            font=ctk.CTkFont(size=16),
+            font=ui_font("heading", 16),
             text_color=self.theme.get_text_secondary()
         ).pack(expand=True, pady=100)
         
         # Character sheet content (hidden initially)
-        self.sheet_content = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
+        self.sheet_content = style_name(ctk.CTkFrame(self.content_scroll, fg_color="transparent"), "front")
         
         # Inventory content (hidden initially)
-        self.inventory_content = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
+        self.inventory_content = style_name(ctk.CTkFrame(self.content_scroll, fg_color="transparent"), "inventory")
         
         # Spell list content (hidden initially)
-        self.spells_content = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
+        self.spells_content = style_name(ctk.CTkFrame(self.content_scroll, fg_color="transparent"), "spells")
     
     def _create_top_bar(self):
         """Create the top bar with character selector."""
@@ -754,13 +771,24 @@ class CharacterSheetView(ctk.CTkFrame):
         )
         top_bar.grid(row=0, column=0, sticky="ew")
         top_bar.grid_propagate(False)
+        style_name(top_bar, "topbar")
         
         container = ctk.CTkFrame(top_bar, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=10)
         
+        if self.on_back:
+            ctk.CTkButton(
+                container, text="← Characters",
+                width=110, height=35,
+                fg_color=self.theme.get_current_color('button_normal'),
+                hover_color=self.theme.get_current_color('button_hover'),
+                text_color=self.theme.get_current_color('text_primary'),
+                command=self.on_back
+            ).pack(side="left", padx=(0, 15))
+        
         ctk.CTkLabel(
             container, text="Character:",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(side="left", padx=(0, 10))
         
         # Character dropdown
@@ -803,6 +831,17 @@ class CharacterSheetView(ctk.CTkFrame):
             command=self._refresh_character_list
         )
         refresh_btn.pack(side="left")
+
+        # Sheet styling (local colours / fonts / per-widget style)
+        self.style_btn = ctk.CTkButton(
+            container, text="\U0001f3a8 Style",
+            width=90, height=35,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self.toggle_style_panel
+        )
+        self.style_btn.pack(side="right")
     
     def _create_bottom_bar(self):
         """Create the bottom tab bar."""
@@ -812,6 +851,7 @@ class CharacterSheetView(ctk.CTkFrame):
         )
         self.bottom_bar.grid(row=2, column=0, sticky="ew")
         self.bottom_bar.grid_propagate(False)
+        style_name(self.bottom_bar, "bottombar")
         
         container = ctk.CTkFrame(self.bottom_bar, fg_color="transparent")
         container.pack(expand=True, pady=8)
@@ -884,6 +924,10 @@ class CharacterSheetView(ctk.CTkFrame):
             if self.current_character:
                 self._create_spells_content()
                 self.spells_content.pack(fill="both", expand=True)
+
+        # Tab buttons were just recoloured with global colours, and the inventory
+        # / spells tabs are built on demand: bring them in line with this sheet's style.
+        self._styler.apply()
     
     def _update_spell_tab_visibility(self):
         """Show or hide the spells tab based on character classes."""
@@ -987,6 +1031,10 @@ class CharacterSheetView(ctk.CTkFrame):
             self._show_placeholder()
             
             messagebox.showinfo("Deleted", f"Character '{char_name}' has been deleted.")
+            
+            # Nothing left to show here: go back to the list of characters
+            if self.on_back:
+                self.on_back()
     
     def _on_character_selected(self, name: str):
         """Handle character selection."""
@@ -999,6 +1047,7 @@ class CharacterSheetView(ctk.CTkFrame):
                 self.current_character = char
                 # Pass character to get_or_create_sheet for auto-applying class features
                 self.current_sheet = self.sheet_manager.get_or_create_sheet(name, char)
+                self._styler.load(self.current_sheet.style)
                 self._update_spell_tab_visibility()
                 self._show_character_sheet()
                 
@@ -1013,6 +1062,8 @@ class CharacterSheetView(ctk.CTkFrame):
         self.inventory_content.pack_forget()
         self.spells_content.pack_forget()
         self.placeholder.pack(fill="both", expand=True)
+        self._styler.load({})
+        self._styler.apply()
     
     def _show_character_sheet(self):
         """Show the character sheet for the selected character."""
@@ -1035,7 +1086,7 @@ class CharacterSheetView(ctk.CTkFrame):
         self._loading_label = ctk.CTkLabel(
             self._loading_frame,
             text="Loading character sheet...",
-            font=ctk.CTkFont(size=18),
+            font=ui_font("heading"),
             text_color=self.theme.get_text_secondary()
         )
         self._loading_label.pack(expand=True, pady=100)
@@ -1112,53 +1163,101 @@ class CharacterSheetView(ctk.CTkFrame):
         self.sheet_manager.update_sheet(self.current_character.name, sheet)
         
         # ===== ROW 1: Basic Info =====
-        self._create_basic_info_section(sheet)
-        
+        self._named(self.sheet_content, lambda: self._create_basic_info_section(sheet), "basic_info")
+
         # ===== ROW 2: Main content columns =====
         main_row = ctk.CTkFrame(self.sheet_content, fg_color="transparent")
         main_row.pack(fill="x", pady=5)
-        
+
         # Use grid for the columns to have better control over sizing
         main_row.grid_columnconfigure(0, weight=0, minsize=270)  # Left column - fixed width
         main_row.grid_columnconfigure(1, weight=0, minsize=290)  # Middle column - fixed width
         main_row.grid_columnconfigure(2, weight=1)  # Right column - expands
         main_row.grid_rowconfigure(0, weight=1)  # Single row expands
-        
+
         # Left column: Ability Scores, Saving Throws, Skills
         left_col = ctk.CTkFrame(main_row, fg_color="transparent")
         left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-        
-        self._create_ability_scores_section(left_col, sheet)
-        self._create_saving_throws_section(left_col, sheet)
-        self._create_skills_section(left_col, sheet)
-        
+
+        self._named(left_col, lambda: self._create_ability_scores_section(left_col, sheet),
+                    "ability_header", "ability_scores")
+        self._named(left_col, lambda: self._create_saving_throws_section(left_col, sheet),
+                    "saves_header", "saving_throws")
+        self._named(left_col, lambda: self._create_skills_section(left_col, sheet),
+                    "skills_header", "skills")
+
         # Middle column: Combat stats, Class Features (scrollable), Attacks
         middle_col = ctk.CTkFrame(main_row, fg_color="transparent")
         middle_col.grid(row=0, column=1, sticky="nsew", padx=5)
-        
+
         # Create combat section at the top
-        self._create_combat_section(middle_col, sheet)
-        
+        self._named(middle_col, lambda: self._create_combat_section(middle_col, sheet),
+                    "combat_header", "combat")
+
         # Create a container for class features (no fixed height - scales with content)
         middle_scrollable = ctk.CTkFrame(
             middle_col, fg_color="transparent"
         )
         middle_scrollable.pack(fill="x", pady=2)
-        
-        self._create_class_features_section(middle_scrollable, sheet)
-        
+
+        self._named(middle_scrollable, lambda: self._create_class_features_section(middle_scrollable, sheet),
+                    "class_features")
+
         # Attacks at the bottom - always visible
-        self._create_attacks_section(middle_col, sheet)
-        
+        self._named(middle_col, lambda: self._create_attacks_section(middle_col, sheet),
+                    "attacks_header", "attacks")
+
         # Right column: Features & Traits (large), Other Proficiencies, Notes, Personality
         right_col = ctk.CTkFrame(main_row, fg_color="transparent")
         right_col.grid(row=0, column=2, sticky="nsew", padx=(5, 0))
-        
-        self._create_features_section(right_col, sheet)
-        self._create_proficiencies_section(right_col, sheet)
-        self._create_notes_section(right_col, sheet)
-        self._create_personality_section(right_col, sheet)
-    
+
+        self._named(right_col, lambda: self._create_features_section(right_col, sheet),
+                    "features_header", "features")
+        self._named(right_col, lambda: self._create_proficiencies_section(right_col, sheet),
+                    "proficiencies_header", "proficiencies")
+        self._named(right_col, lambda: self._create_notes_section(right_col, sheet),
+                    "notes_header", "notes")
+        self._named(right_col, lambda: self._create_personality_section(right_col, sheet),
+                    "personality_header", "personality")
+
+    @staticmethod
+    def _named(parent, build, *names):
+        """Run ``build`` (which adds widgets to ``parent``) and give the widgets it
+        added, in order, stable names - element styles are keyed from these, so a
+        style keeps working when sections above it grow or shrink."""
+        before = len(parent.winfo_children())
+        build()
+        fresh = [c for c in parent.winfo_children()[before:] if widget_kind(c) is not None]
+        for widget, name in zip(fresh, names):
+            style_name(widget, name)
+
+    # ---- sheet styling panel ---------------------------------------------------
+
+    def toggle_style_panel(self):
+        if self._style_panel is not None and self._style_panel.winfo_ismapped():
+            self.hide_style_panel()
+        else:
+            self.show_style_panel()
+
+    def show_style_panel(self):
+        if self._style_panel is None:
+            self._style_panel = StylePanel(self, self._styler)
+            self._styler.panel = self._style_panel
+        self._style_panel.grid(row=0, column=1, rowspan=3, sticky="ns")
+        self._style_panel.lift()
+        self._style_panel.reload()
+        self.style_btn.configure(fg_color=self.theme.get_current_color('accent_primary'),
+                                 text_color=self.theme.get_current_color('text_on_accent'))
+
+    def hide_style_panel(self):
+        self._styler.stop_picking()
+        self._styler.clear_selection()
+        if self._style_panel is not None:
+            self._style_panel.grid_remove()
+        self.style_btn.configure(fg_color=self.theme.get_current_color('button_normal'),
+                                 text_color=self.theme.get_current_color('text_primary'))
+        self._styler.apply()
+
     def _create_section_header(self, parent, title: str) -> ctk.CTkFrame:
         """Create a section header."""
         header = ctk.CTkFrame(
@@ -1170,7 +1269,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header, text=title,
-            font=ctk.CTkFont(size=11, weight="bold"),
+            font=ui_font("small", bold=True),
             text_color="white"
         ).pack(side="left", padx=8, pady=3)
         
@@ -1194,12 +1293,12 @@ class CharacterSheetView(ctk.CTkFrame):
         # Character name
         name_frame = ctk.CTkFrame(row1, fg_color="transparent")
         name_frame.pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(name_frame, text="Name", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(name_frame, text="Name", font=ui_font("small", 9)).pack(anchor="w")
         
         self.name_var = ctk.StringVar(value=sheet.character_name or character.name)
         name_entry = ctk.CTkEntry(
             name_frame, textvariable=self.name_var,
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             width=150, height=26
         )
         name_entry.pack()
@@ -1208,7 +1307,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Classes section with editable levels and subclass selection
         class_frame = ctk.CTkFrame(row1, fg_color="transparent")
         class_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(class_frame, text="Class & Level", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(class_frame, text="Class & Level", font=ui_font("small", 9)).pack(anchor="w")
         
         classes_container = ctk.CTkFrame(class_frame, fg_color="transparent")
         classes_container.pack(anchor="w")
@@ -1223,7 +1322,7 @@ class CharacterSheetView(ctk.CTkFrame):
             
             # Class name label
             ctk.CTkLabel(cl_row, text=cl.get_class_name(), 
-                        font=ctk.CTkFont(size=11)).pack(side="left")
+                        font=ui_font("small")).pack(side="left")
             
             # Level entry
             level_var = ctk.StringVar(value=str(cl.level))
@@ -1252,7 +1351,7 @@ class CharacterSheetView(ctk.CTkFrame):
                         cl_row, width=120, height=22,
                         values=subclass_names,
                         variable=subclass_var,
-                        font=ctk.CTkFont(size=10),
+                        font=ui_font("small", 10),
                         command=lambda val, idx=i: self._on_subclass_change(idx, val)
                     )
                     subclass_combo.pack(side="left", padx=2)
@@ -1270,7 +1369,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Lineage dropdown (auto-populated from lineage manager)
         lineage_frame = ctk.CTkFrame(row1, fg_color="transparent")
         lineage_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(lineage_frame, text="Lineage", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(lineage_frame, text="Lineage", font=ui_font("small", 9)).pack(anchor="w")
         
         from lineage import get_lineage_manager
         lineage_manager = get_lineage_manager()
@@ -1293,7 +1392,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Background dropdown (auto-populated from background manager)
         bg_frame = ctk.CTkFrame(row2, fg_color="transparent")
         bg_frame.pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(bg_frame, text="Background", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(bg_frame, text="Background", font=ui_font("small", 9)).pack(anchor="w")
         
         from background import get_background_manager
         background_manager = get_background_manager()
@@ -1312,7 +1411,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Alignment
         align_frame = ctk.CTkFrame(row2, fg_color="transparent")
         align_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(align_frame, text="Alignment", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(align_frame, text="Alignment", font=ui_font("small", 9)).pack(anchor="w")
         self.alignment_var = ctk.StringVar(value=sheet.alignment)
         align_combo = ScrollableComboBox(
             align_frame, width=120, height=24,
@@ -1327,7 +1426,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Experience Points
         xp_frame = ctk.CTkFrame(row2, fg_color="transparent")
         xp_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(xp_frame, text="XP", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(xp_frame, text="XP", font=ui_font("small", 9)).pack(anchor="w")
         self.xp_var = ctk.StringVar(value=str(sheet.experience_points))
         xp_entry = ctk.CTkEntry(xp_frame, textvariable=self.xp_var, width=70, height=24)
         xp_entry.pack()
@@ -1336,7 +1435,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Age
         age_frame = ctk.CTkFrame(row2, fg_color="transparent")
         age_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(age_frame, text="Age", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(age_frame, text="Age", font=ui_font("small", 9)).pack(anchor="w")
         self.age_var = ctk.StringVar(value=sheet.age or "")
         age_entry = ctk.CTkEntry(age_frame, textvariable=self.age_var, width=50, height=24)
         age_entry.pack()
@@ -1345,7 +1444,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Height
         height_frame = ctk.CTkFrame(row2, fg_color="transparent")
         height_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(height_frame, text="Height", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(height_frame, text="Height", font=ui_font("small", 9)).pack(anchor="w")
         self.height_var = ctk.StringVar(value=sheet.height or "")
         height_entry = ctk.CTkEntry(height_frame, textvariable=self.height_var, width=60, height=24)
         height_entry.pack()
@@ -1354,7 +1453,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Weight
         weight_frame = ctk.CTkFrame(row2, fg_color="transparent")
         weight_frame.pack(side="left", padx=8)
-        ctk.CTkLabel(weight_frame, text="Weight", font=ctk.CTkFont(size=9)).pack(anchor="w")
+        ctk.CTkLabel(weight_frame, text="Weight", font=ui_font("small", 9)).pack(anchor="w")
         self.weight_var = ctk.StringVar(value=sheet.weight or "")
         weight_entry = ctk.CTkEntry(weight_frame, textvariable=self.weight_var, width=60, height=24)
         weight_entry.pack()
@@ -1841,12 +1940,12 @@ class CharacterSheetView(ctk.CTkFrame):
                                 corner_radius=8, width=65, height=60)
         ac_frame.pack(side="left", padx=3)
         ac_frame.pack_propagate(False)
-        ctk.CTkLabel(ac_frame, text="AC", font=ctk.CTkFont(size=9, weight="bold")).pack(pady=(5, 0))
+        ctk.CTkLabel(ac_frame, text="AC", font=ui_font("small", 9, bold=True)).pack(pady=(5, 0))
         self.ac_var = ctk.StringVar(value=str(sheet.armor_class))
         ac_entry = ctk.CTkEntry(
             ac_frame, width=40, height=26,
             textvariable=self.ac_var, justify="center",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         ac_entry.pack(pady=3)
         ac_entry.bind("<FocusOut>", lambda e: self._save_int_field("armor_class", self.ac_var.get()))
@@ -1856,12 +1955,12 @@ class CharacterSheetView(ctk.CTkFrame):
                                   corner_radius=8, width=65, height=60)
         init_frame.pack(side="left", padx=3)
         init_frame.pack_propagate(False)
-        ctk.CTkLabel(init_frame, text="INIT", font=ctk.CTkFont(size=9, weight="bold")).pack(pady=(5, 0))
+        ctk.CTkLabel(init_frame, text="INIT", font=ui_font("small", 9, bold=True)).pack(pady=(5, 0))
         init_mod = sheet.get_initiative()
         init_text = f"+{init_mod}" if init_mod >= 0 else str(init_mod)
         self.init_label = ctk.CTkLabel(
             init_frame, text=init_text,
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         )
         self.init_label.pack(pady=3)
         
@@ -1870,12 +1969,12 @@ class CharacterSheetView(ctk.CTkFrame):
                                    corner_radius=8, width=65, height=60)
         speed_frame.pack(side="left", padx=3)
         speed_frame.pack_propagate(False)
-        ctk.CTkLabel(speed_frame, text="SPEED", font=ctk.CTkFont(size=9, weight="bold")).pack(pady=(5, 0))
+        ctk.CTkLabel(speed_frame, text="SPEED", font=ui_font("small", 9, bold=True)).pack(pady=(5, 0))
         self.speed_var = ctk.StringVar(value=str(sheet.speed))
         self.speed_entry = ctk.CTkEntry(
             speed_frame, width=40, height=26,
             textvariable=self.speed_var, justify="center",
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         )
         self.speed_entry.pack(pady=3)
         self.speed_entry.bind("<FocusOut>", lambda e: self._save_int_field("speed", self.speed_var.get()))
@@ -1887,13 +1986,13 @@ class CharacterSheetView(ctk.CTkFrame):
                                   corner_radius=8, width=65, height=60)
         prof_frame.pack(side="left", padx=3)
         prof_frame.pack_propagate(False)
-        ctk.CTkLabel(prof_frame, text="PROF", font=ctk.CTkFont(size=9, weight="bold")).pack(pady=(5, 0))
+        ctk.CTkLabel(prof_frame, text="PROF", font=ui_font("small", 9, bold=True)).pack(pady=(5, 0))
         
         # Display proficiency as label (auto-calculated)
         prof_text = f"+{sheet.proficiency_bonus}"
         self.prof_label = ctk.CTkLabel(
             prof_frame, text=prof_text,
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         )
         self.prof_label.pack(pady=3)
         self.prof_var = ctk.StringVar(value=str(sheet.proficiency_bonus))
@@ -1921,7 +2020,7 @@ class CharacterSheetView(ctk.CTkFrame):
         armor_frame.pack(fill="x", padx=8, pady=(0, 3))
         
         # Armor dropdown
-        ctk.CTkLabel(armor_frame, text="Armor:", font=ctk.CTkFont(size=10)).pack(side="left")
+        ctk.CTkLabel(armor_frame, text="Armor:", font=ui_font("small", 10)).pack(side="left")
         
         # Build armor options list
         armor_options = [opt[0] for opt in COMMON_ARMOR_OPTIONS]
@@ -1939,7 +2038,7 @@ class CharacterSheetView(ctk.CTkFrame):
         armor_dropdown = ScrollableComboBox(
             armor_frame, values=armor_options,
             variable=self.armor_var, width=180, height=24,
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             command=self._on_armor_change
         )
         armor_dropdown.pack(side="left", padx=(5, 10))
@@ -1949,7 +2048,7 @@ class CharacterSheetView(ctk.CTkFrame):
             ud_label = ctk.CTkLabel(
                 armor_frame, 
                 text=f"Unarmored: {sheet.unarmored_defense}",
-                font=ctk.CTkFont(size=9),
+                font=ui_font("small", 9),
                 text_color=self.theme.get_current_color('text_secondary')
             )
             ud_label.pack(side="left", padx=5)
@@ -1958,7 +2057,7 @@ class CharacterSheetView(ctk.CTkFrame):
         shield_frame = ctk.CTkFrame(parent, fg_color="transparent")
         shield_frame.pack(fill="x", padx=8, pady=(0, 5))
         
-        ctk.CTkLabel(shield_frame, text="Shield:", font=ctk.CTkFont(size=10)).pack(side="left")
+        ctk.CTkLabel(shield_frame, text="Shield:", font=ui_font("small", 10)).pack(side="left")
         
         # Build shield options list
         shield_options = [opt[0] for opt in SHIELD_OPTIONS]
@@ -1975,7 +2074,7 @@ class CharacterSheetView(ctk.CTkFrame):
         shield_dropdown = ScrollableComboBox(
             shield_frame, values=shield_options,
             variable=self.shield_var, width=120, height=24,
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             command=self._on_shield_change
         )
         shield_dropdown.pack(side="left", padx=(5, 10))
@@ -2234,7 +2333,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             title_row, text="HIT POINTS",
-            font=ctk.CTkFont(size=10, weight="bold")
+            font=ui_font("small", 10, bold=True)
         ).pack(side="left")
         
         # Main HP row
@@ -2242,7 +2341,7 @@ class CharacterSheetView(ctk.CTkFrame):
         hp_row.pack(fill="x", padx=8, pady=3)
         
         # Current HP
-        ctk.CTkLabel(hp_row, text="Current:", font=ctk.CTkFont(size=10)).pack(side="left")
+        ctk.CTkLabel(hp_row, text="Current:", font=ui_font("small", 10)).pack(side="left")
         self.current_hp_var = ctk.StringVar(value=str(sheet.hit_points.current))
         current_entry = ctk.CTkEntry(
             hp_row, width=45, height=24,
@@ -2253,7 +2352,7 @@ class CharacterSheetView(ctk.CTkFrame):
         current_entry.bind("<FocusOut>", self._on_hp_field_change)
         current_entry.bind("<Return>", self._on_hp_field_change)
         
-        ctk.CTkLabel(hp_row, text="/", font=ctk.CTkFont(size=12)).pack(side="left")
+        ctk.CTkLabel(hp_row, text="/", font=ui_font("body")).pack(side="left")
         
         # Max HP
         self.max_hp_var = ctk.StringVar(value=str(sheet.hit_points.maximum))
@@ -2267,7 +2366,7 @@ class CharacterSheetView(ctk.CTkFrame):
         max_entry.bind("<Return>", self._on_hp_field_change)
         
         # Temp HP
-        ctk.CTkLabel(hp_row, text="Temp:", font=ctk.CTkFont(size=10)).pack(side="left", padx=(10, 0))
+        ctk.CTkLabel(hp_row, text="Temp:", font=ui_font("small", 10)).pack(side="left", padx=(10, 0))
         self.temp_hp_var = ctk.StringVar(value=str(sheet.hit_points.temporary))
         temp_entry = ctk.CTkEntry(
             hp_row, width=40, height=24,
@@ -2281,7 +2380,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Hit Dice section - separate counters for each die type
         dice_header = ctk.CTkFrame(hp_frame, fg_color="transparent")
         dice_header.pack(fill="x", padx=8, pady=(5, 2))
-        ctk.CTkLabel(dice_header, text="Hit Dice:", font=ctk.CTkFont(size=10, weight="bold")).pack(side="left")
+        ctk.CTkLabel(dice_header, text="Hit Dice:", font=ui_font("small", 10, bold=True)).pack(side="left")
         
         # Get hit dice from character classes
         class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
@@ -2313,7 +2412,7 @@ class CharacterSheetView(ctk.CTkFrame):
             inner.pack(padx=6, pady=4)
             
             # Die type label
-            ctk.CTkLabel(inner, text=die_type, font=ctk.CTkFont(size=10, weight="bold")).pack()
+            ctk.CTkLabel(inner, text=die_type, font=ui_font("small", 10, bold=True)).pack()
             
             # Current/Max row
             value_row = ctk.CTkFrame(inner, fg_color="transparent")
@@ -2326,13 +2425,13 @@ class CharacterSheetView(ctk.CTkFrame):
             die_entry = ctk.CTkEntry(
                 value_row, textvariable=die_var,
                 width=28, height=22, justify="center",
-                font=ctk.CTkFont(size=11)
+                font=ui_font("small")
             )
             die_entry.pack(side="left")
             die_entry.bind("<FocusOut>", lambda e, dt=die_type, v=die_var, m=total_count: self._on_hit_die_change(dt, v.get(), m))
             die_entry.bind("<Return>", lambda e, dt=die_type, v=die_var, m=total_count: self._on_hit_die_change(dt, v.get(), m))
             
-            ctk.CTkLabel(value_row, text=f"/{total_count}", font=ctk.CTkFont(size=10)).pack(side="left")
+            ctk.CTkLabel(value_row, text=f"/{total_count}", font=ui_font("small", 10)).pack(side="left")
             
             self._hit_dice_vars[die_type] = (die_var, total_count)
     
@@ -2510,9 +2609,9 @@ class CharacterSheetView(ctk.CTkFrame):
         header_row = ctk.CTkFrame(attacks_frame, fg_color="transparent")
         header_row.pack(fill="x", padx=8, pady=(8, 2))
         
-        ctk.CTkLabel(header_row, text="Name", font=ctk.CTkFont(size=9, weight="bold"), width=100).pack(side="left", padx=2)
-        ctk.CTkLabel(header_row, text="Atk Bonus", font=ctk.CTkFont(size=9, weight="bold"), width=60).pack(side="left", padx=2)
-        ctk.CTkLabel(header_row, text="Damage/Type", font=ctk.CTkFont(size=9, weight="bold"), width=100).pack(side="left", padx=2)
+        ctk.CTkLabel(header_row, text="Name", font=ui_font("small", 9, bold=True), width=100).pack(side="left", padx=2)
+        ctk.CTkLabel(header_row, text="Atk Bonus", font=ui_font("small", 9, bold=True), width=60).pack(side="left", padx=2)
+        ctk.CTkLabel(header_row, text="Damage/Type", font=ui_font("small", 9, bold=True), width=100).pack(side="left", padx=2)
         
         # Initialize attacks if empty
         if not sheet.attacks or len(sheet.attacks) < 5:
@@ -2856,7 +2955,7 @@ class CharacterSheetView(ctk.CTkFrame):
             header_text += f" ({subclass_name})"
         ctk.CTkLabel(
             class_frame, text=header_text,
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(anchor="w", pady=(0, 4))
         
@@ -3038,7 +3137,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Label
         ctk.CTkLabel(
             inner, text=label,
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             text_color=self.theme.get_text_secondary()
         ).pack(anchor="center")
         
@@ -3051,7 +3150,7 @@ class CharacterSheetView(ctk.CTkFrame):
         current_entry = ctk.CTkEntry(
             value_row, textvariable=current_var,
             width=35, height=24, justify="center",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=ui_font("body", bold=True)
         )
         current_entry.pack(side="left")
         current_entry.bind("<FocusOut>", lambda e, k=key, v=current_var, m=max_value: self._save_feature_use(k, v.get(), m))
@@ -3063,7 +3162,7 @@ class CharacterSheetView(ctk.CTkFrame):
         max_text = f"/ {max_value}{suffix}"
         ctk.CTkLabel(
             value_row, text=max_text,
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=ui_font("body", bold=True)
         ).pack(side="left", padx=(2, 0))
     
     def _create_feature_display_stat(self, parent, label: str, value: str):
@@ -3082,13 +3181,13 @@ class CharacterSheetView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             inner, text=label,
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             text_color=self.theme.get_text_secondary()
         ).pack(anchor="center")
         
         ctk.CTkLabel(
             inner, text=value,
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(anchor="center", pady=2)
     
     def _save_feature_use(self, key: str, value_str: str, max_value: int):
@@ -3154,14 +3253,14 @@ class CharacterSheetView(ctk.CTkFrame):
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('button_hover'),
                 text_color=self.theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 command=lambda: self._toggle_section_collapse('class_features', None)
             )
             collapse_btn.pack(side="left", padx=(0, 4))
             
             header_label = ctk.CTkLabel(
                 class_header, text="Class Features",
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color=self.theme.get_current_color('text_primary')
             )
             header_label.pack(side="left")
@@ -3196,14 +3295,14 @@ class CharacterSheetView(ctk.CTkFrame):
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('button_hover'),
                 text_color=self.theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 command=lambda: self._toggle_section_collapse('subclass_features', None)
             )
             collapse_btn.pack(side="left", padx=(0, 4))
             
             header_label = ctk.CTkLabel(
                 subclass_header, text="Subclass Features",
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color=self.theme.get_current_color('text_primary')
             )
             header_label.pack(side="left")
@@ -3242,14 +3341,14 @@ class CharacterSheetView(ctk.CTkFrame):
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('button_hover'),
                 text_color=self.theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 command=lambda: self._toggle_section_collapse('lineage_traits', lineage_content)
             )
             collapse_btn.pack(side="left", padx=(0, 4))
             
             header_label = ctk.CTkLabel(
                 lineage_header, text=f"Lineage Traits ({lineage_name})",
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color=self.theme.get_current_color('text_primary')
             )
             header_label.pack(side="left")
@@ -3276,13 +3375,13 @@ class CharacterSheetView(ctk.CTkFrame):
             
             ctk.CTkLabel(
                 other_features_frame, text="Other Features",
-                font=ctk.CTkFont(size=11, weight="bold"),
+                font=ui_font("small", bold=True),
                 text_color=self.theme.get_current_color('text_primary')
             ).pack(anchor="w", pady=(0, 4))
             
             self.features_text = ctk.CTkTextbox(
                 other_features_frame, height=120,
-                font=ctk.CTkFont(size=11)
+                font=ui_font("small")
             )
             self.features_text.pack(fill="x", pady=(0, 0))
             attach_object_linking(self.features_text, self.theme)
@@ -3292,7 +3391,7 @@ class CharacterSheetView(ctk.CTkFrame):
             # Still create the text box for future entry, just hidden with 0 height
             self.features_text = ctk.CTkTextbox(
                 features_frame, height=0,
-                font=ctk.CTkFont(size=11)
+                font=ui_font("small")
             )
             attach_object_linking(self.features_text, self.theme)
             self.features_text.insert("1.0", sheet.features_and_traits)
@@ -3315,14 +3414,14 @@ class CharacterSheetView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             feats_header, text="Feats",
-            font=ctk.CTkFont(size=11, weight="bold"),
+            font=ui_font("small", bold=True),
             text_color=self.theme.get_current_color('text_primary')
         ).pack(side="left")
         
         # Add/Edit feats button
         ctk.CTkButton(
             feats_header, text="Edit",
-            font=ctk.CTkFont(size=10),
+            font=ui_font("small", 10),
             width=50, height=20,
             fg_color=self.theme.get_current_color('bg_tertiary'),
             hover_color=self.theme.get_current_color('accent'),
@@ -3335,7 +3434,7 @@ class CharacterSheetView(ctk.CTkFrame):
         else:
             ctk.CTkLabel(
                 feats_frame, text="No feats selected",
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(anchor="w")
     
@@ -3473,7 +3572,7 @@ class CharacterSheetView(ctk.CTkFrame):
             btn = ctk.CTkButton(
                 row_frame,
                 text=ability.title,
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 fg_color=self.theme.get_current_color('bg_tertiary'),
                 hover_color=self.theme.get_current_color('accent'),
                 text_color=self.theme.get_current_color('text_primary'),
@@ -3500,7 +3599,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if not all_features:
             ctk.CTkLabel(
                 parent, text="No class features yet",
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(anchor="w")
             return
@@ -3551,7 +3650,7 @@ class CharacterSheetView(ctk.CTkFrame):
             btn = ctk.CTkButton(
                 row_frame,
                 text=trait.name,
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 fg_color=self.theme.get_current_color('accent_primary'),
                 hover_color=self.theme.get_current_color('accent'),
                 text_color=self.theme.get_current_color('text_primary'),
@@ -3754,7 +3853,7 @@ class CharacterSheetView(ctk.CTkFrame):
             btn = ctk.CTkButton(
                 row_frame,
                 text=feat.name,
-                font=ctk.CTkFont(size=10),
+                font=ui_font("small", 10),
                 fg_color=btn_color,
                 hover_color=self.theme.get_current_color('accent'),
                 text_color=self.theme.get_current_color('text_primary'),
@@ -3821,7 +3920,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         self.proficiencies_text = ctk.CTkTextbox(
             prof_frame, height=80,
-            font=ctk.CTkFont(size=11)
+            font=ui_font("small")
         )
         self.proficiencies_text.pack(fill="x", padx=8, pady=8)
         self.proficiencies_text.insert("1.0", sheet.other_proficiencies)
@@ -3857,6 +3956,8 @@ class CharacterSheetView(ctk.CTkFrame):
             corner_radius=8
         )
         personality_frame.pack(fill="both", expand=True, pady=3)
+
+        self._create_portrait_box(personality_frame, sheet)
         
         fields = [
             ("Personality Traits", "personality_traits", sheet.personality_traits),
@@ -3869,10 +3970,10 @@ class CharacterSheetView(ctk.CTkFrame):
         for label, field, value in fields:
             ctk.CTkLabel(
                 personality_frame, text=label,
-                font=ctk.CTkFont(size=9, weight="bold")
+                font=ui_font("small", 9, bold=True)
             ).pack(anchor="w", padx=8, pady=(5, 1))
             
-            text = ctk.CTkTextbox(personality_frame, height=40, font=ctk.CTkFont(size=10))
+            text = ctk.CTkTextbox(personality_frame, height=40, font=ui_font("small", 10))
             text.pack(fill="x", padx=8, pady=(0, 3))
             text.insert("1.0", value)
             text.bind("<FocusOut>", lambda e, f=field, t=text: self._save_text_field(
@@ -3880,6 +3981,97 @@ class CharacterSheetView(ctk.CTkFrame):
             ))
             self.personality_texts[field] = text
     
+    # ---- portrait ---------------------------------------------------------------
+
+    PORTRAIT_BOX = (210, 250)      # widest / tallest the portrait is drawn
+
+    def _create_portrait_box(self, parent, sheet: CharacterSheet):
+        """A box at the top of the personality card for a character portrait."""
+        box = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_tertiary'), corner_radius=8)
+        box.pack(fill="x", padx=8, pady=(8, 4))
+        style_name(box, "portrait")
+
+        self._portrait_label = ctk.CTkLabel(box, text="", cursor="hand2")
+        self._portrait_label.pack(padx=10, pady=(10, 4))
+        self._portrait_label.bind("<Button-1>", lambda e: self._upload_portrait())
+
+        buttons = ctk.CTkFrame(box, fg_color="transparent")
+        buttons.pack(pady=(0, 10))
+        self._portrait_upload_btn = ctk.CTkButton(
+            buttons, text="Upload portrait…", width=120, height=26, font=ui_font("small"),
+            command=self._upload_portrait)
+        self._portrait_upload_btn.pack(side="left", padx=3)
+        self._portrait_remove_btn = ctk.CTkButton(
+            buttons, text="Remove", width=70, height=26, font=ui_font("small"),
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=self._remove_portrait)
+        self._portrait_remove_btn.pack(side="left", padx=3)
+        self._show_portrait()
+
+    def _show_portrait(self):
+        """Draw the current portrait (or the empty-state prompt) into the box."""
+        label = getattr(self, "_portrait_label", None)
+        sheet = self.current_sheet
+        if label is None or sheet is None:
+            return
+        import portraits
+        image = portraits.load_image(sheet.portrait) if sheet.portrait else None
+        try:
+            if image is None:
+                # CTkLabel cannot be cleared with image=None once it has shown a CTkImage
+                # (Tk then looks for the freed image), so swap in an invisible 1x1 one.
+                from PIL import Image as _PILImage
+                blank = ctk.CTkImage(_PILImage.new("RGBA", (1, 1), (0, 0, 0, 0)), size=(1, 1))
+                label.configure(image=blank, text="No portrait yet\nClick to add one",
+                                width=self.PORTRAIT_BOX[0], height=120,
+                                font=ui_font("small"),
+                                text_color=self.theme.get_current_color('text_secondary'))
+                self._portrait_image = blank
+                self._portrait_remove_btn.pack_forget()
+                self._portrait_upload_btn.configure(text="Upload portrait…")
+                return
+            max_w, max_h = self.PORTRAIT_BOX
+            scale = min(max_w / image.width, max_h / image.height, 1.0)
+            size = (max(1, int(image.width * scale)), max(1, int(image.height * scale)))
+            self._portrait_image = ctk.CTkImage(light_image=image, dark_image=image, size=size)
+            label.configure(image=self._portrait_image, text="", width=size[0], height=size[1])
+            self._portrait_remove_btn.pack(side="left", padx=3)
+            self._portrait_upload_btn.configure(text="Change…")
+        except Exception as e:
+            print(f"Could not show portrait: {e}")
+
+    def _upload_portrait(self):
+        if not self.current_sheet or not self.current_character:
+            return
+        import portraits
+        path = filedialog.askopenfilename(title="Choose a character portrait",
+                                          filetypes=portraits.ACCEPTED_TYPES, parent=self.winfo_toplevel())
+        if not path:
+            return
+        try:
+            filename = portraits.import_portrait(path, self.current_character.name)
+        except Exception as e:
+            messagebox.showerror("Portrait", f"That file could not be read as an image.\n\n{e}",
+                                 parent=self.winfo_toplevel())
+            return
+        self._replace_portrait(filename)
+
+    def _remove_portrait(self):
+        if self.current_sheet and self.current_sheet.portrait:
+            self._replace_portrait("")
+
+    def _replace_portrait(self, filename: str):
+        import portraits
+        sheet = self._require_sheet()
+        old = sheet.portrait
+        sheet.portrait = filename
+        self._save_sheet()
+        if old and old != filename:
+            portraits.delete_portrait(old, [s.portrait for s in self.sheet_manager._sheets.values()])
+        self._show_portrait()
+
     def _create_notes_section(self, parent, sheet: CharacterSheet):
         """Create the notes section."""
         self._create_section_header(parent, "NOTES")
@@ -3892,7 +4084,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         self.notes_text = ctk.CTkTextbox(
             notes_frame, height=100,
-            font=ctk.CTkFont(size=11)
+            font=ui_font("small")
         )
         self.notes_text.pack(fill="both", expand=True, padx=8, pady=8)
         attach_object_linking(self.notes_text, self.theme)
@@ -4223,7 +4415,7 @@ class CharacterSheetView(ctk.CTkFrame):
         header.pack_propagate(False)
         ctk.CTkLabel(
             header, text="CARRYING CAPACITY",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color="white"
         ).pack(side="left", padx=10, pady=5)
 
@@ -4236,7 +4428,7 @@ class CharacterSheetView(ctk.CTkFrame):
         row = ctk.CTkFrame(frame, fg_color="transparent")
         row.pack(fill="x", padx=10, pady=(10, 5))
 
-        ctk.CTkLabel(row, text="Weight:", font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkLabel(row, text="Weight:", font=ui_font("small")).pack(side="left")
         self.carry_weight_var = ctk.StringVar()
         weight_entry = ctk.CTkEntry(row, width=65, height=26, textvariable=self.carry_weight_var, justify="center")
         weight_entry.pack(side="left", padx=(5, 2))
@@ -4248,7 +4440,7 @@ class CharacterSheetView(ctk.CTkFrame):
             command=self._reset_carry_weight_override
         ).pack(side="left", padx=(0, 15))
 
-        ctk.CTkLabel(row, text="/  Capacity:", font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkLabel(row, text="/  Capacity:", font=ui_font("small")).pack(side="left")
         self.carry_capacity_var = ctk.StringVar()
         capacity_entry = ctk.CTkEntry(row, width=65, height=26, textvariable=self.carry_capacity_var, justify="center")
         capacity_entry.pack(side="left", padx=(5, 2))
@@ -4260,7 +4452,7 @@ class CharacterSheetView(ctk.CTkFrame):
             command=self._reset_carry_capacity_override
         ).pack(side="left", padx=(0, 10))
 
-        ctk.CTkLabel(row, text="lbs", font=ctk.CTkFont(size=11)).pack(side="left")
+        ctk.CTkLabel(row, text="lbs", font=ui_font("small")).pack(side="left")
 
         self.carry_progress = ctk.CTkProgressBar(frame, height=10)
         self.carry_progress.pack(fill="x", padx=10, pady=(5, 10))
@@ -4345,7 +4537,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header, text="EQUIPMENT",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color="white"
         ).pack(side="left", padx=10, pady=5)
 
@@ -4380,7 +4572,7 @@ class CharacterSheetView(ctk.CTkFrame):
         for abbr, field, value in currencies:
             frame = ctk.CTkFrame(currency_row, fg_color="transparent")
             frame.pack(side="left", expand=True)
-            ctk.CTkLabel(frame, text=abbr, font=ctk.CTkFont(size=10, weight="bold")).pack()
+            ctk.CTkLabel(frame, text=abbr, font=ui_font("small", 10, bold=True)).pack()
             var = ctk.StringVar(value=str(value))
             self.currency_vars[field] = var
             entry = ctk.CTkEntry(frame, width=55, height=26, textvariable=var, justify="center")
@@ -4399,16 +4591,16 @@ class CharacterSheetView(ctk.CTkFrame):
         # Other equipment / notes
         ctk.CTkLabel(
             equip_frame, text="Other Equipment / Notes:",
-            font=ctk.CTkFont(size=10, weight="bold")
+            font=ui_font("small", 10, bold=True)
         ).pack(anchor="w", padx=10, pady=(5, 2))
         ctk.CTkLabel(
             equip_frame, text="Doesn't count toward carried weight - use \"+ Add Equipment\" above for that.",
-            font=ctk.CTkFont(size=9), text_color=self.theme.get_text_secondary()
+            font=ui_font("small", 9), text_color=self.theme.get_text_secondary()
         ).pack(anchor="w", padx=10)
 
         self.equipment_text = ctk.CTkTextbox(
             equip_frame, height=100,
-            font=ctk.CTkFont(size=11)
+            font=ui_font("small")
         )
         self.equipment_text.pack(fill="x", padx=10, pady=(2, 10))
         attach_object_linking(self.equipment_text, self.theme)
@@ -4432,12 +4624,12 @@ class CharacterSheetView(ctk.CTkFrame):
             fg_color="transparent",
             hover_color=self.theme.get_current_color('bg_secondary'),
             text_color=self.theme.get_current_color('spell_link'),
-            font=ctk.CTkFont(size=12, weight="bold", underline=True),
+            font=ui_font("body", bold=True, underline=True),
             command=lambda n=name: open_link_popup(self, "equipment", n)
         )
         name_btn.pack(side="left", padx=(0, 10))
 
-        ctk.CTkLabel(content, text="Qty:", font=ctk.CTkFont(size=10)).pack(side="left")
+        ctk.CTkLabel(content, text="Qty:", font=ui_font("small", 10)).pack(side="left")
         qty_var = ctk.StringVar(value=str(item.get("quantity", 1)))
         qty_entry = ctk.CTkEntry(content, textvariable=qty_var, width=45, height=26, justify="center")
         qty_entry.pack(side="left", padx=(5, 10))
@@ -4447,7 +4639,7 @@ class CharacterSheetView(ctk.CTkFrame):
         qty = int(item.get("quantity", 1) or 1)
         ctk.CTkLabel(
             content, text=f"{weight:g} lb each ({weight * qty:g} lb total)",
-            font=ctk.CTkFont(size=10), text_color=self.theme.get_text_secondary()
+            font=ui_font("small", 10), text_color=self.theme.get_text_secondary()
         ).pack(side="left", padx=(0, 10), fill="x", expand=True)
 
         ctk.CTkButton(
@@ -4511,7 +4703,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header, text="MAGIC ITEMS",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color="white"
         ).pack(side="left", padx=10, pady=5)
 
@@ -4530,7 +4722,7 @@ class CharacterSheetView(ctk.CTkFrame):
         info_label = ctk.CTkLabel(
             parent,
             text=f"Attuned: {attunement_count}/{attunement_limit}",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary()
         )
         info_label.pack(anchor="w", padx=10, pady=(0, 5))
@@ -4565,7 +4757,7 @@ class CharacterSheetView(ctk.CTkFrame):
             fg_color="transparent",
             hover_color=self.theme.get_current_color('bg_tertiary'),
             text_color=self.theme.get_current_color('spell_link'),
-            font=ctk.CTkFont(size=12, weight="bold", underline=True),
+            font=ui_font("body", bold=True, underline=True),
             command=lambda n=name: open_link_popup(self, "magic_item", n)
         )
         name_btn.pack(side="left", padx=(0, 10))
@@ -4573,7 +4765,7 @@ class CharacterSheetView(ctk.CTkFrame):
         weight = float(item.get("weight", 0) or 0)
         if weight:
             ctk.CTkLabel(
-                content, text=f"{weight:g} lb", font=ctk.CTkFont(size=10),
+                content, text=f"{weight:g} lb", font=ui_font("small", 10),
                 text_color=self.theme.get_text_secondary()
             ).pack(side="left", padx=(0, 10))
 
@@ -4703,7 +4895,7 @@ class CharacterSheetView(ctk.CTkFrame):
             ctk.CTkLabel(
                 self.spells_content,
                 text="No spell manager available" if not self.spell_manager else "No character selected",
-                font=ctk.CTkFont(size=14),
+                font=ui_font("subheading"),
                 text_color=self.theme.get_text_secondary()
             ).pack(expand=True, pady=50)
             return
@@ -4782,7 +4974,7 @@ class NewCharacterDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             container, text="Create New Character",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(pady=(0, 20))
         
         # Name
@@ -4899,7 +5091,7 @@ class AddClassDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             container, text="Select class to add:",
-            font=ctk.CTkFont(size=14)
+            font=ui_font("subheading")
         ).pack(anchor="w", pady=(0, 10))
         
         self.class_var = ctk.StringVar(value=self.available_class_names[0] if self.available_class_names else "")
@@ -4984,7 +5176,7 @@ class FeaturePopupDialog(ctk.CTkToplevel):
         if title:
             ctk.CTkLabel(
                 parent, text=title,
-                font=ctk.CTkFont(size=12, weight="bold")
+                font=ui_font("body", bold=True)
             ).pack(anchor="w", pady=(8, 4))
         
         if not columns or not rows:
@@ -5007,12 +5199,12 @@ class FeaturePopupDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text=self.ability.title,
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(side="left", padx=15, pady=10)
         
         ctk.CTkLabel(
             header, text=f"({self.class_name})",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(side="left", padx=5, pady=10)
         
@@ -5041,7 +5233,7 @@ class FeaturePopupDialog(ctk.CTkToplevel):
         else:
             ctk.CTkLabel(
                 inner_frame, text="No description available.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(anchor="w")
         
@@ -5111,7 +5303,7 @@ class FeatPopupDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text=self.feat.name,
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(side="left", padx=15, pady=10)
         
         # Type badge
@@ -5122,7 +5314,7 @@ class FeatPopupDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text=f"({type_text})",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(side="left", padx=5, pady=10)
         
@@ -5145,7 +5337,7 @@ class FeatPopupDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 prereq_frame, text=f"⚠️ Prerequisite: {self.feat.prereq}",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 text_color="#ffcc00"
             ).pack(padx=10, pady=8)
         
@@ -5164,7 +5356,7 @@ class FeatPopupDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 spell_frame, text=spell_info,
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 justify="left"
             ).pack(padx=10, pady=8, anchor="w")
         
@@ -5181,7 +5373,7 @@ class FeatPopupDialog(ctk.CTkToplevel):
         else:
             ctk.CTkLabel(
                 inner_frame, text="No description available.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(anchor="w")
         
@@ -5242,12 +5434,12 @@ class LineageTraitPopupDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header, text=self.trait.name,
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(side="left", padx=15, pady=10)
         
         ctk.CTkLabel(
             header, text="(Lineage Trait)",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(side="left", padx=5, pady=10)
         
@@ -5276,7 +5468,7 @@ class LineageTraitPopupDialog(ctk.CTkToplevel):
         else:
             ctk.CTkLabel(
                 inner_frame, text="No description available.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(anchor="w")
         
@@ -5331,7 +5523,7 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
         # Left side: Available feats
         ctk.CTkLabel(
             container, text="Available Feats",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).grid(row=0, column=0, sticky="w", pady=(0, 5))
         
         # Search and filter
@@ -5375,7 +5567,7 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
         # Right side: Character's feats
         ctk.CTkLabel(
             container, text="Character's Feats",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).grid(row=0, column=2, sticky="w", pady=(0, 5))
         
         self.selected_frame = ctk.CTkScrollableFrame(
@@ -5453,7 +5645,7 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
         btn = ctk.CTkButton(
             row,
             text=feat.name,
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             fg_color=self.theme.get_current_color('bg_tertiary'),
             hover_color=self.theme.get_current_color('accent'),
             text_color=self.theme.get_current_color('text_primary'),
@@ -5479,7 +5671,7 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=feat.type[:3],
-                font=ctk.CTkFont(size=9),
+                font=ui_font("small", 9),
                 fg_color=badge_color,
                 corner_radius=4,
                 width=30
@@ -5489,7 +5681,7 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
         if feat.is_spellcasting:
             ctk.CTkLabel(
                 row, text="🔮",
-                font=ctk.CTkFont(size=10)
+                font=ui_font("small", 10)
             ).pack(side="right", padx=2)
     
     def _select_feat(self, feat, is_available: bool):

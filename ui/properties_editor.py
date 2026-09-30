@@ -15,6 +15,7 @@ button and a card below listing each property with Edit / remove controls.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox
 from typing import Callable, Dict, List, Optional
 
@@ -70,7 +71,7 @@ class PropertyDialog(ctk.CTkToplevel):
         container.pack(fill="both", expand=True, padx=20, pady=20)
 
         ctk.CTkLabel(container, text="Name *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w")
+                     font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self._name_entry = ctk.CTkEntry(container, placeholder_text="e.g. Finesse")
         self._name_entry.pack(fill="x", pady=(0, 4))
         if name:
@@ -81,15 +82,15 @@ class PropertyDialog(ctk.CTkToplevel):
         self._suggest_box = ctk.CTkScrollableFrame(
             container, height=124, fg_color=theme.get_current_color('bg_secondary'),
             label_text="Existing properties — click to autofill",
-            label_font=ctk.CTkFont(size=11),
+            label_font=ui_font("small"),
         )
 
         ctk.CTkLabel(container, text="Description",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(8, 0))
+                     font=ui_font("subheading", 13, bold=True)).pack(anchor="w", pady=(8, 0))
         ctk.CTkLabel(
             container,
             text="Shown when the reader hovers this keyword.",
-            font=ctk.CTkFont(size=11), text_color=theme.get_text_secondary(),
+            font=ui_font("small"), text_color=theme.get_text_secondary(),
         ).pack(anchor="w", pady=(0, 4))
         self._desc_text = ctk.CTkTextbox(container, height=110)
         self._desc_text.pack(fill="both", expand=True, pady=(0, 12))
@@ -138,7 +139,7 @@ class PropertyDialog(ctk.CTkToplevel):
                 fg_color="transparent",
                 hover_color=theme.get_current_color('accent_primary'),
                 text_color=theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 command=lambda n=nm: self._apply_suggestion(n),
             )
             row.pack(fill="x", pady=1)
@@ -177,7 +178,7 @@ class PropertiesEditor(ctk.CTkFrame):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", pady=(0, 5))
         ctk.CTkLabel(header, text=label,
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+                     font=ui_font("subheading", 13, bold=True)).pack(side="left")
         ctk.CTkButton(
             header, text="+ Add Property", width=120,
             fg_color=theme.get_current_color('button_success'),
@@ -277,7 +278,7 @@ class PropertiesEditor(ctk.CTkFrame):
             ctk.CTkLabel(
                 self._content_frame,
                 text="No properties added. Click '+ Add Property' to add keyword descriptions.",
-                font=ctk.CTkFont(size=12), text_color=theme.get_text_secondary(),
+                font=ui_font("body"), text_color=theme.get_text_secondary(),
             ).pack(anchor="w")
             return
 
@@ -290,7 +291,7 @@ class PropertiesEditor(ctk.CTkFrame):
             top.pack(fill="x", padx=10, pady=(6, 2))
 
             ctk.CTkLabel(
-                top, text=prop["name"], font=ctk.CTkFont(size=13, weight="bold"),
+                top, text=prop["name"], font=ui_font("subheading", 13, bold=True),
                 text_color=theme.get_current_color('accent_primary'),
             ).pack(side="left")
 
@@ -298,7 +299,7 @@ class PropertiesEditor(ctk.CTkFrame):
                 top, text="×", width=24, height=24, fg_color="transparent",
                 hover_color=theme.get_current_color('button_danger'),
                 text_color=theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=14, weight="bold"),
+                font=ui_font("subheading", bold=True),
                 command=lambda i=index: self._remove(i),
             ).pack(side="right")
             ctk.CTkButton(
@@ -306,13 +307,13 @@ class PropertiesEditor(ctk.CTkFrame):
                 border_width=1,
                 hover_color=theme.get_current_color('button_hover'),
                 text_color=theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 command=lambda i=index: self._on_edit(i),
             ).pack(side="right", padx=(0, 6))
 
             desc = prop["description"] or "(no description)"
             ctk.CTkLabel(
-                row, text=desc, font=ctk.CTkFont(size=11),
+                row, text=desc, font=ui_font("small"),
                 text_color=theme.get_text_secondary(),
                 wraplength=430, justify="left", anchor="w",
             ).pack(fill="x", padx=10, pady=(0, 8))

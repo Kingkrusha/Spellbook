@@ -4,6 +4,7 @@ Provides a search bar with overlay dropdown showing results from all collections
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import ttk
 from typing import Optional, Callable, List, Dict
 from theme import get_theme_manager
@@ -42,6 +43,12 @@ class GlobalSearchBar(ctk.CTkFrame):
             self._db.initialize()
         return self._db
     
+    def _load_search_colors(self):
+        """The bar follows the theme's input-field colours."""
+        self._search_bg_color = self.theme.get_current_color('bg_input')
+        self._search_text_color = self.theme.get_current_color('text_primary')
+        self._search_placeholder_color = self.theme.get_current_color('text_secondary')
+
     def _create_widgets(self):
         """Create the search bar UI."""
         # Search container
@@ -49,9 +56,7 @@ class GlobalSearchBar(ctk.CTkFrame):
         self.search_container.pack(fill="x", expand=True)
         
         # Search bar colors
-        self._search_bg_color = "#0A0959"  # Dark blue
-        self._search_text_color = "#ffffff"  # White
-        self._search_placeholder_color = "#888888"  # Grey
+        self._load_search_colors()
         
         # Search icon and entry - store as instance var for theme updates
         self.search_frame = ctk.CTkFrame(
@@ -67,7 +72,7 @@ class GlobalSearchBar(ctk.CTkFrame):
         self.search_icon = ctk.CTkLabel(
             self.search_frame, 
             text="🔍", 
-            font=ctk.CTkFont(size=16),
+            font=ui_font("heading", 16),
             text_color=self._search_text_color,
             width=30
         )
@@ -82,7 +87,7 @@ class GlobalSearchBar(ctk.CTkFrame):
             fg_color="transparent",
             text_color=self._search_text_color,
             height=36,
-            font=ctk.CTkFont(size=14)
+            font=ui_font("subheading")
         )
         self.search_entry.pack(side="left", fill="x", expand=True, padx=10, pady=5)
         
@@ -94,7 +99,7 @@ class GlobalSearchBar(ctk.CTkFrame):
             height=30,
             fg_color="transparent",
             text_color=self._search_text_color,
-            hover_color="#1a1a8a",
+            hover_color=self.theme.get_current_color('button_hover'),
             command=self._clear_search
         )
         # Pack will be controlled by search text presence
@@ -211,7 +216,7 @@ class GlobalSearchBar(ctk.CTkFrame):
             name_label = ctk.CTkLabel(
                 result_frame,
                 text=display_text,
-                font=ctk.CTkFont(size=14),
+                font=ui_font("subheading"),
                 text_color=self._search_text_color,
                 anchor="w"
             )
@@ -221,7 +226,7 @@ class GlobalSearchBar(ctk.CTkFrame):
             section_label = ctk.CTkLabel(
                 result_frame,
                 text=section_text,
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self._search_placeholder_color,
                 anchor="w"
             )
@@ -241,7 +246,7 @@ class GlobalSearchBar(ctk.CTkFrame):
     def _highlight_result(self, frame, is_hovered: bool):
         """Highlight or unhighlight a result row."""
         if is_hovered:
-            frame.configure(fg_color="#1a1a8a")  # Lighter blue on hover
+            frame.configure(fg_color=self.theme.get_current_color('button_hover'))  # Hover highlight
         else:
             frame.configure(fg_color="transparent")
     
@@ -352,7 +357,7 @@ class GlobalSearchBar(ctk.CTkFrame):
     
     def update_colors(self):
         """Update colors to match current theme."""
-        # Update search frame border only (bg stays dark blue)
+        self._load_search_colors()
         self.search_frame.configure(
             fg_color=self._search_bg_color,
             border_color=self.theme.get_current_color('border')
@@ -370,7 +375,7 @@ class GlobalSearchBar(ctk.CTkFrame):
         # Clear button stays white
         self.clear_btn.configure(
             text_color=self._search_text_color,
-            hover_color="#1a1a8a"
+            hover_color=self.theme.get_current_color('button_hover')
         )
         
         # If dropdown is visible, update its colors too

@@ -4,6 +4,7 @@ Dialog for creating and editing character spell lists.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox
 from typing import Optional, List, Callable
 from character import CharacterSpellList, ClassLevel
@@ -43,7 +44,7 @@ class ClassLevelRow(ctk.CTkFrame):
         self.class_combo = class_combo
         
         # Level label and spinbox-like controls
-        ctk.CTkLabel(main_row, text="Level:", font=ctk.CTkFont(size=12)).pack(
+        ctk.CTkLabel(main_row, text="Level:", font=ui_font("body")).pack(
             side="left", padx=(0, 5))
         
         self.level_var = ctk.StringVar(
@@ -79,14 +80,14 @@ class ClassLevelRow(ctk.CTkFrame):
         else:
             # Primary label
             text_secondary = theme.get_text_secondary()
-            self.primary_label = ctk.CTkLabel(main_row, text="(Primary)", font=ctk.CTkFont(size=11),
+            self.primary_label = ctk.CTkLabel(main_row, text="(Primary)", font=ui_font("small"),
                                               text_color=text_secondary)
             self.primary_label.pack(side="left", padx=(15, 0))
         
         # Subclass row (only shown when subclasses are available)
         self.subclass_row = ctk.CTkFrame(self, fg_color="transparent")
         
-        ctk.CTkLabel(self.subclass_row, text="Subclass:", font=ctk.CTkFont(size=11)).pack(
+        ctk.CTkLabel(self.subclass_row, text="Subclass:", font=ui_font("small")).pack(
             side="left", padx=(20, 5))
         
         self.subclass_var = ctk.StringVar(
@@ -296,7 +297,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
         name_frame.grid(row=0, column=0, sticky="ew", pady=(0, 15))
         
         ctk.CTkLabel(name_frame, text="Character Name *",
-                     font=ctk.CTkFont(size=14, weight="bold")).pack(
+                     font=ui_font("subheading", bold=True)).pack(
             fill="x", pady=(0, 5))
         self.name_entry = ctk.CTkEntry(name_frame, height=38,
                                         placeholder_text="Enter character name...")
@@ -307,7 +308,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
         classes_header.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         
         ctk.CTkLabel(classes_header, text="Classes *",
-                     font=ctk.CTkFont(size=14, weight="bold")).pack(side="left")
+                     font=ui_font("subheading", bold=True)).pack(side="left")
         
         self.add_class_btn = ctk.CTkButton(
             classes_header, text="+ Add Class", width=100,
@@ -538,7 +539,7 @@ class CustomSpellSlotsDialog(ctk.CTkToplevel):
             container,
             text="Set maximum spell slots for this Custom class character.\n"
                  "Leave at 0 to disable that spell level.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=theme.get_text_secondary(),
             justify="left"
         ).pack(fill="x", pady=(0, 15))
@@ -549,7 +550,7 @@ class CustomSpellSlotsDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             cantrip_frame, text="Max Cantrips:",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=ui_font("subheading", 13, bold=True)
         ).pack(side="left")
         
         self.cantrip_var = ctk.StringVar(value=str(self._character.custom_max_cantrips))
@@ -561,14 +562,14 @@ class CustomSpellSlotsDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             cantrip_frame, text="(0 = unlimited)",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=theme.get_text_secondary()
         ).pack(side="left", padx=(10, 0))
         
         # Spell slots section
         ctk.CTkLabel(
             container, text="Maximum Spell Slots by Level:",
-            font=ctk.CTkFont(size=13, weight="bold")
+            font=ui_font("subheading", 13, bold=True)
         ).pack(fill="x", pady=(0, 10))
         
         # Slots frame
@@ -584,7 +585,7 @@ class CustomSpellSlotsDialog(ctk.CTkToplevel):
             
             ctk.CTkLabel(
                 row, text=f"Level {level}:",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 width=70, anchor="w"
             ).pack(side="left")
             

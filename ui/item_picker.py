@@ -12,6 +12,7 @@ from typing import Callable, List, Optional
 
 import customtkinter as ctk
 
+from typography import ui_font
 from theme import get_theme_manager
 
 _DEBOUNCE_MS = 150
@@ -64,7 +65,7 @@ class ItemPickerDialog(ctk.CTkToplevel):
         container.pack(fill="both", expand=True, padx=15, pady=15)
 
         ctk.CTkLabel(
-            container, text=title, font=ctk.CTkFont(size=16, weight="bold")
+            container, text=title, font=ui_font("heading", 16, bold=True)
         ).pack(anchor="w", pady=(0, 10))
 
         self.search_var = ctk.StringVar()
@@ -124,7 +125,7 @@ class ItemPickerDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self.list_frame,
                 text=f"Showing {len(shown)} of {len(ordered)} - type to narrow the search.",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 text_color=self.theme.get_text_secondary(),
             ).pack(pady=(6, 4))
 
@@ -142,13 +143,13 @@ class ItemPickerDialog(ctk.CTkToplevel):
         inner = ctk.CTkFrame(row, fg_color="transparent")
         inner.place(relx=0, rely=0.5, anchor="w", x=12)
         ctk.CTkLabel(
-            inner, text=item.name, font=ctk.CTkFont(size=13, weight="bold"),
+            inner, text=item.name, font=ui_font("subheading", 13, bold=True),
             text_color=theme.get_current_color('text_primary'), anchor="w"
         ).pack(anchor="w")
         subtitle = self._subtitle_fn(item)
         if subtitle:
             ctk.CTkLabel(
-                inner, text=subtitle, font=ctk.CTkFont(size=11),
+                inner, text=subtitle, font=ui_font("small"),
                 text_color=theme.get_text_secondary(), anchor="w"
             ).pack(anchor="w")
 
@@ -181,7 +182,7 @@ class PickCharacterDialog(ctk.CTkToplevel):
         content.pack(fill="both", expand=True, padx=20, pady=20)
 
         ctk.CTkLabel(
-            content, text=prompt, font=ctk.CTkFont(size=14, weight="bold"),
+            content, text=prompt, font=ui_font("subheading", bold=True),
             wraplength=300, justify="left"
         ).pack(anchor="w", pady=(0, 15))
 

@@ -47,7 +47,10 @@ class ScrollableComboBox(ctk.CTkComboBox):
             return
 
         theme = get_theme_manager()
-        popup = ctk.CTkToplevel(self)
+        # Parent the popup to the window, not to this widget: CTkScrollableFrame scrolls its
+        # page for wheel events over any *descendant* of it, and a popup that is a child of a
+        # control inside a scrolled page counts - so the page moved under the dropdown.
+        popup = ctk.CTkToplevel(self.winfo_toplevel())
         popup.overrideredirect(True)
         try:
             popup.attributes("-topmost", True)
