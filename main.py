@@ -38,6 +38,7 @@ _ensure_std_streams()
 import customtkinter as ctk
 
 from ui.window_icon import install as install_app_icon, set_app_user_model_id
+from ui.ctk_patches import install as install_ctk_patches
 
 
 def run_data_migrations():
@@ -54,6 +55,9 @@ def main():
     # Must run before any window is created so Windows groups the taskbar
     # button under Spellbook (not pythonw.exe) and uses our icon.
     set_app_user_model_id()
+
+    # Removes a CustomTkinter redraw that made the first paint several times slower
+    install_ctk_patches()
 
     # Set appearance and color theme first
     ctk.set_appearance_mode("dark")

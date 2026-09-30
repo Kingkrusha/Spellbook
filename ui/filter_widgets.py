@@ -13,6 +13,7 @@ filter state the same type as the spell page's.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from typing import Dict, List
 
 from spell import TagFilterMode, SourceFilterMode
@@ -65,14 +66,14 @@ class _BaseMultiSelectDialog(ctk.CTkToplevel):
         container.pack(fill="both", expand=True, padx=20, pady=20)
 
         ctk.CTkLabel(
-            container, text=prompt, font=ctk.CTkFont(size=14, weight="bold")
+            container, text=prompt, font=ui_font("subheading", bold=True)
         ).pack(fill="x", pady=(0, 10))
 
         text_secondary = theme.get_text_secondary()
 
         mode_frame = ctk.CTkFrame(container, fg_color="transparent")
         mode_frame.pack(fill="x", pady=(0, 15))
-        ctk.CTkLabel(mode_frame, text="Filter mode:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(mode_frame, text="Filter mode:", font=ui_font("body")).pack(side="left", padx=(0, 10))
 
         self._mode_var = ctk.StringVar(value=current_mode.value)
         mode_combo = ctk.CTkComboBox(
@@ -83,13 +84,13 @@ class _BaseMultiSelectDialog(ctk.CTkToplevel):
 
         self._mode_desc_label = ctk.CTkLabel(
             container, text=self._mode_descriptions.get(current_mode.value, ""),
-            font=ctk.CTkFont(size=11), text_color=text_secondary
+            font=ui_font("small"), text_color=text_secondary
         )
         self._mode_desc_label.pack(fill="x", pady=(0, 15))
 
         if not available_values:
             ctk.CTkLabel(
-                container, text=empty_message, font=ctk.CTkFont(size=13), text_color=text_secondary
+                container, text=empty_message, font=ui_font("body", 13), text_color=text_secondary
             ).pack(pady=30)
         else:
             scroll = ctk.CTkScrollableFrame(container)
@@ -100,7 +101,7 @@ class _BaseMultiSelectDialog(ctk.CTkToplevel):
                 var = ctk.BooleanVar(value=value.lower() in selected_lower)
                 self._value_vars[value] = var
                 ctk.CTkCheckBox(
-                    scroll, text=value, variable=var, font=ctk.CTkFont(size=13)
+                    scroll, text=value, variable=var, font=ui_font("body", 13)
                 ).pack(fill="x", pady=3)
 
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")

@@ -6,7 +6,7 @@ import os
 # doesn't exist until that data is added). Missing files are simply skipped so
 # the build never breaks on one that isn't ready yet.
 _optional_content = [
-    (f, '.') for f in ('magic_items.json',)
+    (f, '.') for f in ('magic_items.json', 'monsters.json')
     if os.path.exists(os.path.join(SPECPATH, f))
 ]
 

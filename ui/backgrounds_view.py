@@ -4,6 +4,8 @@ Displays a searchable/filterable list of backgrounds with details panel.
 """
 
 import customtkinter as ctk
+from typography import ui_font
+from ui.label_text import LabeledLabel
 import tkinter as tk
 from tkinter import messagebox
 from typing import List, Optional, Callable
@@ -12,9 +14,10 @@ from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.platform_compat import bind_right_click, unbind_right_click
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.list_batching import BatchedListMixin
 
 
-class BackgroundListPanel(ctk.CTkFrame):
+class BackgroundListPanel(BatchedListMixin, ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting backgrounds."""
     
     # Batch size for progressive loading - smaller batches = smoother UI
@@ -49,11 +52,11 @@ class BackgroundListPanel(ctk.CTkFrame):
         header_frame.pack(fill="x", padx=15, pady=(15, 10))
         
         ctk.CTkLabel(header_frame, text="Backgrounds", 
-                     font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+                     font=ui_font("heading", bold=True)).pack(side="left")
         
         text_secondary = self.theme.get_text_secondary()
         self.count_label = ctk.CTkLabel(header_frame, text="0 backgrounds",
-                                         font=ctk.CTkFont(size=12),
+                                         font=ui_font("body"),
                                          text_color=text_secondary)
         self.count_label.pack(side="right")
         
@@ -77,7 +80,7 @@ class BackgroundListPanel(ctk.CTkFrame):
                       else self.theme.get_current_color('accent_primary')),
             hover_color=self.theme.get_current_color('button_hover'),
             text_color=self.theme.get_current_color('text_primary'),
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             command=lambda i=index: self._on_background_click(i)
         )
         btn.pack(fill="x", pady=2)
@@ -183,7 +186,7 @@ class BackgroundListPanel(ctk.CTkFrame):
         
         current_button_count = len(self._background_buttons)
         new_background_count = len(self._backgrounds)
-        end_index = min(start_index + self.BATCH_SIZE, new_background_count)
+        end_index = min(start_index + self._batch_size(), new_background_count)
         
         # Process this batch
         for i in range(start_index, end_index):
@@ -210,7 +213,7 @@ class BackgroundListPanel(ctk.CTkFrame):
             self._pending_after_id = None
         else:
             # Schedule next batch
-            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_backgrounds_batch(end_index))
+            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_backgrounds_batch(end_index))
     
     def _refresh_buttons(self):
         """Refresh button colors after theme change."""
@@ -264,15 +267,15 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         # Background name
         self.name_label = ctk.CTkLabel(
             self.scroll_frame, text="Select a background",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ui_font("title", bold=True),
             wraplength=800
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
         
         # Source info
-        self.source_label = ctk.CTkLabel(
+        self.source_label = LabeledLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(anchor="w", pady=(0, 10))
@@ -293,13 +296,14 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.ability_row.pack(fill="x", anchor="w", pady=1)
         self.ability_key = ctk.CTkLabel(
             self.ability_row, text="Ability Scores: ",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             anchor="w"
         )
         self.ability_key.pack(side="left")
         self.ability_value = ctk.CTkLabel(
             self.ability_row, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w"
         )
         self.ability_value.pack(side="left", fill="x")
@@ -309,13 +313,14 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.skills_row.pack(fill="x", anchor="w", pady=1)
         self.skills_key = ctk.CTkLabel(
             self.skills_row, text="Skills: ",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             anchor="w"
         )
         self.skills_key.pack(side="left")
         self.skills_value = ctk.CTkLabel(
             self.skills_row, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w"
         )
         self.skills_value.pack(side="left", fill="x")
@@ -325,13 +330,14 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.prof_row.pack(fill="x", anchor="w", pady=1)
         self.prof_key = ctk.CTkLabel(
             self.prof_row, text="Tool Proficiencies: ",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
+            text_color=get_theme_manager().get_current_color('text_label'),
             anchor="w"
         )
         self.prof_key.pack(side="left")
         self.prof_value = ctk.CTkLabel(
             self.prof_row, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             anchor="w"
         )
         self.prof_value.pack(side="left", fill="x")
@@ -349,7 +355,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         # Equipment
         self.equipment_header = ctk.CTkLabel(
             self.scroll_frame, text="Equipment",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         # Equipment can contain [[equipment:Name]] links, so it is rendered by
         # the link-aware DynamicText (built in _render_equipment) rather than a
@@ -360,7 +366,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         # Description
         self.desc_header = ctk.CTkLabel(
             self.scroll_frame, text="Description",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         
         # Description container for rich text rendering
@@ -370,7 +376,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         # Features section
         self.features_header = ctk.CTkLabel(
             self.scroll_frame, text="Features",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         )
         
         # Container for feature widgets
@@ -432,20 +438,20 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             
             ctk.CTkLabel(
                 content, text=feat.name,
-                font=ctk.CTkFont(size=20, weight="bold")
+                font=ui_font("heading", 20, bold=True)
             ).pack(anchor="w", pady=(0, 10))
             
             if feat.type:
                 ctk.CTkLabel(
                     content, text=f"Type: {feat.type}",
-                    font=ctk.CTkFont(size=12),
+                    font=ui_font("body"),
                     text_color=self.theme.get_text_secondary()
                 ).pack(anchor="w")
             
             if feat.has_prereq and feat.prereq:
                 ctk.CTkLabel(
                     content, text=f"Prerequisite: {feat.prereq}",
-                    font=ctk.CTkFont(size=12),
+                    font=ui_font("body"),
                     text_color=self.theme.get_current_color('button_danger')
                 ).pack(anchor="w", pady=(5, 0))
             
@@ -494,7 +500,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         # Feature name
         name_label = ctk.CTkLabel(
             inner, text=feature.name,
-            font=ctk.CTkFont(size=13, weight="bold"),
+            font=ui_font("subheading", 13, bold=True),
             anchor="w"
         )
         name_label.pack(fill="x", anchor="w")
@@ -625,7 +631,8 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         if background.feats:
             feat_label = ctk.CTkLabel(
                 self.feat_inner, text="Feat:",
-                font=ctk.CTkFont(size=12, weight="bold"),
+                font=ui_font("body", bold=True),
+                text_color=get_theme_manager().get_current_color('text_label'),
                 anchor="w"
             )
             feat_label.pack(side="left", padx=(0, 10))
@@ -636,7 +643,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
                     # Add "or" between multiple feats
                     or_label = ctk.CTkLabel(
                         self.feat_inner, text="or",
-                        font=ctk.CTkFont(size=12, slant="italic"),
+                        font=ui_font("body", italic=True),
                         text_color=self.theme.get_text_secondary()
                     )
                     or_label.pack(side="left", padx=5)
@@ -644,7 +651,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
                 
                 feat_btn = ctk.CTkButton(
                     self.feat_inner, text=feat_name,
-                    font=ctk.CTkFont(size=12),
+                    font=ui_font("body"),
                     fg_color=self.theme.get_current_color('accent_primary'),
                     hover_color=self.theme.get_current_color('accent_hover'),
                     height=28,
@@ -827,7 +834,7 @@ class BackgroundsView(ctk.CTkFrame):
         self.source_btn.pack(side="left", padx=(0, 8))
         self.source_label = ctk.CTkLabel(
             filter_bar, text="None selected",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+            font=ui_font("small"), text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(side="left", padx=(0, 15))
 
@@ -919,7 +926,7 @@ class BackgroundsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header, text="Compare Backgrounds",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(side="left")
         
         ctk.CTkButton(
@@ -1201,7 +1208,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Name
-        ctk.CTkLabel(self.scroll, text="Name: *", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Name: *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.name_entry = ctk.CTkEntry(self.scroll, width=400, height=35)
         self.name_entry.pack(fill="x", pady=(5, 15))
         
@@ -1212,14 +1219,14 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         # Source
         source_frame = ctk.CTkFrame(source_row, fg_color="transparent")
         source_frame.pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(source_frame, text="Source: *", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(source_frame, text="Source: *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.source_entry = ctk.CTkEntry(source_frame, width=250, height=35)
         self.source_entry.pack()
         
         # Is Legacy
         legacy_frame = ctk.CTkFrame(source_row, fg_color="transparent")
         legacy_frame.pack(side="left")
-        ctk.CTkLabel(legacy_frame, text="Content Type:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(legacy_frame, text="Content Type:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.legacy_var = ctk.BooleanVar(value=False)
         self.legacy_check = ctk.CTkCheckBox(
             legacy_frame, text="Legacy (2014) Content",
@@ -1228,38 +1235,38 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         self.legacy_check.pack(anchor="w", pady=5)
         
         # Ability Scores
-        ctk.CTkLabel(self.scroll, text="Ability Scores (comma-separated):", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Ability Scores (comma-separated):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.ability_scores_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
                                                   placeholder_text="e.g., Strength, Dexterity, Charisma")
         self.ability_scores_entry.pack(fill="x", pady=(5, 15))
         
         # Skills
-        ctk.CTkLabel(self.scroll, text="Skill Proficiencies (comma-separated):", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Skill Proficiencies (comma-separated):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.skills_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
                                           placeholder_text="e.g., Insight, Religion")
         self.skills_entry.pack(fill="x", pady=(5, 15))
         
         # Other Proficiencies
-        ctk.CTkLabel(self.scroll, text="Tool Proficiencies (comma-separated):", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Tool Proficiencies (comma-separated):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.proficiencies_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
                                                  placeholder_text="e.g., Calligrapher's Supplies")
         self.proficiencies_entry.pack(fill="x", pady=(5, 15))
         
         # Feats
-        ctk.CTkLabel(self.scroll, text="Origin Feat(s) (comma-separated for multiple options):", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Origin Feat(s) (comma-separated for multiple options):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.feats_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
                                          placeholder_text="e.g., Magic Initiate (Cleric)")
         self.feats_entry.pack(fill="x", pady=(5, 15))
         
         # Equipment
-        ctk.CTkLabel(self.scroll, text="Equipment:", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Equipment:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.equipment_text = ctk.CTkTextbox(self.scroll, height=60)
         self.equipment_text.pack(fill="x", pady=(5, 15))
         from ui.object_link_widgets import attach_object_linking
         attach_object_linking(self.equipment_text, self.theme)
         
         # Description
-        ctk.CTkLabel(self.scroll, text="Description: *", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(self.scroll, text="Description: *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.desc_text = ctk.CTkTextbox(self.scroll, height=100)
         self.desc_text.pack(fill="x", pady=(5, 15))
         
@@ -1267,7 +1274,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         features_header = ctk.CTkFrame(self.scroll, fg_color="transparent")
         features_header.pack(fill="x", pady=(10, 5))
         
-        ctk.CTkLabel(features_header, text="Features:", font=ctk.CTkFont(weight="bold")).pack(side="left")
+        ctk.CTkLabel(features_header, text="Features:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
         
         ctk.CTkButton(
             features_header, text="+ Add Feature", width=100,
@@ -1318,7 +1325,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         header = ctk.CTkFrame(inner, fg_color="transparent")
         header.pack(fill="x")
         
-        ctk.CTkLabel(header, text="Feature Name:", font=ctk.CTkFont(size=12)).pack(side="left")
+        ctk.CTkLabel(header, text="Feature Name:", font=ui_font("body")).pack(side="left")
         
         remove_btn = ctk.CTkButton(
             header, text="✕", width=25, height=25,
@@ -1332,7 +1339,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         name_entry.pack(fill="x", pady=(5, 10))
         name_entry.insert(0, name)
         
-        ctk.CTkLabel(inner, text="Description:", font=ctk.CTkFont(size=12)).pack(anchor="w")
+        ctk.CTkLabel(inner, text="Description:", font=ui_font("body")).pack(anchor="w")
         
         desc_entry = ctk.CTkTextbox(inner, height=80)
         

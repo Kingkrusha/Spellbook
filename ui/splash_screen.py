@@ -4,6 +4,7 @@ Shows a loading screen while the application initializes.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from typing import Callable, Optional
 import os
 import sys
@@ -62,7 +63,7 @@ class SplashScreen(ctk.CTkToplevel):
         self.title_label = ctk.CTkLabel(
             self.container,
             text="Spellbook",
-            font=ctk.CTkFont(size=32, weight="bold"),
+            font=ui_font("title", 32, bold=True),
             text_color="#ffffff"
         )
         self.title_label.pack(pady=(5, 3))
@@ -71,7 +72,7 @@ class SplashScreen(ctk.CTkToplevel):
         self.subtitle_label = ctk.CTkLabel(
             self.container,
             text="A D&D resource manager",
-            font=ctk.CTkFont(size=14),
+            font=ui_font("subheading"),
             text_color="#b0b0b0"
         )
         self.subtitle_label.pack(pady=(0, 20))
@@ -80,7 +81,7 @@ class SplashScreen(ctk.CTkToplevel):
         self.status_label = ctk.CTkLabel(
             self.container,
             text="Initializing...",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color="#808080"
         )
         self.status_label.pack(pady=(0, 8))
@@ -174,7 +175,7 @@ class ClosingSplash(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text="Spellbook",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ui_font("title", bold=True),
             text_color="#ffffff"
         ).pack(pady=(25, 10))
         
@@ -182,7 +183,7 @@ class ClosingSplash(ctk.CTkToplevel):
         self.status_label = ctk.CTkLabel(
             container,
             text="Saving and closing...",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color="#808080"
         )
         self.status_label.pack(pady=(0, 15))

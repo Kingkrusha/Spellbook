@@ -34,3 +34,9 @@ tools/complete_witch_import.json
 tools/supplemental_spells_import.json
 fix_quotes.py
 update_spell_tables.py
+
+# --- Per-user runtime data (created next to the code when running from source) ---
+open_tabs.json
+font_settings.json
+custom_themes.json
+portraits/

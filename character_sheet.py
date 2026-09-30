@@ -703,6 +703,25 @@ class HitPoints:
         )
 
 
+def prune_style(style: Optional[dict]) -> dict:
+    """A sheet's style dict without its empty scaffolding (what gets saved)."""
+    if not style:
+        return {}
+    out: Dict[str, Any] = {}
+    palette = style.get("palette") or {}
+    colors = {r: v for r, v in (palette.get("colors") or {}).items() if v}
+    if palette.get("base") or colors:
+        out["palette"] = {"base": palette.get("base", ""), "colors": colors}
+    fonts = style.get("fonts") or {}
+    roles = {r: v for r, v in (fonts.get("roles") or {}).items() if v}
+    if fonts.get("family") or roles:
+        out["fonts"] = {k: v for k, v in (("family", fonts.get("family")), ("roles", roles)) if v}
+    elements = {k: v for k, v in (style.get("elements") or {}).items() if v}
+    if elements:
+        out["elements"] = elements
+    return out
+
+
 @dataclass
 class CharacterSheet:
     """
@@ -791,6 +810,17 @@ class CharacterSheet:
     appearance: str = ""
     backstory: str = ""
     allies_and_organizations: str = ""
+
+    # Character portrait: file name inside the user-data "portraits" folder (see portraits.py)
+    portrait: str = ""
+
+    # Local look of this sheet (colours, fonts, per-widget styling) - overrides the
+    # app-wide theme on this sheet only. Managed by ui/sheet_style.py; empty when
+    # the sheet just follows the app. Shape:
+    #   {"palette": {"base": theme key or "", "colors": {role: {"light": hex, "dark": hex}}},
+    #    "fonts": {"family": str, "roles": {role: {...}}},
+    #    "elements": {element key: {"fg_color": hex, ..., "font": {...}}}}
+    style: Dict[str, Any] = field(default_factory=dict)
     
     def get_proficiency_bonus(self) -> int:
         """Return proficiency bonus based on level (stored separately or calculated)."""
@@ -947,7 +977,9 @@ class CharacterSheet:
             "notes": self.notes,
             "appearance": self.appearance,
             "backstory": self.backstory,
-            "allies_and_organizations": self.allies_and_organizations
+            "allies_and_organizations": self.allies_and_organizations,
+            "portrait": self.portrait,
+            "style": prune_style(self.style),
         }
     
     @classmethod
@@ -1000,5 +1032,7 @@ class CharacterSheet:
             notes=data.get("notes", ""),
             appearance=data.get("appearance", ""),
             backstory=data.get("backstory", ""),
-            allies_and_organizations=data.get("allies_and_organizations", "")
+            allies_and_organizations=data.get("allies_and_organizations", ""),
+            portrait=data.get("portrait", "") or "",
+            style=data.get("style") if isinstance(data.get("style"), dict) else {},
         )

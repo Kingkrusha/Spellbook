@@ -8,6 +8,8 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 
 ## Features
 
+- **Home page & tabs**: The app opens on a Home page with **Collections**, **Characters** and **Game Tools** (coming soon). Tabs work like a browser's: click **+** for a new tab (it opens on Home), close one with its **×** or a middle click, drag to reorder, right-click for New/Duplicate/Close Other Tabs. Each tab navigates on its own, so you can keep a character sheet open next to the spell list. Your open tabs are remembered and reopened next time you start the app (turn this off under Settings > Loading Options)
+- **Characters page**: Every character in one list you can search, filter (class, species, background) and sort (name, level, class, species, background). Create, import and export characters here; click one to open its sheet
 - **Spell Management**: Search, filter, create, and organize spells with full-text search and advanced filtering
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
 - **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic
@@ -19,7 +21,10 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 - **Classes & Subclasses**: Browse official content and create homebrew classes with custom features
 - **Backgrounds**: 50+ backgrounds from PHB 2024, Eberron, Sword Coast, and other official sources
 - **Rich Text Editing**: Tables, spell links (`[[Fireball]]`), and bold formatting in all description editors
-- **Theming**: Dark/Light modes with customizable themes
+- **Theming**: Dark/Light modes, 23 built-in colour themes (each with its own colour for field labels such as "Casting Time:" and "Multiattack."), and a Theme Studio for creating your own (Settings > Appearance)
+- **Typography**: Choose fonts for titles, headings, subheadings, normal and small text across the whole app (Settings > Typography)
+- **Character portraits**: upload an image in the Personality card of a character sheet (stored in a `portraits/` folder and embedded in character exports)
+- **Per-sheet styling**: Every character sheet can have its own colours and fonts, and you can click any part of the sheet to restyle just that element (the **Style** button on the sheet)
 - **SQLite Database**: All content stored in a fast, portable SQLite database with automatic migrations
 - **Splash Screen**: Loading screen with progress indicator during startup
 
@@ -91,22 +96,31 @@ User-specific data stored in JSON files:
 - **characters.json**: Character spell lists
 - **character_sheets.json**: Full character sheets
 - **settings.json**: Application settings
-- **custom_theme.json**: Custom theme configuration
+- **custom_themes.json**: Your custom colour themes (an older `custom_theme.json` is imported automatically)
+- **font_settings.json**: Typography settings
+- **portraits/**: Character portrait images
 
 On first run, official content is migrated from bundled JSON files to the database.
 
 ## Configuration
 
-Settings are stored in `settings.json`. Custom themes can be defined in `custom_theme.json`:
+Settings are stored in `settings.json`.
 
-```json
-{
-  "dark": {
-    "bg_primary": "#1a1a2e",
-    "accent": "#e94560"
-  }
-}
-```
+### Themes and fonts
+
+- **Settings > Appearance > Theme Studio** lists every theme with a colour strip. Click one to apply it
+  instantly; **+ New theme** copies the selected theme so you can edit each colour (separately for light and
+  dark mode) with a live preview. Themes can be duplicated, renamed, exported and imported as `.json` files.
+- **Settings > Typography** sets a base font and, for each text role (title, heading, subheading, normal,
+  small), an optional family, size, weight and italics. Changes apply immediately everywhere.
+- **Character sheets**: the **Style** button opens a panel beside the sheet. *Pick an element* outlines what a
+  click would select. A click selects the whole widget (its card, bar or box) and lets you restyle everything
+  inside it at once (text colour, button and field colours, font, size); a double-click selects just the label or
+  field under the pointer. Clicking the page background selects the whole sheet. Each element's own colours,
+  font and shape can be changed too. Every
+  colour also offers "All *role*" to recolour everything on the sheet that uses it. The *Colors* and *Fonts* tabs
+  restyle the whole sheet (own base theme, own typography). Sheet styling is saved with the character sheet and
+  overrides the app-wide settings on that sheet only.
 
 ## Project Structure
 
@@ -123,18 +137,23 @@ Spellbook/
 ├── lineage.py              # Lineage (race) data model and manager
 ├── feat.py                 # Feat data model and manager
 ├── background.py           # Background data model and manager
-├── stat_block.py           # Creature stat block data model
+├── monster.py              # Monster (creature stat block) data model and manager
+├── stat_block.py           # Named trait/action entries used by monsters
 ├── spell_slots.py          # Spell slot calculations by class/level
 ├── validation.py           # Spell validation for characters
 ├── settings.py             # Application settings management
-├── theme.py                # Theme management and color schemes
+├── theme.py                # Theme management, built-in themes, custom themes
+├── typography.py           # Text roles and fonts (app-wide and per-sheet)
 ├── data_migration.py       # Data backup and migration utilities
 ├── ui/                     # UI components
 │   ├── main_window.py      # Main application window with tab navigation
 │   ├── splash_screen.py    # Loading screen shown during startup
-│   ├── tab_bar.py          # Custom tab bar component
+│   ├── tab_bar.py          # Browser-style tab bar (+ button, closable, draggable tabs)
+│   ├── home_view.py        # Home page (Collections / Characters / Game Tools)
+│   ├── characters_view.py  # Characters page: search, filter, sort, open, delete
+│   ├── character_transfer.py # Character import/export (JSON)
 │   ├── global_search.py    # Global search bar for collections
-│   ├── collections_view.py # Collections browser with import/export
+│   ├── collections_view.py # Collections browser with content import/export
 │   ├── spell_list.py       # Paginated spell list panel
 │   ├── spell_detail.py     # Spell detail view with popup
 │   ├── spell_editor.py     # Spell create/edit dialog
@@ -148,8 +167,8 @@ Spellbook/
 │   ├── backgrounds_view.py # Background browser and editor
 │   ├── settings_view.py    # Settings panel with preload options
 │   ├── rich_text_utils.py  # Rich text rendering/editing
-│   ├── stat_block_display.py  # Stat block display widget
-│   └── stat_block_editor.py   # Stat block editor dialog
+│   ├── monster_view.py     # Monster browser, filters and editor
+│   └── monster_stat_block.py  # Stat block widget (Monsters page, spell page, link popups)
 ├── tools/                  # Data generation and updates
 │   ├── spell_data.py       # Official spell definitions
 │   ├── stat_block_data.py  # Official stat block definitions
@@ -167,7 +186,7 @@ Spellbook/
 | `Spell` | spell.py | Spell with level, school, components, description, classes |
 | `CharacterSpellList` | character.py | Character's known/prepared spells, slots, feats, lineage |
 | `CharacterSheet` | character_sheet.py | Full sheet: abilities, skills, HP, inventory, attacks |
-| `StatBlock` | stat_block.py | Creature stats, abilities, traits, actions for summons |
+| `Monster` | monster.py | Creature stat block; also the creatures summoned by spells (`spell_only`) |
 
 ### Content Models
 

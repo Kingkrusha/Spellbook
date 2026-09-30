@@ -11,6 +11,7 @@ concept (Official/Unofficial) which is specific to spells.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox
 from typing import Callable, List
 
@@ -50,7 +51,7 @@ class TagPickerDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             container, text="Add Tag:",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(fill="x", pady=(0, 5))
 
         new_tag_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -75,7 +76,7 @@ class TagPickerDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             container, text="Existing tags (click to add):",
-            font=ctk.CTkFont(size=12), text_color=text_secondary
+            font=ui_font("body"), text_color=text_secondary
         ).pack(fill="x", pady=(0, 6))
 
         selected_lower = {t.lower() for t in selected_tags}
@@ -111,7 +112,7 @@ class TagPickerDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self._list_scroll,
                 text="No match — click Add to create this tag." if q else "No additional tags available.",
-                font=ctk.CTkFont(size=12), text_color=theme.get_text_secondary()
+                font=ui_font("body"), text_color=theme.get_text_secondary()
             ).pack(pady=20)
             return
 
@@ -122,7 +123,7 @@ class TagPickerDialog(ctk.CTkToplevel):
                 hover_color=theme.get_current_color('accent_primary'),
                 text_color=theme.get_current_color('text_primary'),
                 text_color_disabled="black",
-                font=ctk.CTkFont(size=13),
+                font=ui_font("body", 13),
                 command=lambda t=tag: self._on_select_existing(t)
             ).pack(fill="x", pady=2)
 
@@ -155,7 +156,7 @@ class TagEditor(ctk.CTkFrame):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", pady=(0, 5))
 
-        ctk.CTkLabel(header, text=label, font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+        ctk.CTkLabel(header, text=label, font=ui_font("subheading", 13, bold=True)).pack(side="left")
 
         btn_text = theme.get_current_color('text_primary')
         ctk.CTkButton(
@@ -206,7 +207,7 @@ class TagEditor(ctk.CTkFrame):
             ctk.CTkLabel(
                 self._content_frame,
                 text="No tags added. Click '+ Add Tag' to add tags.",
-                font=ctk.CTkFont(size=12), text_color=theme.get_text_secondary()
+                font=ui_font("body"), text_color=theme.get_text_secondary()
             ).pack(anchor="w")
             return
 
@@ -220,7 +221,7 @@ class TagEditor(ctk.CTkFrame):
             tag_frame.pack(side="left", padx=(0, 5), pady=2)
 
             ctk.CTkLabel(
-                tag_frame, text=tag, font=ctk.CTkFont(size=12),
+                tag_frame, text=tag, font=ui_font("body"),
                 text_color=theme.get_current_color('text_primary')
             ).pack(side="left", padx=(10, 5), pady=4)
 
@@ -229,7 +230,7 @@ class TagEditor(ctk.CTkFrame):
                 fg_color="transparent",
                 hover_color=theme.get_current_color('button_danger'),
                 text_color=theme.get_current_color('text_primary'),
-                font=ctk.CTkFont(size=14, weight="bold"),
+                font=ui_font("subheading", bold=True),
                 command=lambda t=tag: self._remove_tag(t)
             ).pack(side="left", padx=(0, 5), pady=2)
 
@@ -244,7 +245,7 @@ class TagEditor(ctk.CTkFrame):
                 )
                 tag_frame.pack(side="left", padx=(0, 5), pady=2)
                 ctk.CTkLabel(
-                    tag_frame, text=tag, font=ctk.CTkFont(size=12),
+                    tag_frame, text=tag, font=ui_font("body"),
                     text_color=theme.get_current_color('text_primary')
                 ).pack(side="left", padx=(10, 5), pady=4)
                 ctk.CTkButton(
@@ -252,6 +253,6 @@ class TagEditor(ctk.CTkFrame):
                     fg_color="transparent",
                     hover_color=theme.get_current_color('button_danger'),
                     text_color=theme.get_current_color('text_primary'),
-                    font=ctk.CTkFont(size=14, weight="bold"),
+                    font=ui_font("subheading", bold=True),
                     command=lambda t=tag: self._remove_tag(t)
                 ).pack(side="left", padx=(0, 5), pady=2)

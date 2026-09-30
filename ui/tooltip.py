@@ -8,6 +8,7 @@ description when hovering its chip in a detail view.
 
 import customtkinter as ctk
 
+from typography import ui_font
 from theme import get_theme_manager
 
 
@@ -78,7 +79,7 @@ class HoverTooltip:
         frame.pack(fill="both", expand=True)
         ctk.CTkLabel(
             frame, text=self.text, justify="left", wraplength=self.wraplength,
-            font=ctk.CTkFont(size=12), text_color=text_color,
+            font=ui_font("body"), text_color=text_color,
         ).pack(padx=10, pady=6)
 
         self._tip.geometry(f"+{x}+{y}")

@@ -6,9 +6,13 @@ Displays and manages application settings.
 import threading
 
 import customtkinter as ctk
+from typography import ui_font, get_font_manager
+from ui.busy import run_busy
+from ui.restyle import flush_restyle
+from ui.typography_editor import TypographyEditor, GlobalTypographyModel
 from typing import Callable, Optional
 from settings import SettingsManager
-from theme import get_theme_manager, PRESET_DISPLAY_NAMES
+from theme import get_theme_manager
 from version import __version__
 
 
@@ -28,13 +32,10 @@ class SettingsView(ctk.CTkFrame):
         # Variables for settings
         self._appearance_var = ctk.StringVar(value=settings_manager.settings.appearance_mode)
 
-        # Colour theme (preset) selector. theme_name holds a preset key
-        # ("default", "midnight", ...); the dropdown shows its display name.
-        self._theme_display_to_key = {v: k for k, v in PRESET_DISPLAY_NAMES.items()}
-        theme_key = getattr(settings_manager.settings, 'theme_name', None) or 'default'
-        if theme_key not in PRESET_DISPLAY_NAMES:
-            theme_key = 'default'
-        self._theme_var = ctk.StringVar(value=PRESET_DISPLAY_NAMES[theme_key])
+        # Colour theme selector. theme_name holds a theme key ("default",
+        # "midnight", "custom:ab12cd34", ...); the dropdown shows its name.
+        theme_key = self.theme_manager.normalize_key(getattr(settings_manager.settings, 'theme_name', None))
+        self._theme_var = ctk.StringVar(value=self.theme_manager.display_name(theme_key))
         self._spell_added_var = ctk.BooleanVar(value=settings_manager.settings.show_spell_added_notification)
         self._rest_notif_var = ctk.BooleanVar(value=settings_manager.settings.show_rest_notification)
         self._warn_cantrips_var = ctk.BooleanVar(value=settings_manager.settings.warn_too_many_cantrips)
@@ -71,8 +72,18 @@ class SettingsView(ctk.CTkFrame):
             value=not getattr(settings_manager.settings, 'link_suggest_equipment', True))
         self._link_disable_magic_items_var = ctk.BooleanVar(
             value=not getattr(settings_manager.settings, 'link_suggest_magic_items', True))
+        self._link_disable_monsters_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_monsters', True))
         self._link_autocomplete_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'link_autocomplete_names', True))
+
+        # Monsters
+        self._show_spell_only_summons_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'show_spell_only_summons', False))
+
+        # Startup
+        self._restore_tabs_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'restore_tabs', True))
 
         # Updates
         self._auto_check_updates_var = ctk.BooleanVar(
@@ -107,7 +118,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header, text="Settings",
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=ui_font("title", bold=True)
         ).pack(side="left")
         
         # Reset button (use themed danger color)
@@ -139,7 +150,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             mode_row, text="Appearance Mode:",
-            font=ctk.CTkFont(size=14)
+            font=ui_font("subheading")
         ).pack(side="left")
         
         appearance_options = ctk.CTkFrame(mode_row, fg_color="transparent")
@@ -152,34 +163,120 @@ class SettingsView(ctk.CTkFrame):
                 command=self._on_appearance_change
             ).pack(side="left", padx=10)
 
-        # Colour theme (preset) row
+        # Colour theme row
         theme_row = ctk.CTkFrame(appearance_content, fg_color="transparent")
         theme_row.pack(fill="x", pady=(0, 5))
 
         ctk.CTkLabel(
             theme_row, text="Color Theme:",
-            font=ctk.CTkFont(size=14)
+            font=ui_font("subheading")
         ).pack(side="left")
+
+        ctk.CTkButton(
+            theme_row, text="Theme Studio…", width=120,
+            command=self._open_theme_studio
+        ).pack(side="right", padx=(8, 0))
 
         self._theme_menu = ctk.CTkOptionMenu(
             theme_row,
-            values=list(PRESET_DISPLAY_NAMES.values()),
+            values=self._theme_names(),
             variable=self._theme_var,
             command=self._on_color_theme_change,
             width=170,
         )
         self._theme_menu.pack(side="right")
 
-        # Note: some appearance changes require restarting certain widgets to fully apply.
-        note_text = "Note: Some appearance changes may require restarting the app to fully apply."
         text_secondary = self.theme_manager.get_text_secondary()
         ctk.CTkLabel(
             appearance_content,
-            text=note_text,
-            font=ctk.CTkFont(size=11),
-            text_color=text_secondary
+            text="Pick a built-in theme, or open the Theme Studio to create and edit your own.",
+            font=ui_font("small"),
+            text_color=text_secondary, anchor="w", justify="left"
         ).pack(fill="x", pady=(8, 0))
-        
+
+        # The remaining sections are built a few milliseconds apart, so the tab appears
+        # at once instead of after every switch and card has been created.
+        self._loading_note = ctk.CTkLabel(
+            self.container, text="Loading more settings\u2026", font=ui_font("small"),
+            text_color=self.theme_manager.get_text_secondary())
+        self._loading_note.pack(pady=10)
+        self._pending_sections = [
+            self._build_typography_section,
+            self._build_notifications_section,
+            self._build_spell_warnings_section,
+            self._build_comparison_mode_section,
+            self._build_character_sheet_section,
+            self._build_official_spells_section,
+            self._build_legacy_content_section,
+            self._build_monsters_section,
+            self._build_loading_options_section,
+            self._build_object_linking_section,
+            self._build_about_section,
+        ]
+        self.after(10, self._build_next_section)
+
+    def _build_next_section(self):
+        """Build one pending section, then schedule the next."""
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+        if not self._pending_sections:
+            self._loading_note.destroy()
+            return
+        build = self._pending_sections.pop(0)
+        try:
+            self._loading_note.pack_forget()
+            build()
+        except Exception as e:
+            print(f"Error building settings section: {e}")
+        if self._pending_sections:
+            self._loading_note.pack(pady=10)
+        self.after(8, self._build_next_section)
+
+    def build_all_sections_now(self):
+        """Finish building every section immediately (used before things that need them all)."""
+        while getattr(self, "_pending_sections", None):
+            self._build_next_section_sync()
+
+    def _build_next_section_sync(self):
+        build = self._pending_sections.pop(0)
+        build()
+        if not self._pending_sections:
+            self._loading_note.destroy()
+
+    def _build_typography_section(self):
+        """Build the Typography section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
+        # === Typography Section ===
+        self._create_section(self.container, "Typography")
+
+        typography_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                        fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(typography_frame)
+        typography_frame.pack(fill="x", pady=(0, 20))
+        typography_content = ctk.CTkFrame(typography_frame, fg_color="transparent")
+        typography_content.pack(fill="x", padx=20, pady=15)
+        ctk.CTkLabel(
+            typography_content,
+            text="Choose fonts for headings, subheadings, normal and small text. "
+                 "Character sheets can override these on the sheet itself (Style button).",
+            font=ui_font("small"), text_color=text_secondary, anchor="w", justify="left", wraplength=640
+        ).pack(fill="x", pady=(0, 10))
+        self._typography_editor = TypographyEditor(typography_content, GlobalTypographyModel())
+        self._typography_editor.pack(fill="x")
+
+
+    def _build_notifications_section(self):
+        """Build the Notifications section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Notifications Section ===
         self._create_section(self.container, "Notifications")
         
@@ -206,6 +303,14 @@ class SettingsView(ctk.CTkFrame):
             pady=(10, 0)
         )
         
+
+
+    def _build_spell_warnings_section(self):
+        """Build the Spell Warnings section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Spell Warnings Section ===
         self._create_section(self.container, "Spell List Warnings")
         
@@ -221,7 +326,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             warnings_content,
             text="Show warnings when adding spells that may be incompatible:",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=text_secondary
         ).pack(anchor="w", pady=(0, 15))
         
@@ -256,6 +361,14 @@ class SettingsView(ctk.CTkFrame):
             pady=(10, 0)
         )
         
+
+
+    def _build_comparison_mode_section(self):
+        """Build the Comparison Mode section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Comparison Mode Section ===
         self._create_section(self.container, "Comparison Mode")
         
@@ -278,10 +391,18 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             compare_content,
             text="When enabled, better values are highlighted green and worse values red.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
+
+
+    def _build_character_sheet_section(self):
+        """Build the Character Sheet section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Character Sheet Section ===
         self._create_section(self.container, "Character Sheets")
         
@@ -307,7 +428,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, calculates HP based on class levels\n(first level max, others average) + CON modifier.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
@@ -327,7 +448,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, AC is calculated from armor and shield selections\nplus DEX modifier and special abilities (like Unarmored Defense).",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
@@ -345,7 +466,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, new character sheets will automatically fill 'Other Proficiencies'\nwith the default proficiencies for the character's class.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
@@ -365,7 +486,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, adding a starting class automatically marks its\nsaving throw proficiencies on the character sheet.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
@@ -385,7 +506,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, shows a confirmation dialog before removing a class\nby setting its level to 0.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
@@ -395,7 +516,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             dice_row, text="Long rest hit dice restoration:",
-            font=ctk.CTkFont(size=14)
+            font=ui_font("subheading")
         ).pack(side="left")
         
         self._hit_dice_rest_var = ctk.StringVar(
@@ -415,7 +536,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="Controls how many hit dice are restored on a long rest.\n• All: Restore all hit dice to maximum\n• Half: Restore half of total hit dice\n• None: Do not restore any hit dice",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
 
@@ -435,7 +556,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, the inventory tab totals the weight of linked equipment and\nmagic items against carrying capacity (STR score x 15, doubled with Powerful\nBuild) and drops speed to 5 ft when it's exceeded. Disabling this also turns\noff that speed reduction, not just the display.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
 
@@ -455,10 +576,17 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             charsheet_content,
             text="When enabled, carrying more than 5x STR score also reduces speed by 10 ft\n(on top of the indicator above). Has no effect if the indicator is off.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
 
+
+    def _build_official_spells_section(self):
+        """Build the Official Spells section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Official Spells Section ===
         self._create_section(self.container, "Official Spells")
         
@@ -485,7 +613,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             official_content,
             text="When disabled, spells tagged as 'Official' cannot be deleted.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
@@ -507,10 +635,18 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             official_content,
             text="Restores all modified official spells to their original versions.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
         
+
+
+    def _build_legacy_content_section(self):
+        """Build the Legacy Content section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Legacy Content Section ===
         self._create_section(self.container, "Legacy Content")
         
@@ -525,7 +661,7 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             legacy_content,
             text="Control how 2014 (legacy) D&D content is displayed:",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=text_secondary
         ).pack(anchor="w", pady=(0, 15))
         
@@ -553,10 +689,52 @@ class SettingsView(ctk.CTkFrame):
             ctk.CTkLabel(
                 option_frame,
                 text=f"  - {description}",
-                font=ctk.CTkFont(size=11),
+                font=ui_font("small"),
                 text_color=text_secondary
             ).pack(side="left", padx=(10, 0))
         
+
+
+    def _build_monsters_section(self):
+        """Build the Monsters section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
+        # === Monsters Section ===
+        self._create_section(self.container, "Monsters")
+
+        monsters_frame = ctk.CTkFrame(self.container, corner_radius=10,
+                                      fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(monsters_frame)
+        monsters_frame.pack(fill="x", pady=(0, 20))
+
+        monsters_content = ctk.CTkFrame(monsters_frame, fg_color="transparent")
+        monsters_content.pack(fill="x", padx=20, pady=15)
+
+        self._create_toggle_row(
+            monsters_content,
+            "Display spell only summons",
+            self._show_spell_only_summons_var,
+            self._on_setting_change
+        )
+        ctk.CTkLabel(
+            monsters_content,
+            text="Creatures that exist only to be summoned by a spell (Bestial Spirit, Fey Spirit, ...)\n"
+                 "always appear on their spell's page. Turn this on to list them in the Monsters\n"
+                 "collection as well, and to offer them as link suggestions.",
+            font=ui_font("body"),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(10, 0))
+
+
+    def _build_loading_options_section(self):
+        """Build the Loading Options section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Loading Options Section ===
         self._create_section(self.container, "Loading Options")
         
@@ -568,12 +746,27 @@ class SettingsView(ctk.CTkFrame):
         loading_content = ctk.CTkFrame(loading_frame, fg_color="transparent")
         loading_content.pack(fill="x", padx=20, pady=15)
         
+        self._create_toggle_row(
+            loading_content,
+            "Reopen my tabs on startup",
+            self._restore_tabs_var,
+            self._on_setting_change
+        )
+        ctk.CTkLabel(
+            loading_content,
+            text="Start where you left off: the tabs that were open when you closed the app\n"
+                 "(and the page each one was on) come back. When off, the app opens on Home.",
+            font=ui_font("body"),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(8, 20))
+
         ctk.CTkLabel(
             loading_content,
             text="Preloading data in the background after startup can reduce loading times when\n"
                  "navigating to different sections, but may increase startup time and memory usage.\n"
                  "Enable preloading for collections you use frequently.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary,
             justify="left"
         ).pack(anchor="w", pady=(0, 15))
@@ -636,10 +829,18 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             loading_content,
             text="Changes take effect on next app restart.",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(15, 0))
         
+
+
+    def _build_object_linking_section(self):
+        """Build the Object Linking section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === Object Linking Section ===
         self._create_section(self.container, "Object Linking")
 
@@ -657,7 +858,7 @@ class SettingsView(ctk.CTkFrame):
                  "suggested as clickable links. Disable suggestions per category below - "
                  "links already made, and the right-click \"Find Link Suggestions\"/"
                  "\"Unlink\" options, are unaffected.",
-            font=ctk.CTkFont(size=13), text_color=text_secondary,
+            font=ui_font("body", 13), text_color=text_secondary,
             wraplength=560, justify="left",
         ).pack(anchor="w", pady=(0, 15))
 
@@ -689,6 +890,10 @@ class SettingsView(ctk.CTkFrame):
             linking_content, "Disable linking suggestions for Magic Items",
             self._link_disable_magic_items_var, self._on_setting_change, pady=(10, 0),
         )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Monsters",
+            self._link_disable_monsters_var, self._on_setting_change, pady=(10, 0),
+        )
 
         sep = ctk.CTkFrame(linking_content, fg_color=self.theme_manager.get_current_color('bg_tertiary'), height=1)
         sep.pack(fill="x", pady=(15, 12))
@@ -699,6 +904,13 @@ class SettingsView(ctk.CTkFrame):
             self._link_autocomplete_var, self._on_setting_change,
         )
 
+
+    def _build_about_section(self):
+        """Build the About section (built after the window is up: see _build_remaining)."""
+        text_secondary = self.theme_manager.get_text_secondary()
+        danger = self.theme_manager.get_current_color('button_danger')
+        danger_hover = self.theme_manager.get_current_color('button_danger_hover')
+        btn_text = self.theme_manager.get_current_color('text_primary')
         # === About Section ===
         self._create_section(self.container, "About")
         
@@ -713,21 +925,21 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkLabel(
             about_content,
             text="D&D Spellbook Manager",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(anchor="w")
         
         text_secondary = self.theme_manager.get_text_secondary()
         ctk.CTkLabel(
             about_content,
             text="A tool for managing D&D 5e spells character sheets and player information.",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=text_secondary
         ).pack(anchor="w", pady=(5, 0))
         
         ctk.CTkLabel(
             about_content,
             text=f"Version {__version__} • Data stored in SQLite database",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(anchor="w", pady=(10, 0))
 
@@ -749,7 +961,7 @@ class SettingsView(ctk.CTkFrame):
         self._update_status_label = ctk.CTkLabel(
             update_row,
             text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         )
         self._update_status_label.pack(side="left", padx=(12, 0))
@@ -762,6 +974,7 @@ class SettingsView(ctk.CTkFrame):
             pady=(12, 0)
         )
 
+
     def _create_section(self, parent, title: str):
         """Create a section header."""
         header = ctk.CTkFrame(parent, fg_color="transparent")
@@ -769,7 +982,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             header, text=title,
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ui_font("heading", 16, bold=True)
         ).pack(side="left")
     
     def _create_toggle_row(self, parent, text: str, variable: ctk.BooleanVar,
@@ -780,7 +993,7 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             row, text=text,
-            font=ctk.CTkFont(size=14)
+            font=ui_font("subheading")
         ).pack(side="left")
         
         ctk.CTkSwitch(
@@ -794,24 +1007,56 @@ class SettingsView(ctk.CTkFrame):
         """Handle appearance mode change."""
         new_mode = self._appearance_var.get()
         self.settings_manager.update(appearance_mode=new_mode)
-        
-        # Apply the theme change
-        ctk.set_appearance_mode(new_mode)
-        
-        if self.on_appearance_changed:
-            self.on_appearance_changed(new_mode)
+
+        def apply():
+            # Apply the theme change
+            ctk.set_appearance_mode(new_mode)
+            if self.on_appearance_changed:
+                self.on_appearance_changed(new_mode)
+            flush_restyle()
+
+        run_busy("appearance", "Switching appearance…", apply)
+
+    def _theme_names(self):
+        return [name for _key, name, _custom in self.theme_manager.list_themes()]
 
     def _on_color_theme_change(self, display_name: str):
-        """Apply and persist a colour-theme preset chosen from the dropdown."""
-        key = self._theme_display_to_key.get(display_name, "default")
+        """Apply and persist a colour theme chosen from the dropdown."""
+        key = next((k for k, name, _c in self.theme_manager.list_themes() if name == display_name), "default")
         # set_theme() notifies every registered theme listener, so open views
-        # recolour immediately.
-        self.theme_manager.set_theme(key)
-        self.settings_manager.update(theme_name=key)
-        # Also refresh the tk-based widgets (context menu, paned sashes, spell
-        # description) that don't listen to the theme manager directly.
-        if self.on_appearance_changed:
-            self.on_appearance_changed(self.settings_manager.settings.appearance_mode)
+        # (and the app-wide restyler) recolour immediately.
+        def apply():
+            self.theme_manager.set_theme(key)
+            self.settings_manager.update(theme_name=key)
+            # Also refresh the tk-based widgets (context menu, paned sashes, spell
+            # description) that don't listen to the theme manager directly.
+            if self.on_appearance_changed:
+                self.on_appearance_changed(self.settings_manager.settings.appearance_mode)
+            flush_restyle()
+
+        run_busy("theme", "Applying theme…", apply)
+
+    def _open_theme_studio(self):
+        """Open (or raise) the Theme Studio window."""
+        existing = getattr(self, '_theme_studio', None)
+        try:
+            if existing is not None and existing.winfo_exists():
+                existing.lift()
+                existing.focus_force()
+                return
+        except Exception:
+            pass
+        from ui.theme_studio import ThemeStudioDialog
+        self._theme_studio = ThemeStudioDialog(self.winfo_toplevel(), on_theme_applied=self._sync_theme_menu)
+
+    def _sync_theme_menu(self, _key=None):
+        """Keep the dropdown in step with themes picked/renamed/deleted in the Studio."""
+        try:
+            key = self.theme_manager.current_theme_name
+            self._theme_menu.configure(values=self._theme_names())
+            self._theme_var.set(self.theme_manager.display_name(key))
+        except Exception:
+            pass
 
     def _on_setting_change(self):
         """Handle any setting change."""
@@ -841,6 +1086,7 @@ class SettingsView(ctk.CTkFrame):
             preload_magic_items=self._preload_magic_items_var.get(),
             preload_character_sheets=self._preload_sheets_var.get(),
             auto_check_updates=self._auto_check_updates_var.get(),
+            restore_tabs=self._restore_tabs_var.get(),
             link_suggest_spells=not self._link_disable_spells_var.get(),
             link_suggest_feats=not self._link_disable_feats_var.get(),
             link_suggest_lineages=not self._link_disable_lineages_var.get(),
@@ -848,7 +1094,9 @@ class SettingsView(ctk.CTkFrame):
             link_suggest_classes=not self._link_disable_classes_var.get(),
             link_suggest_equipment=not self._link_disable_equipment_var.get(),
             link_suggest_magic_items=not self._link_disable_magic_items_var.get(),
+            link_suggest_monsters=not self._link_disable_monsters_var.get(),
             link_autocomplete_names=self._link_autocomplete_var.get(),
+            show_spell_only_summons=self._show_spell_only_summons_var.get(),
         )
 
     def _on_check_for_updates(self):
@@ -932,15 +1180,22 @@ class SettingsView(ctk.CTkFrame):
     
     def _on_reset_defaults(self):
         """Reset all settings to defaults."""
+        self.build_all_sections_now()      # the variables below live in the deferred sections
         self.settings_manager.reset_to_defaults()
-        self.theme_manager.reset_custom_theme()
+        # Custom themes are the user's own work, so they are kept; only the
+        # selection goes back to the default theme. Fonts return to stock.
         self.theme_manager.set_theme("default")
+        get_font_manager().reset()
+        editor = getattr(self, '_typography_editor', None)
+        if editor is not None:
+            editor.refresh()
         
         # Update UI variables
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
-        theme_key = getattr(settings, 'theme_name', 'default') or 'default'
-        self._theme_var.set(PRESET_DISPLAY_NAMES.get(theme_key, PRESET_DISPLAY_NAMES['default']))
+        theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
+        self._theme_menu.configure(values=self._theme_names())
+        self._theme_var.set(self.theme_manager.display_name(theme_key))
         self._spell_added_var.set(settings.show_spell_added_notification)
         self._rest_notif_var.set(settings.show_rest_notification)
         self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
@@ -959,6 +1214,7 @@ class SettingsView(ctk.CTkFrame):
         self._enable_encumbrance_var.set(settings.enable_encumbrance_rule)
         self._legacy_filter_var.set(settings.legacy_content_filter)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
+        self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
         self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
         self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
         self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
@@ -966,6 +1222,8 @@ class SettingsView(ctk.CTkFrame):
         self._link_disable_classes_var.set(not getattr(settings, 'link_suggest_classes', True))
         self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
         self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
+        self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
+        self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
         self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 
         # Apply appearance
@@ -975,10 +1233,16 @@ class SettingsView(ctk.CTkFrame):
     
     def refresh_from_settings(self):
         """Refresh UI from current settings (call when view becomes visible)."""
+        if getattr(self, "_pending_sections", None):
+            # Still being built: sections not built yet read the current settings
+            # when they are, so there is nothing stale to refresh.
+            self._sync_theme_menu()
+            return
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
-        theme_key = getattr(settings, 'theme_name', 'default') or 'default'
-        self._theme_var.set(PRESET_DISPLAY_NAMES.get(theme_key, PRESET_DISPLAY_NAMES['default']))
+        theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
+        self._theme_menu.configure(values=self._theme_names())
+        self._theme_var.set(self.theme_manager.display_name(theme_key))
         self._spell_added_var.set(settings.show_spell_added_notification)
         self._rest_notif_var.set(settings.show_rest_notification)
         self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
@@ -1003,6 +1267,7 @@ class SettingsView(ctk.CTkFrame):
         self._preload_magic_items_var.set(getattr(settings, 'preload_magic_items', True))
         self._preload_sheets_var.set(settings.preload_character_sheets)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
+        self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
         self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
         self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
         self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
@@ -1010,6 +1275,8 @@ class SettingsView(ctk.CTkFrame):
         self._link_disable_classes_var.set(not getattr(settings, 'link_suggest_classes', True))
         self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
         self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
+        self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
+        self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
         self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 
     def _on_theme_changed(self):
@@ -1018,63 +1285,9 @@ class SettingsView(ctk.CTkFrame):
             theme = self.theme_manager
             text_secondary = theme.get_text_secondary()
 
-            # Recolour the section "card" frames - they're created with an
-            # explicit fg_color (not "transparent"), so they don't pick up a
-            # new theme on their own.
-            card_bg = theme.get_current_color('bg_secondary')
-            for frame in getattr(self, '_card_frames', []):
-                try:
-                    frame.configure(fg_color=card_bg)
-                except Exception:
-                    pass
-
-            # Walk container and update CTkLabel text colors where appropriate
-            for child in self.container.winfo_children():
-                def _update_labels(widget):
-                    for w in widget.winfo_children():
-                        try:
-                            if isinstance(w, ctk.CTkLabel):
-                                w.configure(text_color=text_secondary)
-                        except Exception:
-                            pass
-                        try:
-                            _update_labels(w)
-                        except Exception:
-                            pass
-                try:
-                    _update_labels(child)
-                except Exception:
-                    pass
-
-            # Update input-like widgets
-            input_bg = theme.get_current_color('bg_input')
-            input_text = theme.get_current_color('text_primary')
-            border_col = theme.get_current_color('border')
-
-            def _update_inputs(widget):
-                for w in widget.winfo_children():
-                    try:
-                        if isinstance(w, ctk.CTkEntry) or isinstance(w, ctk.CTkTextbox):
-                            try:
-                                w.configure(fg_color=input_bg, text_color=input_text, border_color=border_col)
-                            except Exception:
-                                pass
-                        if isinstance(w, ctk.CTkScrollableFrame):
-                            try:
-                                w.configure(fg_color="transparent")
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-                    try:
-                        _update_inputs(w)
-                    except Exception:
-                        pass
-
-            try:
-                _update_inputs(self.container)
-            except Exception:
-                pass
+            # Labels, inputs and everything else are recoloured by the
+            # app-wide restyler (ui/restyle.py), from their theme roles.
+            self._sync_theme_menu()
         except Exception:
             pass
 

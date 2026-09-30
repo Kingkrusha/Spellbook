@@ -46,6 +46,9 @@ class AppSettings:
     show_carry_weight_indicator: bool = True  # Show the carry-weight indicator and apply its speed-5ft-at-full-capacity effect
     enable_encumbrance_rule: bool = False  # Optional variant rule: -10 ft speed past 5x STR score (on top of the indicator above)
     
+    # Startup
+    restore_tabs: bool = True  # Reopen the tabs that were open when the app was last closed
+
     # Updates
     auto_check_updates: bool = True  # Check GitHub for a newer release on startup
     skipped_update_version: str = ""  # Version the user chose to skip (don't nag about it)
@@ -77,9 +80,16 @@ class AppSettings:
     link_suggest_classes: bool = True
     link_suggest_equipment: bool = True
     link_suggest_magic_items: bool = True
+    link_suggest_monsters: bool = True
     # When linking a suggested word, replace it with the object's exact name
     # (e.g. "fire" -> "Fire Bolt") instead of keeping what was typed.
     link_autocomplete_names: bool = True
+
+    # Monsters
+    # Creatures that only exist to be summoned by a spell (Summon Beast's Bestial
+    # Spirit, ...) always show on their spell's page; this lists them in the
+    # Monsters collection too, and offers them as link suggestions.
+    show_spell_only_summons: bool = False
 
     # Internal flags (not user-configurable)
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
@@ -101,7 +111,7 @@ class AppSettings:
             'show_rest_notification', 'warn_too_many_cantrips',
             'warn_wrong_class', 'warn_spell_too_high_level', 'warn_too_many_prepared',
             'show_comparison_highlights', 'initial_official_tag_applied',
-            'auto_check_updates', 'skipped_update_version',
+            'auto_check_updates', 'skipped_update_version', 'restore_tabs',
             'allow_delete_official_spells', 'auto_calculate_hp', 'auto_calculate_ac',
             'auto_fill_proficiencies', 'auto_apply_saving_throws',
             'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter',
@@ -110,7 +120,8 @@ class AppSettings:
             'preload_equipment', 'preload_magic_items', 'preload_character_sheets',
             'link_suggest_spells', 'link_suggest_feats', 'link_suggest_lineages',
             'link_suggest_backgrounds', 'link_suggest_classes', 'link_suggest_equipment',
-            'link_suggest_magic_items', 'link_autocomplete_names',
+            'link_suggest_magic_items', 'link_suggest_monsters', 'link_autocomplete_names',
+            'show_spell_only_summons',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

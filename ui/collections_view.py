@@ -6,6 +6,7 @@ Provides access to various content collections (Spells, Feats, Classes, etc.)
 import os
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox, filedialog
 from typing import Optional, Callable
 from theme import get_theme_manager
@@ -61,7 +62,7 @@ class ImportProgressSplash(ctk.CTkToplevel):
         self.title_label = ctk.CTkLabel(
             border_frame,
             text="📥 Importing Content",
-            font=ctk.CTkFont(size=20, weight="bold")
+            font=ui_font("heading", 20, bold=True)
         )
         self.title_label.pack(pady=(25, 15))
         
@@ -69,7 +70,7 @@ class ImportProgressSplash(ctk.CTkToplevel):
         self.status_label = ctk.CTkLabel(
             border_frame,
             text="Preparing import...",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_text_secondary()
         )
         self.status_label.pack(pady=(0, 12))
@@ -90,7 +91,7 @@ class ImportProgressSplash(ctk.CTkToplevel):
         self.count_label = ctk.CTkLabel(
             border_frame,
             text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary()
         )
         self.count_label.pack(pady=(0, 10))
@@ -150,7 +151,7 @@ class ImportResultDialog(ctk.CTkToplevel):
         icon = "⚠️" if warning else "✅"
         ctk.CTkLabel(
             container, text=f"{icon} {title}",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(anchor="w", pady=(0, 12))
 
         text_box = ctk.CTkTextbox(container, wrap="word", fg_color=self.theme.get_current_color('bg_secondary'))
@@ -186,11 +187,13 @@ class ImportResultDialog(ctk.CTkToplevel):
 class CollectionsView(ctk.CTkFrame):
     """Main collections hub with buttons for different content types."""
     
-    def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[..., None]] = None):
+    def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[..., None]] = None,
+                 on_home: Optional[Callable[[], None]] = None):
         super().__init__(parent, fg_color="transparent")
 
         self.spell_manager = spell_manager
         self.on_navigate = on_navigate  # Callback for navigation to sub-pages
+        self.on_home = on_home  # Callback for the "Home" back button
         self.main_window = parent  # the MainWindow instance (not the Tk root winfo_toplevel() gives)
         self.theme = get_theme_manager()
         
@@ -206,31 +209,23 @@ class CollectionsView(ctk.CTkFrame):
         header_frame = ctk.CTkFrame(self.container, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 20))
         
+        if self.on_home:
+            ctk.CTkButton(
+                header_frame, text="← Home",
+                width=90, height=32,
+                fg_color=self.theme.get_current_color('button_normal'),
+                hover_color=self.theme.get_current_color('button_hover'),
+                command=self.on_home
+            ).pack(side="left", padx=(0, 15))
+
         ctk.CTkLabel(
             header_frame, text="Collections",
-            font=ctk.CTkFont(size=28, weight="bold")
+            font=ui_font("title", 28, bold=True)
         ).pack(side="left")
         
         # Import/Export buttons in header
         btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         btn_frame.pack(side="right")
-        
-        # Character sheet import/export
-        ctk.CTkButton(
-            btn_frame, text="📋 Char Export",
-            width=110,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_character_export
-        ).pack(side="left", padx=5)
-        
-        ctk.CTkButton(
-            btn_frame, text="📋 Char Import",
-            width=110,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_character_import
-        ).pack(side="left", padx=5)
         
         # Content import/export
         ctk.CTkButton(
@@ -260,7 +255,7 @@ class CollectionsView(ctk.CTkFrame):
         ctk.CTkLabel(
             self.container,
             text="Browse and manage your D&D 5e content collections.",
-            font=ctk.CTkFont(size=14),
+            font=ui_font("subheading"),
             text_color=self.theme.get_text_secondary()
         ).pack(anchor="w", pady=(0, 20))
         
@@ -281,7 +276,7 @@ class CollectionsView(ctk.CTkFrame):
             ("🎭 Classes", "classes", True, "Character class definitions"),
             ("📖 Backgrounds", "backgrounds", True, "Character background options"),
             ("🛡️ Equipment", "equipment", True, "Mundane items and gear"),
-            ("👹 Monsters", "monsters", False, "Creature stat blocks"),
+            ("👹 Monsters", "monsters", True, "Creature stat blocks"),
             ("📚 Rules", "rules", False, "Game rules and references"),
         ]
         
@@ -315,14 +310,14 @@ class CollectionsView(ctk.CTkFrame):
         title_color = self.theme.get_current_color('text_primary') if is_active else self.theme.get_text_secondary()
         ctk.CTkLabel(
             inner, text=title,
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=ui_font("heading", bold=True),
             text_color=title_color
         ).pack(anchor="w")
         
         # Description
         ctk.CTkLabel(
             inner, text=description,
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_text_secondary(),
             wraplength=200,
             justify="left"
@@ -346,7 +341,7 @@ class CollectionsView(ctk.CTkFrame):
             ctk.CTkLabel(
                 status_frame,
                 text="🚧 Incomplete",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=self.theme.get_text_secondary()
             ).pack(side="left")
             
@@ -427,6 +422,8 @@ class CollectionsView(ctk.CTkFrame):
         get_background_manager().load_backgrounds()
         get_equipment_manager().load()
         get_magic_item_manager().load()
+        from monster import get_monster_manager
+        get_monster_manager().load()
 
         # Reload spell manager if available
         if self.spell_manager:
@@ -440,154 +437,6 @@ class CollectionsView(ctk.CTkFrame):
         except Exception:
             pass
 
-    def _on_character_export(self):
-        """Handle character sheet export button click."""
-        dialog = CharacterSheetExportDialog(self.winfo_toplevel())
-        dialog.grab_set()
-    
-    def _on_character_import(self):
-        """Handle character sheet import button click."""
-        file_path = filedialog.askopenfilename(
-            title="Import Character Sheets",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            parent=self
-        )
-        
-        if not file_path:
-            return
-        
-        import json
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            if "character_sheets" not in data and "sheets" not in data:
-                messagebox.showerror(
-                    "Invalid File",
-                    "This file does not contain character sheet data.",
-                    parent=self
-                )
-                return
-            
-            # Get sheets data (support both formats)
-            sheets_data = data.get("character_sheets", data.get("sheets", {}))
-            
-            if not sheets_data:
-                messagebox.showinfo("No Data", "No character sheets found in file.", parent=self)
-                return
-            
-            # Import character sheets with missing content validation
-            from ui.character_sheet_view import get_sheet_manager
-            from character_manager import CharacterManager
-            
-            sheet_manager = get_sheet_manager()
-            char_manager = CharacterManager()
-            char_manager.load_characters()
-            
-            imported = 0
-            warnings = []
-
-            spell_lists_data = data.get("character_spell_lists", [])
-            names_with_list_in_file = {c.get("name") for c in spell_lists_data if isinstance(c, dict)}
-
-            # Importing replaces a character that already has the same name - say so first
-            already_here = sorted(
-                {n for n in sheets_data if sheet_manager.get_sheet(n) is not None}
-                | {n for n in names_with_list_in_file if n and char_manager.get_character(n) is not None}
-            )
-            if already_here:
-                shown = ", ".join(already_here[:8]) + (f" and {len(already_here) - 8} more" if len(already_here) > 8 else "")
-                if not messagebox.askyesno(
-                    "Replace existing characters?",
-                    f"{len(already_here)} character(s) in this file already exist and will be replaced:\n\n"
-                    f"{shown}\n\nContinue?",
-                    parent=self
-                ):
-                    return
-
-            # Object links in a sheet ([[spell:Fireball]], ...) only open if that content is installed
-            import content_io
-            try:
-                from object_links import get_link_targets
-                known_links = {(t.category, t.name.lower()) for t in get_link_targets(enabled_only=False)}
-            except Exception:
-                known_links = None
-
-            for name, sheet_data in sheets_data.items():
-                try:
-                    from character_sheet import CharacterSheet
-                    sheet = CharacterSheet.from_dict(sheet_data)
-
-                    # Check if character spell list exists (here already, or coming from this same file)
-                    char_exists = (char_manager.get_character(name) is not None
-                                   or name in names_with_list_in_file)
-                    if not char_exists:
-                        warnings.append(f"'{name}': No matching character spell list found")
-
-                    if known_links is not None:
-                        missing = content_io.dangling_links(sheet_data, known_links)
-                        if missing:
-                            warnings.append(f"'{name}': links to content that isn't installed: "
-                                            f"{content_io.format_dangling(missing)}")
-
-                    # Import the sheet
-                    sheet_manager.update_sheet(name, sheet)
-                    imported += 1
-                except Exception as e:
-                    warnings.append(f"'{name}': Import error - {e}")
-
-            # Import character spell lists if present
-            spell_list_imported = 0
-            
-            for char_data in spell_lists_data:
-                try:
-                    from character import CharacterSpellList
-                    char = CharacterSpellList.from_dict(char_data)
-                    
-                    # Validate class references
-                    from character_class import get_class_manager
-                    class_manager = get_class_manager()
-                    
-                    for cl in char.classes:
-                        class_name = cl.get_class_name() if hasattr(cl, 'get_class_name') else (cl.character_class.value if hasattr(cl.character_class, 'value') else str(cl.character_class))
-                        if not class_manager.get_class(class_name):
-                            warnings.append(f"'{char.name}': Class '{class_name}' not found in system")
-                    
-                    # Validate spell references
-                    if self.spell_manager:
-                        for spell_name in char.known_spells + char.prepared_spells:
-                            if not self.spell_manager._db.get_spell_by_name(spell_name):
-                                warnings.append(f"'{char.name}': Spell '{spell_name}' not found")
-                    
-                    # Add or update character
-                    if char_manager.get_character(char.name):
-                        char_manager.update_character(char.name, char)
-                    else:
-                        char_manager.add_character(char)
-                    spell_list_imported += 1
-                except Exception as e:
-                    warnings.append(f"Character spell list error: {e}")
-            
-            # Show results
-            msg = f"Successfully imported {imported} character sheet(s)"
-            if spell_list_imported > 0:
-                msg += f" and {spell_list_imported} character spell list(s)"
-            msg += "."
-            
-            if warnings:
-                msg += f"\n\nWarnings ({len(warnings)}):\n"
-                msg += "\n".join(warnings[:10])  # Show first 10 warnings
-                if len(warnings) > 10:
-                    msg += f"\n... and {len(warnings) - 10} more"
-                messagebox.showwarning("Import Complete with Warnings", msg, parent=self)
-            else:
-                messagebox.showinfo("Import Complete", msg, parent=self)
-                
-        except json.JSONDecodeError as e:
-            messagebox.showerror("Invalid JSON", f"Failed to parse file:\n{e}", parent=self)
-        except Exception as e:
-            messagebox.showerror("Import Error", f"Failed to import:\n{e}", parent=self)
-    
     def _on_export(self):
         """Handle export button click."""
         # Show export options dialog  
@@ -628,14 +477,14 @@ class ImportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             container, text="Import Content",
-            font=ctk.CTkFont(size=20, weight="bold")
+            font=ui_font("heading", 20, bold=True)
         ).pack(anchor="w", pady=(0, 10))
 
         ctk.CTkLabel(
             container,
             text="Import content from JSON files (you can pick several at once).\n"
                  "The system detects the content types in each file automatically.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_text_secondary(),
             justify="left"
         ).pack(anchor="w", pady=(0, 15))
@@ -663,12 +512,12 @@ class ImportDialog(ctk.CTkToplevel):
             container,
             text="Link mentions of other content in the imported text",
             variable=self.link_mentions_var,
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         ).pack(anchor="w", pady=(15, 0))
         ctk.CTkLabel(
             container,
             text='e.g. "the Misty Step spell" becomes a clickable link. Links already in the file are kept.',
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary(),
             wraplength=480, justify="left"
         ).pack(anchor="w", padx=(28, 0), pady=(2, 0))
@@ -681,12 +530,12 @@ class ImportDialog(ctk.CTkToplevel):
             info_frame,
             text="ℹ️ JSON files can contain any of these content types:\n"
                  "   • Spells (with summon stat blocks), Feats, Classes, Subclasses\n"
-                 "   • Lineages, Backgrounds, Equipment, Magic Items\n"
+                 "   • Lineages, Backgrounds, Equipment, Magic Items, Monsters\n"
                  "   • Imported content is marked as custom (unofficial)\n"
                  "   • Official content is never overwritten: an entry with the\n"
                  "     same name as an official one is skipped and reported\n"
                  "   • Importing the same file again updates your earlier import",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary(),
             justify="left"
         ).pack(padx=15, pady=12, anchor="w")
@@ -818,10 +667,10 @@ class ImportReportDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container, text="✅ Import complete" if report.imported and not problems
             else ("⚠️ Import complete with notes" if report.imported else "⚠️ Nothing imported"),
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(anchor="w", pady=(0, 10))
 
-        box = ctk.CTkTextbox(container, wrap="word", font=ctk.CTkFont(size=12))
+        box = ctk.CTkTextbox(container, wrap="word", font=ui_font("body"))
         box.pack(fill="both", expand=True)
         box.insert("1.0", "\n".join(lines))
         box.configure(state="disabled")
@@ -883,14 +732,14 @@ class ExportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             container, text="Export Content",
-            font=ctk.CTkFont(size=20, weight="bold")
+            font=ui_font("heading", 20, bold=True)
         ).pack(anchor="w", pady=(0, 10))
 
         ctk.CTkLabel(
             container,
             text="Only custom (non-official) content can be exported. Links between\n"
                  "objects are kept, so the file can be imported straight back.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_text_secondary(),
             justify="left"
         ).pack(anchor="w", pady=(0, 20))
@@ -899,7 +748,7 @@ class ExportDialog(ctk.CTkToplevel):
         type_frame = ctk.CTkFrame(container, fg_color="transparent")
         type_frame.pack(fill="x", pady=(0, 15))
 
-        ctk.CTkLabel(type_frame, text="Content Type:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(type_frame, text="Content Type:", font=ui_font("subheading", 13, bold=True)).pack(side="left", padx=(0, 10))
 
         self.content_type_var = ctk.StringVar(value="All")
         # display label -> content_io kind key
@@ -919,7 +768,7 @@ class ExportDialog(ctk.CTkToplevel):
         source_frame = ctk.CTkFrame(container, fg_color="transparent")
         source_frame.pack(fill="x", pady=(0, 15))
 
-        ctk.CTkLabel(source_frame, text="Source:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(source_frame, text="Source:", font=ui_font("subheading", 13, bold=True)).pack(side="left", padx=(0, 10))
 
         self.source_var = ctk.StringVar(value="All Sources")
         self.source_combo = ctk.CTkComboBox(
@@ -941,7 +790,7 @@ class ExportDialog(ctk.CTkToplevel):
         self.info_label = ctk.CTkLabel(
             preview_frame,
             text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             justify="left"
         )
         self.info_label.pack(padx=15, pady=12, anchor="w")
@@ -1059,231 +908,3 @@ class ExportDialog(ctk.CTkToplevel):
 
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export content:\n{e}", parent=self)
-
-
-class CharacterSheetExportDialog(ctk.CTkToplevel):
-    """Dialog for exporting character sheets with selection."""
-    
-    def __init__(self, parent):
-        super().__init__(parent)
-        
-        self.theme = get_theme_manager()
-        
-        self.title("Export Character Sheets")
-        self.geometry("500x550")
-        self.resizable(False, False)
-        
-        # Center on parent
-        self.transient(parent)
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - 500) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 550) // 2
-        self.geometry(f"+{x}+{y}")
-        
-        self._selected_chars = {}  # character_name -> BooleanVar
-        self._create_widgets()
-    
-    def _create_widgets(self):
-        """Create export dialog UI."""
-        container = ctk.CTkFrame(self, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        ctk.CTkLabel(
-            container, text="Export Character Sheets",
-            font=ctk.CTkFont(size=20, weight="bold")
-        ).pack(anchor="w", pady=(0, 10))
-        
-        ctk.CTkLabel(
-            container,
-            text="Select characters to export. Both character sheet and spell list data will be included.",
-            font=ctk.CTkFont(size=12),
-            text_color=self.theme.get_text_secondary(),
-            wraplength=460
-        ).pack(anchor="w", pady=(0, 15))
-        
-        # Select All / Deselect All buttons
-        select_frame = ctk.CTkFrame(container, fg_color="transparent")
-        select_frame.pack(fill="x", pady=(0, 10))
-        
-        ctk.CTkButton(
-            select_frame, text="Select All", width=100, height=30,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._select_all
-        ).pack(side="left", padx=(0, 10))
-        
-        ctk.CTkButton(
-            select_frame, text="Deselect All", width=100, height=30,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._deselect_all
-        ).pack(side="left")
-        
-        # Character selection list
-        list_frame = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8)
-        list_frame.pack(fill="both", expand=True, pady=(0, 15))
-        
-        # Scrollable area
-        self.scroll_frame = ctk.CTkScrollableFrame(
-            list_frame, fg_color="transparent",
-            height=250
-        )
-        self.scroll_frame.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # Load characters
-        from character_manager import CharacterManager
-        from ui.character_sheet_view import get_sheet_manager
-        
-        char_manager = CharacterManager()
-        char_manager.load_characters()
-        sheet_manager = get_sheet_manager()
-        
-        characters = char_manager.characters
-        
-        if not characters:
-            ctk.CTkLabel(
-                self.scroll_frame, text="No characters found.",
-                text_color=self.theme.get_text_secondary()
-            ).pack(pady=20)
-        else:
-            for char in characters:
-                var = ctk.BooleanVar(value=True)  # Default to selected
-                self._selected_chars[char.name] = var
-                
-                # Check if sheet exists
-                sheet_exists = sheet_manager.get_sheet(char.name) is not None
-                
-                char_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-                char_frame.pack(fill="x", pady=2)
-                
-                cb = ctk.CTkCheckBox(
-                    char_frame, text=char.name,
-                    variable=var,
-                    command=self._update_count
-                )
-                cb.pack(side="left", padx=5)
-                
-                # Class info
-                if char.classes:
-                    class_info = ", ".join([f"{cl.get_class_name()} {cl.level}" for cl in char.classes])
-                    ctk.CTkLabel(
-                        char_frame, text=f"({class_info})",
-                        text_color=self.theme.get_text_secondary(),
-                        font=ctk.CTkFont(size=11)
-                    ).pack(side="left", padx=5)
-                
-                # Sheet status
-                status_text = "✓ Sheet" if sheet_exists else "○ No sheet"
-                status_color = self.theme.get_current_color('success') if sheet_exists else self.theme.get_text_secondary()
-                ctk.CTkLabel(
-                    char_frame, text=status_text,
-                    text_color=status_color,
-                    font=ctk.CTkFont(size=10)
-                ).pack(side="right", padx=10)
-        
-        # Count label
-        self.count_label = ctk.CTkLabel(
-            container, text="",
-            font=ctk.CTkFont(size=12)
-        )
-        self.count_label.pack(anchor="w", pady=(0, 15))
-        self._update_count()
-        
-        # Buttons
-        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
-        btn_frame.pack(fill="x")
-        
-        ctk.CTkButton(
-            btn_frame, text="📤 Export Selected",
-            width=150, height=40,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_secondary'),
-            command=self._export
-        ).pack(side="left")
-        
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
-            width=100, height=40,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
-        ).pack(side="right")
-    
-    def _select_all(self):
-        """Select all characters."""
-        for var in self._selected_chars.values():
-            var.set(True)
-        self._update_count()
-    
-    def _deselect_all(self):
-        """Deselect all characters."""
-        for var in self._selected_chars.values():
-            var.set(False)
-        self._update_count()
-    
-    def _update_count(self):
-        """Update the selection count label."""
-        selected = sum(1 for var in self._selected_chars.values() if var.get())
-        total = len(self._selected_chars)
-        self.count_label.configure(text=f"Selected: {selected} of {total} character(s)")
-    
-    def _export(self):
-        """Export selected characters."""
-        selected_names = [name for name, var in self._selected_chars.items() if var.get()]
-        
-        if not selected_names:
-            messagebox.showwarning("No Selection", "Please select at least one character to export.", parent=self)
-            return
-        
-        file_path = filedialog.asksaveasfilename(
-            title="Export Character Sheets",
-            defaultextension=".json",
-            initialfile="character_sheets_export.json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            parent=self
-        )
-        
-        if not file_path:
-            return
-        
-        try:
-            from atomic_io import atomic_write_json
-            from character_manager import CharacterManager
-            from ui.character_sheet_view import get_sheet_manager
-            
-            char_manager = CharacterManager()
-            char_manager.load_characters()
-            sheet_manager = get_sheet_manager()
-            
-            export_data = {
-                "character_sheets": {},
-                "character_spell_lists": []
-            }
-            
-            sheets_exported = 0
-            spell_lists_exported = 0
-            
-            for name in selected_names:
-                # Export character spell list
-                char = char_manager.get_character(name)
-                if char:
-                    export_data["character_spell_lists"].append(char.to_dict())
-                    spell_lists_exported += 1
-                
-                # Export character sheet
-                sheet = sheet_manager.get_sheet(name)
-                if sheet:
-                    export_data["character_sheets"][name] = sheet.to_dict()
-                    sheets_exported += 1
-
-            atomic_write_json(file_path, export_data, ensure_ascii=False)
-            
-            messagebox.showinfo(
-                "Export Complete",
-                f"Successfully exported:\n• {spell_lists_exported} character spell list(s)\n• {sheets_exported} character sheet(s)",
-                parent=self
-            )
-            self.destroy()
-            
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export:\n{e}", parent=self)

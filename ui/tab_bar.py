@@ -1,11 +1,15 @@
 """
 Draggable Tab Bar Widget for D&D Spellbook Application.
-Supports duplicate tabs, drag-to-reorder, and context menus.
+Browser-style tabs: a "+" button opens a new tab, tabs close with their x (or a
+middle click), drag to reorder, right-click for more. The Settings tab is pinned
+to the right and cannot be closed.
 """
 
+import sys
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import Menu
-from typing import Optional, Callable, List, Dict, Any
+from typing import Optional, Callable, List
 from theme import get_theme_manager
 from ui.platform_compat import bind_right_click
 import uuid
@@ -39,9 +43,10 @@ class TabWidget(ctk.CTkFrame):
         Args:
             parent: Parent widget
             tab_id: Unique identifier for this tab
-            tab_type: Type of content (collections, character_sheets, settings)
+            tab_type: "settings" for the pinned settings tab, otherwise the kind of page
+                the tab was opened on (the owner tracks what it shows now)
             display_text: Text to display on the tab
-            is_closable: Whether tab can be closed (duplicates only)
+            is_closable: Whether tab can be closed
             on_click: Callback when tab is clicked
             on_close: Callback when close button is clicked
             on_drag_start: Callback when drag starts
@@ -94,7 +99,7 @@ class TabWidget(ctk.CTkFrame):
         self.label = ctk.CTkLabel(
             self.inner_frame,
             text=self.display_text,
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=self.theme.get_current_color('text_primary')
         )
         self.label.pack(side="left", padx=(10, 5), pady=5)
@@ -110,7 +115,7 @@ class TabWidget(ctk.CTkFrame):
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('button_hover'),
                 text_color=self.theme.get_text_secondary(),
-                font=ctk.CTkFont(size=14),
+                font=ui_font("subheading"),
                 command=self._on_close_click
             )
             self.close_btn.pack(side="right", padx=(0, 5), pady=5)
@@ -123,6 +128,8 @@ class TabWidget(ctk.CTkFrame):
             bind_right_click(widget, self._on_right_click_event)
             widget.bind('<B1-Motion>', self._on_drag)
             widget.bind('<ButtonRelease-1>', self._on_drag_release)
+            if sys.platform != "darwin":  # on macOS <Button-2> is the secondary click
+                widget.bind('<Button-2>', self._on_middle_click)
             # Tooltip events
             widget.bind('<Enter>', self._on_enter)
             widget.bind('<Leave>', self._on_leave)
@@ -156,7 +163,7 @@ class TabWidget(ctk.CTkFrame):
         label = ctk.CTkLabel(
             self._tooltip,
             text=self.full_text,
-            fg_color=self.theme.get_current_color('card'),
+            fg_color=self.theme.get_current_color('bg_secondary'),
             corner_radius=4,
             padx=8,
             pady=4
@@ -209,6 +216,11 @@ class TabWidget(ctk.CTkFrame):
         """Handle close button click."""
         if self.on_close:
             self.on_close(self)
+
+    def _on_middle_click(self, event=None):
+        """Middle-click closes the tab, like in a browser."""
+        if self.is_closable:
+            self._on_close_click()
     
     def set_active(self, active: bool):
         """Set the active state of the tab."""
@@ -266,38 +278,43 @@ class TabWidget(ctk.CTkFrame):
 
 
 class DraggableTabBar(ctk.CTkFrame):
-    """A tab bar that supports multiple tabs with drag-to-reorder and duplicate tabs."""
-    
+    """A browser-style tab bar: "+" for a new tab, closable and draggable tabs."""
+
+    NEW_TAB_BTN_WIDTH = 32
+
     def __init__(
         self,
         parent,
         on_tab_selected: Optional[Callable[[str, str], None]] = None,
-        on_tab_created: Optional[Callable[[str, str, bool], None]] = None,
         on_tab_closed: Optional[Callable[[str], None]] = None,
-        on_tabs_changed: Optional[Callable[[], None]] = None
+        on_tabs_changed: Optional[Callable[[], None]] = None,
+        on_new_tab: Optional[Callable[[Optional[int]], None]] = None,
+        on_duplicate_tab: Optional[Callable[[str], None]] = None
     ):
         """
         Initialize the tab bar.
-        
+
         Args:
             parent: Parent widget
             on_tab_selected: Callback when a tab is selected (tab_id, tab_type)
-            on_tab_created: Callback when a new tab is created (tab_id, tab_type, is_duplicate)
             on_tab_closed: Callback when a tab is closed (tab_id)
             on_tabs_changed: Callback when tabs are added/removed/reordered
+            on_new_tab: Callback to open a new tab (the "+" button, or the context menu
+                with the position to insert at); the owner calls add_tab
+            on_duplicate_tab: Callback to open a copy of a tab (tab_id)
         """
         self.theme = get_theme_manager()
         super().__init__(parent, fg_color=self.theme.get_current_color('tab_bar'), corner_radius=0, height=50)
         
         self.on_tab_selected = on_tab_selected
-        self.on_tab_created = on_tab_created
         self.on_tab_closed = on_tab_closed
         self.on_tabs_changed = on_tabs_changed
-        
-        # Tab state
+        self.on_new_tab = on_new_tab
+        self.on_duplicate_tab = on_duplicate_tab
+
+        # Tab state (the pinned settings tab, if any, is always last in the list)
         self._tabs: List[TabWidget] = []
         self._active_tab_id: Optional[str] = None
-        self._original_tabs: Dict[str, str] = {}  # tab_type -> tab_id for original tabs
         
         # Drag state
         self._drag_tab: Optional[TabWidget] = None
@@ -318,6 +335,21 @@ class DraggableTabBar(ctk.CTkFrame):
         # Left side: main tabs (will shrink to accommodate settings)
         self.tabs_container = ctk.CTkFrame(self, fg_color="transparent")
         self.tabs_container.pack(side="left", padx=(10, 5), pady=8, fill="x", expand=True)
+
+        # "+" opens a new tab; it always sits right after the last tab
+        self.new_tab_btn = ctk.CTkButton(
+            self.tabs_container,
+            text="+",
+            width=self.NEW_TAB_BTN_WIDTH,
+            height=30,
+            corner_radius=8,
+            fg_color="transparent",
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            font=ui_font("heading", 18),
+            command=self._request_new_tab
+        )
+        self.new_tab_btn.pack(side="left")
         
         # Right side: settings tab (always stays on right, fixed size)
         self.settings_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -338,13 +370,15 @@ class DraggableTabBar(ctk.CTkFrame):
         # Get main tabs (non-settings)
         main_tabs = [t for t in self._tabs if t.tab_type != "settings"]
         if not main_tabs:
+            self._set_new_tab_enabled(True)
             return
         
         # Calculate available width for main tabs
         total_width = self.winfo_width()
         settings_width = self.settings_container.winfo_width() + 30  # Include padding
         available_width = total_width - settings_width - 25  # Extra padding
-        
+        available_width -= self.NEW_TAB_BTN_WIDTH + 5  # The "+" button
+
         if available_width <= 0:
             return
         
@@ -353,6 +387,10 @@ class DraggableTabBar(ctk.CTkFrame):
         spacing = 5 * (num_tabs - 1) if num_tabs > 1 else 0  # 5px between tabs
         usable_width = available_width - spacing
         
+        # Tabs stop shrinking at MIN_TAB_WIDTH, so past this many the bar would overflow
+        capacity = max(1, (available_width + 5) // (TabWidget.MIN_TAB_WIDTH + 5))
+        self._set_new_tab_enabled(num_tabs < capacity)
+
         # Check if we have enough space at preferred widths
         total_preferred = sum(t.get_preferred_width() for t in main_tabs)
         
@@ -367,6 +405,15 @@ class DraggableTabBar(ctk.CTkFrame):
             for tab in main_tabs:
                 tab.set_width(width_per_tab)
     
+    def _set_new_tab_enabled(self, enabled: bool):
+        """Grey out "+" when there is no room left for another tab."""
+        self.new_tab_btn.configure(state="normal" if enabled else "disabled")
+
+    def _request_new_tab(self, index: Optional[int] = None):
+        """Ask the owner to open a new tab (at ``index`` in the tab order, default: the end)."""
+        if self.on_new_tab:
+            self.on_new_tab(index)
+
     def _create_context_menu(self):
         """Create the right-click context menu."""
         self.context_menu = Menu(self, tearoff=0)
@@ -388,27 +435,24 @@ class DraggableTabBar(ctk.CTkFrame):
         is_closable: bool = False,
         is_settings: bool = False,
         select: bool = True,
-        notify_created: bool = True
+        index: Optional[int] = None
     ) -> str:
         """
         Add a new tab to the bar.
-        
+
         Args:
-            tab_type: Type of content (collections, character_sheets, settings)
+            tab_type: "settings" for the pinned settings tab, otherwise the kind of page
+                the tab was opened on
             display_text: Text to display
             is_closable: Whether tab can be closed
             is_settings: Whether this is the settings tab (goes on right)
             select: Whether to select this tab after adding
-            notify_created: Whether to call on_tab_created callback
-            
+            index: Position among the regular tabs (default: after the last one)
+
         Returns:
             The tab_id of the created tab
         """
         tab_id = str(uuid.uuid4())
-        
-        # Notify main window to create view BEFORE adding tab (so selection works)
-        if notify_created and self.on_tab_created:
-            self.on_tab_created(tab_id, tab_type, is_closable)
         
         # Choose parent container
         parent_container = self.settings_container if is_settings else self.tabs_container
@@ -426,14 +470,17 @@ class DraggableTabBar(ctk.CTkFrame):
             on_drag_end=self._on_tab_drag_end,
             on_right_click=self._on_tab_right_click
         )
-        tab.pack(side="left", padx=(0, 5))
-        
-        self._tabs.append(tab)
-        
-        # Track original tabs
-        if not is_closable:
-            self._original_tabs[tab_type] = tab_id
-        
+        if is_settings:
+            tab.pack(side="left", padx=(0, 5))
+            self._tabs.append(tab)
+        else:
+            tab.pack(side="left", padx=(0, 5), before=self.new_tab_btn)
+            # Regular tabs go before the pinned settings tab in the list
+            regular = sum(1 for t in self._tabs if t.tab_type != "settings")
+            self._tabs.insert(regular, tab)
+            if index is not None and index < regular:
+                self._reorder_tab(tab, index)
+
         if select:
             self.select_tab(tab_id)
         
@@ -462,6 +509,17 @@ class DraggableTabBar(ctk.CTkFrame):
             else:
                 tab.set_active(False)
     
+    def get_tab_ids(self) -> List[str]:
+        """Ids of the regular (non-settings) tabs, left to right."""
+        return [t.tab_id for t in self._tabs if t.tab_type != "settings"]
+
+    def get_tab_index(self, tab_id: str) -> int:
+        """Position of a tab in the tab order (settings tab last)."""
+        for i, tab in enumerate(self._tabs):
+            if tab.tab_id == tab_id:
+                return i
+        return len(self._tabs)
+    
     def get_active_tab(self) -> Optional[TabWidget]:
         """Get the currently active tab."""
         for tab in self._tabs:
@@ -475,7 +533,7 @@ class DraggableTabBar(ctk.CTkFrame):
     
     def _on_tab_close(self, tab: TabWidget):
         """Handle tab close."""
-        # Don't allow closing original tabs
+        # The pinned settings tab cannot be closed
         if not tab.is_closable:
             return
         
@@ -494,13 +552,21 @@ class DraggableTabBar(ctk.CTkFrame):
         
         # Recalculate widths after removal
         self.after(10, self._recalculate_tab_widths)
-        
+
+        # Closing the last tab leaves a fresh new one (there is always something open)
+        if not any(t.tab_type != "settings" for t in self._tabs):
+            self._active_tab_id = None
+            self._request_new_tab()
+            if self.on_tabs_changed:
+                self.on_tabs_changed()
+            return
+
         # If this was the active tab, select another
         if tab_id == self._active_tab_id:
             if self._tabs:
                 # Select previous tab, or first if none
                 new_index = max(0, tab_index - 1)
-                while new_index < len(self._tabs) and self._tabs[new_index].tab_type == "settings":
+                while new_index >= 0 and self._tabs[new_index].tab_type == "settings":
                     new_index -= 1
                 if new_index >= 0:
                     self.select_tab(self._tabs[new_index].tab_id)
@@ -510,51 +576,41 @@ class DraggableTabBar(ctk.CTkFrame):
     
     def _on_tab_right_click(self, tab: TabWidget, x: int, y: int):
         """Handle right-click on tab to show context menu."""
-        # Only allow duplicating non-settings tabs
+        # The pinned settings tab has nothing to offer here
         if tab.tab_type == "settings":
             return
-        
+
         # Clear and rebuild context menu
         self.context_menu.delete(0, "end")
         self.context_menu.add_command(
             label="New Tab",
-            command=lambda: self._duplicate_tab(tab)
+            command=lambda: self._request_new_tab(self._tabs.index(tab) + 1)
         )
-        
+        self.context_menu.add_command(
+            label="Duplicate Tab",
+            command=lambda: self.on_duplicate_tab(tab.tab_id) if self.on_duplicate_tab else None
+        )
+        self.context_menu.add_separator()
+        self.context_menu.add_command(
+            label="Close Tab",
+            command=lambda: self._on_tab_close(tab)
+        )
+        others = [t for t in self._tabs if t is not tab and t.is_closable]
+        self.context_menu.add_command(
+            label="Close Other Tabs",
+            state="normal" if others else "disabled",
+            command=lambda: self._close_others(tab)
+        )
+
         self._update_context_menu_colors()
         self.context_menu.tk_popup(x, y)
-    
-    def _duplicate_tab(self, tab: TabWidget):
-        """Create a new independent tab of the same type."""
-        # Get count of tabs of this type for numbering
-        count = sum(1 for t in self._tabs if t.tab_type == tab.tab_type)
-        
-        # Use base name without existing number suffix
-        base_name = tab.tab_type.replace('_', ' ').title()
-        if tab.tab_type == "character_sheets":
-            base_name = "Character Sheets"
-        elif tab.tab_type == "collections":
-            base_name = "Collections"
-        
-        display_text = f"{base_name} ({count + 1})"
-        
-        # Find insert position (after the clicked tab)
-        insert_index = self._tabs.index(tab) + 1
-        
-        new_tab_id = self.add_tab(
-            tab_type=tab.tab_type,
-            display_text=display_text,
-            is_closable=True,
-            select=True
-        )
-        
-        # Move to correct position
-        new_tab = next(t for t in self._tabs if t.tab_id == new_tab_id)
-        self._reorder_tab(new_tab, insert_index)
-        
-        if self.on_tabs_changed:
-            self.on_tabs_changed()
-    
+
+    def _close_others(self, keep: TabWidget):
+        """Close every closable tab except ``keep``."""
+        self.select_tab(keep.tab_id)
+        for tab in [t for t in self._tabs if t is not keep and t.is_closable]:
+            self._on_tab_close(tab)
+
     def _on_tab_drag_start(self, tab: TabWidget, x: int):
         """Handle start of tab drag."""
         self._drag_tab = tab
@@ -599,10 +655,14 @@ class DraggableTabBar(ctk.CTkFrame):
             self._drag_indicator.destroy()
             self._drag_indicator = None
         
-        # Reorder tab
+        # Reorder tab. The insert index counts the dragged tab itself, so it
+        # shifts down by one when the tab moves to the right.
         current_index = self._tabs.index(tab)
-        if current_index != self._drag_insert_index:
-            self._reorder_tab(tab, self._drag_insert_index)
+        target = self._drag_insert_index
+        if target > current_index:
+            target -= 1
+        if target != current_index:
+            self._reorder_tab(tab, target)
             if self.on_tabs_changed:
                 self.on_tabs_changed()
         
@@ -617,19 +677,23 @@ class DraggableTabBar(ctk.CTkFrame):
         new_index = min(new_index, len(self._tabs))
         self._tabs.insert(new_index, tab)
         
-        # Repack all tabs in order
+        # Repack all tabs in order (the "+" button stays last)
         for t in self._tabs:
             if t.tab_type != "settings":
                 t.pack_forget()
-        
+
         for t in self._tabs:
             if t.tab_type != "settings":
-                t.pack(side="left", padx=(0, 5))
+                t.pack(side="left", padx=(0, 5), before=self.new_tab_btn)
     
     def update_colors(self):
         """Update all colors to match current theme."""
         self.configure(fg_color=self.theme.get_current_color('tab_bar'))
         self._update_context_menu_colors()
+        self.new_tab_btn.configure(
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary')
+        )
         for tab in self._tabs:
             tab.update_colors()
     

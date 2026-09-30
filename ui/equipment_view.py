@@ -6,6 +6,8 @@ laid out the same way as the Spells/Feats pages.
 
 import re
 import customtkinter as ctk
+from typography import ui_font
+from ui.label_text import LabeledLabel
 import tkinter as tk
 from tkinter import messagebox
 from typing import List, Optional, Callable
@@ -21,9 +23,10 @@ from ui.properties_editor import PropertiesEditor
 from ui.tooltip import HoverTooltip
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 from ui.platform_compat import bind_right_click, unbind_right_click
+from ui.list_batching import BatchedListMixin
 
 
-class EquipmentListPanel(ctk.CTkFrame):
+class EquipmentListPanel(BatchedListMixin, ctk.CTkFrame):
     """A scrollable list panel for displaying and selecting equipment."""
 
     BATCH_SIZE = 15
@@ -54,10 +57,10 @@ class EquipmentListPanel(ctk.CTkFrame):
         header_frame.pack(fill="x", padx=15, pady=(15, 10))
 
         ctk.CTkLabel(header_frame, text="Equipment",
-                     font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+                     font=ui_font("heading", bold=True)).pack(side="left")
 
         self.count_label = ctk.CTkLabel(header_frame, text="0 items",
-                                        font=ctk.CTkFont(size=12),
+                                        font=ui_font("body"),
                                         text_color=self.theme.get_text_secondary())
         self.count_label.pack(side="right")
 
@@ -77,7 +80,7 @@ class EquipmentListPanel(ctk.CTkFrame):
                       else self.theme.get_current_color('accent_primary')),
             hover_color=self.theme.get_current_color('button_hover'),
             text_color=self.theme.get_current_color('text_primary'),
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             command=lambda i=index: self._on_item_click(i)
         )
         btn.pack(fill="x", pady=2)
@@ -164,7 +167,7 @@ class EquipmentListPanel(ctk.CTkFrame):
 
         current_count = len(self._item_buttons)
         total = len(self._items)
-        end_index = min(start_index + self.BATCH_SIZE, total)
+        end_index = min(start_index + self._batch_size(), total)
 
         for i in range(start_index, end_index):
             if i < current_count:
@@ -181,7 +184,7 @@ class EquipmentListPanel(ctk.CTkFrame):
                 self._item_buttons[i].pack_forget()
             self._pending_after_id = None
         else:
-            self._pending_after_id = self.after(self.BATCH_DELAY_MS, lambda: self._load_batch(end_index))
+            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_batch(end_index))
 
     def _refresh_buttons(self):
         for i, btn in enumerate(self._item_buttons):
@@ -231,27 +234,27 @@ class EquipmentDetailPanel(ctk.CTkFrame):
 
         self.name_label = ctk.CTkLabel(
             self.scroll_frame, text="Select an item",
-            font=ctk.CTkFont(size=24, weight="bold"), wraplength=400
+            font=ui_font("title", bold=True), wraplength=400
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
 
         self.type_badge = ctk.CTkLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             fg_color=self.theme.get_current_color('accent_primary'),
             corner_radius=5, padx=8, pady=2
         )
 
-        self.stats_label = ctk.CTkLabel(
+        self.stats_label = LabeledLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             text_color=self.theme.get_text_secondary(),
             anchor="w", justify="left"
         )
 
-        self.source_label = ctk.CTkLabel(
+        self.source_label = LabeledLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=11),
+            font=ui_font("small"),
             text_color=self.theme.get_text_secondary()
         )
 
@@ -266,7 +269,7 @@ class EquipmentDetailPanel(ctk.CTkFrame):
 
         self.tags_label = ctk.CTkLabel(
             self.scroll_frame, text="",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=self.theme.get_current_color('accent_primary'),
             wraplength=400, justify="left"
         )
@@ -276,7 +279,7 @@ class EquipmentDetailPanel(ctk.CTkFrame):
         self.properties_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self._properties_header = ctk.CTkLabel(
             self.properties_frame, text="Properties",
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ui_font("body", bold=True),
             text_color=self.theme.get_text_secondary(), anchor="w",
         )
         self._properties_header.pack(anchor="w", pady=(0, 4))
@@ -315,7 +318,7 @@ class EquipmentDetailPanel(ctk.CTkFrame):
         for prop in clean:
             def _make_chip(parent):
                 c = ctk.CTkLabel(
-                    parent, text=prop["name"], font=ctk.CTkFont(size=12),
+                    parent, text=prop["name"], font=ui_font("body"),
                     fg_color=theme.get_current_color('bg_secondary'),
                     text_color=theme.get_current_color('text_primary'),
                     corner_radius=10, padx=10, pady=3,
@@ -472,7 +475,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
         scroll.pack(fill="both", expand=True, padx=20, pady=20)
         self._scroll = scroll
 
-        ctk.CTkLabel(scroll, text="Name *", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(scroll, text="Name *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.name_entry = ctk.CTkEntry(scroll, width=400)
         self.name_entry.pack(fill="x", pady=(0, 10))
 
@@ -481,7 +484,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
 
         type_col = ctk.CTkFrame(row1, fg_color="transparent")
         type_col.pack(side="left", padx=(0, 15))
-        ctk.CTkLabel(type_col, text="Type", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(type_col, text="Type", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         type_options = sorted(set(EQUIPMENT_TYPE_OPTIONS) | set(self.equipment_manager.get_all_types()))
         self.type_var = ctk.StringVar(value=DEFAULT_EQUIPMENT_TYPE)
         self.type_combo = ctk.CTkComboBox(type_col, width=200, values=type_options, variable=self.type_var)
@@ -489,27 +492,27 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
 
         cost_col = ctk.CTkFrame(row1, fg_color="transparent")
         cost_col.pack(side="left", padx=(0, 15))
-        ctk.CTkLabel(cost_col, text="Cost", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(cost_col, text="Cost", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.cost_entry = ctk.CTkEntry(cost_col, width=100, placeholder_text="e.g. 5 gp")
         self.cost_entry.pack()
 
         weight_col = ctk.CTkFrame(row1, fg_color="transparent")
         weight_col.pack(side="left")
-        ctk.CTkLabel(weight_col, text="Weight (lb)", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(weight_col, text="Weight (lb)", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.weight_entry = ctk.CTkEntry(weight_col, width=80, placeholder_text="0")
         self.weight_entry.pack()
 
-        ctk.CTkLabel(scroll, text="Source", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(scroll, text="Source", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.source_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="e.g., Homebrew, Custom Campaign")
         self.source_entry.pack(fill="x", pady=(0, 10))
 
         ctk.CTkLabel(scroll, text="Crafting Materials (comma-separated)",
-                     font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+                     font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.crafting_materials_entry = ctk.CTkEntry(
             scroll, width=400, placeholder_text="e.g., Iron, Leather Strips")
         self.crafting_materials_entry.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkLabel(scroll, text="Crafting Tool", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(scroll, text="Crafting Tool", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         self.crafting_tool_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="e.g., Smith's Tools")
         self.crafting_tool_entry.pack(fill="x", pady=(0, 10))
 
@@ -520,7 +523,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
             scroll, get_suggestions=self.equipment_manager.get_all_properties)
         self.properties_editor.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkLabel(scroll, text="Description", font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(10, 0))
+        ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(anchor="w", pady=(10, 0))
         self.desc_text = ctk.CTkTextbox(scroll, height=200)
         self._rich_editor = RichTextEditor(self, self.desc_text, self.theme)
         toolbar = self._rich_editor.create_toolbar(scroll)
@@ -583,7 +586,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
         if self._batch_progress:
             heading = f"{heading}   ({self._batch_progress})"
         ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ui_font("subheading", 13, bold=True),
                      text_color=warn, anchor="w",
                      justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
 
@@ -593,7 +596,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
             msg = f"Fields to double-check (outlined below): {names}"
         else:
             msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
                      text_color=self.theme.get_text_secondary(), anchor="w",
                      justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
 
@@ -601,7 +604,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
             banner,
             text=("Auto-detection is rule-based, not perfect - accuracy drops for "
                   "irregularly formatted text. Nothing is saved until you click Save."),
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary(),
+            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
             anchor="w", justify="left", wraplength=520,
         ).pack(fill="x", padx=12, pady=(0, 8))
 
@@ -857,7 +860,7 @@ class EquipmentView(ctk.CTkFrame):
         self.source_btn.pack(side="left", padx=(0, 8))
         self.source_label = ctk.CTkLabel(
             filter_bar2, text="None selected",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+            font=ui_font("small"), text_color=self.theme.get_text_secondary()
         )
         self.source_label.pack(side="left", padx=(0, 20))
 
@@ -895,7 +898,7 @@ class EquipmentView(ctk.CTkFrame):
         self.tags_btn.pack(side="left", padx=(0, 8))
         self.tags_label = ctk.CTkLabel(
             filter_bar3, text="None selected",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+            font=ui_font("small"), text_color=self.theme.get_text_secondary()
         )
         self.tags_label.pack(side="left", padx=(0, 20))
 
@@ -909,7 +912,7 @@ class EquipmentView(ctk.CTkFrame):
         self.materials_btn.pack(side="left", padx=(0, 8))
         self.materials_label = ctk.CTkLabel(
             filter_bar3, text="None selected",
-            font=ctk.CTkFont(size=11), text_color=self.theme.get_text_secondary()
+            font=ui_font("small"), text_color=self.theme.get_text_secondary()
         )
         self.materials_label.pack(side="left", padx=(0, 20))
 

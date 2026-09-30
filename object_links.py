@@ -2,7 +2,7 @@
 Universal object linking.
 
 A cross-content-type search index (spells, feats, lineages, backgrounds,
-classes, subclasses, equipment, magic items) plus the markup helpers used to
+classes, subclasses, equipment, magic items, monsters) plus the markup helpers used to
 embed and resolve links inside any description/notes text field.
 
 Markup format stored in text: ``[[category:Name]]``, or ``[[category:Name|display]]``
@@ -30,6 +30,7 @@ LINK_CATEGORIES: Dict[str, str] = {
     "subclass": "Subclasses",
     "equipment": "Equipment",
     "magic_item": "Magic Items",
+    "monster": "Monsters",
 }
 
 # The AppSettings boolean that gates *suggesting* a category. Subclasses ride
@@ -43,6 +44,7 @@ _SETTING_ATTR: Dict[str, str] = {
     "subclass": "link_suggest_classes",
     "equipment": "link_suggest_equipment",
     "magic_item": "link_suggest_magic_items",
+    "monster": "link_suggest_monsters",
 }
 
 
@@ -132,6 +134,19 @@ def _magic_item_targets() -> List[LinkTarget]:
             for i in get_magic_item_manager().items]
 
 
+def _monster_targets(include_hidden: bool = False) -> List[LinkTarget]:
+    """Monsters. Spell-only summons (creatures that only exist for their spell) are
+    offered only when "Display spell only summons" is on - or when `include_hidden`
+    is set, so a link that already points at one still resolves."""
+    from monster import get_monster_manager
+    if include_hidden:
+        monsters = get_monster_manager().monsters
+    else:
+        monsters = get_monster_manager().browsable
+    return [LinkTarget("monster", m.name, f"CR {m.cr_label()} {m.creature_type}".strip(), (lambda obj=m: obj))
+            for m in monsters]
+
+
 # Keyed by the Settings toggle's category (not every LINK_CATEGORIES key has
 # its own collector - "subclass" rides along inside "class").
 _COLLECTORS: Dict[str, Callable[[], List[LinkTarget]]] = {
@@ -142,6 +157,7 @@ _COLLECTORS: Dict[str, Callable[[], List[LinkTarget]]] = {
     "class": _class_targets,
     "equipment": _equipment_targets,
     "magic_item": _magic_item_targets,
+    "monster": _monster_targets,
 }
 
 
@@ -167,7 +183,10 @@ def get_link_targets(enabled_only: bool = True) -> List[LinkTarget]:
         if settings is not None and not getattr(settings, _SETTING_ATTR[category], True):
             continue
         try:
-            targets.extend(collector())
+            if category == "monster":
+                targets.extend(collector(include_hidden=not enabled_only))
+            else:
+                targets.extend(collector())
         except Exception:
             continue
     return targets

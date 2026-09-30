@@ -44,6 +44,7 @@ def load_sources():
         "classes": _load_json("classes.json", "classes"),
         "equipment": _load_json("equipment.json", "equipment"),
         "magic_items": _load_json("magic_items.json", "magic_items"),
+        "monsters": _load_json("monsters.json", "monsters") if os.path.exists(os.path.join(ROOT, "monsters.json")) else [],
     }
 
 
@@ -59,6 +60,7 @@ def build_universe(src):
         # creature (a summoned Elephant, the Riding Horse stat block), not the purchasable mount.
         "equipment": [e["name"] for e in src["equipment"] if "Mount" not in e.get("tags", [])],
         "magic_item": [m["name"] for m in src["magic_items"]],
+        "monster": [m["name"] for m in src["monsters"]],
     })
 
 
@@ -81,6 +83,8 @@ def run_sweep(src, uni):
         sweep.sweep_equipment(e, uni, changes)
     for m in src["magic_items"]:
         sweep.sweep_magic_item(m, uni, changes)
+    for m in src["monsters"]:
+        sweep.sweep_monster(m, uni, changes)
     return changes
 
 
@@ -133,6 +137,7 @@ def write_back(changes):
         "classes.json": ({"class", "subclass"}, json_encoders),
         "equipment.json": ({"equipment"}, json_encoders),
         "magic_items.json": ({"magic_item"}, json_encoders),
+        "monsters.json": ({"monster"}, json_encoders),
     }
     for rel, (owners, encoders) in targets.items():
         plan = _plan(changes, owners)

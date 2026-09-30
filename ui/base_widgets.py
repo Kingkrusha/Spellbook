@@ -4,6 +4,7 @@ Provides reusable widgets to reduce code duplication across views.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 import tkinter as tk
 from typing import TypeVar, Generic, List, Optional, Callable, Any
 from theme import get_theme_manager
@@ -87,14 +88,14 @@ class SelectableListPanel(ctk.CTkFrame, Generic[T]):
         ctk.CTkLabel(
             header_frame, 
             text=self.header_text,
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ui_font("heading", bold=True)
         ).pack(side="left")
         
         text_secondary = self.theme.get_text_secondary()
         self.count_label = ctk.CTkLabel(
             header_frame, 
             text=f"0 items",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         )
         self.count_label.pack(side="right")
@@ -121,7 +122,7 @@ class SelectableListPanel(ctk.CTkFrame, Generic[T]):
                       else self.theme.get_current_color('accent_primary')),
             hover_color=self.theme.get_current_color('button_hover'),
             text_color=self.theme.get_current_color('text_primary'),
-            font=ctk.CTkFont(size=13),
+            font=ui_font("body", 13),
             command=lambda i=index: self._on_item_click(i)
         )
         btn.pack(fill="x", pady=2)
@@ -276,7 +277,7 @@ def render_rich_text(parent: ctk.CTkFrame, text: str, theme, wrap_length: int = 
                 label = ctk.CTkLabel(
                     parent,
                     text=line,
-                    font=ctk.CTkFont(size=12),
+                    font=ui_font("body"),
                     wraplength=wrap_length,
                     justify="left"
                 )
@@ -287,7 +288,7 @@ def render_rich_text(parent: ctk.CTkFrame, text: str, theme, wrap_length: int = 
                 text_widget = tk.Text(
                     parent,
                     wrap="word",
-                    font=ctk.CTkFont(size=12),
+                    font=ui_font("body"),
                     bg=theme.get_current_color('bg_secondary'),
                     fg=theme.get_current_color('text_primary'),
                     relief="flat",
@@ -299,8 +300,8 @@ def render_rich_text(parent: ctk.CTkFrame, text: str, theme, wrap_length: int = 
                 )
                 
                 # Configure tags
-                text_widget.tag_configure("bold", font=ctk.CTkFont(size=12, weight="bold"))
-                text_widget.tag_configure("normal", font=ctk.CTkFont(size=12))
+                text_widget.tag_configure("bold", font=ui_font("body", bold=True))
+                text_widget.tag_configure("normal", font=ui_font("body"))
                 
                 # Insert parts with formatting
                 for i, part in enumerate(parts):
@@ -399,7 +400,7 @@ class FilterBar(ctk.CTkFrame):
         frame = ctk.CTkFrame(self, fg_color="transparent")
         frame.pack(side="left", padx=5)
         
-        ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11)).pack(anchor="w")
+        ctk.CTkLabel(frame, text=label, font=ui_font("small")).pack(anchor="w")
         
         var = ctk.StringVar(value=default)
         combo = ctk.CTkComboBox(

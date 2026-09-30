@@ -4,6 +4,7 @@ Dialog for creating and editing spells.
 """
 
 import customtkinter as ctk
+from typography import ui_font
 from tkinter import messagebox
 from typing import Optional, List
 from spell import Spell, CharacterClass, PROTECTED_TAGS, is_protected_tag
@@ -49,7 +50,7 @@ class TagSelectionDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text="Add New Tag:",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ui_font("subheading", bold=True)
         ).pack(fill="x", pady=(0, 5))
         
         new_tag_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -78,7 +79,7 @@ class TagSelectionDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             container,
             text="Existing tags (click to add):",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=text_secondary
         ).pack(fill="x", pady=(0, 6))
 
@@ -117,7 +118,7 @@ class TagSelectionDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self._list_scroll,
                 text="No match — click Add to create this tag." if q else "No additional tags available.",
-                font=ctk.CTkFont(size=12), text_color=theme.get_text_secondary()
+                font=ui_font("body"), text_color=theme.get_text_secondary()
             ).pack(pady=20)
             return
 
@@ -128,7 +129,7 @@ class TagSelectionDialog(ctk.CTkToplevel):
                 hover_color=theme.get_current_color('accent_primary'),
                 text_color=theme.get_current_color('text_primary'),
                 text_color_disabled="black",
-                font=ctk.CTkFont(size=13),
+                font=ui_font("body", 13),
                 command=lambda t=tag: self._on_select_existing(t)
             ).pack(fill="x", pady=2)
 
@@ -212,7 +213,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         
         # Name
         ctk.CTkLabel(container, text="Name *", 
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 5))
         self.name_entry = ctk.CTkEntry(container, height=35,
                                         placeholder_text="Enter spell name...")
@@ -223,7 +224,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         level_frame.pack(fill="x", pady=(0, 15))
 
         ctk.CTkLabel(level_frame, text="Level *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+                     font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.level_var = ctk.StringVar(value="0 (Cantrip)")
         self.level_combo = ctk.CTkComboBox(
             level_frame, variable=self.level_var,
@@ -240,7 +241,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         cast_left.pack(side="left", fill="x", expand=True)
         
         ctk.CTkLabel(cast_left, text="Casting Time *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 5))
         self.casting_time_entry = ctk.CTkEntry(cast_left, height=35,
                                                 placeholder_text="e.g., 1 action")
@@ -248,26 +249,26 @@ class SpellEditorDialog(ctk.CTkToplevel):
         
         self.ritual_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(cast_frame, text="Ritual", variable=self.ritual_var,
-                        font=ctk.CTkFont(size=13)).pack(side="right", padx=(20, 0))
+                        font=ui_font("body", 13)).pack(side="right", padx=(20, 0))
         
         # Range row
         range_frame = ctk.CTkFrame(container, fg_color="transparent")
         range_frame.pack(fill="x", pady=(0, 15))
         
         ctk.CTkLabel(range_frame, text="Range *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+                     font=ui_font("subheading", 13, bold=True)).pack(side="left")
         self.range_entry = ctk.CTkEntry(range_frame, width=100, height=35,
                                          placeholder_text="0")
         self.range_entry.pack(side="left", padx=(15, 10))
         theme = get_theme_manager()
         text_secondary = theme.get_text_secondary()
         ctk.CTkLabel(range_frame, text="(0=Self, 1=Sight, 2=Special, 3=Touch, + ft, - miles)",
-                     font=ctk.CTkFont(size=11),
+                     font=ui_font("small"),
                      text_color=text_secondary).pack(side="left")
         
         # Components section
         ctk.CTkLabel(container, text="Components",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 8))
         
         comp_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -278,17 +279,17 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self.comp_m_var = ctk.BooleanVar(value=False)
         
         ctk.CTkCheckBox(comp_frame, text="V (Verbal)", variable=self.comp_v_var,
-                        font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 20))
+                        font=ui_font("body")).pack(side="left", padx=(0, 20))
         ctk.CTkCheckBox(comp_frame, text="S (Somatic)", variable=self.comp_s_var,
-                        font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 20))
+                        font=ui_font("body")).pack(side="left", padx=(0, 20))
         ctk.CTkCheckBox(comp_frame, text="M (Material)", variable=self.comp_m_var,
-                        font=ctk.CTkFont(size=12)).pack(side="left")
+                        font=ui_font("body")).pack(side="left")
         
         # Material details
         theme = get_theme_manager()
         text_secondary = theme.get_text_secondary()
         ctk.CTkLabel(container, text="Material Details (optional)",
-                     font=ctk.CTkFont(size=11),
+                     font=ui_font("small"),
                      text_color=text_secondary).pack(fill="x", pady=(0, 5))
         self.material_entry = ctk.CTkEntry(container, height=35,
                                             placeholder_text="e.g., a tiny ball of bat guano")
@@ -302,7 +303,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         dur_left.pack(side="left", fill="x", expand=True)
         
         ctk.CTkLabel(dur_left, text="Duration *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 5))
         self.duration_entry = ctk.CTkEntry(dur_left, height=35,
                                             placeholder_text="e.g., Instantaneous")
@@ -311,11 +312,11 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self.concentration_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(dur_frame, text="Concentration",
                         variable=self.concentration_var,
-                        font=ctk.CTkFont(size=13)).pack(side="right", padx=(20, 0))
+                        font=ui_font("body", 13)).pack(side="right", padx=(20, 0))
         
         # Classes section (only show spellcasting classes)
         ctk.CTkLabel(container, text="Classes *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 10))
         
         self.class_vars = {}
@@ -333,12 +334,12 @@ class SpellEditorDialog(ctk.CTkToplevel):
             col = i % 3
             row = i // 3
             cb = ctk.CTkCheckBox(classes_frame, text=char_class.value, variable=var,
-                                  font=ctk.CTkFont(size=12))
+                                  font=ui_font("body"))
             cb.grid(row=row, column=col, sticky="w", pady=3)
         
         # Source
         ctk.CTkLabel(container, text="Source",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 5))
         self.source_entry = ctk.CTkEntry(container, height=35,
                                           placeholder_text="e.g., Player's Handbook")
@@ -349,7 +350,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self.legacy_checkbox = ctk.CTkCheckBox(
             container, text="Legacy Content (2014 Rules)",
             variable=self.legacy_var,
-            font=ctk.CTkFont(size=12)
+            font=ui_font("body")
         )
         self.legacy_checkbox.pack(anchor="w", pady=(0, 15))
         
@@ -358,7 +359,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         tags_header_frame.pack(fill="x", pady=(0, 5))
         
         ctk.CTkLabel(tags_header_frame, text="Tags",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(side="left")
+                     font=ui_font("subheading", 13, bold=True)).pack(side="left")
         
         theme = get_theme_manager()
         btn_text = theme.get_current_color('text_primary')
@@ -382,23 +383,23 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self._no_tags_label = ctk.CTkLabel(
             self._tags_content_frame,
             text="No tags added. Click '+ Add Tag' to add tags.",
-            font=ctk.CTkFont(size=12),
+            font=ui_font("body"),
             text_color=theme.get_text_secondary()
         )
         self._no_tags_label.pack(anchor="w")
         
         # Description
         ctk.CTkLabel(container, text="Description *",
-                     font=ctk.CTkFont(size=13, weight="bold")).pack(
+                     font=ui_font("subheading", 13, bold=True)).pack(
             fill="x", pady=(0, 5))
         text_secondary = theme.get_text_secondary()
         ctk.CTkLabel(container, text="Use \\ for paragraph breaks. Use [[SpellName]] for spell links.",
-                     font=ctk.CTkFont(size=11),
+                     font=ui_font("small"),
                      text_color=text_secondary).pack(fill="x", pady=(0, 5))
         
         self.description_text = ctk.CTkTextbox(
             container, height=150, corner_radius=8,
-            font=ctk.CTkFont(size=13)
+            font=ui_font("body", 13)
         )
         
         # Add rich text toolbar for tables, spell links, and bold
@@ -524,7 +525,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
             self._no_tags_label = ctk.CTkLabel(
                 self._tags_content_frame,
                 text="No tags added. Click '+ Add Tag' to add tags.",
-                font=ctk.CTkFont(size=12),
+                font=ui_font("body"),
                 text_color=theme.get_text_secondary()
             )
             self._no_tags_label.pack(anchor="w")
@@ -547,7 +548,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
                 ctk.CTkLabel(
                     tag_frame,
                     text=tag,
-                    font=ctk.CTkFont(size=12),
+                    font=ui_font("body"),
                     text_color=theme.get_current_color('text_primary')
                 ).pack(side="left", padx=(10, 5), pady=4)
                 
@@ -559,7 +560,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
                     fg_color="transparent",
                     hover_color=theme.get_current_color('button_danger'),
                     text_color=theme.get_current_color('text_primary'),
-                    font=ctk.CTkFont(size=14, weight="bold"),
+                    font=ui_font("subheading", bold=True),
                     command=lambda t=tag: self._remove_tag(t)
                 )
                 remove_btn.pack(side="left", padx=(0, 5), pady=2)
@@ -582,7 +583,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
                     ctk.CTkLabel(
                         tag_frame,
                         text=tag,
-                        font=ctk.CTkFont(size=12),
+                        font=ui_font("body"),
                         text_color=theme.get_current_color('text_primary')
                     ).pack(side="left", padx=(10, 5), pady=4)
                     remove_btn = ctk.CTkButton(
@@ -593,7 +594,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
                         fg_color="transparent",
                         hover_color=theme.get_current_color('button_danger'),
                         text_color=theme.get_current_color('text_primary'),
-                        font=ctk.CTkFont(size=14, weight="bold"),
+                        font=ui_font("subheading", bold=True),
                         command=lambda t=tag: self._remove_tag(t)
                     )
                     remove_btn.pack(side="left", padx=(0, 5), pady=2)
@@ -670,7 +671,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         if self._batch_progress:
             heading = f"{heading}   ({self._batch_progress})"
         ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ctk.CTkFont(size=13, weight="bold"),
+                     font=ui_font("subheading", 13, bold=True),
                      text_color=warn, anchor="w",
                      justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
 
@@ -680,7 +681,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
             msg = f"Fields to double-check (outlined below): {names}"
         else:
             msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ctk.CTkFont(size=11),
+        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
                      text_color=theme.get_text_secondary(), anchor="w",
                      justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
 
@@ -688,7 +689,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
             banner,
             text=("Auto-detection is rule-based, not perfect - accuracy drops for "
                   "irregularly formatted text. Nothing is saved until you click Save Spell."),
-            font=ctk.CTkFont(size=11), text_color=theme.get_text_secondary(),
+            font=ui_font("small"), text_color=theme.get_text_secondary(),
             anchor="w", justify="left", wraplength=520,
         ).pack(fill="x", padx=12, pady=(0, 8))
 

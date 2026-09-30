@@ -19,6 +19,7 @@ Extra speedups folded in here:
 """
 
 import customtkinter as ctk
+from typography import ui_font
 import tkinter as tk
 from typing import List, Callable, Optional
 from spell import Spell
@@ -48,7 +49,7 @@ class SpellListPanel(ctk.CTkFrame):
         self._render_pending = False
         self._configure_after_id: Optional[str] = None
 
-        self._font = ctk.CTkFont(size=13)
+        self._font = ui_font("body", 13)
 
         self._refresh_colors()
         self.configure(fg_color=self._panel_bg)
@@ -79,10 +80,10 @@ class SpellListPanel(ctk.CTkFrame):
         header_frame.pack(fill="x", padx=15, pady=(15, 10))
 
         ctk.CTkLabel(header_frame, text="Spells",
-                     font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+                     font=ui_font("heading", bold=True)).pack(side="left")
 
         self.count_label = ctk.CTkLabel(header_frame, text="0 spells",
-                                        font=ctk.CTkFont(size=12),
+                                        font=ui_font("body"),
                                         text_color=self._secondary_text)
         self.count_label.pack(side="right")
 
