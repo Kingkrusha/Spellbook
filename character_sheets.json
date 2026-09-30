@@ -101,7 +101,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Simple weapons\nTools: One artisan's tools, Thieves' tools, Tinker's tools\nSaving Throws: Constitution, Intelligence\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -116,7 +119,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "test 3": {
       "character_name": "test 3",
@@ -219,7 +224,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Simple weapons\nSaving Throws: Charisma, Wisdom\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -234,7 +242,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "test 2": {
       "character_name": "test 2",
@@ -337,7 +347,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: All armor, Shields\nWeapons: Martial weapons, Simple weapons\nSaving Throws: Constitution, Strength\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -352,7 +365,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "artificer": {
       "character_name": "artificer",
@@ -455,7 +470,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Simple weapons\nTools: One artisan's tools, Thieves' tools, Tinker's tools\nSaving Throws: Constitution, Intelligence\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -470,7 +488,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "druid": {
       "character_name": "druid",
@@ -573,7 +593,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields (nonmetal)\nWeapons: Clubs, Daggers, Darts, Javelins, Maces, Quarterstaffs, Scimitars, Sickles, Slings, Spears\nTools: Herbalism kit\nSaving Throws: Intelligence, Wisdom\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -588,7 +611,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "monk": {
       "character_name": "monk",
@@ -642,7 +667,7 @@
       "shield_bonus": 0,
       "unarmored_defense": "10 + DEX + WIS",
       "initiative_bonus": 0,
-      "speed": 30,
+      "speed": 60,
       "base_speed": 30,
       "hit_points": {
         "maximum": 143,
@@ -691,7 +716,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Weapons: Shortswords, Simple weapons\nTools: One artisan's tools or musical instrument\nSaving Throws: Dexterity, Strength\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {
         "Body and Mind": {
@@ -711,7 +739,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "Paladin": {
       "character_name": "Paladin",
@@ -814,7 +844,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: All armor, Shields\nWeapons: Martial weapons, Simple weapons\nSaving Throws: Charisma, Wisdom\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -829,7 +862,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "Bard": {
       "character_name": "Bard",
@@ -932,7 +967,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor\nWeapons: Hand crossbows, Longswords, Rapiers, Shortswords, Simple weapons\nTools: Three musical instruments\nSaving Throws: Charisma, Dexterity\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -947,7 +985,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "Cleric": {
       "character_name": "Cleric",
@@ -1050,7 +1090,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Simple weapons\nSaving Throws: Charisma, Wisdom\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -1065,7 +1108,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "Barbarian": {
       "character_name": "Barbarian",
@@ -1168,7 +1213,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Martial weapons, Simple weapons\nSaving Throws: Constitution, Strength\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -1183,7 +1231,15 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "barbarian-cd8e710d92.png",
+      "style": {
+        "elements": {
+          "class_features/Lb0": {
+            "corner_radius": 0
+          }
+        }
+      }
     },
     "Ranger": {
       "character_name": "Ranger",
@@ -1286,7 +1342,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Martial weapons, Simple weapons\nSaving Throws: Dexterity, Strength\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -1301,7 +1360,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "Rogue": {
       "character_name": "Rogue",
@@ -1404,7 +1465,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor\nWeapons: Hand crossbows, Longswords, Rapiers, Shortswords, Simple weapons\nTools: Thieves' tools\nSaving Throws: Dexterity, Intelligence\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {
         "Rogue:Stroke of Luck": 1
       },
@@ -1421,7 +1485,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "monk 2": {
       "character_name": "monk 2",
@@ -1524,7 +1590,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Weapons: Shortswords, Simple weapons\nTools: One artisan's tools or musical instrument\nSaving Throws: Dexterity, Strength\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -1539,7 +1608,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     },
     "barbarian 2": {
       "character_name": "barbarian 2",
@@ -1642,7 +1713,10 @@
       "equipment": "",
       "features_and_traits": "",
       "other_proficiencies": "Armor: Light armor, Medium armor, Shields\nWeapons: Martial weapons, Simple weapons\nSaving Throws: Constitution, Strength\n\nLanguages: Common",
+      "equipment_items": [],
       "magic_items": [],
+      "carry_weight_override": null,
+      "carry_capacity_override": null,
       "class_feature_uses": {},
       "ability_bonuses": {},
       "personality_traits": "",
@@ -1657,7 +1731,9 @@
       "notes": "",
       "appearance": "",
       "backstory": "",
-      "allies_and_organizations": ""
+      "allies_and_organizations": "",
+      "portrait": "",
+      "style": {}
     }
   }
 }
