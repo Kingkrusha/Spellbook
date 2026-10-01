@@ -16,11 +16,11 @@ class HomeView(ctk.CTkFrame):
     # (key, title, description, enabled)
     SECTIONS = [
         ("collections", "📚 Collections",
-         "Spells, classes, feats, lineages, backgrounds, equipment, magic items and monsters.", True),
-        ("characters", "🧙 Characters",
+         "View, sort and search databases of spells, classes, feats, lineages, backgrounds, equipment, magic items and monsters.", True),
+        ("characters", "⚔️ Characters",
          "Your characters and their sheets. Create, sort, filter, import and export them.", True),
         ("game_tools", "🎲 Game Tools",
-         "Tools to help run your table.", False),
+         "Tools to help you run your games smoothly.", False),
     ]
 
     def __init__(self, parent, on_open: Optional[Callable[[str], None]] = None):
@@ -39,7 +39,7 @@ class HomeView(ctk.CTkFrame):
         ).pack(pady=(0, 6))
 
         ctk.CTkLabel(
-            outer, text="Where would you like to go?",
+            outer, text="A Dungeons & Dragons 5e reference and character management app.",
             font=ui_font("subheading"),
             text_color=self.theme.get_text_secondary()
         ).pack(pady=(0, 30))

@@ -931,7 +931,7 @@ class SettingsView(ctk.CTkFrame):
         text_secondary = self.theme_manager.get_text_secondary()
         ctk.CTkLabel(
             about_content,
-            text="A tool for managing D&D 5e spells character sheets and player information.",
+            text="A tool for managing D&D 5e resources character sheets and player information.",
             font=ui_font("body", 13),
             text_color=text_secondary
         ).pack(anchor="w", pady=(5, 0))
