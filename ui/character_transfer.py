@@ -17,8 +17,10 @@ def import_characters(parent, character_manager, spell_manager=None) -> bool:
     """Ask for a character export file and import it.
 
     Returns True if at least one sheet or spell list was imported, so the
-    caller knows to refresh its list.
+    caller knows to refresh its list. The work itself is in :mod:`character_io`.
     """
+    import character_io
+
     file_path = filedialog.askopenfilename(
         title="Import Character Sheets",
         filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
@@ -32,131 +34,49 @@ def import_characters(parent, character_manager, spell_manager=None) -> bool:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        if "character_sheets" not in data and "sheets" not in data:
-            messagebox.showerror(
-                "Invalid File",
-                "This file does not contain character sheet data.",
-                parent=parent
-            )
+        try:
+            bundle = character_io.parse_bundle(data)
+        except character_io.CharacterBundleError as e:
+            messagebox.showerror("Invalid File", str(e), parent=parent)
             return False
 
-        # Get sheets data (support both formats)
-        sheets_data = data.get("character_sheets", data.get("sheets", {}))
-
-        if not sheets_data:
+        if not bundle.sheets:
             messagebox.showinfo("No Data", "No character sheets found in file.", parent=parent)
             return False
 
-        # Import character sheets with missing content validation
         from ui.character_sheet_view import get_sheet_manager
-
         sheet_manager = get_sheet_manager()
 
-        imported = 0
-        warnings = []
-
-        spell_lists_data = data.get("character_spell_lists", [])
-        names_with_list_in_file = {c.get("name") for c in spell_lists_data if isinstance(c, dict)}
-
         # Importing replaces a character that already has the same name - say so first
-        already_here = sorted(
-            {n for n in sheets_data if sheet_manager.get_sheet(n) is not None}
-            | {n for n in names_with_list_in_file if n and character_manager.get_character(n) is not None}
-        )
-        if already_here:
-            shown = ", ".join(already_here[:8]) + (f" and {len(already_here) - 8} more" if len(already_here) > 8 else "")
+        plan = character_io.plan_import(bundle, character_manager, sheet_manager)
+        if plan.conflicts:
+            shown = ", ".join(plan.conflicts[:8]) + (
+                f" and {len(plan.conflicts) - 8} more" if len(plan.conflicts) > 8 else "")
             if not messagebox.askyesno(
                 "Replace existing characters?",
-                f"{len(already_here)} character(s) in this file already exist and will be replaced:\n\n"
+                f"{len(plan.conflicts)} character(s) in this file already exist and will be replaced:\n\n"
                 f"{shown}\n\nContinue?",
                 parent=parent
             ):
                 return False
 
-        # Object links in a sheet ([[spell:Fireball]], ...) only open if that content is installed
-        import content_io
-        try:
-            from object_links import get_link_targets
-            known_links = {(t.category, t.name.lower()) for t in get_link_targets(enabled_only=False)}
-        except Exception:
-            known_links = None
+        report = character_io.apply_import(bundle, character_manager, sheet_manager, spell_manager)
 
-        for name, sheet_data in sheets_data.items():
-            try:
-                from character_sheet import CharacterSheet
-                sheet = CharacterSheet.from_dict(sheet_data)
-                import portraits
-                if isinstance(sheet_data, dict) and sheet_data.get("portrait_data"):
-                    sheet.portrait = portraits.decode_portrait(sheet_data["portrait_data"], name)
-                elif sheet.portrait and not portraits.portrait_path(sheet.portrait):
-                    sheet.portrait = ""          # the file did not come along
-
-                # Check if character spell list exists (here already, or coming from this same file)
-                char_exists = (character_manager.get_character(name) is not None
-                               or name in names_with_list_in_file)
-                if not char_exists:
-                    warnings.append(f"'{name}': No matching character spell list found")
-
-                if known_links is not None:
-                    missing = content_io.dangling_links(sheet_data, known_links)
-                    if missing:
-                        warnings.append(f"'{name}': links to content that isn't installed: "
-                                        f"{content_io.format_dangling(missing)}")
-
-                # Import the sheet
-                sheet_manager.update_sheet(name, sheet)
-                imported += 1
-            except Exception as e:
-                warnings.append(f"'{name}': Import error - {e}")
-
-        # Import character spell lists if present
-        spell_list_imported = 0
-
-        for char_data in spell_lists_data:
-            try:
-                from character import CharacterSpellList
-                char = CharacterSpellList.from_dict(char_data)
-
-                # Validate class references
-                from character_class import get_class_manager
-                class_manager = get_class_manager()
-
-                for cl in char.classes:
-                    class_name = cl.get_class_name() if hasattr(cl, 'get_class_name') else (cl.character_class.value if hasattr(cl.character_class, 'value') else str(cl.character_class))
-                    if not class_manager.get_class(class_name):
-                        warnings.append(f"'{char.name}': Class '{class_name}' not found in system")
-
-                # Validate spell references
-                if spell_manager:
-                    for spell_name in char.known_spells + char.prepared_spells:
-                        if not spell_manager._db.get_spell_by_name(spell_name):
-                            warnings.append(f"'{char.name}': Spell '{spell_name}' not found")
-
-                # Add or update character
-                if character_manager.get_character(char.name):
-                    character_manager.update_character(char.name, char)
-                else:
-                    character_manager.add_character(char)
-                spell_list_imported += 1
-            except Exception as e:
-                warnings.append(f"Character spell list error: {e}")
-
-        # Show results
-        msg = f"Successfully imported {imported} character sheet(s)"
-        if spell_list_imported > 0:
-            msg += f" and {spell_list_imported} character spell list(s)"
+        msg = f"Successfully imported {report.sheets} character sheet(s)"
+        if report.spell_lists > 0:
+            msg += f" and {report.spell_lists} character spell list(s)"
         msg += "."
 
-        if warnings:
-            msg += f"\n\nWarnings ({len(warnings)}):\n"
-            msg += "\n".join(warnings[:10])  # Show first 10 warnings
-            if len(warnings) > 10:
-                msg += f"\n... and {len(warnings) - 10} more"
+        if report.warnings:
+            msg += f"\n\nWarnings ({len(report.warnings)}):\n"
+            msg += "\n".join(report.warnings[:10])  # Show first 10 warnings
+            if len(report.warnings) > 10:
+                msg += f"\n... and {len(report.warnings) - 10} more"
             messagebox.showwarning("Import Complete with Warnings", msg, parent=parent)
         else:
             messagebox.showinfo("Import Complete", msg, parent=parent)
 
-        return imported > 0 or spell_list_imported > 0
+        return report.imported > 0
 
     except json.JSONDecodeError as e:
         messagebox.showerror("Invalid JSON", f"Failed to parse file:\n{e}", parent=parent)
@@ -350,38 +270,12 @@ class CharacterSheetExportDialog(ctk.CTkToplevel):
             return
 
         try:
+            import character_io
             from atomic_io import atomic_write_json
             from ui.character_sheet_view import get_sheet_manager
 
-            sheet_manager = get_sheet_manager()
-
-            export_data = {
-                "character_sheets": {},
-                "character_spell_lists": []
-            }
-
-            sheets_exported = 0
-            spell_lists_exported = 0
-
-            for name in selected_names:
-                # Export character spell list
-                char = self.character_manager.get_character(name)
-                if char:
-                    export_data["character_spell_lists"].append(char.to_dict())
-                    spell_lists_exported += 1
-
-                # Export character sheet
-                sheet = sheet_manager.get_sheet(name)
-                if sheet:
-                    sheet_dict = sheet.to_dict()
-                    if sheet.portrait:
-                        # embed the portrait so it travels with the sheet
-                        import portraits
-                        embedded = portraits.encode_portrait(sheet.portrait)
-                        if embedded:
-                            sheet_dict["portrait_data"] = embedded
-                    export_data["character_sheets"][name] = sheet_dict
-                    sheets_exported += 1
+            export_data, spell_lists_exported, sheets_exported = character_io.build_export(
+                selected_names, self.character_manager, get_sheet_manager())
 
             atomic_write_json(file_path, export_data, ensure_ascii=False)
 

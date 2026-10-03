@@ -33,6 +33,9 @@ from typing import Optional
 
 APP_NAME = "Spellbook"
 
+# Environment variable that points the app at a different writable data folder.
+DATA_DIR_ENV = "SPELLBOOK_DATA_DIR"
+
 
 def is_frozen() -> bool:
     """True when running from a PyInstaller (or similar) bundle."""
@@ -83,7 +86,12 @@ def user_data_dir() -> str:
     if _cached_dir is not None:
         return _cached_dir
 
-    if is_frozen():
+    override = os.environ.get(DATA_DIR_ENV, "").strip()
+    if override:
+        # Lets several instances run side by side (e.g. a LAN host and client on
+        # one machine) without sharing - or corrupting - each other's data files.
+        path = os.path.abspath(os.path.expanduser(override))
+    elif is_frozen():
         path = _frozen_user_data_dir()
     else:
         path = os.path.dirname(os.path.abspath(__file__))
