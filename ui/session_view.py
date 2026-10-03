@@ -37,6 +37,9 @@ class SessionView(ctk.CTkFrame):
         self._input: Optional[ChatInput] = None
         self._log: Optional[ChatLog] = None
         self._error_label: Optional[ctk.CTkLabel] = None
+        self._found_frame: Optional[ctk.CTkFrame] = None
+        self._found_status: Optional[ctk.CTkLabel] = None
+        self._scan_after = None
 
         outer = ctk.CTkFrame(self, fg_color="transparent")
         outer.pack(fill="both", expand=True, padx=20, pady=20)
@@ -63,6 +66,7 @@ class SessionView(ctk.CTkFrame):
         self._render()
 
     def destroy(self):
+        self._cancel_scan_timer()
         try:
             self.service.remove_listener(self._on_event)
         except Exception:
@@ -77,7 +81,9 @@ class SessionView(ctk.CTkFrame):
                 return
         except Exception:
             return
-        if kind == "line":
+        if kind == "scan_done":
+            self._fill_found()
+        elif kind == "line":
             if self._log is not None:
                 self._log.append(data["line"])
         elif kind == "state":
@@ -95,8 +101,10 @@ class SessionView(ctk.CTkFrame):
     # ------------------------------------------------------------------ render
 
     def _render(self):
+        self._cancel_scan_timer()
         for child in self.body.winfo_children():
             child.destroy()
+        self._found_frame = self._found_status = None
         self._chat_box = self._peers_frame = self._to_combo = self._input = self._log = None
         self._error_label = None
         role = self.service.role
@@ -160,6 +168,9 @@ class SessionView(ctk.CTkFrame):
         self._approve_var = ctk.BooleanVar(value=bool(s.saved("lan_require_approval", True)))
         ctk.CTkCheckBox(host, text="Ask me to approve each player", variable=self._approve_var
                         ).pack(anchor="w", pady=(10, 4))
+        self._discover_var = ctk.BooleanVar(value=bool(s.saved("lan_discovery", True)))
+        ctk.CTkCheckBox(host, text="Let players on this network find it automatically",
+                        variable=self._discover_var).pack(anchor="w", pady=(4, 4))
         ctk.CTkButton(host, text="Start session", height=36,
                       fg_color=self.theme.get_current_color('accent_primary'),
                       hover_color=self.theme.get_current_color('accent_hover'),
@@ -170,9 +181,23 @@ class SessionView(ctk.CTkFrame):
 
         # --- join
         join = self._card(cards, "🎲 Join a session",
-                          "Paste the invite your DM sent you, for example 192.168.1.20:5150#ABCDE-FGHIJ-…")
+                          "Sessions on your network are listed here. Over a VPN, or if none show up, "
+                          "paste the invite your DM sent you.")
         join.master.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-        self._invite_entry = self._field(join, "Invite", str(s.saved("lan_last_invite", "")),
+        found_head = ctk.CTkFrame(join, fg_color="transparent")
+        found_head.pack(fill="x")
+        ctk.CTkLabel(found_head, text="On this network", font=ui_font("small", bold=True),
+                     text_color=self.theme.get_text_secondary()).pack(side="left")
+        ctk.CTkButton(found_head, text="↻ Refresh", width=70, height=22, font=ui_font("small"),
+                      fg_color=self.theme.get_current_color('button_normal'),
+                      hover_color=self.theme.get_current_color('button_hover'),
+                      command=self._scan_now).pack(side="right")
+        self._found_frame = ctk.CTkScrollableFrame(join, height=96, fg_color=self.theme.get_current_color('bg_input'))
+        self._found_frame.pack(fill="x", pady=(2, 4))
+        self._found_status = ctk.CTkLabel(self._found_frame, text="", font=ui_font("small"),
+                                          text_color=self.theme.get_text_secondary())
+        self._found_status.pack(anchor="w", padx=6, pady=4)
+        self._invite_entry = self._field(join, "Or paste an invite", str(s.saved("lan_last_invite", "")),
                                          placeholder="address:port#code")
         self._join_pw_entry = self._field(join, "Session password (if the DM set one)", show="•")
         ctk.CTkButton(join, text="Join session", height=36,
@@ -183,12 +208,72 @@ class SessionView(ctk.CTkFrame):
                                         text_color=self.theme.get_current_color('text_warning'))
         self._join_error.pack(anchor="w", pady=(6, 0))
 
+        self._scan_now()
         ctk.CTkLabel(
             self.body,
             text="Tip: the first time you host, your firewall may ask whether to allow Spellbook on "
                  "private networks. Say yes, or players won't be able to connect.",
             font=ui_font("small"), text_color=self.theme.get_text_secondary(),
             wraplength=760, justify="left").pack(anchor="w", pady=(14, 0))
+
+    # --------------------------------------------------------------- discovery
+
+    def _cancel_scan_timer(self):
+        if self._scan_after is not None:
+            try:
+                self.after_cancel(self._scan_after)
+            except Exception:
+                pass
+            self._scan_after = None
+
+    def _scan_now(self):
+        """Look for sessions now, and again every few seconds while this list is on screen."""
+        self._cancel_scan_timer()
+        if self.service.role != NONE:
+            return
+        if self._found_status is not None and not self.service.discovered:
+            self._found_status.configure(text="Searching…")
+        self.service.scan()
+        self._scan_after = self.after(6000, self._scan_now)
+
+    def _fill_found(self):
+        frame = self._found_frame
+        if frame is None or not frame.winfo_exists():
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+        found = self.service.discovered
+        if not found:
+            ctk.CTkLabel(frame, text="No sessions found. Ask your DM for an invite, or check that you are on "
+                                     "the same network.", font=ui_font("small"), wraplength=300, justify="left",
+                         text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=6, pady=4)
+            return
+        for f in found:
+            row = ctk.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", pady=1)
+            info = ctk.CTkFrame(row, fg_color="transparent")
+            info.pack(side="left", fill="x", expand=True)
+            ctk.CTkLabel(info, text=f.name, font=ui_font("body", bold=True), anchor="w").pack(anchor="w")
+            extra = [f.address, f"{f.players} player{'s' if f.players != 1 else ''}"]
+            if f.password:
+                extra.append("🔒 password")
+            ctk.CTkLabel(info, text=" · ".join(extra), font=ui_font("small"), anchor="w",
+                         text_color=self.theme.get_text_secondary()).pack(anchor="w")
+            ctk.CTkButton(row, text="Join", width=56, height=28,
+                          fg_color=self.theme.get_current_color('accent_primary'),
+                          hover_color=self.theme.get_current_color('accent_hover'),
+                          command=lambda f=f: self._on_join_found(f)).pack(side="right", padx=4)
+
+    def _on_join_found(self, found):
+        from ui.session_widgets import VerifyDialog
+        VerifyDialog(self.winfo_toplevel(), found, lambda: self._join_found(found))
+
+    def _join_found(self, found):
+        self._join_error.configure(text="")
+        try:
+            self.service.join_found(found, self._name_entry.get(), self._join_pw_entry.get())
+        except LanError as e:
+            self._join_error.configure(text=e.message)
 
     def _on_start_host(self):
         self._host_error.configure(text="")
@@ -201,7 +286,7 @@ class SessionView(ctk.CTkFrame):
             return
         try:
             self.service.start_host(self._name_entry.get(), self._pw_entry.get(),
-                                    self._approve_var.get(), port)
+                                    self._approve_var.get(), port, discoverable=self._discover_var.get())
         except LanError as e:
             self._host_error.configure(text=e.message)
 
@@ -265,6 +350,8 @@ class SessionView(ctk.CTkFrame):
                      ).pack(anchor="w", padx=16, pady=(14, 4))
         self._peers_frame = ctk.CTkFrame(side, fg_color="transparent")
         self._peers_frame.pack(fill="x", padx=12)
+        ctk.CTkLabel(side, text=f"Security code  {s.security_code}", font=ui_font("small"),
+                     text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(6, 0))
         if s.role == HOSTING:
             self._build_invite_panel(side)
         if self.overlay is not None:
@@ -294,6 +381,11 @@ class SessionView(ctk.CTkFrame):
                                 hover_color=self.theme.get_current_color('button_hover'))
             btn.configure(command=lambda t=invite, b=btn: self._copy(t, b))
             btn.pack(side="left")
+        note = ("Players on this network can also find this session without an invite. "
+                "They will be asked to check the security code above." if s.discovery_visible else
+                "This session is not listed for automatic discovery; players need the invite.")
+        ctk.CTkLabel(parent, text=note, font=ui_font("small"), text_color=self.theme.get_text_secondary(),
+                     wraplength=250, justify="left").pack(anchor="w", padx=16, pady=(8, 0))
         if s.password:
             ctk.CTkLabel(parent, text=f"Password: {s.password}", font=ui_font("small"),
                          text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(8, 0))

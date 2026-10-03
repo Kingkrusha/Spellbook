@@ -16,6 +16,7 @@ Listener events - ``listener(kind, **data)``:
                          a dice roll has ``kind == "roll"`` and a ``roll`` dict
 * ``approval_request`` - host only: ``request_id, name, address``
 * ``approval_done``    - host only: ``request_id`` (answered, so close any prompt)
+* ``scan_done``        - discovery finished; the results are in :attr:`discovered`
 * ``join_failed``      - ``message``
 * ``ended``            - the session is over; ``reason`` says why
 """
@@ -27,6 +28,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from lan import discovery
 from lan import protocol as P
 from lan.client import LanClient
 from lan.host import HOST_ID, LanHost
@@ -81,6 +83,10 @@ class SessionService:
         self.require_approval = True
         self.port = 0
         self.last_end_reason = ""
+        self.discovered: List[discovery.FoundSession] = []
+        self.scanning = False
+        self.discovery_visible = False              # hosting AND answering discovery probes
+        self.security_code = ""                     # short form of the certificate fingerprint
 
         self._host: Optional[LanHost] = None
         self._client: Optional[LanClient] = None
@@ -98,6 +104,10 @@ class SessionService:
     @property
     def is_host(self) -> bool:
         return self.role == HOSTING
+
+    @property
+    def needs_pump(self) -> bool:
+        return self.active or self.scanning
 
     @property
     def in_session(self) -> bool:
@@ -164,22 +174,33 @@ class SessionService:
     # ----------------------------------------------------------------- hosting
 
     def start_host(self, name: str, password: str = "", require_approval: bool = True,
-                   port: int = P.DEFAULT_PORT, bind: str = "0.0.0.0") -> int:
-        """Begin hosting. Raises :class:`LanError` (e.g. the port is taken)."""
+                   port: int = P.DEFAULT_PORT, bind: str = "0.0.0.0",
+                   discoverable: Optional[bool] = None,
+                   discovery_port: int = discovery.DISCOVERY_PORT) -> int:
+        """Begin hosting. Raises :class:`LanError` (e.g. the port is taken).
+
+        ``discoverable`` (default: the saved setting, on) lets players on the same network find the
+        session without an invite; the invite still works either way."""
         if self.active:
             raise LanError("busy", "A session is already running.")
         name = P.clean_name(name, "DM")
+        if discoverable is None:
+            discoverable = bool(self.saved("lan_discovery", True))
         host = LanHost(name, password=password, require_approval=require_approval,
-                       app_version=self.app_version, schema=self.schema)
+                       app_version=self.app_version, schema=self.schema,
+                       discovery_port=discovery_port if discoverable else None)
         self.port = host.start(port=port, bind=bind)
         self._host = host
+        self.discovery_visible = host.discovery_active
+        self.security_code = P.format_fingerprint(host.fingerprint[:10])
         self.role = HOSTING
         self.my_id, self.my_name, self.host_name = HOST_ID, host.display_name, host.display_name
         self.password, self.require_approval = password, require_approval
         self.peers = host.peers()
         self.chat = []
         self.last_end_reason = ""
-        self._remember(lan_display_name=name, lan_port=port, lan_require_approval=require_approval)
+        self._remember(lan_display_name=name, lan_port=port, lan_require_approval=require_approval,
+                       lan_discovery=bool(discoverable))
         self._add_line("system", "Session started. Share an invite with your players.")
         self._wake()
         self._notify("state")
@@ -201,6 +222,29 @@ class SessionService:
         if self._host is not None:
             self._host.kick(peer_id)
 
+    # --------------------------------------------------------------- discovery
+
+    def scan(self, timeout: float = 1.5, port: int = discovery.DISCOVERY_PORT,
+             targets: Optional[List[str]] = None) -> None:
+        """Look for sessions on the network in the background; ``scan_done`` fires when finished."""
+        if self.scanning or self.active:
+            return
+        self.scanning = True
+
+        def work():
+            try:
+                found = discovery.scan(timeout=timeout, port=port, targets=targets)
+            except Exception:
+                found = []
+            self._local.put("scan_done", found=found)
+
+        threading.Thread(target=work, name="lan-scan", daemon=True).start()
+        self._wake()
+
+    def join_found(self, found: "discovery.FoundSession", name: str, password: str = "") -> None:
+        """Join a session the scan found (the caller has had the player check its security code)."""
+        self.join(found.invite().encode(), name, password)
+
     # ----------------------------------------------------------------- joining
 
     def join(self, invite_text: str, name: str, password: str = "") -> None:
@@ -215,6 +259,7 @@ class SessionService:
         client = LanClient(name, client_id=self.client_id(), password=password,
                            app_version=self.app_version, schema=self.schema)
         self._client = client
+        self.security_code = P.format_fingerprint(invite.fingerprint[:10])
         self.role = JOINING
         self.my_name = name
         self._remember(lan_display_name=name, lan_last_invite=invite_text.strip())
@@ -261,6 +306,7 @@ class SessionService:
         self.role = NONE
         self.peers = []
         self.my_id = ""
+        self.discovery_visible = False
         for obj in (host, client):
             if obj is not None:
                 try:
@@ -303,6 +349,11 @@ class SessionService:
         return count
 
     def _on_local(self, ev: Dict[str, Any]) -> None:
+        if ev["type"] == "scan_done":
+            self.scanning = False
+            self.discovered = ev["found"] if self.role == NONE else []
+            self._notify("scan_done")
+            return
         if self.role != JOINING:
             return              # cancelled while connecting: the teardown already hung up
         if ev["type"] == "join_ok" and self._client is not None:

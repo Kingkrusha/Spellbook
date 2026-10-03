@@ -341,7 +341,7 @@ class MainWindow(ctk.CTkFrame):
             self.session.pump()
         except Exception as e:
             print(f"Session error: {e}")
-        if self.session.active:
+        if self.session.needs_pump:
             self._ensure_session_pump()
 
     def _on_session_event(self, kind: str, **data):

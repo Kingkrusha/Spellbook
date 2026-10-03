@@ -96,6 +96,7 @@ class AppSettings:
     lan_display_name: str = ""
     lan_port: int = 5150
     lan_require_approval: bool = True  # The host approves each player before they join
+    lan_discovery: bool = True  # The host can be found automatically by players on the same network
     lan_client_id: str = ""
     lan_last_invite: str = ""  # Last invite a player joined with, to fill the box next time
     lan_overlay_enabled: bool = True  # Show the chat overlay on every page while in a session
@@ -134,7 +135,7 @@ class AppSettings:
             'link_suggest_backgrounds', 'link_suggest_classes', 'link_suggest_equipment',
             'link_suggest_magic_items', 'link_suggest_monsters', 'link_autocomplete_names',
             'show_spell_only_summons',
-            'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_client_id',
+            'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
             'lan_overlay_opacity', 'lan_overlay_translucent',
         }

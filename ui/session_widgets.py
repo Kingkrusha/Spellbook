@@ -56,6 +56,44 @@ class SessionStatusBar(ctk.CTkFrame):
         self.label.configure(text=text)
 
 
+class VerifyDialog(ctk.CTkToplevel):
+    """Before joining a session found on the network: compare its security code with the DM's.
+
+    A discovery reply is unauthenticated, so anyone could advertise a fake "Dungeon Master". The
+    code is derived from the session's certificate; a fake advertises its own, which won't match
+    the one on the real DM's screen. Nothing (not even the password) is sent until you confirm."""
+
+    def __init__(self, parent, found, on_confirm: Callable[[], None]):
+        super().__init__(parent)
+        theme = get_theme_manager()
+        self.title("Check the security code")
+        self.geometry("420x250")
+        self.resizable(False, False)
+        self.transient(parent.winfo_toplevel())
+        box = ctk.CTkFrame(self, fg_color="transparent")
+        box.pack(fill="both", expand=True, padx=22, pady=18)
+        ctk.CTkLabel(box, text=f"Join {found.name}'s session?", font=ui_font("heading", 17, bold=True),
+                     wraplength=370, justify="left").pack(anchor="w")
+        ctk.CTkLabel(box, text=f"at {found.address}. Ask your DM to read out the security code on their "
+                               "Session page. It should match this one:",
+                     font=ui_font("body"), text_color=theme.get_text_secondary(), wraplength=370,
+                     justify="left").pack(anchor="w", pady=(4, 8))
+        ctk.CTkLabel(box, text=found.security_code, font=ui_font("title", 24, bold=True),
+                     text_color=theme.get_current_color('text_label')).pack(pady=(0, 6))
+        ctk.CTkLabel(box, text="If it doesn't match, don't join - someone else may be pretending to be the DM.",
+                     font=ui_font("small"), text_color=theme.get_current_color('text_warning'),
+                     wraplength=370, justify="left").pack(anchor="w")
+        row = ctk.CTkFrame(box, fg_color="transparent")
+        row.pack(fill="x", side="bottom")
+        ctk.CTkButton(row, text="It matches - join", width=140,
+                      fg_color=theme.get_current_color('accent_primary'),
+                      hover_color=theme.get_current_color('accent_hover'),
+                      command=lambda: (self.destroy(), on_confirm())).pack(side="left")
+        ctk.CTkButton(row, text="Cancel", width=90, fg_color=theme.get_current_color('button_normal'),
+                      hover_color=theme.get_current_color('button_hover'),
+                      command=self.destroy).pack(side="right")
+
+
 class ApprovalDialog(ctk.CTkToplevel):
     """Non-blocking prompt: ``on_answer(True/False)`` is called once, when the DM chooses.
 

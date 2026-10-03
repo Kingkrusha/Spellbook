@@ -24,6 +24,7 @@ import time
 from typing import Awaitable, Callable, Dict, List, Optional
 
 from lan import dice
+from lan import discovery
 from lan import protocol as P
 from lan.protocol import LanError, ProtocolError
 from lan.runtime import EventQueue, LoopThread
@@ -86,7 +87,8 @@ class _Peer:
 
 class LanHost:
     def __init__(self, display_name: str = "DM", password: str = "", require_approval: bool = True,
-                 max_peers: int = 12, app_version: str = "", schema: int = 0):
+                 max_peers: int = 12, app_version: str = "", schema: int = 0,
+                 discovery_port: Optional[int] = None):
         self.display_name = P.clean_name(display_name, "DM")
         self._password = password or ""
         self.require_approval = require_approval
@@ -97,6 +99,11 @@ class LanHost:
         self.events = EventQueue()
         self.fingerprint = ""
         self.port = 0
+        # Answer discovery probes on this UDP port (None = stay invisible; invite only)
+        self.discovery_port = discovery_port
+        self.discovery_active = False
+        self.session_id = secrets.token_hex(8)
+        self._responder: Optional[discovery.DiscoveryResponder] = None
 
         self._runner = LoopThread("lan-host")
         self._server: Optional[asyncio.AbstractServer] = None
@@ -125,7 +132,15 @@ class LanHost:
             raise LanError("listen", f"Could not start the session on port {port}: {e}")
         self._started = True
         self._refresh_public()
+        if self.discovery_port:
+            self._responder = discovery.DiscoveryResponder(self._discovery_info, self.discovery_port)
+            self.discovery_active = self._responder.start()
         return self.port
+
+    def _discovery_info(self) -> dict:
+        return {"name": self.display_name, "port": self.port, "fp": self.fingerprint,
+                "app": self.app_version, "players": max(0, len(self._public) - 1),
+                "pw": bool(self._password), "ap": self.require_approval, "id": self.session_id}
 
     async def _listen(self, bind: str, port: int, ctx) -> int:
         self._server = await asyncio.start_server(
@@ -136,6 +151,10 @@ class LanHost:
         if not self._started:
             return
         self._started = False
+        if self._responder is not None:
+            self._responder.stop()
+            self._responder = None
+            self.discovery_active = False
         try:
             self._runner.call(self._shutdown(), 8)
         except Exception:
