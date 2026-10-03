@@ -234,3 +234,22 @@ with player view and pop-up, object sending, then dice / links / polish.
 4. CTk table performance and macOS topmost (test early).
 5. Information leaks (projection design + leak test).
 6. Scope creep into live shared editing of sheets: out of scope.
+
+
+## 13. Progress (branch `feature/lan-sessions`)
+
+Done: Phase 0 (character_io, content_io preview/resolve, SPELLBOOK_DATA_DIR); Phase 1 (encrypted
+transport, host/client); Phase 2 (Session UI, status bar, approval prompt); chat overlay (translucent
+on Windows, opaque panel elsewhere); `/roll` and `/gmroll` dice; clickable `[[links]]` in chat;
+automatic discovery.
+
+Discovery as built differs slightly from section 2: instead of "manual IP only", players on the same
+network see sessions listed automatically (UDP probe/reply on port 5151) and the invite still works.
+Because an advertisement is unauthenticated, joining a discovered session first shows a short security
+code (from the session certificate) to compare with the DM's screen.
+
+Tracker: T0 (state, reducer, projection, undo, saving) and T1 (sheet/monster/custom snapshots,
+conditions) are done and tested with no UI yet (`initiative_state.py`, `initiative_sources.py`,
+`conditions.py`). Remaining: T2 DM table UI, T3 player view and pop-up, T4 tracker over the network,
+T5 DM settings UI and polish. Still open from the LAN plan: the Inbox and sending characters/homebrew,
+packaging (spec files, macOS plist), and a two-machine test.
