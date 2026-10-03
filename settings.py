@@ -91,6 +91,14 @@ class AppSettings:
     # Monsters collection too, and offers them as link suggestions.
     show_spell_only_summons: bool = False
 
+    # LAN sessions (Game Tools > Session). The client id is a random per-install id the host
+    # uses to recognise a player who reconnects; it is not shown to anyone.
+    lan_display_name: str = ""
+    lan_port: int = 5150
+    lan_require_approval: bool = True  # The host approves each player before they join
+    lan_client_id: str = ""
+    lan_last_invite: str = ""  # Last invite a player joined with, to fill the box next time
+
     # Internal flags (not user-configurable)
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
     
@@ -122,6 +130,8 @@ class AppSettings:
             'link_suggest_backgrounds', 'link_suggest_classes', 'link_suggest_equipment',
             'link_suggest_magic_items', 'link_suggest_monsters', 'link_autocomplete_names',
             'show_spell_only_summons',
+            'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_client_id',
+            'lan_last_invite',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

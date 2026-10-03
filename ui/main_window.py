@@ -49,6 +49,7 @@ class MainWindow(ctk.CTkFrame):
         get_sheet_manager().add_error_listener(self._on_data_save_error)
         
         self.settings_manager = get_settings_manager()
+        self._init_session()
         
         # On first run, mark all existing spells as "Official". (The summon-spell
         # creatures are added by the spell manager's load, not here.)
@@ -292,6 +293,13 @@ class MainWindow(ctk.CTkFrame):
         self._flush_tab_save()
 
         try:
+            if self._session_pump_after is not None:
+                self.after_cancel(self._session_pump_after)
+            self.session.shutdown()
+        except Exception:
+            pass
+
+        try:
             if hasattr(self, '_theme'):
                 self._theme.remove_listener(self._on_theme_changed)
         except Exception:
@@ -304,9 +312,74 @@ class MainWindow(ctk.CTkFrame):
 
         super().destroy()
     
+    # LAN session. The connection, peer list and chat live in one SessionService owned by
+    # this window (not by any page), so closing a tab never ends the game.
+
+    def _init_session(self):
+        from lan.service import SessionService
+        from version import __version__
+        self.session = SessionService(self.settings_manager, app_version=__version__)
+        self.session.set_wake(self._ensure_session_pump)
+        self.session.add_listener(self._on_session_event)
+        self._session_pump_after = None
+        self._session_bar = None
+        self._approval_dialogs: Dict[str, object] = {}
+
+    def _ensure_session_pump(self):
+        """Poll the network event queues (every 100 ms) while a session exists."""
+        if self._session_pump_after is None:
+            self._session_pump_after = self.after(100, self._session_tick)
+
+    def _session_tick(self):
+        self._session_pump_after = None
+        try:
+            self.session.pump()
+        except Exception as e:
+            print(f"Session error: {e}")
+        if self.session.active:
+            self._ensure_session_pump()
+
+    def _on_session_event(self, kind: str, **data):
+        if kind == 'state':
+            self._update_session_bar()
+        elif kind == 'approval_request':
+            from ui.session_widgets import ApprovalDialog
+            request_id = data['request_id']
+            self._approval_dialogs[request_id] = ApprovalDialog(
+                self.winfo_toplevel(), data['name'], data['address'],
+                lambda accept, rid=request_id: self.session.resolve_approval(rid, accept))
+        elif kind == 'approval_done':
+            dialog = self._approval_dialogs.pop(data['request_id'], None)
+            if dialog is not None:
+                dialog.dismiss()
+        elif kind == 'ended':
+            for dialog in list(self._approval_dialogs.values()):
+                dialog.dismiss()
+            self._approval_dialogs.clear()
+
+    def _update_session_bar(self):
+        """Show the status bar under the tabs while a session is running."""
+        if self.session.active and self._session_bar is None:
+            from ui.session_widgets import SessionStatusBar
+            self._session_bar = SessionStatusBar(self, self.session, on_open=self._open_session_page)
+            self._session_bar.pack(side="bottom", fill="x", before=self.tab_bar)
+        elif not self.session.active and self._session_bar is not None:
+            self._session_bar.destroy()
+            self._session_bar = None
+        if self._session_bar is not None:
+            self._session_bar.refresh()
+
+    def _open_session_page(self):
+        """Go to the Session page: an open tab that shows it, or a new one."""
+        for tab_id, info in self._tab_views.items():
+            if info['type'] == 'session' and info.get('view') is not None:
+                self.tab_bar.select_tab(tab_id)
+                return
+        self._open_page_in_new_tab("session")
+
     # Tabs. Each tab shows one "page" at a time and navigates between pages like a browser
     # tab does: Home -> Collections / Characters -> (a collection | a character sheet).
-    # Page kinds: home, collections, characters, character_sheet, settings.
+    # Page kinds: home, collections, characters, character_sheet, game_tools, session, settings.
 
     def _create_tab_bar(self):
         """Create the tab bar and open the first tab (Home)."""
@@ -349,6 +422,8 @@ class MainWindow(ctk.CTkFrame):
             "home": "Home",
             "collections": "Collections",
             "characters": "Characters",
+            "game_tools": "Game Tools",
+            "session": "Session",
         }.get(page_type, "Spellbook")
 
     def _open_page_in_new_tab(self, page_type: str, index: Optional[int] = None,
@@ -400,7 +475,7 @@ class MainWindow(ctk.CTkFrame):
         """Open one saved tab (not selected). Returns its id, or None if it cannot be reopened."""
         page = entry.get('page')
         character = entry.get('character')
-        if page not in ("home", "collections", "characters", "character_sheet"):
+        if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -510,6 +585,16 @@ class MainWindow(ctk.CTkFrame):
                 on_character_changed=lambda name, tid=tab_id: self._on_character_changed_in_tab(tid, name),
                 on_back=lambda tid=tab_id: self._navigate_tab(tid, "characters")
             )
+        if page_type == "game_tools":
+            from ui.game_tools_view import GameToolsView
+            return GameToolsView(
+                self, service=self.session,
+                on_open=lambda key, tid=tab_id: self._open_game_tool(tid, key),
+                on_home=lambda tid=tab_id: self._navigate_tab(tid, "home")
+            )
+        if page_type == "session":
+            from ui.session_view import SessionView
+            return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
         raise ValueError(f"Unknown page type: {page_type}")
 
     def _navigate_tab(self, tab_id: str, page_type: str, **kwargs):
@@ -566,8 +651,13 @@ class MainWindow(ctk.CTkFrame):
 
     def _open_from_home(self, tab_id: str, key: str):
         """A card on a Home page was clicked."""
-        if key in ("collections", "characters"):
+        if key in ("collections", "characters", "game_tools"):
             self._navigate_tab(tab_id, key)
+
+    def _open_game_tool(self, tab_id: str, key: str):
+        """A card on the Game Tools page was clicked."""
+        if key == "session":
+            self._navigate_tab(tab_id, "session")
 
     def _open_character(self, tab_id: str, name: str, new_tab: bool = False):
         """Open a character's sheet in this tab (or a new one)."""
