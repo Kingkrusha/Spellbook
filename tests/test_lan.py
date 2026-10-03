@@ -375,3 +375,51 @@ def test_garbage_hello_is_rejected(host):
         err = json.loads(data[4:]) if data else {"type": "error"}
         assert err["type"] == "error"
     assert [p["name"] for p in host.peers()] == ["Dungeon Master"]
+
+
+# ---------------------------------------------------------------- dice commands
+
+def test_roll_is_broadcast_with_the_hosts_result(host):
+    a = join(host, "Alice")
+    b = join(host, "Bob")
+    try:
+        a.send_chat("/roll 2d6+3 Fireball damage")
+        for events in (host.events, a.events, b.events):
+            ev = wait_for(events, "roll")
+            assert ev["name"] == "Alice" and ev["from"] == a.peer_id
+            assert ev["expr"] == "2d6+3" and ev["label"] == "Fireball damage" and not ev["private"]
+            assert 5 <= ev["total"] <= 15 and ev["detail"].endswith("+ 3")
+    finally:
+        a.close()
+        b.close()
+
+
+def test_gmroll_is_private_to_roller_and_host(host):
+    a = join(host, "Alice")
+    b = join(host, "Bob")
+    try:
+        a.send_chat("/gmroll d20+2")
+        assert wait_for(host.events, "roll")["private"]
+        assert wait_for(a.events, "roll")["private"]
+        assert no_event(b.events, "roll")
+    finally:
+        a.close()
+        b.close()
+
+
+def test_host_can_roll_and_bad_commands_are_reported(host):
+    a = join(host, "Alice")
+    try:
+        host.send_chat("/r d20 adv")
+        assert wait_for(a.events, "roll")["expr"] == "2d20kh1 adv"
+        wait_for(host.events, "roll")
+
+        a.send_chat("/roll banana")
+        assert wait_for(a.events, "error")["code"] == "bad_roll"
+        a.send_chat("/dance")
+        assert wait_for(a.events, "error")["code"] == "unknown_command"
+        host.send_chat("/roll 0d6")
+        assert wait_for(host.events, "error")["code"] == "bad_roll"
+        assert no_event(a.events, "chat")                  # commands are never posted as chat
+    finally:
+        a.close()

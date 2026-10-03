@@ -98,6 +98,10 @@ class AppSettings:
     lan_require_approval: bool = True  # The host approves each player before they join
     lan_client_id: str = ""
     lan_last_invite: str = ""  # Last invite a player joined with, to fill the box next time
+    lan_overlay_enabled: bool = True  # Show the chat overlay on every page while in a session
+    lan_overlay_collapsed: bool = False  # ... collapsed to a small "Chat" button
+    lan_overlay_opacity: float = 0.72  # Backdrop opacity of the (Windows) translucent overlay
+    lan_overlay_translucent: bool = True  # Use the translucent overlay where the OS allows it
 
     # Internal flags (not user-configurable)
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
@@ -131,7 +135,8 @@ class AppSettings:
             'link_suggest_magic_items', 'link_suggest_monsters', 'link_autocomplete_names',
             'show_spell_only_summons',
             'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_client_id',
-            'lan_last_invite',
+            'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
+            'lan_overlay_opacity', 'lan_overlay_translucent',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

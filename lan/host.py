@@ -9,6 +9,8 @@ Events put on ``events`` (all plain dicts with a ``type``):
 
 * ``peer_joined`` / ``peer_left`` - ``peer`` is ``{peer_id, name, is_host}``
 * ``chat`` - ``seq, from, name, text, ts`` (includes the host's own messages)
+* ``roll`` - ``seq, from, name, expr, detail, total, label, crit, private, ts``
+* ``error`` - ``code, message`` (the host typed something invalid, e.g. a bad ``/roll``)
 * ``dm`` - ``from, name, to, text, ts`` (only DMs sent to or by the host)
 * ``approval_request`` - ``request_id, name, address``; answer with :meth:`resolve_approval`
 """
@@ -21,6 +23,7 @@ import secrets
 import time
 from typing import Awaitable, Callable, Dict, List, Optional
 
+from lan import dice
 from lan import protocol as P
 from lan.protocol import LanError, ProtocolError
 from lan.runtime import EventQueue, LoopThread
@@ -174,7 +177,7 @@ class LanHost:
         """Say something as the host (``/roll`` and friends are handled in a later phase)."""
         text = P.clean_text(text, P.MAX_CHAT)
         if text and self._started:
-            self._runner.call_soon(lambda: self._post_chat(HOST_ID, self.display_name, text))
+            self._runner.call_soon(lambda: self._handle_text(HOST_ID, self.display_name, text))
 
     def send_dm(self, peer_id: str, text: str) -> None:
         text = P.clean_text(text, P.MAX_CHAT)
@@ -367,7 +370,53 @@ class LanHost:
     async def _on_chat(self, host: "LanHost", peer: _Peer, body: dict) -> None:
         text = P.clean_text(body.get("text"), P.MAX_CHAT)
         if text:
-            self._post_chat(peer.peer_id, peer.name, text)
+            self._handle_text(peer.peer_id, peer.name, text)
+
+    ROLL = ("/roll", "/r")
+    GM_ROLL = ("/gmroll", "/gr")
+
+    def _handle_text(self, sender_id: str, name: str, text: str) -> None:
+        """Chat text from anyone (including the host): a plain message or a ``/command``."""
+        cmd, rest = dice.split_command(text)
+        if not cmd:
+            self._post_chat(sender_id, name, text)
+        elif cmd in self.ROLL + self.GM_ROLL:
+            try:
+                result = dice.roll(rest)
+            except dice.DiceError as e:
+                self._tell(sender_id, "bad_roll", str(e))
+                return
+            self._post_roll(sender_id, name, result, private=cmd in self.GM_ROLL)
+        else:
+            self._tell(sender_id, "unknown_command",
+                       f"Unknown command {cmd[:20]}. Try /roll 2d6+3, /roll d20+5 adv, or /gmroll d20 "
+                       "(only you and the DM see a /gmroll).")
+
+    def _tell(self, peer_id: str, code: str, message: str) -> None:
+        """Send a private error notice to one participant."""
+        if peer_id == HOST_ID:
+            self._emit("error", code=code, message=message)
+        elif peer_id in self._peers:
+            asyncio.ensure_future(self._send_quiet(self._peers[peer_id], {
+                "type": "error", "from": HOST_ID, "ts": time.time(),
+                "body": {"code": code, "message": message}}))
+
+    async def _send_quiet(self, peer: _Peer, msg: dict) -> None:
+        try:
+            await peer.send(msg)
+        except Exception:
+            await self._drop(peer, "connection lost")
+
+    def _post_roll(self, sender_id: str, name: str, result: "dice.Roll", private: bool) -> None:
+        self._seq += 1
+        ts = time.time()
+        body = {**result.to_body(), "seq": self._seq, "name": name, "private": private}
+        msg = {"type": "roll", "from": sender_id, "ts": ts, "body": body}
+        if not private:
+            asyncio.ensure_future(self._broadcast(msg))
+        elif sender_id in self._peers:                 # a /gmroll: only the roller and the host
+            asyncio.ensure_future(self._send_quiet(self._peers[sender_id], msg))
+        self._emit("roll", **{"from": sender_id}, **body, ts=ts)
 
     async def _on_dm(self, host: "LanHost", peer: _Peer, body: dict) -> None:
         text = P.clean_text(body.get("text"), P.MAX_CHAT)

@@ -295,6 +295,7 @@ class MainWindow(ctk.CTkFrame):
         try:
             if self._session_pump_after is not None:
                 self.after_cancel(self._session_pump_after)
+            self.chat_overlay.shutdown()
             self.session.shutdown()
         except Exception:
             pass
@@ -323,6 +324,10 @@ class MainWindow(ctk.CTkFrame):
         self.session.add_listener(self._on_session_event)
         self._session_pump_after = None
         self._session_bar = None
+        from ui.chat_overlay import ChatOverlay
+        self.chat_overlay = ChatOverlay(
+            self, self.session, self.settings_manager,
+            bottom_offset=lambda: (self._session_bar.winfo_height() if self._session_bar else 0) + 8)
         self._approval_dialogs: Dict[str, object] = {}
 
     def _ensure_session_pump(self):
@@ -368,6 +373,7 @@ class MainWindow(ctk.CTkFrame):
             self._session_bar = None
         if self._session_bar is not None:
             self._session_bar.refresh()
+        self._sync_chat_overlay()
 
     def _open_session_page(self):
         """Go to the Session page: an open tab that shows it, or a new one."""
@@ -594,7 +600,8 @@ class MainWindow(ctk.CTkFrame):
             )
         if page_type == "session":
             from ui.session_view import SessionView
-            return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
+            return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
+                               overlay=self.chat_overlay)
         raise ValueError(f"Unknown page type: {page_type}")
 
     def _navigate_tab(self, tab_id: str, page_type: str, **kwargs):
@@ -752,6 +759,17 @@ class MainWindow(ctk.CTkFrame):
 
     def _show_tab_content(self, tab_id: str):
         """Put a tab's page on screen."""
+        self._put_page_on_screen(tab_id)
+        self._sync_chat_overlay()
+
+    def _sync_chat_overlay(self):
+        """The chat overlay hides itself on the Session page (which shows the chat anyway) and
+        is lifted above whatever page was just shown."""
+        info = self._tab_views.get(self._current_tab_id) or {}
+        self.chat_overlay.suppressed = info.get('type') == 'session'
+        self.chat_overlay.refresh()
+
+    def _put_page_on_screen(self, tab_id: str):
         info = self._tab_views[tab_id]
         view = info.get('view')
         self._current_tab_type = info['type']

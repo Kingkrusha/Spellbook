@@ -5,7 +5,6 @@ The page is only a view. The connection, peers and chat log belong to the app's
 not end the session, and opening it again shows the same chat.
 """
 
-import time
 from typing import Callable, Dict, List, Optional
 
 import customtkinter as ctk
@@ -15,24 +14,28 @@ from lan.protocol import LanError
 from lan.service import CLIENT, HOSTING, JOINING, NONE
 from theme import get_theme_manager
 from typography import ui_font
+from ui.chat_input import ChatInput
+from ui.chat_render import ChatLog
 from ui.scrollable_combobox import ScrollableComboBox
 
 EVERYONE = "Everyone"
 
 
 class SessionView(ctk.CTkFrame):
-    def __init__(self, parent, service, on_back: Optional[Callable[[], None]] = None):
+    def __init__(self, parent, service, on_back: Optional[Callable[[], None]] = None, overlay=None):
         super().__init__(parent, fg_color="transparent")
         self.theme = get_theme_manager()
         self.service = service
         self.on_back = on_back
+        self.overlay = overlay          # the chat overlay (its options are offered here)
 
         self._rendered_role: Optional[str] = None
         self._chat_box: Optional[ctk.CTkTextbox] = None
         self._peers_frame: Optional[ctk.CTkFrame] = None
         self._to_var = ctk.StringVar(value=EVERYONE)
         self._to_combo: Optional[ScrollableComboBox] = None
-        self._msg_entry: Optional[ctk.CTkEntry] = None
+        self._input: Optional[ChatInput] = None
+        self._log: Optional[ChatLog] = None
         self._error_label: Optional[ctk.CTkLabel] = None
 
         outer = ctk.CTkFrame(self, fg_color="transparent")
@@ -75,7 +78,8 @@ class SessionView(ctk.CTkFrame):
         except Exception:
             return
         if kind == "line":
-            self._append_line(data["line"])
+            if self._log is not None:
+                self._log.append(data["line"])
         elif kind == "state":
             if self.service.role != self._rendered_role:
                 self._render()
@@ -93,7 +97,8 @@ class SessionView(ctk.CTkFrame):
     def _render(self):
         for child in self.body.winfo_children():
             child.destroy()
-        self._chat_box = self._peers_frame = self._to_combo = self._msg_entry = self._error_label = None
+        self._chat_box = self._peers_frame = self._to_combo = self._input = self._log = None
+        self._error_label = None
         role = self.service.role
         self._rendered_role = role
         if role in (HOSTING, CLIENT):
@@ -240,28 +245,16 @@ class SessionView(ctk.CTkFrame):
         self._chat_box = ctk.CTkTextbox(left, wrap="word", state="disabled", font=ui_font("body"),
                                         fg_color=self.theme.get_current_color('bg_secondary'))
         self._chat_box.pack(fill="both", expand=True)
-        text = self._chat_box._textbox
-        text.tag_config("system", foreground=self.theme.get_text_secondary())
-        text.tag_config("name", foreground=self.theme.get_current_color('text_primary'))
-        text.tag_config("me", foreground=self.theme.get_current_color('text_label'))
-        text.tag_config("dm", foreground=self.theme.get_current_color('text_warning'))
-        text.tag_config("time", foreground=self.theme.get_text_disabled())
-        for line in s.chat:
-            self._append_line(line, scroll=False)
-        self._chat_box.see("end")
+        self._log = ChatLog(self._chat_box._textbox, s, popup_parent=self.winfo_toplevel)
+        self._log.set_lines(s.chat)
 
         row = ctk.CTkFrame(left, fg_color="transparent")
         row.pack(fill="x", pady=(8, 0))
         self._to_combo = ScrollableComboBox(row, width=130, height=34, variable=self._to_var,
                                             values=[EVERYONE], state="readonly")
         self._to_combo.pack(side="left", padx=(0, 6))
-        self._msg_entry = ctk.CTkEntry(row, height=34, placeholder_text="Say something…")
-        self._msg_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        self._msg_entry.bind("<Return>", lambda _e: self._send())
-        ctk.CTkButton(row, text="Send", width=70, height=34,
-                      fg_color=self.theme.get_current_color('accent_primary'),
-                      hover_color=self.theme.get_current_color('accent_hover'),
-                      command=self._send).pack(side="left")
+        self._input = ChatInput(row, s, get_whisper_target=self._whisper_target)
+        self._input.pack(side="left", fill="x", expand=True)
 
         # side column
         side = ctk.CTkFrame(self.body, fg_color=self.theme.get_current_color('bg_secondary'),
@@ -274,8 +267,10 @@ class SessionView(ctk.CTkFrame):
         self._peers_frame.pack(fill="x", padx=12)
         if s.role == HOSTING:
             self._build_invite_panel(side)
+        if self.overlay is not None:
+            self._build_overlay_options(side)
         self._refresh_peers()
-        self._msg_entry.focus_set()
+        self._input.focus()
 
     def _build_invite_panel(self, parent):
         s = self.service
@@ -343,44 +338,25 @@ class SessionView(ctk.CTkFrame):
             if self._to_var.get() not in names:
                 self._to_var.set(EVERYONE)
 
-    # ------------------------------------------------------------------ chat
+    def _whisper_target(self) -> Optional[str]:
+        """The peer picked in the "to" box, or None for everyone."""
+        return getattr(self, "_names_to_ids", {}).get(self._to_var.get())
 
-    def _send(self):
-        if self._msg_entry is None:
-            return
-        text = self._msg_entry.get().strip()
-        if not text:
-            return
-        target = self._to_var.get()
-        if target != EVERYONE and target in getattr(self, "_names_to_ids", {}):
-            self.service.send_dm(self._names_to_ids[target], text)
+    def _build_overlay_options(self, parent):
+        o = self.overlay
+        ctk.CTkLabel(parent, text="Chat overlay", font=ui_font("heading", 16, bold=True)
+                     ).pack(anchor="w", padx=16, pady=(18, 2))
+        var = ctk.BooleanVar(value=o.enabled)
+        ctk.CTkCheckBox(parent, text="Show it on other pages", variable=var,
+                        command=lambda: o.set_enabled(var.get())).pack(anchor="w", padx=16, pady=(2, 6))
+        if o.supports_translucency:
+            ctk.CTkLabel(parent, text="Transparency", font=ui_font("small"),
+                         text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16)
+            slider = ctk.CTkSlider(parent, from_=0.2, to=0.95, number_of_steps=15,
+                                   command=lambda v: o.set_opacity(v))
+            slider.set(o.opacity)
+            slider.pack(fill="x", padx=16, pady=(0, 4))
         else:
-            self.service.send_chat(text)
-        self._msg_entry.delete(0, "end")
-
-    def _append_line(self, line: dict, scroll: bool = True):
-        box = self._chat_box
-        if box is None:
-            return
-        text = box._textbox
-        at_bottom = box.yview()[1] >= 0.999
-        stamp = time.strftime("%H:%M", time.localtime(line["ts"]))
-        box.configure(state="normal")
-        if line["kind"] == "system":
-            text.insert("end", f"{stamp}  {line['text']}\n", "system")
-        elif line["kind"] == "dm":
-            s = self.service
-            if line["from"] == s.my_id:
-                who = f"You → {s.peer_name(line['to']) or 'them'}"
-            else:
-                who = f"{line['name']} → you"
-            text.insert("end", f"{stamp}  ", "time")
-            text.insert("end", f"(whisper) {who}: ", "dm")
-            text.insert("end", f"{line['text']}\n", "dm")
-        else:
-            text.insert("end", f"{stamp}  ", "time")
-            text.insert("end", f"{line['name']}: ", "me" if line["mine"] else "name")
-            text.insert("end", f"{line['text']}\n")
-        box.configure(state="disabled")
-        if scroll and (at_bottom or line.get("mine")):
-            box.see("end")
+            ctk.CTkLabel(parent, text="(Translucent overlay is Windows-only for now.)", font=ui_font("small"),
+                         text_color=self.theme.get_text_secondary(), wraplength=250, justify="left"
+                         ).pack(anchor="w", padx=16)

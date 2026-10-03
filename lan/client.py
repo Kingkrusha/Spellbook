@@ -5,6 +5,7 @@ worker thread, not the UI thread. After that everything arrives on :attr:`events
 
 * ``chat`` - ``seq, from, name, text, ts``
 * ``dm`` - ``from, name, to, text, ts``
+* ``roll`` - ``seq, from, name, expr, detail, total, label, crit, private, ts``
 * ``peer_joined`` / ``peer_left`` - ``peer``
 * ``error`` - ``code, message`` (a soft error; the session continues)
 * ``disconnected`` - ``reason`` (always the last event)
@@ -203,6 +204,12 @@ class LanClient:
         elif kind == "dm":
             self.events.put("dm", **{"from": sender}, name=str(body.get("name") or ""),
                             to=str(body.get("to") or ""), text=str(body.get("text") or ""), ts=ts)
+        elif kind == "roll":
+            self.events.put("roll", seq=body.get("seq", 0), **{"from": sender},
+                            name=str(body.get("name") or ""), expr=str(body.get("expr") or ""),
+                            detail=str(body.get("detail") or ""), total=body.get("total", 0),
+                            label=str(body.get("label") or ""), crit=str(body.get("crit") or ""),
+                            private=bool(body.get("private")), ts=ts)
         elif kind == "presence":
             peer = body.get("peer")
             if isinstance(peer, dict) and "peer_id" in peer:

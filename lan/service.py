@@ -12,7 +12,8 @@ widgets freely.
 Listener events - ``listener(kind, **data)``:
 
 * ``state``            - the role or the peer list changed
-* ``line``             - ``line`` was appended to :attr:`chat` (a dict, see :meth:`_add_line`)
+* ``line``             - ``line`` was appended to :attr:`chat` (a dict, see :meth:`_add_line`);
+                         a dice roll has ``kind == "roll"`` and a ``roll`` dict
 * ``approval_request`` - host only: ``request_id, name, address``
 * ``approval_done``    - host only: ``request_id`` (answered, so close any prompt)
 * ``join_failed``      - ``message``
@@ -329,6 +330,9 @@ class SessionService:
             self._add_line("chat", ev["text"], name=ev["name"], sender=ev["from"], ts=ev["ts"])
         elif kind == "dm":
             self._add_line("dm", ev["text"], name=ev["name"], sender=ev["from"], to=ev.get("to", ""), ts=ev["ts"])
+        elif kind == "roll":
+            roll = {k: ev.get(k) for k in ("expr", "detail", "total", "label", "crit", "private")}
+            self._add_line("roll", "", name=ev["name"], sender=ev["from"], ts=ev["ts"], roll=roll)
         elif kind == "peer_joined":
             self._set_peer(ev["peer"])
             self._add_line("system", f"{ev['peer']['name']} joined.")
@@ -351,10 +355,16 @@ class SessionService:
     def _drop_peer(self, peer: dict) -> None:
         self.peers = [p for p in self.peers if p["peer_id"] != peer["peer_id"]]
 
+    def note(self, text: str) -> None:
+        """A system line only this user sees (e.g. the ``/help`` text)."""
+        self._add_line("system", text)
+
     def _add_line(self, kind: str, text: str, name: str = "", sender: str = "", to: str = "",
-                  ts: Optional[float] = None) -> None:
+                  ts: Optional[float] = None, roll: Optional[dict] = None) -> None:
         line = {"kind": kind, "text": text, "name": name, "from": sender, "to": to,
                 "ts": ts or time.time(), "mine": bool(sender) and sender == self.my_id}
+        if roll is not None:
+            line["roll"] = roll
         self.chat.append(line)
         if len(self.chat) > MAX_CHAT_LINES:
             del self.chat[:len(self.chat) - MAX_CHAT_LINES]
