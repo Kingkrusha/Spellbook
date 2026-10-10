@@ -660,7 +660,10 @@ class SettingsView(ctk.CTkFrame):
         
         ctk.CTkLabel(
             legacy_content,
-            text="Control how 2014 (legacy) D&D content is displayed:",
+            text="Control which versions of content are offered. Each spell, feat, species, background and class is listed once; "
+                 "its 2024 and 2014 versions are switched with the Source drop-down on its page:",
+            wraplength=720,
+            justify="left",
             font=ui_font("body", 13),
             text_color=text_secondary
         ).pack(anchor="w", pady=(0, 15))
@@ -670,10 +673,10 @@ class SettingsView(ctk.CTkFrame):
         )
         
         legacy_options = [
-            ("Show All Content", "show_all", "Display both 2014 and 2024 content"),
-            ("Show Unupdated", "show_unupdated", "Show 2024 content, plus 2014 content only if no 2024 version exists"),
-            ("No Legacy Content", "no_legacy", "Hide all 2014 content"),
-            ("Legacy Only", "legacy_only", "Show only 2014 content"),
+            ("Show All Content", "show_all", "Offer both the 2014 and 2024 versions"),
+            ("Show Unupdated", "show_unupdated", "Offer the 2024 version, and 2014 versions only where there is no 2024 one"),
+            ("No Legacy Content", "no_legacy", "Hide all 2014 versions"),
+            ("Legacy Only", "legacy_only", "Offer only 2014 versions"),
         ]
         
         for label, value, description in legacy_options:

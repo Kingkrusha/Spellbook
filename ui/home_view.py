@@ -20,7 +20,7 @@ class HomeView(ctk.CTkFrame):
         ("characters", "⚔️ Characters",
          "Your characters and their sheets. Create, sort, filter, import and export them.", True),
         ("game_tools", "🎲 Game Tools",
-         "Tools to help you run your games smoothly: host a LAN session, chat with your table and send characters.", True),
+         "Tools to help you run your games smoothly", True),
     ]
 
     def __init__(self, parent, on_open: Optional[Callable[[str], None]] = None):

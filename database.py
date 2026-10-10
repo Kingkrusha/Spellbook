@@ -17,7 +17,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 29  # Flesh Golem speed fix (the epithet column rename is self-healing)
+    SCHEMA_VERSION = 30  # bundled legacy (2014) content
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -488,6 +488,19 @@ class SpellDatabase:
             cursor.execute("UPDATE schema_version SET version = 29")
             current_version = 29
 
+        # Migration to version 30: add the bundled legacy (2014) content from
+        # legacy_2014.json - spells, feats, lineages, backgrounds, classes and
+        # subclasses, all flagged is_legacy. Inserted by name and only if the
+        # name is missing (a 2014 entry whose name 2024 content owns is stored
+        # as "Name (Legacy)"), so nothing already there - or user-made - is
+        # touched. Legacy text is linked at build time and is not swept, so no
+        # link pass is needed. Idempotent, and retried on the next launch if
+        # seeding can't run.
+        if current_version < 30:
+            if self._seed_legacy_content(cursor):
+                cursor.execute("UPDATE schema_version SET version = 30")
+                current_version = 30
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -827,49 +840,105 @@ class SpellDatabase:
             "WHERE name = 'The Horrors Within' AND is_custom = 0 AND COALESCE(source, '') = ''",
             ("Harkon's Bite", "Ravenloft - The Horrors Within"))
 
-    def _seed_missing_subclasses(self, cursor) -> bool:
-        """INSERT OR IGNORE the bundled classes.json subclasses.
+    def _insert_class_with_subclasses(self, cursor, class_name, cls) -> int:
+        """INSERT OR IGNORE one bundled class and its subclasses; returns how many rows were added.
 
-        (name, class) is unique, so subclasses already present - including any
-        the user has customised - are never touched. Returns True on success.
+        The class name is UNIQUE and so is (subclass name, class), so rows that
+        already exist - including any the user has customised - are never
+        touched.
+        """
+        added = 0
+        # Build spellcasting info from JSON fields
+        spellcasting_info = None
+        if cls.get('is_spellcaster', False):
+            spellcasting_info = {
+                'is_spellcaster': True,
+                'ability': cls.get('spellcasting_ability', '')
+            }
+        cursor.execute("""
+            INSERT OR IGNORE INTO classes
+            (name, hit_die, primary_ability, saving_throws_json, armor_proficiencies_json,
+             weapon_proficiencies_json, tool_proficiencies_json, skill_proficiencies_json,
+             num_skills, starting_equipment_json, class_features_json, spellcasting_json,
+             subclass_name, subclass_level, class_table_columns_json, trackable_features_json,
+             class_spells_json, unarmored_defense, source, is_official, is_custom, is_legacy)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            class_name,
+            cls.get('hit_die', 'd8'),
+            cls.get('primary_ability', ''),
+            json.dumps(cls.get('saving_throw_proficiencies', [])),
+            json.dumps(cls.get('armor_proficiencies', [])),
+            json.dumps(cls.get('weapon_proficiencies', [])),
+            json.dumps(cls.get('tool_proficiencies', [])),
+            json.dumps(cls.get('skill_proficiency_options', [])),
+            cls.get('skill_proficiency_choices', 2),
+            json.dumps(cls.get('starting_equipment_options', [])),
+            json.dumps(cls.get('levels', {})),
+            json.dumps(spellcasting_info) if spellcasting_info else 'null',
+            cls.get('subclass_name', ''),
+            cls.get('subclass_level', 3),
+            json.dumps(cls.get('class_table_columns', [])),
+            json.dumps(cls.get('trackable_features', [])),
+            json.dumps(cls.get('class_spells', [])),
+            cls.get('unarmored_defense', ''),
+            cls.get('source', ''),
+            1 if cls.get('is_official', True) else 0,
+            1 if cls.get('is_custom', False) else 0,
+            1 if cls.get('is_legacy', False) else 0
+        ))
+        added += cursor.rowcount
+
+        cursor.execute("SELECT id FROM classes WHERE name = ? COLLATE NOCASE", (class_name,))
+        row = cursor.fetchone()
+        if not row:
+            return added
+        for sub in cls.get('subclasses', []):
+            # Store all subclass data in features_json
+            features_data = {
+                'features': sub.get('features', []),
+                'subclass_spells': sub.get('subclass_spells', []),
+                'armor_proficiencies': sub.get('armor_proficiencies', []),
+                'weapon_proficiencies': sub.get('weapon_proficiencies', []),
+                'unarmored_defense': sub.get('unarmored_defense', ''),
+                'trackable_features': sub.get('trackable_features', []),
+            }
+            cursor.execute("""
+                INSERT OR IGNORE INTO subclasses
+                (name, class_id, description, features_json, source, is_official, is_custom, is_legacy)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                sub.get('name', ''), row[0], sub.get('description', ''),
+                json.dumps(features_data), sub.get('source', ''),
+                1 if sub.get('is_official', True) else 0,
+                1 if sub.get('is_custom', False) else 0,
+                1 if sub.get('is_legacy', False) else 0,
+            ))
+            added += cursor.rowcount
+        return added
+
+    def _seed_missing_subclasses(self, cursor, classes=None) -> bool:
+        """INSERT OR IGNORE the bundled classes.json classes and subclasses.
+
+        Rows that already exist - including any the user has customised - are
+        never touched. ``classes`` is an already-loaded ``{name: class}`` (the
+        legacy bundle). Returns True on success.
         """
         import os
 
-        path = self._bundled_json_path('classes.json')
-        if not os.path.exists(path):
-            return True
+        if classes is None:
+            path = self._bundled_json_path('classes.json')
+            if not os.path.exists(path):
+                return True
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                classes = json.load(f).get('classes', {})
+            if classes is None:
+                with open(path, 'r', encoding='utf-8') as f:
+                    classes = json.load(f).get('classes', {})
             added = 0
             for class_name, cls in classes.items():
-                cursor.execute("SELECT id FROM classes WHERE name = ? COLLATE NOCASE", (class_name,))
-                row = cursor.fetchone()
-                if not row:
-                    continue
-                for sub in cls.get('subclasses', []):
-                    features_data = {
-                        'features': sub.get('features', []),
-                        'subclass_spells': sub.get('subclass_spells', []),
-                        'armor_proficiencies': sub.get('armor_proficiencies', []),
-                        'weapon_proficiencies': sub.get('weapon_proficiencies', []),
-                        'unarmored_defense': sub.get('unarmored_defense', ''),
-                        'trackable_features': sub.get('trackable_features', []),
-                    }
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO subclasses
-                        (name, class_id, description, features_json, source, is_official, is_custom, is_legacy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        sub.get('name', ''), row[0], sub.get('description', ''),
-                        json.dumps(features_data), sub.get('source', ''),
-                        1 if sub.get('is_official', True) else 0,
-                        1 if sub.get('is_custom', False) else 0,
-                        1 if sub.get('is_legacy', False) else 0,
-                    ))
-                    added += cursor.rowcount
+                added += self._insert_class_with_subclasses(cursor, class_name, cls)
             if added:
-                print(f"Added {added} bundled subclass(es)")
+                print(f"Added {added} bundled class/subclass row(s)")
             return True
         except Exception as e:
             print(f"Error seeding subclasses (will retry next launch): {e}")
@@ -881,25 +950,30 @@ class SpellDatabase:
         Runs the same sweep (object_link_sweep) that was applied to the bundled
         source files, so an upgraded install matches a fresh one. Only official
         rows are touched: custom rows never are, and spells the user has edited
-        (is_modified) are left alone. Idempotent. Returns True on success.
+        (is_modified) are left alone. Legacy (2014) rows are neither swept nor
+        offered as link targets: their text was linked when it was imported
+        (to the legacy versions of what it names), and 2024 text must keep
+        pointing at 2024 content. Idempotent. Returns True on success.
         """
         try:
             import object_link_sweep as sweep
             from tools.spell_data import get_all_spells
 
-            official_spells = {s['name'] for s in get_all_spells()}
+            official_spells = {s['name'] for s in get_all_spells() if not s.get('is_legacy')}
 
             def official_names(table, extra=""):
                 cursor.execute(f"SELECT name FROM {table} WHERE is_custom = 0{extra}")
                 return [r[0] for r in cursor.fetchall()]
 
+            current = " AND is_legacy = 0"   # tables with a legacy flag
+
             uni = sweep.Universe({
                 'spell': official_spells,
-                'feat': official_names('feats'),
-                'lineage': official_names('lineages'),
-                'background': official_names('backgrounds'),
-                'class': official_names('classes'),
-                'subclass': official_names('subclasses'),
+                'feat': official_names('feats', current),
+                'lineage': official_names('lineages', current),
+                'background': official_names('backgrounds', current),
+                'class': official_names('classes', current),
+                'subclass': official_names('subclasses', current),
                 # Mount animals are left out (prose naming them means the creature; see tools/link_sweep.py)
                 'equipment': official_names('equipment', " AND tags_json NOT LIKE '%\"Mount\"%'"),
                 'magic_item': official_names('magic_items'),
@@ -913,17 +987,17 @@ class SpellDatabase:
                 fn(rec, uni, changes)
                 return len(changes) > before
 
-            cursor.execute("SELECT id, name, description FROM spells WHERE is_modified = 0")
+            cursor.execute("SELECT id, name, description FROM spells WHERE is_modified = 0 AND is_legacy = 0")
             for row_id, name, desc in cursor.fetchall():
                 rec = {'name': name, 'description': desc}
                 if name in official_spells and swept(sweep.sweep_spell, rec):
                     cursor.execute("UPDATE spells SET description = ? WHERE id = ?",
                                    (rec['description'], row_id))
 
-            for table, fn in (('feats', sweep.sweep_feat),
-                              ('equipment', sweep.sweep_equipment),
-                              ('magic_items', sweep.sweep_magic_item)):
-                cursor.execute(f"SELECT id, name, description FROM {table} WHERE is_custom = 0")
+            for table, fn, extra in (('feats', sweep.sweep_feat, current),
+                                     ('equipment', sweep.sweep_equipment, ""),
+                                     ('magic_items', sweep.sweep_magic_item, "")):
+                cursor.execute(f"SELECT id, name, description FROM {table} WHERE is_custom = 0{extra}")
                 for row_id, name, desc in cursor.fetchall():
                     rec = {'name': name, 'description': desc}
                     if swept(fn, rec):
@@ -944,21 +1018,21 @@ class SpellDatabase:
                         + ", ".join(f"{g}_json = ?" for g in monster_groups) + " WHERE id = ?",
                         [rec['description']] + [json.dumps(rec[g]) for g in monster_groups] + [row[0]])
 
-            cursor.execute("SELECT id, name, description, traits_json FROM lineages WHERE is_custom = 0")
+            cursor.execute("SELECT id, name, description, traits_json FROM lineages WHERE is_custom = 0 AND is_legacy = 0")
             for row_id, name, desc, traits in cursor.fetchall():
                 rec = {'name': name, 'description': desc, 'traits': json.loads(traits or '[]')}
                 if swept(sweep.sweep_lineage, rec):
                     cursor.execute("UPDATE lineages SET description = ?, traits_json = ? WHERE id = ?",
                                    (rec['description'], json.dumps(rec['traits']), row_id))
 
-            cursor.execute("SELECT id, name, description, equipment FROM backgrounds WHERE is_custom = 0")
+            cursor.execute("SELECT id, name, description, equipment FROM backgrounds WHERE is_custom = 0 AND is_legacy = 0")
             for row_id, name, desc, gear in cursor.fetchall():
                 rec = {'name': name, 'description': desc, 'equipment': gear}
                 if swept(sweep.sweep_background, rec):
                     cursor.execute("UPDATE backgrounds SET description = ?, equipment = ? WHERE id = ?",
                                    (rec['description'], rec['equipment'], row_id))
 
-            cursor.execute("SELECT id, name, class_features_json FROM classes WHERE is_custom = 0")
+            cursor.execute("SELECT id, name, class_features_json FROM classes WHERE is_custom = 0 AND is_legacy = 0")
             for row_id, name, levels_json in cursor.fetchall():
                 levels = json.loads(levels_json or '{}')
                 before = len(changes)
@@ -967,7 +1041,7 @@ class SpellDatabase:
                     cursor.execute("UPDATE classes SET class_features_json = ? WHERE id = ?",
                                    (json.dumps(levels), row_id))
 
-            cursor.execute("SELECT id, name, description, features_json FROM subclasses WHERE is_custom = 0")
+            cursor.execute("SELECT id, name, description, features_json FROM subclasses WHERE is_custom = 0 AND is_legacy = 0")
             for row_id, name, desc, features_json in cursor.fetchall():
                 data = json.loads(features_json or '{}')
                 rec = {'name': name, 'description': desc, 'features': data.get('features', [])}
@@ -1053,16 +1127,21 @@ class SpellDatabase:
             except Exception as e:
                 print(f"Error seeding magic items: {e}")
 
-    def _seed_lineages(self, cursor) -> bool:
-        """INSERT OR IGNORE the bundled lineages.json rows (name is UNIQUE)."""
+    def _seed_lineages(self, cursor, data=None) -> bool:
+        """INSERT OR IGNORE the bundled lineages.json rows (name is UNIQUE).
+
+        ``data`` is an already-loaded ``{"lineages": [...]}`` (the legacy bundle).
+        """
         import os
 
-        path = self._bundled_json_path('lineages.json')
-        if not os.path.exists(path):
-            return True
+        if data is None:
+            path = self._bundled_json_path('lineages.json')
+            if not os.path.exists(path):
+                return True
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            if data is None:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
             for lin in data.get('lineages', []):
                 cursor.execute("""
                     INSERT OR IGNORE INTO lineages
@@ -1086,16 +1165,21 @@ class SpellDatabase:
             return False
         return True
 
-    def _seed_feats(self, cursor) -> bool:
-        """INSERT OR IGNORE the bundled feats.json rows (name is UNIQUE)."""
+    def _seed_feats(self, cursor, data=None) -> bool:
+        """INSERT OR IGNORE the bundled feats.json rows (name is UNIQUE).
+
+        ``data`` is an already-loaded ``{"feats": [...]}`` (the legacy bundle).
+        """
         import os
 
-        path = self._bundled_json_path('feats.json')
-        if not os.path.exists(path):
-            return True
+        if data is None:
+            path = self._bundled_json_path('feats.json')
+            if not os.path.exists(path):
+                return True
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            if data is None:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
             for feat in data.get('feats', []):
                 cursor.execute("""
                     INSERT OR IGNORE INTO feats
@@ -1123,16 +1207,21 @@ class SpellDatabase:
             return False
         return True
 
-    def _seed_backgrounds(self, cursor) -> bool:
-        """INSERT OR IGNORE the bundled backgrounds.json rows (name is UNIQUE)."""
+    def _seed_backgrounds(self, cursor, data=None) -> bool:
+        """INSERT OR IGNORE the bundled backgrounds.json rows (name is UNIQUE).
+
+        ``data`` is an already-loaded ``{"backgrounds": [...]}`` (the legacy bundle).
+        """
         import os
 
-        path = self._bundled_json_path('backgrounds.json')
-        if not os.path.exists(path):
-            return True
+        if data is None:
+            path = self._bundled_json_path('backgrounds.json')
+            if not os.path.exists(path):
+                return True
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            if data is None:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
             for bg in data.get('backgrounds', []):
                 cursor.execute("""
                     INSERT OR IGNORE INTO backgrounds
@@ -1159,33 +1248,37 @@ class SpellDatabase:
             return False
         return True
 
-    def _seed_missing_spells(self, cursor) -> int:
+    def _seed_missing_spells(self, cursor, spells=None) -> int:
         """Insert bundled official spells (tools/spell_data.py) whose name isn't in the table.
 
         Matches by name, case-insensitively, so a spell the user already has -
         official, edited or homebrew - is never touched or duplicated. Uses the
         caller's cursor (bulk_insert_spells opens its own connection, which
-        would contend with the migration's open transaction).
+        would contend with the migration's open transaction). ``spells`` is the
+        legacy bundle's list.
         """
-        from tools.spell_data import get_all_spells
+        if spells is None:
+            from tools.spell_data import get_all_spells
+            spells = get_all_spells()
 
         added = 0
-        for spell in get_all_spells():
+        for spell in spells:
             cursor.execute("SELECT 1 FROM spells WHERE name = ? COLLATE NOCASE", (spell['name'],))
             if cursor.fetchone():
                 continue
             cursor.execute("""
                 INSERT INTO spells (
                     name, level, casting_time, ritual, range_value,
-                    components, duration, concentration, description, source, original_name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    components, duration, concentration, description, source, original_name, is_legacy
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 spell['name'], spell['level'], spell['casting_time'],
                 1 if spell.get('ritual', False) else 0, spell['range_value'],
                 spell['components'], spell['duration'],
                 1 if spell.get('concentration', False) else 0,
                 spell.get('description', ''), spell.get('source', ''),
-                spell.get('original_name', spell['name'])
+                spell.get('original_name', spell['name']),
+                1 if spell.get('is_legacy', False) else 0
             ))
             spell_id = cursor.lastrowid
             cursor.executemany(
@@ -1196,6 +1289,44 @@ class SpellDatabase:
                 [(spell_id, self.normalize_tag(t)) for t in spell.get('tags', [])])
             added += 1
         return added
+
+    def _legacy_bundle(self) -> dict:
+        """The bundled 2014 content (legacy_2014.json): spells, feats, lineages, backgrounds, classes.
+
+        Entries whose name 2024 content already owns are stored as "Name (Legacy)"
+        (see legacy_content.py); every record carries is_legacy.
+        """
+        import os
+
+        path = self._bundled_json_path('legacy_2014.json')
+        if not os.path.exists(path):
+            return {}
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def _seed_legacy_content(self, cursor, include_spells: bool = True) -> bool:
+        """Insert the bundled legacy (2014) content, by name, skipping what exists.
+
+        Nothing already there - official, edited or user-made - is touched.
+        ``include_spells`` is False on a fresh database, whose spells are
+        populated separately (populate_initial_spells). Returns True on success.
+        """
+        try:
+            bundle = self._legacy_bundle()
+            if not bundle:
+                return True
+            ok = self._seed_lineages(cursor, {'lineages': bundle.get('lineages', [])})
+            ok = self._seed_feats(cursor, {'feats': bundle.get('feats', [])}) and ok
+            ok = self._seed_backgrounds(cursor, {'backgrounds': bundle.get('backgrounds', [])}) and ok
+            ok = self._seed_missing_subclasses(cursor, bundle.get('classes', {})) and ok
+            if include_spells:
+                added = self._seed_missing_spells(cursor, bundle.get('spells', []))
+                if added:
+                    print(f"Added {added} bundled legacy spell(s)")
+            return ok
+        except Exception as e:
+            print(f"Error seeding legacy content (will retry next launch): {e}")
+            return False
 
     def _seed_new_official_content(self, cursor) -> bool:
         """Backfill the bundled content that shipped after the tables were first seeded.
@@ -1251,79 +1382,13 @@ class SpellDatabase:
                     data = json.load(f)
                 classes_data = data.get('classes', {})
                 for class_name, cls in classes_data.items():
-                    # Build spellcasting info from JSON fields
-                    spellcasting_info = None
-                    if cls.get('is_spellcaster', False):
-                        spellcasting_info = {
-                            'is_spellcaster': True,
-                            'ability': cls.get('spellcasting_ability', '')
-                        }
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO classes 
-                        (name, hit_die, primary_ability, saving_throws_json, armor_proficiencies_json,
-                         weapon_proficiencies_json, tool_proficiencies_json, skill_proficiencies_json,
-                         num_skills, starting_equipment_json, class_features_json, spellcasting_json,
-                         subclass_name, subclass_level, class_table_columns_json, trackable_features_json,
-                         class_spells_json, unarmored_defense, source, is_official, is_custom, is_legacy)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        class_name,
-                        cls.get('hit_die', 'd8'),
-                        cls.get('primary_ability', ''),
-                        json.dumps(cls.get('saving_throw_proficiencies', [])),
-                        json.dumps(cls.get('armor_proficiencies', [])),
-                        json.dumps(cls.get('weapon_proficiencies', [])),
-                        json.dumps(cls.get('tool_proficiencies', [])),
-                        json.dumps(cls.get('skill_proficiency_options', [])),
-                        cls.get('skill_proficiency_choices', 2),
-                        json.dumps(cls.get('starting_equipment_options', [])),
-                        json.dumps(cls.get('levels', {})),
-                        json.dumps(spellcasting_info) if spellcasting_info else 'null',
-                        cls.get('subclass_name', ''),
-                        cls.get('subclass_level', 3),
-                        json.dumps(cls.get('class_table_columns', [])),
-                        json.dumps(cls.get('trackable_features', [])),
-                        json.dumps(cls.get('class_spells', [])),
-                        cls.get('unarmored_defense', ''),
-                        cls.get('source', ''),
-                        1 if cls.get('is_official', True) else 0,
-                        1 if cls.get('is_custom', False) else 0,
-                        1 if cls.get('is_legacy', False) else 0
-                    ))
-                    
-                    # Get the class ID for subclasses
-                    cursor.execute("SELECT id FROM classes WHERE name = ? COLLATE NOCASE", (class_name,))
-                    row = cursor.fetchone()
-                    if row:
-                        class_id = row[0]
-                        # Migrate subclasses
-                        for subclass in cls.get('subclasses', []):
-                            # Store all subclass data in features_json
-                            features_data = {
-                                'features': subclass.get('features', []),
-                                'subclass_spells': subclass.get('subclass_spells', []),
-                                'armor_proficiencies': subclass.get('armor_proficiencies', []),
-                                'weapon_proficiencies': subclass.get('weapon_proficiencies', []),
-                                'unarmored_defense': subclass.get('unarmored_defense', ''),
-                                'trackable_features': subclass.get('trackable_features', [])
-                            }
-                            cursor.execute("""
-                                INSERT OR IGNORE INTO subclasses 
-                                (name, class_id, description, features_json, source, is_official, is_custom, is_legacy)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                subclass.get('name', ''),
-                                class_id,
-                                subclass.get('description', ''),
-                                json.dumps(features_data),
-                                subclass.get('source', ''),
-                                1 if subclass.get('is_official', True) else 0,
-                                1 if subclass.get('is_custom', False) else 0,
-                                1 if subclass.get('is_legacy', False) else 0
-                            ))
+                    self._insert_class_with_subclasses(cursor, class_name, cls)
                 print(f"Migrated {len(classes_data)} classes to database")
             except Exception as e:
                 print(f"Error migrating classes: {e}")
+
+        # Bundled legacy (2014) content (its spells come with populate_initial_spells)
+        self._seed_legacy_content(cursor, include_spells=False)
     
     def _remigrate_class_features(self, cursor):
         """Re-migrate class_features_json from JSON file to fix incorrect field mapping."""
@@ -1533,6 +1598,9 @@ class SpellDatabase:
         
         spells = get_all_spells()
         count = self.bulk_insert_spells(spells)
+
+        # ...and the bundled legacy (2014) spells
+        count += self.bulk_insert_spells(self._legacy_bundle().get('spells', []))
         
         # Also add the summon-spell creatures
         self._populate_initial_summon_monsters()
@@ -2282,8 +2350,8 @@ class SpellDatabase:
                     cursor.execute("""
                         INSERT INTO spells (
                             name, level, casting_time, ritual, range_value,
-                            components, duration, concentration, description, source, original_name
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            components, duration, concentration, description, source, original_name, is_legacy
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         spell_data['name'],
                         spell_data['level'],
@@ -2295,7 +2363,8 @@ class SpellDatabase:
                         1 if spell_data.get('concentration', False) else 0,
                         spell_data.get('description', ''),
                         spell_data.get('source', ''),
-                        original_name
+                        original_name,
+                        1 if spell_data.get('is_legacy', False) else 0
                     ))
                     
                     spell_id = cursor.lastrowid

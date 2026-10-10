@@ -15,6 +15,7 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 - **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic
 - **Stat Blocks**: Attach creature stat blocks to summoning spells
 - **Collections Browser**: Browse official Lineages, Feats, Classes, Subclasses, and Backgrounds with global search
+- **Legacy (2014) content**: The 2014 rules are bundled too (`legacy_2014.json`: spells, feats, species, backgrounds, classes and subclasses from the published 5e books, all flagged Legacy). A 2014 entry whose name 2024 content already uses is stored as `Name (Legacy)` (for example *Fireball (Legacy)*, *Fighter (Legacy)*); browsing lists show each spell, feat, species, background and class once, and the **Source** line of its page is a drop-down that switches between its versions (the 2024 one, the 2014 one, or a 2014 book's update such as Monsters of the Multiverse). The Legacy content setting (Settings) decides which versions are offered: everything, none, only 2014, or *Show Unupdated* (2014 versions only where there is no 2024 one)
 - **Import/Export**: Import and export custom content (homebrew) as JSON files
 - **Lineages**: Browse and create custom lineages (races) with trait descriptions
 - **Feats**: Browse and create feats with prerequisites and spellcasting grants
@@ -154,6 +155,9 @@ Spellbook/
 │   ├── character_transfer.py # Character import/export (JSON)
 │   ├── global_search.py    # Global search bar for collections
 │   ├── collections_view.py # Collections browser with content import/export
+│   ├── spells_view.py      # Spells page (search, filters, list, detail, compare) - one per tab
+│   ├── lazy_destroy.py     # Takes old pages apart in small slices so the window never freezes
+│   ├── virtual_list.py     # Virtualized list base for Feats/Lineages/Backgrounds/Equipment/Magic Items/Monsters (constant widget count, any size)
 │   ├── spell_list.py       # Paginated spell list panel
 │   ├── spell_detail.py     # Spell detail view with popup
 │   ├── spell_editor.py     # Spell create/edit dialog

@@ -707,7 +707,13 @@ class ThemeManager:
                         self._defer_listener(owner, listener)
                         continue
                 except Exception:
-                    pass
+                    # The widget was destroyed without unregistering: forget its listener
+                    # (calling it would only fail again, on every theme change from now on).
+                    try:
+                        self._listeners.remove(listener)
+                    except ValueError:
+                        pass
+                    continue
             try:
                 listener()
             except Exception as e:

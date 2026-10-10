@@ -524,18 +524,14 @@ def update_subclass_spells(character: CharacterSpellList, class_manager=None) ->
         if not class_def:
             continue
         
-        # Find the subclass
-        subclass_def = None
-        for sc in class_def.subclasses:
-            if sc.name == class_level.subclass:
-                subclass_def = sc
-                break
+        # Find the subclass (this class's own, or a compatible legacy one)
+        subclass_def = class_def.find_subclass(class_level.subclass)
         
         if not subclass_def:
             continue
         
-        # Get spells available at this level
-        spells = subclass_def.get_spells_at_level(class_level.level)
+        # Get spells available at this level (never before the class chooses a subclass)
+        spells = class_def.get_subclass_spells_up_to_level(subclass_def, class_level.level)
         for spell in spells:
             if spell.spell_name not in character.subclass_spells:
                 character.subclass_spells.append(spell.spell_name)
