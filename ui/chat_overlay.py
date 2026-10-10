@@ -332,7 +332,7 @@ class ChatOverlay:
             if self._panel is not None:
                 self._panel.log.append(line)
             elif (self._toggle is not None and not line.get("mine")
-                  and line["kind"] in ("chat", "dm", "roll")):
+                  and (line["kind"] in ("chat", "dm", "roll") or line.get("alert"))):
                 self._unread += 1
                 self._show_toggle()
         elif kind in ("state", "ended"):

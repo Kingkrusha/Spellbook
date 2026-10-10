@@ -344,8 +344,14 @@ class MainWindow(ctk.CTkFrame):
         if self.session.needs_pump:
             self._ensure_session_pump()
 
+    def _transfer_managers(self):
+        """What the Send / Inbox dialogs need to read and write characters and homebrew."""
+        from transfer import Managers
+        from ui.character_sheet_view import get_sheet_manager
+        return Managers(self.character_manager, get_sheet_manager(), self.spell_manager)
+
     def _on_session_event(self, kind: str, **data):
-        if kind == 'state':
+        if kind in ('state', 'inbox'):
             self._update_session_bar()
         elif kind == 'approval_request':
             from ui.session_widgets import ApprovalDialog
@@ -601,7 +607,7 @@ class MainWindow(ctk.CTkFrame):
         if page_type == "session":
             from ui.session_view import SessionView
             return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
-                               overlay=self.chat_overlay)
+                               overlay=self.chat_overlay, get_managers=self._transfer_managers)
         raise ValueError(f"Unknown page type: {page_type}")
 
     def _navigate_tab(self, tab_id: str, page_type: str, **kwargs):

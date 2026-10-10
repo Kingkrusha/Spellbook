@@ -6,6 +6,9 @@ worker thread, not the UI thread. After that everything arrives on :attr:`events
 * ``chat`` - ``seq, from, name, text, ts``
 * ``dm`` - ``from, name, to, text, ts``
 * ``roll`` - ``seq, from, name, expr, detail, total, label, crit, private, ts``
+* ``xfer`` - characters/homebrew sent to us: ``from, name, xfer_id, title, payload, ts``
+* ``xfer_status`` - the host's receipt for something we sent: ``xfer_id, status, detail``
+* ``xfer_reply`` - the recipient's answer: ``from, name, xfer_id, status, detail``
 * ``peer_joined`` / ``peer_left`` - ``peer``
 * ``error`` - ``code, message`` (a soft error; the session continues)
 * ``disconnected`` - ``reason`` (always the last event)
@@ -147,6 +150,15 @@ class LanClient:
         if text and self.connected:
             self._runner.submit(self._send_quiet({"type": "dm", "body": {"to": peer_id, "text": text}}))
 
+    def send_xfer(self, peer_id: str, xfer_id: str, title: str, payload: dict) -> None:
+        """Send characters/homebrew to another player (through the host)."""
+        self.send("xfer", {"to": peer_id, "xfer_id": xfer_id,
+                           "title": P.clean_text(title, P.MAX_TITLE), "payload": payload})
+
+    def send_xfer_reply(self, peer_id: str, xfer_id: str, status: str, detail: str = "") -> None:
+        self.send("xfer_reply", {"to": peer_id, "xfer_id": xfer_id, "status": status,
+                                 "detail": P.clean_text(detail, 200)})
+
     def send(self, msg_type: str, body: Optional[dict] = None) -> None:
         """Send any other message type (used by later phases)."""
         if self.connected:
@@ -210,6 +222,17 @@ class LanClient:
                             detail=str(body.get("detail") or ""), total=body.get("total", 0),
                             label=str(body.get("label") or ""), crit=str(body.get("crit") or ""),
                             private=bool(body.get("private")), ts=ts)
+        elif kind == "xfer":
+            payload = body.get("payload")
+            if isinstance(payload, dict):
+                self.events.put("xfer", **{"from": sender}, name=P.clean_name(body.get("name"), "Someone"),
+                                xfer_id=P.clean_text(body.get("xfer_id"), 32),
+                                title=P.clean_text(body.get("title"), P.MAX_TITLE), payload=payload, ts=ts)
+        elif kind in ("xfer_status", "xfer_reply"):
+            self.events.put(kind, **{"from": sender}, name=P.clean_name(body.get("name"), ""),
+                            xfer_id=P.clean_text(body.get("xfer_id"), 32),
+                            status=P.clean_text(body.get("status"), 20),
+                            detail=P.clean_text(body.get("detail"), 200), ts=ts)
         elif kind == "presence":
             peer = body.get("peer")
             if isinstance(peer, dict) and "peer_id" in peer:

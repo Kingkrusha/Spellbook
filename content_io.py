@@ -330,6 +330,12 @@ def load_bundle_file(path: str) -> dict:
             data = json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(f"Not a valid JSON file ({e})")
+    return check_bundle(data)
+
+
+def check_bundle(data) -> dict:
+    """Sanity-check a content bundle that is already in memory (a file's JSON, or content received
+    from another player). Returns it, or raises ValueError with a readable message."""
     if not isinstance(data, dict):
         raise ValueError("The file must contain a JSON object with keys such as "
                          "'spells', 'feats' or 'magic_items'.")
