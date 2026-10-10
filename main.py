@@ -35,6 +35,58 @@ def _ensure_std_streams():
 
 _ensure_std_streams()
 
+
+def _lan_selftest(out_path: str) -> int:
+    """``Spellbook --lan-selftest <file>``: prove the LAN stack works in *this* build.
+
+    A windowed (console-less) PyInstaller exe can't print, so the result is written to ``out_path``
+    as JSON. It imports every LAN module, makes the per-session TLS certificate, starts a host, joins
+    it as a client over loopback, and sends a chat message and a dice roll through it. No window is
+    shown and no user data is read or written.
+    """
+    import json
+    import traceback
+
+    result = {"ok": False}
+    try:
+        import importlib
+        import ssl
+
+        modules = ["lan.protocol", "lan.security", "lan.runtime", "lan.host", "lan.client", "lan.service",
+                   "lan.discovery", "lan.dice", "transfer", "character_io", "ui.session_view",
+                   "ui.session_widgets", "ui.chat_overlay", "ui.chat_input", "ui.chat_render",
+                   "ui.transfer_dialogs", "ui.game_tools_view"]
+        for name in modules:
+            importlib.import_module(name)
+        import cryptography
+        from lan.client import LanClient
+        from lan.host import LanHost
+
+        host = LanHost("Self-test", require_approval=False)
+        host.start(port=0, bind="127.0.0.1")
+        client = LanClient("Probe")
+        try:
+            client.connect("127.0.0.1", host.port, host.fingerprint, timeout=15)
+            client.send_chat("/roll 2d6+1")
+            roll = None
+            for _ in range(50):
+                ev = client.events.get(timeout=0.2)
+                if ev and ev["type"] == "roll":
+                    roll = ev
+                    break
+            if roll is None or not 3 <= roll["total"] <= 13:
+                raise RuntimeError(f"no sensible dice roll came back: {roll}")
+        finally:
+            client.close()
+            host.stop()
+        result = {"ok": True, "modules": len(modules), "cryptography": cryptography.__version__,
+                  "openssl": ssl.OPENSSL_VERSION, "tls": "1.3", "roll": roll["total"]}
+    except Exception:
+        result["error"] = traceback.format_exc()
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+    return 0 if result["ok"] else 1
+
 import customtkinter as ctk
 
 from ui.window_icon import install as install_app_icon, set_app_user_model_id
@@ -181,4 +233,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--lan-selftest":
+        raise SystemExit(_lan_selftest(sys.argv[2]))
     main()

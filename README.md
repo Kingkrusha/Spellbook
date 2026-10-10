@@ -8,7 +8,8 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 
 ## Features
 
-- **Home page & tabs**: The app opens on a Home page with **Collections**, **Characters** and **Game Tools** (coming soon). Tabs work like a browser's: click **+** for a new tab (it opens on Home), close one with its **×** or a middle click, drag to reorder, right-click for New/Duplicate/Close Other Tabs. Each tab navigates on its own, so you can keep a character sheet open next to the spell list. Your open tabs are remembered and reopened next time you start the app (turn this off under Settings > Loading Options)
+- **Home page & tabs**: The app opens on a Home page with **Collections**, **Characters** and **Game Tools**. Tabs work like a browser's: click **+** for a new tab (it opens on Home), close one with its **×** or a middle click, drag to reorder, right-click for New/Duplicate/Close Other Tabs. Each tab navigates on its own, so you can keep a character sheet open next to the spell list. Your open tabs are remembered and reopened next time you start the app (turn this off under Settings > Loading Options)
+- **Game sessions (LAN)**: Host or join an encrypted game over your network from **Game Tools > Session**: chat with your table (with a chat overlay that follows you to every page), roll dice with `/roll`, link spells and items, and send characters and homebrew to each other. See *LAN sessions* below
 - **Characters page**: Every character in one list you can search, filter (class, species, background) and sort (name, level, class, species, background). Create, import and export characters here; click one to open its sheet
 - **Spell Management**: Search, filter, create, and organize spells with full-text search and advanced filtering
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
@@ -74,6 +75,45 @@ xattr -dr com.apple.quarantine /path/to/Spellbook.app
 After the first launch it opens normally like any other app. This is standard
 for free, open-source Mac apps and costs nothing.
 
+## LAN sessions
+
+One player (the DM) hosts; everyone else joins. Open **Game Tools > Session**.
+
+**Hosting.** Pick a port (default 5150), an optional password, and whether you want to approve each
+player. Press *Start session* and send players the invite shown on the Session page (one per network
+address; the first is usually right). Players on the same network can also find the session in their
+own list without an invite (untick *Let players on this network find it automatically* to hide it).
+
+**Joining.** Sessions on your network are listed on the Session page; press *Join*. Because a
+discovered session could be forged, you are first shown a short **security code** to compare with the
+one on the DM's Session page. Over a VPN (Tailscale, Hamachi, ZeroTier) or on guest Wi-Fi that blocks
+discovery, paste the DM's invite instead (`address:port#code`).
+
+**Chat.** Plain messages go to everyone; `/w Name message` (or the *Whisper* button) is private.
+`/roll 2d6+3`, `/roll d20+5 adv Perception`, `/roll 4d6kh3` roll dice (the host rolls, so nobody can
+fudge); `/gmroll d20` is seen only by you and the DM. The 🔗 button links a spell, item or monster that
+everyone can click. The chat overlay at the bottom of every page collapses to a small *Chat* button
+that shows how many messages you have missed; on Windows it is translucent (adjust under Session >
+Chat overlay).
+
+**Sending things.** *Send characters / homebrew...* sends characters (with the homebrew they use) or
+homebrew objects to one player or everyone. The receiver sees what is in it and what clashes with
+their own content, chooses *keep both / replace / keep mine*, and only then is anything added.
+Official content never travels and is never overwritten.
+
+**Security.** All traffic is TLS 1.3. The host makes a throwaway certificate for each session, and
+the invite or security code pins it, so someone else on the network can't pose as the DM. The host
+approves each player and can set a password. Nothing arrives without the receiver's say-so, and
+received data is validated and size-limited. A session only exists while the host has it open.
+
+**Firewalls.** The first time you host, Windows Defender Firewall asks whether to allow Spellbook on
+private networks - say yes, otherwise players can't connect (allow TCP on the session port and UDP
+5151 for discovery). On macOS you will be asked to allow incoming connections and Local Network
+access. Both are one-time prompts.
+
+**Checking a build.** `Spellbook --lan-selftest result.json` starts a session with itself over
+loopback and writes whether the encrypted stack works in that build.
+
 ## Data Storage
 
 Writable user data lives outside the app so bundles stay read-only:
@@ -127,6 +167,10 @@ Settings are stored in `settings.json`.
 ```
 Spellbook/
 ├── main.py                 # Application entry point with splash screen
+├── lan/                    # LAN sessions: TLS transport, host/client, discovery, dice, session service
+├── transfer.py             # Sending characters and homebrew between players (no UI)
+├── character_io.py         # Character export/import bundles (no UI)
+├── tests/                  # pytest suite: python -m pytest tests (needs requirements-dev.txt)
 ├── database.py             # SQLite database with schema migrations
 ├── spell.py                # Spell data model and filtering
 ├── spell_manager.py        # Spell CRUD and filtering operations

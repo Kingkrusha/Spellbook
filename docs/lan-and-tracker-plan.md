@@ -236,20 +236,20 @@ with player view and pop-up, object sending, then dice / links / polish.
 6. Scope creep into live shared editing of sheets: out of scope.
 
 
-## 13. Progress (branch `feature/lan-sessions`)
+## 13. Progress (branch `feature/lan-sessions`, finished on `feature/lan-sessions-finish`)
 
-Done: Phase 0 (character_io, content_io preview/resolve, SPELLBOOK_DATA_DIR); Phase 1 (encrypted
-transport, host/client); Phase 2 (Session UI, status bar, approval prompt); chat overlay (translucent
-on Windows, opaque panel elsewhere); `/roll` and `/gmroll` dice; clickable `[[links]]` in chat;
-automatic discovery.
+LAN integration is complete: encrypted transport; Session UI; chat overlay (translucent on Windows,
+opaque panel elsewhere); `/roll` and `/gmroll` dice; clickable `[[links]]`; automatic discovery with a
+security-code check; sending characters and homebrew with an inbox and per-item replace / keep both /
+skip; app-version warnings; reconnect; packaging (hidden imports, macOS local-network permission text,
+`--lan-selftest`, a tests workflow, README section).
 
-Discovery as built differs slightly from section 2: instead of "manual IP only", players on the same
-network see sessions listed automatically (UDP probe/reply on port 5151) and the invite still works.
-Because an advertisement is unauthenticated, joining a discovered session first shows a short security
-code (from the session certificate) to compare with the DM's screen.
+Verified: 166 automated tests, including two separate processes with separate data folders exchanging a
+character over real TLS, and the self-test inside a frozen Windows exe. Not verified: a physical
+two-machine run, macOS (build, permission prompts, the opaque overlay), and Windows Firewall behaviour
+for a player on another machine.
 
-Tracker: T0 (state, reducer, projection, undo, saving) and T1 (sheet/monster/custom snapshots,
-conditions) are done and tested with no UI yet (`initiative_state.py`, `initiative_sources.py`,
-`conditions.py`). Remaining: T2 DM table UI, T3 player view and pop-up, T4 tracker over the network,
-T5 DM settings UI and polish. Still open from the LAN plan: the Inbox and sending characters/homebrew,
-packaging (spec files, macOS plist), and a two-machine test.
+Initiative tracker: T0 (state, reducer, projection, undo, saving) and T1 (sheet/monster/custom
+snapshots, conditions) are done and tested with no UI yet (`initiative_state.py`,
+`initiative_sources.py`, `conditions.py`). Remaining: T2 DM table UI, T3 player view and pop-up, T4
+tracker over the network, T5 DM settings UI and polish.
