@@ -22,12 +22,15 @@ EVERYONE = "Everyone"
 
 
 class SessionView(ctk.CTkFrame):
-    def __init__(self, parent, service, on_back: Optional[Callable[[], None]] = None, overlay=None):
+    def __init__(self, parent, service, on_back: Optional[Callable[[], None]] = None, overlay=None,
+                 get_managers: Optional[Callable[[], object]] = None):
         super().__init__(parent, fg_color="transparent")
         self.theme = get_theme_manager()
         self.service = service
         self.on_back = on_back
         self.overlay = overlay          # the chat overlay (its options are offered here)
+        self._get_managers = get_managers   # -> transfer.Managers, for sending and receiving
+        self._inbox_frame: Optional[ctk.CTkFrame] = None
 
         self._rendered_role: Optional[str] = None
         self._chat_box: Optional[ctk.CTkTextbox] = None
@@ -81,7 +84,9 @@ class SessionView(ctk.CTkFrame):
                 return
         except Exception:
             return
-        if kind == "scan_done":
+        if kind == "inbox":
+            self._refresh_inbox()
+        elif kind == "scan_done":
             self._fill_found()
         elif kind == "line":
             if self._log is not None:
@@ -104,7 +109,7 @@ class SessionView(ctk.CTkFrame):
         self._cancel_scan_timer()
         for child in self.body.winfo_children():
             child.destroy()
-        self._found_frame = self._found_status = None
+        self._found_frame = self._found_status = self._inbox_frame = None
         self._chat_box = self._peers_frame = self._to_combo = self._input = self._log = None
         self._error_label = None
         role = self.service.role
@@ -150,9 +155,16 @@ class SessionView(ctk.CTkFrame):
         self._name_entry.insert(0, s.default_name())
 
         if s.last_end_reason:
-            ctk.CTkLabel(self.body, text=s.last_end_reason, font=ui_font("body"),
+            note = ctk.CTkFrame(self.body, fg_color="transparent")
+            note.pack(fill="x", pady=(0, 10))
+            ctk.CTkLabel(note, text=s.last_end_reason, font=ui_font("body"),
                          text_color=self.theme.get_current_color('text_warning'),
-                         wraplength=760, justify="left").pack(anchor="w", pady=(0, 10))
+                         wraplength=640, justify="left").pack(side="left")
+            if s.saved("lan_last_invite", ""):
+                ctk.CTkButton(note, text="↻ Reconnect", width=110, height=30,
+                              fg_color=self.theme.get_current_color('button_normal'),
+                              hover_color=self.theme.get_current_color('button_hover'),
+                              command=self._reconnect).pack(side="left", padx=14)
 
         cards = ctk.CTkFrame(self.body, fg_color="transparent")
         cards.pack(fill="x", anchor="n")
@@ -275,6 +287,52 @@ class SessionView(ctk.CTkFrame):
         except LanError as e:
             self._join_error.configure(text=e.message)
 
+    def _reconnect(self):
+        """Rejoin the last session by invite (works while that host's session is still running)."""
+        try:
+            self.service.join(self.service.saved("lan_last_invite", ""), self._name_entry.get())
+        except LanError as e:
+            self.service.last_end_reason = e.message
+            self._render()
+
+    # ------------------------------------------------------------- send / inbox
+
+    def _open_send(self):
+        from ui.transfer_dialogs import SendDialog
+        SendDialog(self.winfo_toplevel(), self.service, self._get_managers())
+
+    def _refresh_inbox(self):
+        frame = self._inbox_frame
+        if frame is None or not frame.winfo_exists():
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+        items = self.service.inbox
+        if not items:
+            ctk.CTkLabel(frame, text="Nothing waiting.", font=ui_font("small"),
+                         text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=4)
+            return
+        for item in items:
+            card = ctk.CTkFrame(frame, fg_color=self.theme.get_current_color('bg_tertiary'), corner_radius=8)
+            card.pack(fill="x", pady=3)
+            ctk.CTkLabel(card, text=f"{item['name']} sent \"{item['title']}\"", font=ui_font("small", bold=True),
+                         wraplength=220, justify="left").pack(anchor="w", padx=8, pady=(6, 0))
+            row = ctk.CTkFrame(card, fg_color="transparent")
+            row.pack(fill="x", padx=6, pady=6)
+            ctk.CTkButton(row, text="Look…", width=70, height=26,
+                          fg_color=self.theme.get_current_color('accent_primary'),
+                          hover_color=self.theme.get_current_color('accent_hover'),
+                          command=lambda i=item: self._review(i)).pack(side="left")
+            ctk.CTkButton(row, text="Decline", width=70, height=26,
+                          fg_color=self.theme.get_current_color('button_danger'),
+                          hover_color=self.theme.get_current_color('button_danger_hover'),
+                          command=lambda i=item: self.service.decline_item(i["item_id"])).pack(side="right")
+
+    def _review(self, item):
+        from ui.transfer_dialogs import InboxReviewDialog
+        InboxReviewDialog(self.winfo_toplevel(), self.service, item, self._get_managers(),
+                          on_done=self._refresh_inbox)
+
     def _on_start_host(self):
         self._host_error.configure(text="")
         try:
@@ -342,16 +400,25 @@ class SessionView(ctk.CTkFrame):
         self._input.pack(side="left", fill="x", expand=True)
 
         # side column
-        side = ctk.CTkFrame(self.body, fg_color=self.theme.get_current_color('bg_secondary'),
-                            corner_radius=12, width=290)
+        side = ctk.CTkScrollableFrame(self.body, fg_color=self.theme.get_current_color('bg_secondary'),
+                                      corner_radius=12, width=262)
         side.grid(row=0, column=1, sticky="ns")
-        side.grid_propagate(False)
         ctk.CTkLabel(side, text="In this session", font=ui_font("heading", 16, bold=True)
                      ).pack(anchor="w", padx=16, pady=(14, 4))
         self._peers_frame = ctk.CTkFrame(side, fg_color="transparent")
         self._peers_frame.pack(fill="x", padx=12)
         ctk.CTkLabel(side, text=f"Security code  {s.security_code}", font=ui_font("small"),
                      text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(6, 0))
+        if self._get_managers is not None:
+            ctk.CTkButton(side, text="📤 Send characters / homebrew…", height=30,
+                          fg_color=self.theme.get_current_color('button_normal'),
+                          hover_color=self.theme.get_current_color('button_hover'),
+                          command=self._open_send).pack(fill="x", padx=14, pady=(12, 0))
+            ctk.CTkLabel(side, text="Inbox", font=ui_font("heading", 16, bold=True)
+                         ).pack(anchor="w", padx=16, pady=(14, 2))
+            self._inbox_frame = ctk.CTkFrame(side, fg_color="transparent")
+            self._inbox_frame.pack(fill="x", padx=12)
+            self._refresh_inbox()
         if s.role == HOSTING:
             self._build_invite_panel(side)
         if self.overlay is not None:
@@ -366,7 +433,7 @@ class SessionView(ctk.CTkFrame):
         ctk.CTkLabel(parent, text="Send a player the invite for the address they can reach you on "
                                   "(the first is usually right; use a VPN address if you play over a VPN).",
                      font=ui_font("small"), text_color=self.theme.get_text_secondary(),
-                     wraplength=250, justify="left").pack(anchor="w", padx=16)
+                     wraplength=206, justify="left").pack(anchor="w", padx=16)
         for address, invite in s.invites()[:4]:
             ctk.CTkLabel(parent, text=address, font=ui_font("small", bold=True)
                          ).pack(anchor="w", padx=16, pady=(8, 0))
@@ -385,7 +452,7 @@ class SessionView(ctk.CTkFrame):
                 "They will be asked to check the security code above." if s.discovery_visible else
                 "This session is not listed for automatic discovery; players need the invite.")
         ctk.CTkLabel(parent, text=note, font=ui_font("small"), text_color=self.theme.get_text_secondary(),
-                     wraplength=250, justify="left").pack(anchor="w", padx=16, pady=(8, 0))
+                     wraplength=206, justify="left").pack(anchor="w", padx=16, pady=(8, 0))
         if s.password:
             ctk.CTkLabel(parent, text=f"Password: {s.password}", font=ui_font("small"),
                          text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(8, 0))
@@ -413,6 +480,11 @@ class SessionView(ctk.CTkFrame):
             crown = "👑 " if p.get("is_host") else ""
             ctk.CTkLabel(row, text=f"{crown}{p['name']}{you}", font=ui_font("body"), anchor="w"
                          ).pack(side="left", padx=(4, 0))
+            theirs, mine = p.get("app"), s.app_version
+            if theirs and mine and theirs != mine:
+                ctk.CTkLabel(row, text=f"⚠ v{theirs}", font=ui_font("small"),
+                             text_color=self.theme.get_current_color('text_warning')
+                             ).pack(side="left", padx=(6, 0))
             if p["peer_id"] != s.my_id:
                 names[p["name"]] = p["peer_id"]
                 if s.is_host:
@@ -450,5 +522,5 @@ class SessionView(ctk.CTkFrame):
             slider.pack(fill="x", padx=16, pady=(0, 4))
         else:
             ctk.CTkLabel(parent, text="(Translucent overlay is Windows-only for now.)", font=ui_font("small"),
-                         text_color=self.theme.get_text_secondary(), wraplength=250, justify="left"
+                         text_color=self.theme.get_text_secondary(), wraplength=206, justify="left"
                          ).pack(anchor="w", padx=16)

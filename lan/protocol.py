@@ -23,6 +23,7 @@ DEFAULT_PORT = 5150
 MAX_FRAME = 4 * 1024 * 1024        # largest frame we will ever read (object transfers, later)
 MAX_PREAUTH_FRAME = 4 * 1024       # before a peer is admitted nobody gets to send more than this
 MAX_CHAT = 2000                    # characters in one chat message
+MAX_TITLE = 80                     # characters in a transfer's title
 MAX_NAME = 32                      # characters in a display name
 
 HANDSHAKE_TIMEOUT = 10.0           # seconds to finish TLS + hello

@@ -13,6 +13,8 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``error`` - ``code, message`` (the host typed something invalid, e.g. a bad ``/roll``)
 * ``dm`` - ``from, name, to, text, ts`` (only DMs sent to or by the host)
 * ``approval_request`` - ``request_id, name, address``; answer with :meth:`resolve_approval`
+* ``xfer`` - something sent to the host: ``from, name, xfer_id, title, payload, ts``
+* ``xfer_reply`` - the recipient answered a transfer: ``from, name, xfer_id, status, detail``
 """
 
 from __future__ import annotations
@@ -65,12 +67,14 @@ class _Peer:
         self.writer = writer
         self.address = address
         self.bucket = _Bucket()
+        self.xfer_bucket = _Bucket(rate=0.5, burst=4)      # transfers are big: a slower allowance
+        self.app_version = ""
         self.strikes = 0
         self.dropped = False
         self._lock = asyncio.Lock()
 
     def public(self) -> dict:
-        return {"peer_id": self.peer_id, "name": self.name, "is_host": False}
+        return {"peer_id": self.peer_id, "name": self.name, "is_host": False, "app": self.app_version}
 
     async def send(self, msg: dict) -> None:
         data = P.encode_frame(msg)
@@ -117,6 +121,8 @@ class LanHost:
 
         self.register_handler("chat", self._on_chat)
         self.register_handler("dm", self._on_dm)
+        self.register_handler("xfer", self._on_xfer)
+        self.register_handler("xfer_reply", self._on_xfer_reply)
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -183,7 +189,8 @@ class LanHost:
         return list(self._public)
 
     def _refresh_public(self) -> None:
-        self._public = [{"peer_id": HOST_ID, "name": self.display_name, "is_host": True}] + \
+        self._public = [{"peer_id": HOST_ID, "name": self.display_name, "is_host": True,
+                         "app": self.app_version}] + \
                        [p.public() for p in self._peers.values()]
 
     def register_handler(self, msg_type: str, handler: Handler) -> None:
@@ -280,6 +287,7 @@ class LanHost:
             await self._drop(old, "Replaced by a new connection.", notify=True)
 
         peer = _Peer(self._new_peer_id(), self._unique_name(name), client_id, reader, writer, address)
+        peer.app_version = P.clean_text(body.get("app_version"), 20)
         await peer.send({"type": "welcome", "from": HOST_ID, "ts": time.time(), "body": {
             "peer_id": peer.peer_id,
             "name": peer.name,
@@ -457,6 +465,75 @@ class LanHost:
                              "body": {"code": "unknown_peer", "message": "That player is not in the session."}})
             return
         await peer.send(msg)            # echo, so the sender's log has it in order
+
+    # ------------------------------------------------------------------ transfers
+
+    def send_xfer(self, peer_id: str, xfer_id: str, title: str, payload: dict) -> None:
+        """Send characters/homebrew from the host to one player (thread-safe)."""
+        if self._started:
+            self._runner.submit(self._host_xfer(peer_id, xfer_id, P.clean_text(title, P.MAX_TITLE), payload))
+
+    def send_xfer_reply(self, peer_id: str, xfer_id: str, status: str, detail: str = "") -> None:
+        if self._started:
+            self._runner.submit(self._send_to(peer_id, {
+                "type": "xfer_reply", "from": HOST_ID, "ts": time.time(),
+                "body": {"xfer_id": xfer_id, "status": status[:20], "detail": P.clean_text(detail, 200),
+                         "name": self.display_name}}))
+
+    async def _send_to(self, peer_id: str, msg: dict) -> None:
+        peer = self._peers.get(peer_id)
+        if peer is not None:
+            await self._send_quiet(peer, msg)
+
+    async def _host_xfer(self, peer_id: str, xfer_id: str, title: str, payload: dict) -> None:
+        await self._send_to(peer_id, {"type": "xfer", "from": HOST_ID, "ts": time.time(), "body": {
+            "xfer_id": xfer_id, "name": self.display_name, "title": title, "payload": payload}})
+
+    async def _on_xfer(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        """Relay a transfer to its recipient (a player, or the host itself)."""
+        xfer_id = P.clean_text(body.get("xfer_id"), 32)
+        title = P.clean_text(body.get("title"), P.MAX_TITLE)
+        payload, to = body.get("payload"), body.get("to")
+        ts = time.time()
+
+        async def reply(status: str, detail: str = "") -> None:
+            await peer.send({"type": "xfer_status", "from": HOST_ID, "ts": ts,
+                             "body": {"xfer_id": xfer_id, "status": status, "detail": detail}})
+
+        if not xfer_id or not isinstance(payload, dict):
+            await reply("failed", "That was not a valid transfer.")
+            return
+        if not peer.xfer_bucket.allow():
+            await reply("failed", "You are sending too many transfers; wait a moment.")
+            return
+        if to == HOST_ID:
+            self._emit("xfer", **{"from": peer.peer_id}, name=peer.name, xfer_id=xfer_id, title=title,
+                       payload=payload, ts=ts)
+        elif isinstance(to, str) and to in self._peers and to != peer.peer_id:
+            target = self._peers[to]
+            await self._send_quiet(target, {"type": "xfer", "from": peer.peer_id, "ts": ts, "body": {
+                "xfer_id": xfer_id, "name": peer.name, "title": title, "payload": payload}})
+        else:
+            await reply("failed", "That player is not in the session.")
+            return
+        await reply("delivered")
+
+    async def _on_xfer_reply(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        """Pass a recipient's answer (accepted / declined / imported) back to the sender."""
+        to = body.get("to")
+        xfer_id = P.clean_text(body.get("xfer_id"), 32)
+        status = P.clean_text(body.get("status"), 20)
+        detail = P.clean_text(body.get("detail"), 200)
+        if not xfer_id or status not in ("accepted", "declined", "imported", "failed"):
+            return
+        ts = time.time()
+        if to == HOST_ID:
+            self._emit("xfer_reply", **{"from": peer.peer_id}, name=peer.name, xfer_id=xfer_id,
+                       status=status, detail=detail, ts=ts)
+        elif isinstance(to, str) and to in self._peers:
+            await self._send_quiet(self._peers[to], {
+                "type": "xfer_reply", "from": peer.peer_id, "ts": ts,
+                "body": {"xfer_id": xfer_id, "status": status, "detail": detail, "name": peer.name}})
 
     async def _host_dm(self, peer_id: str, text: str) -> None:
         peer = self._peers.get(peer_id)

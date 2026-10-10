@@ -53,6 +53,9 @@ class SessionStatusBar(ctk.CTkFrame):
             self.leave_btn.configure(text="Cancel")
         else:
             text = ""
+        waiting = len(getattr(s, "inbox", []))
+        if text and waiting:
+            text += f"  -  {waiting} item{'s' if waiting != 1 else ''} in your inbox"
         self.label.configure(text=text)
 
 

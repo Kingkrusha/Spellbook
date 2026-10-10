@@ -32,6 +32,18 @@ with open(os.path.join(SPECPATH, "version.py"), encoding="utf-8") as _vf:
     exec(_vf.read(), _version_ns)
 APP_VERSION = _version_ns["__version__"]
 
+# LAN sessions. Most of these are imported lazily (inside functions, so the user can run the app
+# without ever hosting); naming them here guarantees they are bundled. The `cryptography` package
+# makes the per-session TLS certificate (lan/security.py).
+_LAN_IMPORTS = [
+    'lan', 'lan.protocol', 'lan.security', 'lan.runtime', 'lan.host', 'lan.client', 'lan.service',
+    'lan.discovery', 'lan.dice', 'transfer', 'character_io',
+    'ui.session_view', 'ui.session_widgets', 'ui.chat_overlay', 'ui.chat_input', 'ui.chat_render',
+    'ui.transfer_dialogs', 'ui.game_tools_view',
+    'cryptography', 'cryptography.x509', 'cryptography.hazmat.primitives.asymmetric.ec',
+    'cryptography.hazmat.primitives.serialization', 'cryptography.hazmat.primitives.hashes',
+]
+
 a = Analysis(
     ['main.py'],
     pathex=[],
@@ -48,7 +60,8 @@ a = Analysis(
         (f, '.') for f in ('magic_items.json', 'monsters.json', 'legacy_2014.json')
         if os.path.exists(os.path.join(SPECPATH, f))
     ],
-    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
+    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data']
+                  + _LAN_IMPORTS,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -103,5 +116,9 @@ app = BUNDLE(
         # bucket so it shows in the Dock normally.
         'LSApplicationCategoryType': 'public.app-category.role-playing-games',
         'LSMinimumSystemVersion': '11.0',
+        # Shown by macOS the first time Spellbook talks to other computers on the local network
+        # (hosting or joining a LAN session). Without it, newer macOS versions refuse silently.
+        'NSLocalNetworkUsageDescription':
+            'Spellbook uses your local network to host or join a game session with other players.',
     },
 )

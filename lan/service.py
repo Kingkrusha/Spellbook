@@ -17,12 +17,15 @@ Listener events - ``listener(kind, **data)``:
 * ``approval_request`` - host only: ``request_id, name, address``
 * ``approval_done``    - host only: ``request_id`` (answered, so close any prompt)
 * ``scan_done``        - discovery finished; the results are in :attr:`discovered`
+* ``inbox``            - something arrived (or left) :attr:`inbox`; ``item`` is the new entry, if any
 * ``join_failed``      - ``message``
 * ``ended``            - the session is over; ``reason`` says why
 """
 
 from __future__ import annotations
 
+import json
+import secrets
 import socket
 import threading
 import time
@@ -38,6 +41,8 @@ from lan.runtime import EventQueue
 NONE, HOSTING, JOINING, CLIENT = "none", "host", "joining", "client"
 
 MAX_CHAT_LINES = 1000
+MAX_INBOX_ITEMS = 20
+MAX_INBOX_BYTES = 24 * 1024 * 1024       # of received payloads waiting for a decision
 
 
 def local_addresses() -> List[str]:
@@ -85,6 +90,8 @@ class SessionService:
         self.last_end_reason = ""
         self.discovered: List[discovery.FoundSession] = []
         self.scanning = False
+        self.inbox: List[dict] = []                 # received transfers waiting for a decision
+        self.outbox: Dict[str, dict] = {}           # xfer_id -> what we sent and how it went
         self.discovery_visible = False              # hosting AND answering discovery probes
         self.security_code = ""                     # short form of the certificate fingerprint
 
@@ -221,6 +228,60 @@ class SessionService:
     def kick(self, peer_id: str) -> None:
         if self._host is not None:
             self._host.kick(peer_id)
+
+    # ---------------------------------------------------------------- transfers
+
+    def send_transfer(self, peer_id: str, payload: dict, title: str) -> Optional[str]:
+        """Send characters/homebrew (a ``transfer.py`` payload) to one player. Returns the transfer
+        id, or None if we aren't in a session or that player isn't here."""
+        if not self.in_session or peer_id == self.my_id or not self.peer_name(peer_id):
+            return None
+        xfer_id = secrets.token_hex(8)
+        title = P.clean_text(title, P.MAX_TITLE) or "something"
+        to_name = self.peer_name(peer_id)
+        self.outbox[xfer_id] = {"to": peer_id, "to_name": to_name, "title": title, "status": "sending"}
+        if self._host is not None:
+            self._host.send_xfer(peer_id, xfer_id, title, payload)
+        elif self._client is not None:
+            self._client.send_xfer(peer_id, xfer_id, title, payload)
+        self._add_line("system", f"Sending \"{title}\" to {to_name}...")
+        return xfer_id
+
+    def send_transfer_to_all(self, payload: dict, title: str) -> int:
+        """Send the same payload to everyone else in the session. Returns how many it went to."""
+        count = 0
+        for p in list(self.peers):
+            if p["peer_id"] != self.my_id and self.send_transfer(p["peer_id"], payload, title):
+                count += 1
+        return count
+
+    def _inbox_bytes(self) -> int:
+        return sum(item["size"] for item in self.inbox)
+
+    def get_item(self, item_id: str) -> Optional[dict]:
+        return next((i for i in self.inbox if i["item_id"] == item_id), None)
+
+    def decline_item(self, item_id: str, detail: str = "") -> None:
+        """Throw a received transfer away (the sender is told)."""
+        self._finish_item(item_id, "declined", detail)
+
+    def finish_item(self, item_id: str, status: str = "imported", detail: str = "") -> None:
+        """A received transfer was dealt with (``imported``, or ``failed``); the sender is told."""
+        self._finish_item(item_id, status, detail)
+
+    def _finish_item(self, item_id: str, status: str, detail: str) -> None:
+        item = self.get_item(item_id)
+        if item is None:
+            return
+        self.inbox.remove(item)
+        self._reply(item["from"], item["item_id"], status, detail)
+        self._notify("inbox", item=None)
+
+    def _reply(self, peer_id: str, xfer_id: str, status: str, detail: str = "") -> None:
+        if self._host is not None:
+            self._host.send_xfer_reply(peer_id, xfer_id, status, detail)
+        elif self._client is not None and self.role == CLIENT:
+            self._client.send_xfer_reply(peer_id, xfer_id, status, detail)
 
     # --------------------------------------------------------------- discovery
 
@@ -384,6 +445,12 @@ class SessionService:
         elif kind == "roll":
             roll = {k: ev.get(k) for k in ("expr", "detail", "total", "label", "crit", "private")}
             self._add_line("roll", "", name=ev["name"], sender=ev["from"], ts=ev["ts"], roll=roll)
+        elif kind == "xfer":
+            self._on_xfer(ev)
+        elif kind == "xfer_status":
+            self._on_xfer_status(ev)
+        elif kind == "xfer_reply":
+            self._on_xfer_reply(ev)
         elif kind == "peer_joined":
             self._set_peer(ev["peer"])
             self._add_line("system", f"{ev['peer']['name']} joined.")
@@ -400,6 +467,50 @@ class SessionService:
         elif kind == "disconnected":
             self.leave(ev.get("reason") or "The connection was lost.")
 
+    def _on_xfer(self, ev: Dict[str, Any]) -> None:
+        try:
+            size = len(json.dumps(ev["payload"], separators=(",", ":")))
+        except (TypeError, ValueError):
+            return
+        if len(self.inbox) >= MAX_INBOX_ITEMS or self._inbox_bytes() + size > MAX_INBOX_BYTES:
+            self._reply(ev["from"], ev["xfer_id"], "declined", "Their inbox is full.")
+            self._add_line("system", f"{ev['name']} tried to send you something but your inbox is full.")
+            return
+        item = {"item_id": ev["xfer_id"], "from": ev["from"], "name": ev["name"],
+                "title": ev["title"] or "something", "payload": ev["payload"], "size": size,
+                "ts": ev["ts"]}
+        self.inbox.append(item)
+        self._add_line("system", f"{ev['name']} sent you \"{item['title']}\". Open the Inbox on the "
+                                 "Session page to look at it - nothing is added until you accept.",
+                       alert=True)
+        self._notify("inbox", item=item)
+
+    def _on_xfer_status(self, ev: Dict[str, Any]) -> None:
+        sent = self.outbox.get(ev["xfer_id"])
+        if sent is None:
+            return
+        if ev["status"] == "delivered":
+            sent["status"] = "delivered"
+            self._add_line("system", f"\"{sent['title']}\" reached {sent['to_name']}. "
+                                     "They choose whether to add it.")
+        else:
+            sent["status"] = "failed"
+            self._add_line("system", f"Could not send \"{sent['title']}\" to {sent['to_name']}: "
+                                     f"{ev.get('detail') or 'it failed'}")
+
+    def _on_xfer_reply(self, ev: Dict[str, Any]) -> None:
+        sent = self.outbox.get(ev["xfer_id"])
+        if sent is None:
+            return
+        sent["status"] = ev["status"]
+        who = ev.get("name") or sent["to_name"]
+        text = {"imported": f"{who} added \"{sent['title']}\".",
+                "accepted": f"{who} accepted \"{sent['title']}\".",
+                "declined": f"{who} declined \"{sent['title']}\"."
+                            + (f" ({ev['detail']})" if ev.get("detail") else ""),
+                "failed": f"{who} could not add \"{sent['title']}\": {ev.get('detail') or 'it failed'}"}
+        self._add_line("system", text.get(ev["status"], f"{who}: {ev['status']}"))
+
     def _set_peer(self, peer: dict) -> None:
         self.peers = [p for p in self.peers if p["peer_id"] != peer["peer_id"]] + [peer]
 
@@ -411,9 +522,11 @@ class SessionService:
         self._add_line("system", text)
 
     def _add_line(self, kind: str, text: str, name: str = "", sender: str = "", to: str = "",
-                  ts: Optional[float] = None, roll: Optional[dict] = None) -> None:
+                  ts: Optional[float] = None, roll: Optional[dict] = None, alert: bool = False) -> None:
         line = {"kind": kind, "text": text, "name": name, "from": sender, "to": to,
                 "ts": ts or time.time(), "mine": bool(sender) and sender == self.my_id}
+        if alert:
+            line["alert"] = True            # worth an unread badge even though it is a system line
         if roll is not None:
             line["roll"] = roll
         self.chat.append(line)
