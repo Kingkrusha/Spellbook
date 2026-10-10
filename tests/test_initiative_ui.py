@@ -232,3 +232,22 @@ def test_dialog_parsing_helpers():
     from ui.initiative_dialogs import _to_int
     assert _to_int(" 12 ") == 12 and _to_int("-3") == -3
     assert _to_int("") is None and _to_int("x") is None and _to_int("1.5") is None
+
+
+def test_secondary_click_follows_the_apps_platform_convention(tk_root, hub):
+    """Middle-click must not open the menu on Windows/Linux (the rest of the app doesn't); on macOS a
+    two-finger tap or Control-click does."""
+    import sys
+    from ui.initiative_table import InitiativeTable
+    from ui.platform_compat import RIGHT_CLICK_SEQUENCES
+    dm = fill(hub)
+    table = InitiativeTable(tk_root, dm)
+    try:
+        row = table.view.rows[0]
+        bound = set(table.widget_of(row.id)._raw(table.widget_of(row.id).name).bind())
+        for seq in RIGHT_CLICK_SEQUENCES:
+            assert seq in bound
+        if sys.platform != "darwin":
+            assert "<Button-2>" not in bound and "<Button-3>" in bound
+    finally:
+        table.destroy()

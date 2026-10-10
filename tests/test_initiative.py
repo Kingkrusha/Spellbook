@@ -671,3 +671,37 @@ def test_condition_helpers():
     assert C.label({"name": "Poisoned", "rounds": 1}) == "Poisoned (1 rd)"
     with pytest.raises(ValueError):
         C.make_condition("  ")
+
+
+# ---------------------------------------------------------------- condition durations
+
+def test_condition_durations_count_down_at_the_end_of_that_creatures_turn():
+    t = table_with_four()                         # A, B, C, D
+    a, b = t.state.entries[0].id, t.state.entries[1].id
+    t.do({"type": "add_condition", "id": a, "name": "Hexed", "rounds": 2})
+    t.do({"type": "add_condition", "id": b, "name": "Poisoned"})                  # no duration: stays
+    t.do({"type": "start"})
+    assert t.state.get(a).conditions[0]["rounds"] == 2                           # A's turn has begun
+    t.do({"type": "next_turn"})                                                  # A's turn ends
+    assert t.state.get(a).conditions[0]["rounds"] == 1
+    for _ in range(3):
+        t.do({"type": "next_turn"})                                              # B, C, D go; A is up again
+    assert t.names()[0] == "A" and t.state.get(a).conditions[0]["rounds"] == 1
+    t.do({"type": "next_turn"})                                                  # A's second turn ends
+    assert t.state.get(a).conditions == []                                       # expired
+    assert [c["name"] for c in t.state.get(b).conditions] == ["Poisoned"]
+
+
+def test_a_group_ticks_together_and_going_back_does_not_untick():
+    t = Table()
+    ids_ = [t.add(f"G{i}", 10) for i in range(2)]
+    other = t.add("Solo", 5)
+    t.do({"type": "group", "ids": ids_})
+    for i in ids_:
+        t.do({"type": "add_condition", "id": i, "name": "Prone", "rounds": 3})
+    t.do({"type": "start"})
+    t.do({"type": "next_turn"})
+    assert [t.state.get(i).conditions[0]["rounds"] for i in ids_] == [2, 2]
+    t.do({"type": "prev_turn"})
+    assert [t.state.get(i).conditions[0]["rounds"] for i in ids_] == [2, 2]       # use Undo to restore
+    assert t.state.get(other).conditions == []

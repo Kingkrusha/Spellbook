@@ -18,6 +18,7 @@ import customtkinter as ctk
 import conditions as C
 import initiative_rows as R
 from theme import get_theme_manager
+from ui.platform_compat import bind_right_click
 from typography import ui_font
 
 GROUP_COLORS = ["#4f8cff", "#e0a030", "#4fbf80", "#c060d0", "#e0605a", "#40b8c8"]
@@ -121,8 +122,7 @@ class _RowWidget(ctk.CTkFrame):
         for w in [self] + self._clickables:
             raw = self._raw(w)
             raw.bind("<Button-1>", lambda e, w=w: t._clicked(self.row_id, w, e), add="+")
-            raw.bind("<Button-3>", lambda e: t._right_clicked(self.row_id, e), add="+")
-            raw.bind("<Button-2>", lambda e: t._right_clicked(self.row_id, e), add="+")
+            bind_right_click(raw, lambda e: t._right_clicked(self.row_id, e), add=True)
         for w in self._clickables:
             raw = self._raw(w)
             raw.bind("<Enter>", lambda e, w=w: self._hover(w, True), add="+")

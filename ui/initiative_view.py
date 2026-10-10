@@ -74,7 +74,7 @@ class InitiativeView(ctk.CTkFrame):
 
         self.next_btn = button(r1, "▶ Start", lambda: self._do({"type": "next_turn"}), accent, 130)
         self.prev_btn = button(r1, "◀ Back", lambda: self._do({"type": "prev_turn"}), normal, 80)
-        self.end_btn = button(r1, "■ End", self._end, normal, 80)
+        self.end_btn = button(r1, "■ End ▾", self._end_menu, normal, 90)
         ctk.CTkLabel(r1, text="  ").pack(side="left")
         self.undo_btn = button(r1, "↶ Undo", self._undo, normal, 84)
         self.settings_btn = button(r1, "⚙ Settings", self._settings, normal, 104)
@@ -99,13 +99,34 @@ class InitiativeView(ctk.CTkFrame):
         self.hint = ctk.CTkLabel(
             outer, font=ui_font("small"), text_color=self.theme.get_text_secondary(), anchor="w",
             text="Click HP, AC or conditions to change them · click the initiative number to set it · "
-                 "drag ⠿ to reorder · right-click or ⋯ for more · Ctrl/Shift-click to select several")
+                 "drag ⠿ to reorder · right-click or ⋯ for more · Ctrl/Shift-click to select several · "
+                 "Ctrl+→ next turn, Ctrl+← back, Ctrl+Z undo, Delete removes")
         self.hint.pack(fill="x", pady=(6, 0))
 
         self.backend.listen(self._schedule_change)
         self._on_change()
+        self._keys = []
+        for seq, fn in (("<Control-Right>", lambda: self._do({"type": "next_turn"})),
+                        ("<Control-Left>", lambda: self._do({"type": "prev_turn"})),
+                        ("<Control-z>", self._undo),
+                        ("<Delete>", self._remove_selected)):
+            self._keys.append((seq, self.winfo_toplevel().bind(seq, lambda e, fn=fn: self._shortcut(fn), add="+")))
+
+    def _shortcut(self, fn):
+        """Shortcuts only act while this page is on screen, and never steal typing from a text box."""
+        if not self.winfo_ismapped():
+            return
+        focus = self.focus_get()
+        if focus is not None and focus.winfo_class() in ("Entry", "Text"):
+            return
+        fn()
 
     def destroy(self):
+        for seq, funcid in getattr(self, "_keys", []):
+            try:
+                self.winfo_toplevel().unbind(seq, funcid)
+            except Exception:
+                pass
         try:
             self.backend.unlisten(self._schedule_change)
         except Exception:
@@ -134,7 +155,6 @@ class InitiativeView(ctk.CTkFrame):
         self.next_btn.configure(text="▶▶ Next turn" if tv.started else "▶ Start")
         state = "normal" if tv.started else "disabled"
         self.prev_btn.configure(state=state)
-        self.end_btn.configure(state=state)
         self.undo_btn.configure(state="normal" if self.backend.can_undo else "disabled")
         self._on_select(self.table.selected if hasattr(self, "table") else set())
 
@@ -160,10 +180,22 @@ class InitiativeView(ctk.CTkFrame):
 
     # ------------------------------------------------------------------ toolbar
 
+    def _end_menu(self):
+        menu = self._menu()
+        menu.add_command(label="End combat (everyone stays in the list)", command=self._end)
+        menu.add_command(label="End combat and clear everyone…", command=self._clear_all)
+        self._popup(menu, self.end_btn)
+
     def _end(self):
         if messagebox.askyesno("End the encounter?", "Stop combat and reset the round counter?\n"
                                "Everyone stays in the list.", parent=self.winfo_toplevel()):
             self._do({"type": "end"})
+
+    def _clear_all(self):
+        if messagebox.askyesno("Clear the tracker?", "Remove everyone and end combat? "
+                               "(Undo can bring it back.)", parent=self.winfo_toplevel()):
+            self._do({"type": "clear"})
+            self.table.clear_selection()
 
     def _undo(self):
         try:

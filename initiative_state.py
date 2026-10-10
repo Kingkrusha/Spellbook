@@ -341,13 +341,29 @@ def _move_unit_to_sorted_slot(s: TrackerState, member_ids: List[str]) -> None:
     s.entries = rest.entries[:pos] + moving + rest.entries[pos:]
 
 
+def _tick_conditions(unit: List[Entry]) -> None:
+    """A unit's turn just ended: conditions with a duration lose a round, and drop off at zero."""
+    for e in unit:
+        kept = []
+        for cond in e.conditions:
+            if "rounds" in cond:
+                cond = {**cond, "rounds": cond["rounds"] - 1}
+                if cond["rounds"] <= 0:
+                    continue
+            kept.append(cond)
+        e.conditions = kept
+
+
 def _advance(s: TrackerState, step: int) -> None:
     """Move the active pointer one unit forward (+1) or back (-1), skipping defeated units,
-    counting the round when it wraps."""
+    counting the round when it wraps. Going forward ends the current unit's turn, which counts
+    down any condition durations it has (going back does not undo that - use Undo)."""
     ul = units(s)
     n = len(ul)
     i = _unit_index(ul, s.active)
     rnd = s.round
+    if step > 0 and 0 <= i < n:
+        _tick_conditions(ul[i])
     for _ in range(n):
         i += step
         if i >= n:

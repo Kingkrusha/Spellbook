@@ -101,7 +101,14 @@ and over a **LAN session** it is shared: each connected player automatically get
   character). Players' windows open by themselves when combat starts (Settings: `tracker_auto_open`),
   the DM can add a connected player's character from the **Player** tab, and players who are away show
   as *(offline)* until they reconnect to their character.
+- **Conditions can have a duration** (rounds); it counts down when that creature's turn ends and the
+  condition drops off at zero. *Back* does not give a round back - use *Undo*.
+- **Shortcuts** on the DM page: Ctrl+→ next turn, Ctrl+← back, Ctrl+Z undo, Delete removes the selection.
 - The encounter is saved as you go, so closing the app mid-fight doesn't lose it.
+- **Platform notes:** on macOS use two-finger tap or Control-click for the row menu. The window stays
+  above other apps' ordinary windows; macOS does not let it float over another app's *full-screen*
+  space, and there is no taskbar flash for "your turn" (the banner and beep still happen). Windows
+  does not float it over exclusive-full-screen games either.
 
 ## LAN sessions
 

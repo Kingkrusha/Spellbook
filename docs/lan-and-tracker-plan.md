@@ -255,4 +255,11 @@ resizable always-on-top player window, "your turn" alert, DM pop-out and player 
 tested. A player's screens already run against a "backend" (`tracker_hub.LocalBackend`); T4 swaps in one
 that talks to the host over the session. T4 (tracker over the network: `tracker_net.py`) is done: the
 host sends each player their own projection after every change and applies their commands as that
-player; hidden data is verified absent from what players receive. Remaining: macOS checks and polish.
+player; hidden data is verified absent from what players receive.
+
+Polish done: secondary click via `platform_compat` (a middle-click bug on Windows/Linux was fixed),
+no hard-coded Windows fonts, macOS menu-bar clamp and window raising, condition durations, End-and-clear,
+keyboard shortcuts, a player options popover, and a shared retrying Tk fixture for the UI tests.
+
+Still unverified: everything on a real Mac (the pop-up's always-on-top behaviour, the CI job, the
+Local Network prompt), and a physical two-machine session.

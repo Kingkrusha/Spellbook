@@ -416,7 +416,7 @@ class AddCombatantDialog(ctk.CTkToplevel):
         frame.pack(fill="both", expand=True, pady=(6, 0))
         lb = tk.Listbox(frame, activestyle="none", exportselection=False, relief="flat", highlightthickness=0,
                         bg=t.get_current_color('bg_input'), fg=t.get_current_color('text_primary'),
-                        selectbackground=t.get_current_color('accent_primary'), font=("Segoe UI", 10))
+                        selectbackground=t.get_current_color('accent_primary'), font="TkDefaultFont")
         sb = ctk.CTkScrollbar(frame, command=lb.yview)
         lb.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
@@ -630,7 +630,7 @@ class AddMyCharacterDialog(ctk.CTkToplevel):
         self.list = tk.Listbox(frame, activestyle="none", exportselection=False, relief="flat",
                                highlightthickness=0, bg=t.get_current_color('bg_input'),
                                fg=t.get_current_color('text_primary'),
-                               selectbackground=t.get_current_color('accent_primary'), font=("Segoe UI", 10))
+                               selectbackground=t.get_current_color('accent_primary'), font="TkDefaultFont")
         self.list.pack(fill="both", expand=True)
         for c in self._characters:
             classes = ", ".join(f"{cl.get_class_name()} {cl.level}" for cl in c.classes)
@@ -666,3 +666,38 @@ class AddMyCharacterDialog(ctk.CTkToplevel):
             self.status.configure(text=e.message)
             return
         self.destroy()
+
+
+class PlayerOptionsPopover(ctk.CTkToplevel):
+    """The few things a player can set about their own tracker window (saved on this computer)."""
+
+    def __init__(self, parent, anchor, settings_manager):
+        super().__init__(parent)
+        t = _theme()
+        self.settings_manager = settings_manager
+        self.title("Tracker options")
+        self.transient(parent.winfo_toplevel())
+        _keep_above(self, parent)
+        self.resizable(False, False)
+        box = ctk.CTkFrame(self, fg_color="transparent")
+        box.pack(fill="both", expand=True, padx=16, pady=14)
+        s = getattr(settings_manager, "settings", None)
+
+        def check(text, key, default):
+            var = ctk.BooleanVar(value=bool(getattr(s, key, default)))
+            ctk.CTkCheckBox(box, text=text, variable=var, command=lambda: self._set(key, var.get())
+                            ).pack(anchor="w", pady=4)
+
+        check("Open this window when combat starts", "tracker_auto_open", True)
+        check("Beep and flash when it is my turn", "tracker_turn_beep", True)
+        ctk.CTkLabel(box, text="📌 keeps the window above your other apps.\n▦ switches to a compact table.",
+                     font=ui_font("small"), justify="left",
+                     text_color=t.get_text_secondary()).pack(anchor="w", pady=(10, 0))
+        _near(self, anchor, 330, 190)
+        self.bind("<Escape>", lambda _e: self.destroy())
+
+    def _set(self, key: str, value: bool):
+        try:
+            self.settings_manager.update(**{key: value})
+        except Exception:
+            pass

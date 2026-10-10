@@ -19,7 +19,7 @@ import initiative_sources as S
 import initiative_state as T
 from theme import get_theme_manager
 from typography import ui_font
-from ui.initiative_dialogs import ConditionsPopover, StatsPopover
+from ui.initiative_dialogs import ConditionsPopover, PlayerOptionsPopover, StatsPopover
 from ui.initiative_table import InitiativeTable, TableCallbacks
 
 DEFAULT_GEOMETRY = "460x420"
@@ -84,13 +84,16 @@ class InitiativeWindow(ctk.CTkToplevel):
                                          fg_color=t.get_current_color('button_normal'),
                                          hover_color=t.get_current_color('button_hover'))
         self.compact_btn.pack(side="right", padx=2)
+        self.options_btn = ctk.CTkButton(tools, text="⚙", width=34, height=26, command=self._open_options,
+                                         fg_color=t.get_current_color('button_normal'),
+                                         hover_color=t.get_current_color('button_hover'))
+        self.options_btn.pack(side="right", padx=2)
         self.alpha_slider = ctk.CTkSlider(tools, from_=0.4, to=1.0, width=70, command=self._set_alpha)
         self.alpha_slider.set(self.alpha)
         self.alpha_slider.pack(side="right", padx=(2, 8))
 
         # (an empty CTkFrame is 200 px tall by default; height=0 lets it collapse when it has no buttons)
-        self.action_row = ctk.CTkFrame(self, fg_color="transparent", height=0)
-        self.action_row.pack(fill="x", padx=8, pady=(6, 0))
+        self.action_row = ctk.CTkFrame(self, fg_color="transparent", height=0)   # packed only when it has a button
         self.add_btn = ctk.CTkButton(self.action_row, text="＋ Add my character", height=28,
                                      fg_color=t.get_current_color('accent_primary'),
                                      hover_color=t.get_current_color('accent_hover'), command=self._add_me)
@@ -115,6 +118,7 @@ class InitiativeWindow(ctk.CTkToplevel):
         # earlier "topmost"; apply ours after that, and once more in case it was slower.
         for ms in (320, 800):
             self.after(ms, self._apply_pin)
+        self.after(60, self._raise)         # macOS can open a new window behind the main one
         self.bind("<Configure>", self._on_configure, add="+")
 
     # ------------------------------------------------------------------ saved state
@@ -160,13 +164,23 @@ class InitiativeWindow(ctk.CTkToplevel):
             w, h = (int(v) for v in size.split("x"))
             x, y = int(x), int(y)
             sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+            top = 28 if sys.platform == "darwin" else 0         # below the macOS menu bar
             x = max(0, min(x, sw - 80))
-            y = max(0, min(y, sh - 80))
+            y = max(top, min(y, sh - 80))
             return f"{min(w, sw)}x{min(h, sh)}+{x}+{y}"
         except Exception:
             return DEFAULT_GEOMETRY
 
     # ------------------------------------------------------------------ window behaviour
+
+    def _raise(self):
+        try:
+            self.lift()
+        except Exception:
+            pass
+
+    def _open_options(self):
+        PlayerOptionsPopover(self, self.options_btn, self.settings_manager)
 
     def _apply_pin(self):
         if self._closing:
@@ -235,14 +249,21 @@ class InitiativeWindow(ctk.CTkToplevel):
             self._your_turn()
         self._was_my_turn = mine_active
 
-        # the buttons that make sense for this viewer
+        # the buttons that make sense for this viewer; the row itself only exists while there is one
         for b in (self.add_btn, self.next_btn):
             b.pack_forget()
+        shown = None
         if tv.role == "dm":
             self.next_btn.configure(text="▶▶ Next turn" if tv.started else "▶ Start")
-            self.next_btn.pack(side="left")
+            shown = self.next_btn
         elif tv.can_add and tv.my_count == 0:
-            self.add_btn.pack(side="left")
+            shown = self.add_btn
+        if shown is not None:
+            shown.pack(side="left")
+            if not self.action_row.winfo_manager():
+                self.action_row.pack(fill="x", padx=8, pady=(6, 0), before=self.table)
+        elif self.action_row.winfo_manager():
+            self.action_row.pack_forget()
 
     def _your_turn(self):
         """The turn came round to one of this player's characters. Visible without taking focus."""
