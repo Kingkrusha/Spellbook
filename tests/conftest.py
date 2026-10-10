@@ -46,7 +46,13 @@ def tk_root():
             time.sleep(0.4)
     else:
         pytest.skip(f"no display available ({last})")
-    root.withdraw()
+    if sys.platform == "darwin":
+        # A withdrawn root makes Tk's update() block on macOS (seen on the CI runner), so there the root
+        # stays mapped but fully transparent.
+        root.geometry("120x80+0+0")
+        root.attributes("-alpha", 0.0)
+    else:
+        root.withdraw()
     yield root
     try:
         root.destroy()
