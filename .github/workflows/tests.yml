@@ -11,6 +11,7 @@ on:
 
 jobs:
   test:
+    timeout-minutes: 25        # a hung test must fail the job, not sit for six hours
     strategy:
       fail-fast: false
       matrix:
@@ -31,7 +32,9 @@ jobs:
       # The LAN tests open real TLS sockets on loopback; the UI tests skip themselves when there is
       # no display, so this works on a headless runner too.
       - name: Run tests
-        run: python -m pytest tests -q
+        # -v names each test as it runs, and faulthandler_timeout prints every thread's stack if a
+        # single test sits for two minutes - so a hang shows where it is stuck.
+        run: python -m pytest tests -v -o faulthandler_timeout=120
 
       - name: LAN self-test (from source)
         run: python main.py --lan-selftest lan-selftest.json
