@@ -105,6 +105,9 @@ class InitiativeWindow(ctk.CTkToplevel):
         self.table.pack(fill="both", expand=True, padx=8, pady=8)
 
         backend.listen(self._on_change)
+        setter = getattr(backend, "set_error_handler", None)
+        if setter is not None:                       # a networked backend: the host may refuse things
+            setter(lambda message: self.after(0, lambda: self._show_error(message)))
         self._refresh_chrome()
         self._on_change(first=True)
 
@@ -200,6 +203,9 @@ class InitiativeWindow(ctk.CTkToplevel):
         self._closing = True
         try:
             self.backend.unlisten(self._on_change)
+            setter = getattr(self.backend, "set_error_handler", None)
+            if setter is not None:
+                setter(None)
         except Exception:
             pass
         self.destroy()
@@ -248,6 +254,12 @@ class InitiativeWindow(ctk.CTkToplevel):
         _flash(self)
 
     # ------------------------------------------------------------------ actions
+
+    def _show_error(self, message: str):
+        if self._closing or not self.winfo_exists():
+            return
+        from tkinter import messagebox
+        messagebox.showwarning("Initiative", message, parent=self)
 
     def _run(self, cmd: dict):
         try:

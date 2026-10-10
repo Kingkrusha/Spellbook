@@ -23,13 +23,15 @@ EVERYONE = "Everyone"
 
 class SessionView(ctk.CTkFrame):
     def __init__(self, parent, service, on_back: Optional[Callable[[], None]] = None, overlay=None,
-                 get_managers: Optional[Callable[[], object]] = None):
+                 get_managers: Optional[Callable[[], object]] = None,
+                 on_initiative: Optional[Callable[[], None]] = None):
         super().__init__(parent, fg_color="transparent")
         self.theme = get_theme_manager()
         self.service = service
         self.on_back = on_back
         self.overlay = overlay          # the chat overlay (its options are offered here)
         self._get_managers = get_managers   # -> transfer.Managers, for sending and receiving
+        self._on_initiative = on_initiative
         self._inbox_frame: Optional[ctk.CTkFrame] = None
 
         self._rendered_role: Optional[str] = None
@@ -409,6 +411,11 @@ class SessionView(ctk.CTkFrame):
         self._peers_frame.pack(fill="x", padx=12)
         ctk.CTkLabel(side, text=f"Security code  {s.security_code}", font=ui_font("small"),
                      text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(6, 0))
+        if self._on_initiative is not None:
+            ctk.CTkButton(side, text="⚔ Initiative tracker", height=30,
+                          fg_color=self.theme.get_current_color('accent_primary'),
+                          hover_color=self.theme.get_current_color('accent_hover'),
+                          command=self._on_initiative).pack(fill="x", padx=14, pady=(12, 0))
         if self._get_managers is not None:
             ctk.CTkButton(side, text="📤 Send characters / homebrew…", height=30,
                           fg_color=self.theme.get_current_color('button_normal'),

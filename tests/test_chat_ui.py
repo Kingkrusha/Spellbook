@@ -8,17 +8,6 @@ import pytest
 from ui.chat_input import qualify_links
 
 
-@pytest.fixture(scope="module")
-def tk_root():
-    try:
-        root = tk.Tk()
-    except tk.TclError as e:
-        pytest.skip(f"no display available ({e})")
-    root.withdraw()
-    yield root
-    root.destroy()
-
-
 @pytest.fixture()
 def text(tk_root):
     widget = tk.Text(tk_root, font=("TkDefaultFont", 10))

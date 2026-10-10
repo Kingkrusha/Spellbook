@@ -23,7 +23,8 @@ from ui.initiative_table import InitiativeTable, TableCallbacks
 class InitiativeView(ctk.CTkFrame):
     def __init__(self, parent, hub, get_managers: Optional[Callable[[], object]] = None,
                  on_back: Optional[Callable[[], None]] = None,
-                 open_window: Optional[Callable[[str], None]] = None):
+                 open_window: Optional[Callable[[str], None]] = None,
+                 get_players: Optional[Callable[[], list]] = None):
         super().__init__(parent, fg_color="transparent")
         self.theme = get_theme_manager()
         self.hub = hub
@@ -31,6 +32,7 @@ class InitiativeView(ctk.CTkFrame):
         self.get_managers = get_managers
         self.on_back = on_back
         self.open_window = open_window
+        self.get_players = get_players
         self._selected: Set[str] = set()
         self._change_after = None
 
@@ -173,7 +175,7 @@ class InitiativeView(ctk.CTkFrame):
         SettingsPopover(self.winfo_toplevel(), self.settings_btn, self.backend)
 
     def _add(self):
-        AddCombatantDialog(self.winfo_toplevel(), self.backend, self.get_managers)
+        AddCombatantDialog(self.winfo_toplevel(), self.backend, self.get_managers, self.get_players)
 
     def _roll_menu(self):
         menu = self._menu()

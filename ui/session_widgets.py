@@ -14,7 +14,8 @@ from typography import ui_font
 class SessionStatusBar(ctk.CTkFrame):
     """One-line bar: who we are connected to, with shortcuts to the Session page and Leave."""
 
-    def __init__(self, parent, service, on_open: Callable[[], None]):
+    def __init__(self, parent, service, on_open: Callable[[], None],
+                 on_initiative: Optional[Callable[[], None]] = None):
         theme = get_theme_manager()
         super().__init__(parent, fg_color=theme.get_current_color('bg_tertiary'), corner_radius=0, height=30)
         self.service = service
@@ -37,6 +38,12 @@ class SessionStatusBar(ctk.CTkFrame):
             fg_color=theme.get_current_color('button_normal'),
             hover_color=theme.get_current_color('button_hover'),
             command=on_open).pack(side="right", padx=4, pady=4)
+        if on_initiative is not None:
+            ctk.CTkButton(
+                self, text="⚔ Initiative", width=96, height=22, font=ui_font("small"),
+                fg_color=theme.get_current_color('button_normal'),
+                hover_color=theme.get_current_color('button_hover'),
+                command=on_initiative).pack(side="right", padx=4, pady=4)
         self.refresh()
 
     def refresh(self) -> None:

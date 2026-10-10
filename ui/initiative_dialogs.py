@@ -353,11 +353,13 @@ class SettingsPopover(ctk.CTkToplevel):
 class AddCombatantDialog(ctk.CTkToplevel):
     """Bring monsters, characters, custom creatures and events into the fight."""
 
-    def __init__(self, parent, backend, get_managers: Optional[Callable[[], object]] = None):
+    def __init__(self, parent, backend, get_managers: Optional[Callable[[], object]] = None,
+                 get_players: Optional[Callable[[], list]] = None):
         super().__init__(parent)
         self.t = _theme()
         self.backend = backend
         self.get_managers = get_managers
+        self.get_players = get_players
         self.title("Add to the fight")
         self.geometry("560x620")
         self.minsize(520, 560)
@@ -369,6 +371,8 @@ class AddCombatantDialog(ctk.CTkToplevel):
         self.tabs = ctk.CTkTabview(self, height=360)
         self.tabs.pack(fill="both", expand=True, padx=14, pady=(12, 6))
         self._monster_tab(self.tabs.add("Monster"))
+        if get_players is not None:
+            self._player_tab(self.tabs.add("Player"))
         self._character_tab(self.tabs.add("Character"))
         self._custom_tab(self.tabs.add("Custom"))
         self._event_tab(self.tabs.add("Event"))
@@ -460,6 +464,36 @@ class AddCombatantDialog(ctk.CTkToplevel):
                                        + (f" ({m.hit_dice})" if m.hit_dice else "")
                                        + f", initiative {'+' if init >= 0 else ''}{init}")
 
+    def _player_tab(self, tab):
+        """A connected player's character, entered by the DM. (Players can also add themselves.)"""
+        self._players = list(self.get_players() or [])
+        ctk.CTkLabel(tab, text="Someone connected to your session. They can then change this character's "
+                               "HP, AC and conditions themselves.", font=ui_font("small"), wraplength=480,
+                     justify="left", text_color=self.t.get_text_secondary()).pack(anchor="w", pady=(6, 8))
+        names = [n for n, _ in self._players] or ["(nobody is connected)"]
+        row = ctk.CTkFrame(tab, fg_color="transparent")
+        row.pack(anchor="w")
+        ctk.CTkLabel(row, text="Player", font=ui_font("small")).grid(row=0, column=0, sticky="w", padx=4)
+        self.p_who = ctk.StringVar(value=names[0])
+        ctk.CTkOptionMenu(row, values=names, variable=self.p_who, width=180, height=30,
+                          command=self._player_picked).grid(row=1, column=0, padx=4)
+        self.pl = {}
+        for i, (key, label, width, default) in enumerate((("name", "Character name", 170, ""), ("hp", "HP", 60, "10"),
+                                                           ("ac", "AC", 60, "12"), ("bonus", "Init bonus", 70, "0"))):
+            ctk.CTkLabel(row, text=label, font=ui_font("small")).grid(row=0, column=i + 1, sticky="w", padx=4)
+            e = ctk.CTkEntry(row, width=width, height=30)
+            e.insert(0, default)
+            e.grid(row=1, column=i + 1, padx=4)
+            self.pl[key] = e
+        self._player_picked(names[0])
+
+    def _player_picked(self, name: str):
+        entry = self.pl["name"]
+        if not entry.get().strip() or entry.get() in [n for n, _ in self._players]:
+            entry.delete(0, "end")
+            if self._players:
+                entry.insert(0, name)
+
     def _character_tab(self, tab):
         ctk.CTkLabel(tab, text="One of your own characters, as an NPC or a stand-in player:",
                      font=ui_font("small"), text_color=self.t.get_text_secondary()).pack(anchor="w")
@@ -518,6 +552,19 @@ class AddCombatantDialog(ctk.CTkToplevel):
                     return
                 cmd = S.from_monster(m, roll_hp=self.rollhp_var.get(), hidden=hidden)
                 label = m.name
+            elif tab == "Player":
+                owner = next((cid for n, cid in self._players if n == self.p_who.get()), None)
+                name = self.pl["name"].get().strip()
+                hp, ac, bonus = (_to_int(self.pl[k].get()) for k in ("hp", "ac", "bonus"))
+                if owner is None:
+                    self.status.configure(text="Nobody is connected to add a character for.")
+                    return
+                if not name or hp is None or ac is None or bonus is None:
+                    self.status.configure(text="Give the character a name, and whole numbers for HP, AC and bonus.")
+                    return
+                cmd = {"type": "add_entry", "kind": T.KIND_PLAYER, "name": name, "hp": hp, "hp_max": hp,
+                       "ac": ac, "init_bonus": bonus, "owner": owner, "hidden": hidden}
+                label, count = name, 1
             elif tab == "Character":
                 c = self._selected(self.c_list, self._characters)
                 if c is None:

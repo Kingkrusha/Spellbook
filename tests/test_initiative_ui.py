@@ -11,21 +11,6 @@ import initiative_state as T
 from tracker_hub import TrackerHub
 
 
-@pytest.fixture(scope="module")
-def tk_root():
-    import customtkinter as ctk
-    try:
-        root = ctk.CTk()
-    except Exception as e:                                   # no display
-        pytest.skip(f"no display available ({e})")
-    root.withdraw()
-    yield root
-    try:
-        root.destroy()
-    except Exception:
-        pass
-
-
 def pump(root, seconds=0.1):
     end = time.time() + seconds
     while time.time() < end:

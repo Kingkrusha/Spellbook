@@ -105,6 +105,7 @@ class AppSettings:
     # Initiative tracker
     tracker_window_state: str = ""  # JSON: where each pop-up window was, whether it was pinned, ...
     tracker_turn_beep: bool = True  # Beep (and flash the taskbar) when it becomes your turn
+    tracker_auto_open: bool = True  # Open the tracker window when the DM starts combat
 
     lan_overlay_translucent: bool = True  # Use the translucent overlay where the OS allows it
 
@@ -142,7 +143,7 @@ class AppSettings:
             'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
             'lan_overlay_opacity', 'lan_overlay_translucent',
-            'tracker_window_state', 'tracker_turn_beep',
+            'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

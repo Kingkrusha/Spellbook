@@ -253,6 +253,6 @@ Initiative tracker: T0 (state, reducer, projection, undo, saving), T1 (snapshots
 page: table, add dialog, HP/AC and conditions popovers, group / hide / reorder, settings) and T3 (the
 resizable always-on-top player window, "your turn" alert, DM pop-out and player preview) are done and
 tested. A player's screens already run against a "backend" (`tracker_hub.LocalBackend`); T4 swaps in one
-that talks to the host over the session. Remaining: T4 tracker over the network (the DM's changes
-broadcast per-viewer projections; players' commands go to the host), T5 polish and the always-on-top
-check on macOS.
+that talks to the host over the session. T4 (tracker over the network: `tracker_net.py`) is done: the
+host sends each player their own projection after every change and applies their commands as that
+player; hidden data is verified absent from what players receive. Remaining: macOS checks and polish.

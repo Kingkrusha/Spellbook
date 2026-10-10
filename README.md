@@ -78,7 +78,8 @@ for free, open-source Mac apps and costs nothing.
 
 ## Initiative tracker
 
-**Game Tools > Initiative Tracker** runs combat for the table. It works on its own (no session needed).
+**Game Tools > Initiative Tracker** runs combat for the table. It works on its own (no session needed),
+and over a **LAN session** it is shared: each connected player automatically gets their own view of it.
 
 - **Add** monsters (from the Monsters collection, with the HP and AC copied in; optionally rolling HP from
   its dice), your own characters, custom creatures, or **events** (a name that spans the whole table).
@@ -94,6 +95,12 @@ for free, open-source Mac apps and costs nothing.
 - **Players** see the table in a resizable **pop-up window that stays on top of other apps** (pin it
   off with 📌), can edit their own HP, AC and conditions, and are told when it's their turn. The DM can
   **Pop out** the same window for a second monitor and **Preview** what a given player sees.
+- **Over a session:** the DM's app is the only place the real encounter lives. Each player is sent only
+  what they may see - hidden creatures, hidden HP/AC and DM notes never reach their computer - and their
+  edits go to the DM's app, which applies them under the same rules (a player can only change their own
+  character). Players' windows open by themselves when combat starts (Settings: `tracker_auto_open`),
+  the DM can add a connected player's character from the **Player** tab, and players who are away show
+  as *(offline)* until they reconnect to their character.
 - The encounter is saved as you go, so closing the app mid-fight doesn't lose it.
 
 ## LAN sessions

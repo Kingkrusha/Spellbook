@@ -38,6 +38,7 @@ class Row:
     notes: str = ""
     source: Dict[str, str] = field(default_factory=dict)
     owner: str = ""
+    offline: bool = False                 # DM only: a player's character whose player isn't connected
     hp_override: Optional[str] = None     # the DM's per-entry HP visibility override
     ac_override: Optional[str] = None
 

@@ -6,6 +6,8 @@ worker thread, not the UI thread. After that everything arrives on :attr:`events
 * ``chat`` - ``seq, from, name, text, ts``
 * ``dm`` - ``from, name, to, text, ts``
 * ``roll`` - ``seq, from, name, expr, detail, total, label, crit, private, ts``
+* ``tracker_state`` - the initiative tracker as this player may see it: ``view``
+* ``tracker_error`` - the host refused a tracker command: ``message, seq``
 * ``xfer`` - characters/homebrew sent to us: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_status`` - the host's receipt for something we sent: ``xfer_id, status, detail``
 * ``xfer_reply`` - the recipient's answer: ``from, name, xfer_id, status, detail``
@@ -150,6 +152,10 @@ class LanClient:
         if text and self.connected:
             self._runner.submit(self._send_quiet({"type": "dm", "body": {"to": peer_id, "text": text}}))
 
+    def send_tracker_cmd(self, cmd: dict, seq: Optional[int] = None) -> None:
+        """Ask the host to run an initiative-tracker command as this player."""
+        self.send("tracker_cmd", {"cmd": cmd, "seq": seq})
+
     def send_xfer(self, peer_id: str, xfer_id: str, title: str, payload: dict) -> None:
         """Send characters/homebrew to another player (through the host)."""
         self.send("xfer", {"to": peer_id, "xfer_id": xfer_id,
@@ -244,6 +250,13 @@ class LanClient:
                     self.events.put("peer_left", peer=peer, reason="")
         elif kind == "error":
             self.events.put("error", code=str(body.get("code") or ""), message=str(body.get("message") or ""))
+        elif kind == "tracker_state":
+            view = body.get("view")
+            if isinstance(view, dict):
+                self.events.put("tracker_state", view=view)
+        elif kind == "tracker_error":
+            self.events.put("tracker_error", message=P.clean_text(body.get("message"), 200),
+                            seq=body.get("seq") if isinstance(body.get("seq"), int) else None)
         elif kind == "pong":
             pass
         else:

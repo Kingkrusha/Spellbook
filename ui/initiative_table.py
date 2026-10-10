@@ -145,7 +145,7 @@ class _RowWidget(ctk.CTkFrame):
         t = self.table.theme
         key = (r.name, r.initiative, r.group, r.group_index, r.first_in_group, r.hidden, r.defeated, r.mine,
                r.can_edit, r.active, tuple((c.get("name"), c.get("level"), c.get("rounds")) for c in r.conditions),
-               r.hp_mode, r.hp, r.hp_max, r.hp_temp, r.hp_frac, r.ac, selected, compact, r.group_name)
+               r.hp_mode, r.hp, r.hp_max, r.hp_temp, r.hp_frac, r.ac, selected, compact, r.group_name, r.offline)
         if key == self._key:
             return
         self._key = key
@@ -168,6 +168,8 @@ class _RowWidget(ctk.CTkFrame):
                 name += f"   ·  {r.group_name}"
             if r.mine and not self.table.dm:
                 name += "  (you)"
+            if r.offline:
+                name += "   (offline)"
             if r.hidden:
                 name += "   (hidden)" if self.table.dm else "   (hidden from others)"
             if r.defeated:

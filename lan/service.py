@@ -17,6 +17,10 @@ Listener events - ``listener(kind, **data)``:
 * ``approval_request`` - host only: ``request_id, name, address``
 * ``approval_done``    - host only: ``request_id`` (answered, so close any prompt)
 * ``scan_done``        - discovery finished; the results are in :attr:`discovered`
+* ``peer_joined``      - host only: ``peer``, ``client_id`` (the player's install id)
+* ``tracker_cmd``      - host only: ``peer_id, name, cmd, seq`` from a player
+* ``tracker_state``    - player only: ``view``, the tracker as the host projected it for us
+* ``tracker_error``    - player only: ``message, seq``
 * ``inbox``            - something arrived (or left) :attr:`inbox`; ``item`` is the new entry, if any
 * ``join_failed``      - ``message``
 * ``ended``            - the session is over; ``reason`` says why
@@ -83,6 +87,8 @@ class SessionService:
         self.my_name = ""
         self.host_name = ""                           # the DM's display name
         self.peers: List[dict] = []                   # {peer_id, name, is_host}
+        self.client_ids: Dict[str, str] = {}          # host only: peer id -> that player's install id
+        self._client_id_cache = ""
         self.chat: List[dict] = []
         self.password = ""                            # what the host asked for (shown to the DM only)
         self.require_approval = True
@@ -166,7 +172,9 @@ class SessionService:
         import secrets
         s = getattr(self._settings, "settings", None) if self._settings else None
         if s is None:
-            return secrets.token_hex(8)
+            if not self._client_id_cache:
+                self._client_id_cache = secrets.token_hex(8)
+            return self._client_id_cache
         if not s.lan_client_id:
             self._settings.update(lan_client_id=secrets.token_hex(8))
         return s.lan_client_id
@@ -228,6 +236,24 @@ class SessionService:
     def kick(self, peer_id: str) -> None:
         if self._host is not None:
             self._host.kick(peer_id)
+
+    # ---------------------------------------------------------------- tracker
+
+    def send_tracker_state(self, peer_id: str, view: dict) -> None:
+        """Host: give one player their current view of the initiative tracker."""
+        if self._host is not None:
+            self._host.send_to(peer_id, "tracker_state", {"view": view})
+
+    def send_tracker_error(self, peer_id: str, message: str, seq: Optional[int] = None) -> None:
+        if self._host is not None:
+            self._host.send_to(peer_id, "tracker_error", {"message": P.clean_text(message, 200), "seq": seq})
+
+    def send_tracker_cmd(self, cmd: dict) -> bool:
+        """Player: ask the host to run a tracker command as us. False if we aren't connected."""
+        if self._client is None or self.role != CLIENT:
+            return False
+        self._client.send_tracker_cmd(cmd)
+        return True
 
     # ---------------------------------------------------------------- transfers
 
@@ -453,9 +479,19 @@ class SessionService:
             self._on_xfer_reply(ev)
         elif kind == "peer_joined":
             self._set_peer(ev["peer"])
+            if ev.get("client_id"):
+                self.client_ids[ev["peer"]["peer_id"]] = ev["client_id"]
             self._add_line("system", f"{ev['peer']['name']} joined.")
             self._notify("state")
+            self._notify("peer_joined", peer=ev["peer"], client_id=ev.get("client_id", ""))
+        elif kind == "tracker_cmd":
+            self._notify("tracker_cmd", peer_id=ev["peer_id"], name=ev["name"], cmd=ev["cmd"], seq=ev.get("seq"))
+        elif kind == "tracker_state":
+            self._notify("tracker_state", view=ev["view"])
+        elif kind == "tracker_error":
+            self._notify("tracker_error", message=ev["message"], seq=ev.get("seq"))
         elif kind == "peer_left":
+            self.client_ids.pop(ev["peer"]["peer_id"], None)
             self._drop_peer(ev["peer"])
             why = f" ({ev['reason']})" if ev.get("reason") else ""
             self._add_line("system", f"{ev['peer']['name']} left{why}.")

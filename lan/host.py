@@ -13,6 +13,7 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``error`` - ``code, message`` (the host typed something invalid, e.g. a bad ``/roll``)
 * ``dm`` - ``from, name, to, text, ts`` (only DMs sent to or by the host)
 * ``approval_request`` - ``request_id, name, address``; answer with :meth:`resolve_approval`
+* ``tracker_cmd`` - a player's initiative-tracker command: ``peer_id, name, cmd, seq``
 * ``xfer`` - something sent to the host: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_reply`` - the recipient answered a transfer: ``from, name, xfer_id, status, detail``
 """
@@ -21,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import json
 import secrets
 import time
 from typing import Awaitable, Callable, Dict, List, Optional
@@ -117,11 +119,13 @@ class LanHost:
         self._pending = 0
         self._seq = 0
         self._public: List[dict] = []          # snapshot for other threads
+        self._client_ids: Dict[str, str] = {}  # peer id -> install id, replaced (never edited) on change
         self._started = False
 
         self.register_handler("chat", self._on_chat)
         self.register_handler("dm", self._on_dm)
         self.register_handler("xfer", self._on_xfer)
+        self.register_handler("tracker_cmd", self._on_tracker_cmd)
         self.register_handler("xfer_reply", self._on_xfer_reply)
 
     # ------------------------------------------------------------------ lifecycle
@@ -297,10 +301,12 @@ class LanHost:
             "protocol": P.PROTOCOL_VERSION,
         }})
         self._peers[peer.peer_id] = peer
+        self._client_ids = {**self._client_ids, peer.peer_id: peer.client_id}
         self._refresh_public()
         await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
                                "body": {"event": "join", "peer": peer.public()}}, exclude=peer.peer_id)
-        self._emit("peer_joined", peer=peer.public())
+        # (client_id goes only to the host's own UI, never into the broadcast presence message)
+        self._emit("peer_joined", peer=peer.public(), client_id=peer.client_id)
         return peer
 
     async def _ask_dm(self, name: str, address: str):
@@ -368,6 +374,7 @@ class LanHost:
         peer.close()
         if self._peers.get(peer.peer_id) is peer:
             del self._peers[peer.peer_id]
+            self._client_ids = {k: v for k, v in self._client_ids.items() if k != peer.peer_id}
             self._refresh_public()
             self._emit("peer_left", peer=peer.public(), reason=reason)
             await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
@@ -465,6 +472,28 @@ class LanHost:
                              "body": {"code": "unknown_peer", "message": "That player is not in the session."}})
             return
         await peer.send(msg)            # echo, so the sender's log has it in order
+
+    # ------------------------------------------------------------------ tracker
+
+    def client_id_of(self, peer_id: str) -> Optional[str]:
+        """The install id a connected player presented (safe from any thread)."""
+        return self._client_ids.get(peer_id)
+
+    def send_to(self, peer_id: str, msg_type: str, body: dict) -> None:
+        """Send one message of any type to one player (thread-safe)."""
+        if self._started:
+            self._runner.submit(self._send_to(peer_id, {"type": msg_type, "from": HOST_ID,
+                                                        "ts": time.time(), "body": body}))
+
+    async def _on_tracker_cmd(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        cmd = body.get("cmd")
+        if not isinstance(cmd, dict) or len(json.dumps(cmd, separators=(",", ":"))) > 8192:
+            await peer.send({"type": "tracker_error", "from": HOST_ID, "ts": time.time(),
+                             "body": {"message": "That was not a valid tracker command.", "seq": body.get("seq")}})
+            return
+        seq = body.get("seq")
+        self._emit("tracker_cmd", peer_id=peer.peer_id, name=peer.name, cmd=cmd,
+                   seq=seq if isinstance(seq, int) else None)
 
     # ------------------------------------------------------------------ transfers
 

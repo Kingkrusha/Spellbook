@@ -842,6 +842,11 @@ class Tracker:
     def can_undo(self) -> bool:
         return bool(self._history)
 
+    def notify(self) -> None:
+        """Tell listeners to redraw without changing anything (e.g. a player went offline)."""
+        for fn in list(self._listeners):
+            fn(self.state)
+
     def dispatch(self, actor: Actor, cmd: dict, **kw) -> TrackerState:
         """Apply a command (or ``{"type": "undo"}``, DM only). Raises :class:`CommandError`."""
         if isinstance(cmd, dict) and cmd.get("type") == "undo":

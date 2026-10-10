@@ -278,6 +278,8 @@ class MainWindow(ctk.CTkFrame):
             pass
 
         try:
+            if self._tracker_link is not None:
+                self._tracker_link.close()
             for window in list(self._tracker_windows.values()):
                 window.close()
             self.tracker_hub.flush()            # a fight in progress must survive closing the app
@@ -304,6 +306,51 @@ class MainWindow(ctk.CTkFrame):
             self._tracker_hub = TrackerHub(schedule=lambda ms, fn: self.after(ms, fn), cancel=self.after_cancel)
         return self._tracker_hub
 
+    def _sync_tracker_links(self):
+        """The tracker follows the session: hosting means every player is sent their view of it;
+        being a player means the tracker window is fed by the host."""
+        from lan.service import CLIENT, HOSTING
+        role = self.session.role
+        if role == HOSTING and self._tracker_link is None:
+            from tracker_net import TrackerHostLink
+            self._tracker_link = TrackerHostLink(self.tracker_hub, self.session,
+                                                 schedule=lambda ms, fn: self.after(ms, fn))
+        elif role != HOSTING and self._tracker_link is not None:
+            self._tracker_link.close()
+            self._tracker_link = None
+        if role == CLIENT and self._remote_tracker is None:
+            from tracker_net import RemoteBackend
+            self._remote_tracker = RemoteBackend(self.session)
+            self._remote_was_started = False
+        elif role != CLIENT and self._remote_tracker is not None:
+            window = self._tracker_windows.get("remote")
+            if window is not None and window.winfo_exists():
+                window.close()
+            self._remote_tracker.close()
+            self._remote_tracker = None
+
+    def _maybe_open_tracker_for_player(self, view: dict):
+        """A player's tracker window opens by itself when the DM starts combat (turn it off in
+        Settings; closing the window keeps it closed until the next encounter)."""
+        started = bool(view.get("started"))
+        was, self._remote_was_started = self._remote_was_started, started
+        if started and not was and getattr(self.settings_manager.settings, "tracker_auto_open", True):
+            self.open_tracker_window("remote")
+
+    def open_initiative(self):
+        """The DM gets the tracker page; a player gets the window fed by the host."""
+        from lan.service import CLIENT
+        if self.session.role == CLIENT:
+            self.open_tracker_window("remote")
+        else:
+            self._open_page_in_new_tab("initiative")
+
+    def _tracker_players(self):
+        """``[(display name, install id)]`` of the players connected to the session being hosted."""
+        s = self.session
+        return [(p["name"], s.client_ids[p["peer_id"]]) for p in s.peers
+                if p["peer_id"] != s.my_id and p["peer_id"] in s.client_ids]
+
     def open_tracker_window(self, which: str = "dm"):
         """Open (or raise) a tracker pop-up. ``which``: "dm", or "player:<owner id>" to preview what
         that player sees ("player:" alone is an observer with no character)."""
@@ -314,7 +361,11 @@ class MainWindow(ctk.CTkFrame):
             return existing
         from ui.initiative_window import InitiativeWindow
         hub = self.tracker_hub
-        if which == "dm":
+        if which == "remote":
+            if self._remote_tracker is None:
+                return None
+            backend, kind, title = self._remote_tracker, "player", "Initiative"
+        elif which == "dm":
             backend, kind, title = hub.dm(), "dm", "Initiative (DM)"
         else:
             owner = which.partition(":")[2]
@@ -330,6 +381,9 @@ class MainWindow(ctk.CTkFrame):
     def _init_session(self):
         self._tracker_hub = None
         self._tracker_windows = {}
+        self._tracker_link = None           # while hosting: sends each player their view
+        self._remote_tracker = None         # while a player: the host's view, as a backend
+        self._remote_was_started = False
         from lan.service import SessionService
         from version import __version__
         self.session = SessionService(self.settings_manager, app_version=__version__)
@@ -366,6 +420,10 @@ class MainWindow(ctk.CTkFrame):
     def _on_session_event(self, kind: str, **data):
         if kind in ('state', 'inbox'):
             self._update_session_bar()
+        if kind == 'state':
+            self._sync_tracker_links()
+        elif kind == 'tracker_state':
+            self._maybe_open_tracker_for_player(data.get('view') or {})
         elif kind == 'approval_request':
             from ui.session_widgets import ApprovalDialog
             request_id = data['request_id']
@@ -380,12 +438,16 @@ class MainWindow(ctk.CTkFrame):
             for dialog in list(self._approval_dialogs.values()):
                 dialog.dismiss()
             self._approval_dialogs.clear()
+            window = self._tracker_windows.get("remote")
+            if window is not None and window.winfo_exists():
+                window.close()
 
     def _update_session_bar(self):
         """Show the status bar under the tabs while a session is running."""
         if self.session.active and self._session_bar is None:
             from ui.session_widgets import SessionStatusBar
-            self._session_bar = SessionStatusBar(self, self.session, on_open=self._open_session_page)
+            self._session_bar = SessionStatusBar(self, self.session, on_open=self._open_session_page,
+                                                 on_initiative=self.open_initiative)
             self._session_bar.pack(side="bottom", fill="x", before=self.tab_bar)
         elif not self.session.active and self._session_bar is not None:
             self._session_bar.destroy()
@@ -622,13 +684,14 @@ class MainWindow(ctk.CTkFrame):
         if page_type == "session":
             from ui.session_view import SessionView
             return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
-                               overlay=self.chat_overlay, get_managers=self._transfer_managers)
+                               overlay=self.chat_overlay, get_managers=self._transfer_managers,
+                               on_initiative=self.open_initiative)
         if page_type == "initiative":
             from ui.initiative_view import InitiativeView
             return InitiativeView(
                 self, self.tracker_hub, get_managers=self._transfer_managers,
                 on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
-                open_window=self.open_tracker_window)
+                open_window=self.open_tracker_window, get_players=self._tracker_players)
         raise ValueError(f"Unknown page type: {page_type}")
 
     # Pages a tab has left are kept (hidden) for a while, so going back to Home, the Characters
@@ -775,7 +838,11 @@ class MainWindow(ctk.CTkFrame):
         if key == "session":
             self._navigate_tab(tab_id, "session")
         elif key == "initiative":
-            self._navigate_tab(tab_id, "initiative")
+            from lan.service import CLIENT
+            if self.session.role == CLIENT:
+                self.open_tracker_window("remote")        # players watch it in the pop-up window
+            else:
+                self._navigate_tab(tab_id, "initiative")
 
     def _open_character(self, tab_id: str, name: str, new_tab: bool = False):
         """Open a character's sheet in this tab (or a new one)."""

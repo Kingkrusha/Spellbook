@@ -36,7 +36,12 @@ class LocalBackend:
         return T.project(self.hub.tracker.state, self.actor)
 
     def table(self) -> R.TableView:
-        return R.build(self.view())
+        tv = R.build(self.view())
+        online = self.hub.online_owners() if (self.actor.is_dm and self.hub.online_owners) else None
+        if online is not None:
+            for r in tv.rows:
+                r.offline = r.kind == T.KIND_PLAYER and bool(r.owner) and r.owner not in online
+        return tv
 
     @property
     def can_undo(self) -> bool:
@@ -85,6 +90,8 @@ class TrackerHub:
         self._pending: object = None
         self._dirty = False
         self.save_error = ""
+        # Set while hosting a session: who is connected right now (install ids), else None = unknown
+        self.online_owners: Optional[Callable[[], set]] = None
         self.tracker.add_listener(self._changed)
 
     # -- backends
