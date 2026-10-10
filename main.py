@@ -55,7 +55,9 @@ def _lan_selftest(out_path: str) -> int:
         modules = ["lan.protocol", "lan.security", "lan.runtime", "lan.host", "lan.client", "lan.service",
                    "lan.discovery", "lan.dice", "transfer", "character_io", "ui.session_view",
                    "ui.session_widgets", "ui.chat_overlay", "ui.chat_input", "ui.chat_render",
-                   "ui.transfer_dialogs", "ui.game_tools_view"]
+                   "ui.transfer_dialogs", "ui.game_tools_view", "initiative_state", "initiative_rows",
+                   "initiative_sources", "conditions", "tracker_hub", "tracker_net", "ui.initiative_table",
+                   "ui.initiative_dialogs", "ui.initiative_view", "ui.initiative_window"]
         for name in modules:
             importlib.import_module(name)
         import cryptography
@@ -64,6 +66,13 @@ def _lan_selftest(out_path: str) -> int:
 
         host = LanHost("Self-test", require_approval=False)
         host.start(port=0, bind="127.0.0.1")
+        # the initiative tracker's rules run too: a tiny encounter, projected for a player
+        import initiative_state as T
+        tracker = T.Tracker()
+        tracker.dispatch(T.DM, {"type": "add_entry", "kind": "custom", "name": "Probe Ogre", "hp": 5,
+                                "hidden": True})
+        if T.project(tracker.state, T.Actor("player", "x"))["entries"]:
+            raise RuntimeError("tracker leaked a hidden entry")
         client = LanClient("Probe")
         try:
             client.connect("127.0.0.1", host.port, host.fingerprint, timeout=15)

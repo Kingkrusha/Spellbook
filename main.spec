@@ -19,6 +19,9 @@ _LAN_IMPORTS = [
     'lan.discovery', 'lan.dice', 'transfer', 'character_io',
     'ui.session_view', 'ui.session_widgets', 'ui.chat_overlay', 'ui.chat_input', 'ui.chat_render',
     'ui.transfer_dialogs', 'ui.game_tools_view',
+    'initiative_state', 'initiative_rows', 'initiative_sources', 'conditions', 'tracker_hub',
+    'tracker_net', 'ui.initiative_table', 'ui.initiative_dialogs', 'ui.initiative_view',
+    'ui.initiative_window',
     'cryptography', 'cryptography.x509', 'cryptography.hazmat.primitives.asymmetric.ec',
     'cryptography.hazmat.primitives.serialization', 'cryptography.hazmat.primitives.hashes',
 ]

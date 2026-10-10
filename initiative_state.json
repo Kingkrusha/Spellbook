@@ -1,0 +1,65 @@
+{
+  "format": "spellbook-initiative",
+  "version": 1,
+  "rev": 5,
+  "started": false,
+  "round": 0,
+  "active": "",
+  "settings": {
+    "monster_hp": "bar",
+    "monster_ac": "shown",
+    "player_hp": "number",
+    "players_can_add": true,
+    "skip_defeated": true
+  },
+  "group_names": {},
+  "group_seq": 0,
+  "entries": [
+    {
+      "id": "0fcab1",
+      "kind": "player",
+      "name": "Cleric",
+      "initiative": 14,
+      "init_bonus": 0,
+      "hp": 18,
+      "hp_max": 18,
+      "hp_temp": 0,
+      "ac": 10,
+      "conditions": [],
+      "hidden": false,
+      "group": "",
+      "owner": "",
+      "source": {
+        "type": "character",
+        "name": "Cleric"
+      },
+      "notes": "",
+      "defeated": false,
+      "hp_mode": null,
+      "ac_mode": null
+    },
+    {
+      "id": "5f0629",
+      "kind": "monster",
+      "name": "Adult Blue Dragon",
+      "initiative": 12,
+      "init_bonus": 10,
+      "hp": 212,
+      "hp_max": 212,
+      "hp_temp": 0,
+      "ac": 19,
+      "conditions": [],
+      "hidden": false,
+      "group": "",
+      "owner": "",
+      "source": {
+        "type": "monster",
+        "name": "Adult Blue Dragon"
+      },
+      "notes": "",
+      "defeated": false,
+      "hp_mode": null,
+      "ac_mode": null
+    }
+  ]
+}
