@@ -16,7 +16,8 @@ class GameToolsView(ctk.CTkFrame):
          "Host or join an encrypted game on your network or VPN: chat with your table and send "
          "characters and homebrew to each other.", True),
         ("initiative", "⚔️ Initiative Tracker",
-         "Track turn order, HP, AC and conditions for the whole table.", False),
+         "Run combat: turn order, HP, AC and conditions for everyone at the table, with a pop-up "
+         "window players can keep on top of their other apps.", True),
     ]
 
     def __init__(self, parent, service=None, on_open: Optional[Callable[[str], None]] = None,

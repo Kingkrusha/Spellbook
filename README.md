@@ -76,6 +76,26 @@ xattr -dr com.apple.quarantine /path/to/Spellbook.app
 After the first launch it opens normally like any other app. This is standard
 for free, open-source Mac apps and costs nothing.
 
+## Initiative tracker
+
+**Game Tools > Initiative Tracker** runs combat for the table. It works on its own (no session needed).
+
+- **Add** monsters (from the Monsters collection, with the HP and AC copied in; optionally rolling HP from
+  its dice), your own characters, custom creatures, or **events** (a name that spans the whole table).
+  Add several at once, numbered and optionally **grouped** so they take their turns together.
+- **Initiative:** roll it, type it, or drag a row (⠿) to where you want it. **Next turn** moves the
+  creature whose turn it is to the top and the one that just went to the bottom; the round counter
+  tracks the lap. **Back** and **Undo** fix mistakes.
+- **HP, AC and conditions** are changed from the table (click them). Changes belong to the tracker only -
+  the character sheet or monster they were copied from is never touched.
+- **Hide** a creature so it doesn't appear for players (a hidden player still sees themselves); un-hide
+  it any time, or add it hidden. In **Settings** choose whether players see monster HP as numbers, a
+  health bar or nothing, and whether they see monster AC; each creature can also override this.
+- **Players** see the table in a resizable **pop-up window that stays on top of other apps** (pin it
+  off with 📌), can edit their own HP, AC and conditions, and are told when it's their turn. The DM can
+  **Pop out** the same window for a second monitor and **Preview** what a given player sees.
+- The encounter is saved as you go, so closing the app mid-fight doesn't lose it.
+
 ## LAN sessions
 
 One player (the DM) hosts; everyone else joins. Open **Game Tools > Session**.
@@ -170,6 +190,11 @@ Spellbook/
 ├── main.py                 # Application entry point with splash screen
 ├── lan/                    # LAN sessions: TLS transport, host/client, discovery, dice, session service
 ├── transfer.py             # Sending characters and homebrew between players (no UI)
+├── initiative_state.py     # Initiative tracker rules: turn order, groups, hiding, who may do what (no UI)
+├── initiative_rows.py      # What the tracker table draws for a viewer (no UI)
+├── initiative_sources.py   # Copies of HP/AC/initiative from sheets and monsters
+├── tracker_hub.py          # The app's one encounter: autosave and the DM / player backends
+├── conditions.py           # Condition names for the tracker
 ├── character_io.py         # Character export/import bundles (no UI)
 ├── tests/                  # pytest suite: python -m pytest tests (needs requirements-dev.txt)
 ├── database.py             # SQLite database with schema migrations

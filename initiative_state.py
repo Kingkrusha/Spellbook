@@ -794,7 +794,8 @@ def project(state: TrackerState, viewer: Actor) -> dict:
     if viewer.is_dm:
         return {"role": "dm", "rev": state.rev, "started": state.started, "round": state.round,
                 "active": state.active, "settings": state.settings.to_dict(),
-                "group_names": dict(state.group_names), "entries": [e.to_dict() for e in shown]}
+                "group_names": dict(state.group_names), "entries": [e.to_dict() for e in shown],
+                "order": [e.id for e in state.entries]}          # stored order, for drag-to-reorder
 
     visible = [e for e in shown if _visible_to(e, viewer)]
     # When the active unit is entirely hidden, the top of the list is the next visible unit, with no

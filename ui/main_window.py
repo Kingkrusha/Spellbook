@@ -278,6 +278,13 @@ class MainWindow(ctk.CTkFrame):
             pass
 
         try:
+            for window in list(self._tracker_windows.values()):
+                window.close()
+            self.tracker_hub.flush()            # a fight in progress must survive closing the app
+        except Exception:
+            pass
+
+        try:
             if hasattr(self, '_theme'):
                 self._theme.remove_listener(self._on_theme_changed)
         except Exception:
@@ -288,7 +295,41 @@ class MainWindow(ctk.CTkFrame):
     # LAN session. The connection, peer list and chat live in one SessionService owned by
     # this window (not by any page), so closing a tab never ends the game.
 
+    # Initiative tracker: one encounter for the whole app, shown on a page and/or in pop-up windows.
+
+    @property
+    def tracker_hub(self):
+        if self._tracker_hub is None:
+            from tracker_hub import TrackerHub
+            self._tracker_hub = TrackerHub(schedule=lambda ms, fn: self.after(ms, fn), cancel=self.after_cancel)
+        return self._tracker_hub
+
+    def open_tracker_window(self, which: str = "dm"):
+        """Open (or raise) a tracker pop-up. ``which``: "dm", or "player:<owner id>" to preview what
+        that player sees ("player:" alone is an observer with no character)."""
+        existing = self._tracker_windows.get(which)
+        if existing is not None and existing.winfo_exists():
+            existing.deiconify()
+            existing.lift()
+            return existing
+        from ui.initiative_window import InitiativeWindow
+        hub = self.tracker_hub
+        if which == "dm":
+            backend, kind, title = hub.dm(), "dm", "Initiative (DM)"
+        else:
+            owner = which.partition(":")[2]
+            backend, kind = hub.player(owner), "player"
+            title = "Initiative (preview as player)" if which != "player:" or owner else "Initiative"
+        window = InitiativeWindow(self.winfo_toplevel(), backend, self.settings_manager, kind=kind, title=title,
+                                  get_managers=self._transfer_managers)
+        self._tracker_windows[which] = window
+        window.bind("<Destroy>", lambda e, w=which: self._tracker_windows.pop(w, None) if e.widget is window else None,
+                    add="+")
+        return window
+
     def _init_session(self):
+        self._tracker_hub = None
+        self._tracker_windows = {}
         from lan.service import SessionService
         from version import __version__
         self.session = SessionService(self.settings_manager, app_version=__version__)
@@ -408,6 +449,7 @@ class MainWindow(ctk.CTkFrame):
             "characters": "Characters",
             "game_tools": "Game Tools",
             "session": "Session",
+            "initiative": "Initiative",
         }.get(page_type, "Spellbook")
 
     def _open_page_in_new_tab(self, page_type: str, index: Optional[int] = None,
@@ -459,7 +501,8 @@ class MainWindow(ctk.CTkFrame):
         """Open one saved tab (not selected). Returns its id, or None if it cannot be reopened."""
         page = entry.get('page')
         character = entry.get('character')
-        if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session"):
+        if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
+                    "initiative"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -580,6 +623,12 @@ class MainWindow(ctk.CTkFrame):
             from ui.session_view import SessionView
             return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
                                overlay=self.chat_overlay, get_managers=self._transfer_managers)
+        if page_type == "initiative":
+            from ui.initiative_view import InitiativeView
+            return InitiativeView(
+                self, self.tracker_hub, get_managers=self._transfer_managers,
+                on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
+                open_window=self.open_tracker_window)
         raise ValueError(f"Unknown page type: {page_type}")
 
     # Pages a tab has left are kept (hidden) for a while, so going back to Home, the Characters
@@ -725,6 +774,8 @@ class MainWindow(ctk.CTkFrame):
         """A card on the Game Tools page was clicked."""
         if key == "session":
             self._navigate_tab(tab_id, "session")
+        elif key == "initiative":
+            self._navigate_tab(tab_id, "initiative")
 
     def _open_character(self, tab_id: str, name: str, new_tab: bool = False):
         """Open a character's sheet in this tab (or a new one)."""

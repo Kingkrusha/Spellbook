@@ -249,7 +249,10 @@ character over real TLS, and the self-test inside a frozen Windows exe. Not veri
 two-machine run, macOS (build, permission prompts, the opaque overlay), and Windows Firewall behaviour
 for a player on another machine.
 
-Initiative tracker: T0 (state, reducer, projection, undo, saving) and T1 (sheet/monster/custom
-snapshots, conditions) are done and tested with no UI yet (`initiative_state.py`,
-`initiative_sources.py`, `conditions.py`). Remaining: T2 DM table UI, T3 player view and pop-up, T4
-tracker over the network, T5 DM settings UI and polish.
+Initiative tracker: T0 (state, reducer, projection, undo, saving), T1 (snapshots, conditions), T2 (DM
+page: table, add dialog, HP/AC and conditions popovers, group / hide / reorder, settings) and T3 (the
+resizable always-on-top player window, "your turn" alert, DM pop-out and player preview) are done and
+tested. A player's screens already run against a "backend" (`tracker_hub.LocalBackend`); T4 swaps in one
+that talks to the host over the session. Remaining: T4 tracker over the network (the DM's changes
+broadcast per-viewer projections; players' commands go to the host), T5 polish and the always-on-top
+check on macOS.

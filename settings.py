@@ -102,6 +102,10 @@ class AppSettings:
     lan_overlay_enabled: bool = True  # Show the chat overlay on every page while in a session
     lan_overlay_collapsed: bool = False  # ... collapsed to a small "Chat" button
     lan_overlay_opacity: float = 0.72  # Backdrop opacity of the (Windows) translucent overlay
+    # Initiative tracker
+    tracker_window_state: str = ""  # JSON: where each pop-up window was, whether it was pinned, ...
+    tracker_turn_beep: bool = True  # Beep (and flash the taskbar) when it becomes your turn
+
     lan_overlay_translucent: bool = True  # Use the translucent overlay where the OS allows it
 
     # Internal flags (not user-configurable)
@@ -138,6 +142,7 @@ class AppSettings:
             'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
             'lan_overlay_opacity', 'lan_overlay_translucent',
+            'tracker_window_state', 'tracker_turn_beep',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)
