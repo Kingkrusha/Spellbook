@@ -9,6 +9,8 @@ from typing import List, Optional, Callable, Set
 from spell import Spell, CharacterClass, AdvancedFilters, PROTECTED_TAGS
 from database import SpellDatabase
 from paths import resource_path as get_resource_path, user_data_path
+from legacy_content import apply_legacy_filter, strip_legacy_suffix
+from content_versions import VersionCatalog
 
 
 # Spells to exclude from automatic migration (outdated/duplicate versions)
@@ -65,8 +67,17 @@ class SpellManager:
     
     def _notify_listeners(self):
         """Notify all listeners of a change."""
+        self._version_catalog = None          # the spells changed: regroup their versions on next use
         for listener in self._listeners:
             listener()
+
+    @property
+    def version_catalog(self) -> VersionCatalog:
+        """The spells grouped into entries with several versions (Fireball / Fireball (Legacy))."""
+        catalog = getattr(self, "_version_catalog", None)
+        if catalog is None:
+            catalog = self._version_catalog = VersionCatalog(self._spells)
+        return catalog
     
     def _spell_to_dict(self, spell: Spell) -> dict:
         """Convert a Spell object to a dictionary for database storage."""
@@ -526,7 +537,8 @@ class SpellManager:
     def get_filtered_spells(self, search_text: str = "", level_filter: int = -1,
                             class_name_filter: str = "",
                             advanced: Optional[AdvancedFilters] = None,
-                            legacy_filter: str = "show_all") -> List[Spell]:
+                            legacy_filter: str = "show_all",
+                            collapse_versions: bool = False) -> List[Spell]:
         """Return spells matching the given filter criteria.
         
         Uses SQL for most filtering (much faster for large spell collections),
@@ -535,6 +547,11 @@ class SpellManager:
         Args:
             class_name_filter: Class name string (e.g., "Wizard", "Witch") for filtering
         
+        collapse_versions: list each spell once, however many versions it has (2024, 2014): the
+            first version the legacy setting allows stands for it and the others are reached through
+            ``version_catalog`` (the detail panel's Source drop-down). Without it the legacy
+            setting just filters the versions, each of which is its own entry.
+
         legacy_filter options:
             - "show_all": No legacy filtering
             - "show_unupdated": Show non-legacy + legacy without a non-legacy version
@@ -586,7 +603,7 @@ class SpellManager:
         spell_dicts = self._db.search_spells(
             search_text=search_text,
             level=level_filter,
-            class_name=class_name_filter,
+            class_name=strip_legacy_suffix(class_name_filter),  # "Wizard (Legacy)" casts the Wizard spells
             ritual=ritual,
             concentration=concentration,
             min_range=0,  # Don't filter by range in SQL
@@ -624,19 +641,12 @@ class SpellManager:
                 # Remove spells from selected sources
                 results = [s for s in results if not any(src in s.source.lower() for src in sources_lower)]
         
-        # Apply legacy content filter
-        if legacy_filter == "no_legacy":
-            # Only show non-legacy spells
-            results = [s for s in results if not s.is_legacy]
-        elif legacy_filter == "legacy_only":
-            # Only show legacy spells
-            results = [s for s in results if s.is_legacy]
-        elif legacy_filter == "show_unupdated":
-            # Show non-legacy spells + legacy spells that don't have a non-legacy version
-            # Build set of non-legacy spell names for quick lookup
-            non_legacy_names = {s.name.lower() for s in results if not s.is_legacy}
-            results = [s for s in results if not s.is_legacy or s.name.lower() not in non_legacy_names]
-        # "show_all" - no filtering needed
+        # Apply legacy content filter (a 2014 spell stored as "Name (Legacy)" is
+        # paired with the 2024 "Name" for "show_unupdated")
+        if collapse_versions:
+            results = self.version_catalog.collapse(results, legacy_filter)
+        else:
+            results = apply_legacy_filter(results, legacy_filter)
         
         # Hide spells whose ALL classes are missing from the system
         # This allows unofficial spells with classes like "Witch" to remain hidden

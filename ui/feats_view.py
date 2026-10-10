@@ -10,267 +10,48 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import List, Optional, Callable
 from feat import Feat, FeatManager, get_feat_manager
+from legacy_content import legacy_pair_key
+from content_versions import VersionCatalog, display_name
+from ui.version_bar import VersionBar
 from theme import get_theme_manager
 from settings import get_settings_manager
-from ui.platform_compat import bind_right_click, unbind_right_click
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
-from ui.list_batching import BatchedListMixin
+from ui.virtual_list import VirtualListPanel
 
 
-class FeatListPanel(BatchedListMixin, ctk.CTkFrame):
-    """A scrollable list panel for displaying and selecting feats."""
-    
-    # Batch size for progressive loading - smaller batches = smoother UI
-    BATCH_SIZE = 15
-    BATCH_DELAY_MS = 5  # Milliseconds between batches
-    
-    def __init__(self, parent, on_select: Callable[[Optional[Feat]], None],
-                 on_right_click: Optional[Callable[[Feat, int, int], None]] = None):
-        super().__init__(parent, corner_radius=10)
-        
-        self.on_select = on_select
-        self.on_right_click = on_right_click  # Callback for right-click (feat, x, y)
-        self._feats: List[Feat] = []
-        self._selected_index: Optional[int] = None
-        self._feat_buttons: List[ctk.CTkButton] = []
-        self._pending_after_id: Optional[str] = None  # Track pending after() calls
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+def _list_name(name: str) -> str:
+    """A feat's name in the list: no "(Legacy)" tag, its versions are switched in the detail panel."""
+    return display_name(name)
 
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
 
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._refresh_buttons()
-    
-    def _create_widgets(self):
-        """Create the scrollable feat list."""
-        # Header
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=(15, 10))
-        
-        ctk.CTkLabel(header_frame, text="Feats", 
-                     font=ui_font("heading", bold=True)).pack(side="left")
-        
-        text_secondary = self.theme.get_text_secondary()
-        self.count_label = ctk.CTkLabel(header_frame, text="0 feats",
-                                         font=ui_font("body"),
-                                         text_color=text_secondary)
-        self.count_label.pack(side="right")
-        
-        # Scrollable frame for feat list
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-    
-    def _create_feat_button(self, feat: Feat, index: int) -> ctk.CTkButton:
-        """Create a button for a feat."""
-        # Build display text with type indicator
-        display_name = feat.name
+class FeatListPanel(VirtualListPanel):
+    """The virtualized, selectable list of feats."""
+
+    TITLE = "Feats"
+    NOUN = "feat"
+    KEY = staticmethod(legacy_pair_key)   # one entry stands for all the versions of a feat
+
+    def row_text(self, feat: Feat) -> str:
+        name = _list_name(feat.name)
         if feat.is_custom:
-            display_name = f"* {display_name}"
-        
+            name = f"* {name}"
         indicators = []
         if feat.type:
             indicators.append(feat.type)
         if feat.is_spellcasting:
-            indicators.append("✨")
-        
-        if indicators:
-            indicator_text = f"  ({', '.join(indicators)})"
-        else:
-            indicator_text = ""
-        
-        btn = ctk.CTkButton(
-            self.scroll_frame,
-            text=f"{display_name}{indicator_text}",
-            anchor="w",
-            height=40,
-            corner_radius=8,
-            fg_color=("transparent" if index != self._selected_index 
-                      else self.theme.get_current_color('accent_primary')),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            font=ui_font("body", 13),
-            command=lambda i=index: self._on_feat_click(i)
-        )
-        btn.pack(fill="x", pady=2)
-        
-        # Bind right-click event
-        if self.on_right_click:
-            bind_right_click(btn, lambda e, i=index: self._on_feat_right_click(e, i))
-            # Also bind to the internal button label for better coverage
-            for child in btn.winfo_children():
-                bind_right_click(child, lambda e, i=index: self._on_feat_right_click(e, i))
-        
-        return btn
-    
-    def _on_feat_right_click(self, event, index: int):
-        """Handle right-click on a feat button."""
-        if self.on_right_click and 0 <= index < len(self._feats):
-            # Get screen coordinates for the menu
-            x = event.x_root
-            y = event.y_root
-            self.on_right_click(self._feats[index], x, y)
-    
-    def _on_feat_click(self, index: int):
-        """Handle feat button click."""
-        # Update selection
-        old_index = self._selected_index
-        self._selected_index = index
-        
-        # Update button colors
-        if old_index is not None and old_index < len(self._feat_buttons):
-            self._feat_buttons[old_index].configure(fg_color="transparent")
-        
-        if index < len(self._feat_buttons):
-            self._feat_buttons[index].configure(
-                fg_color=self.theme.get_current_color('accent_primary')
-            )
-        
-        # Notify callback
-        if 0 <= index < len(self._feats):
-            self.on_select(self._feats[index])
-    
-    def _update_feat_button(self, btn: ctk.CTkButton, feat: Feat, index: int):
-        """Update an existing button with new feat data."""
-        display_name = feat.name
-        if feat.is_custom:
-            display_name = f"* {display_name}"
-        
-        indicators = []
-        if feat.type:
-            indicators.append(feat.type)
-        if feat.is_spellcasting:
-            indicators.append("✨")
-        
-        if indicators:
-            indicator_text = f"  ({', '.join(indicators)})"
-        else:
-            indicator_text = ""
-        
-        btn.configure(
-            text=f"{display_name}{indicator_text}",
-            fg_color=("transparent" if index != self._selected_index 
-                      else self.theme.get_current_color('accent_primary')),
-            command=lambda i=index: self._on_feat_click(i)
-        )
-        
-        # Rebind right-click events with new index
-        if self.on_right_click:
-            unbind_right_click(btn)
-            bind_right_click(btn, lambda e, i=index: self._on_feat_right_click(e, i))
-            for child in btn.winfo_children():
-                unbind_right_click(child)
-                bind_right_click(child, lambda e, i=index: self._on_feat_right_click(e, i))
-    
-    def _cancel_pending_load(self):
-        """Cancel any pending progressive load operation."""
-        if self._pending_after_id is not None:
-            try:
-                self.after_cancel(self._pending_after_id)
-            except Exception:
-                pass
-            self._pending_after_id = None
-    
+            indicators.append("\u2728")
+        return f"{name}  ({', '.join(indicators)})" if indicators else name
+
     def set_feats(self, feats: List[Feat], reset_scroll: bool = True):
-        """Set the list of feats to display.
-        
-        Uses progressive loading to prevent UI freezing - processes buttons
-        in batches with UI updates between batches.
-        """
-        # Cancel any pending progressive load
-        self._cancel_pending_load()
-        
-        # Remember current selection name
-        current_name = None
-        if self._selected_index is not None and self._selected_index < len(self._feats):
-            current_name = self._feats[self._selected_index].name
-        
-        self._feats = feats
-        
-        # Find new index for previously selected feat
-        new_selected_index = None
-        if current_name:
-            for i, feat in enumerate(feats):
-                if feat.name == current_name:
-                    new_selected_index = i
-                    break
-        
-        self._selected_index = new_selected_index
-        
-        # Update count immediately
-        self.count_label.configure(text=f"{len(feats)} feat{'s' if len(feats) != 1 else ''}")
-        
-        # Reset scroll position to top
-        if reset_scroll and self.scroll_frame.winfo_children():
-            try:
-                self.scroll_frame._parent_canvas.yview_moveto(0)
-            except Exception:
-                pass
-        
-        # Start progressive loading from index 0
-        self._load_feats_batch(0)
-    
-    def _load_feats_batch(self, start_index: int):
-        """Load a batch of feat buttons progressively."""
-        if not self.winfo_exists():
-            return
-        
-        current_button_count = len(self._feat_buttons)
-        new_feat_count = len(self._feats)
-        end_index = min(start_index + self._batch_size(), new_feat_count)
-        
-        # Process this batch
-        for i in range(start_index, end_index):
-            if i < current_button_count:
-                # Reuse existing button - make sure it's visible
-                btn = self._feat_buttons[i]
-                self._update_feat_button(btn, self._feats[i], i)
-                # Re-pack if it was previously hidden
-                if not btn.winfo_ismapped():
-                    btn.pack(fill="x", pady=2)
-            else:
-                # Create new button
-                btn = self._create_feat_button(self._feats[i], i)
-                self._feat_buttons.append(btn)
-        
-        # If we've processed all feats, hide excess buttons (don't destroy)
-        if end_index >= new_feat_count:
-            # Hide excess buttons instead of destroying them
-            for i in range(new_feat_count, current_button_count):
-                self._feat_buttons[i].pack_forget()
-            self._pending_after_id = None
-        else:
-            # Schedule next batch
-            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_feats_batch(end_index))
-    
-    def _refresh_buttons(self):
-        """Refresh button colors after theme change."""
-        for i, btn in enumerate(self._feat_buttons):
-            if i == self._selected_index:
-                btn.configure(fg_color=self.theme.get_current_color('accent_primary'))
-            else:
-                btn.configure(fg_color="transparent")
-            btn.configure(
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary')
-            )
-    
+        self.set_items(feats, reset_scroll)
+
     def get_selected_feat(self) -> Optional[Feat]:
-        """Get the currently selected feat."""
-        if self._selected_index is not None and self._selected_index < len(self._feats):
-            return self._feats[self._selected_index]
-        return None
-    
-    def select_feat(self, name: str) -> bool:
-        """Select a feat by name. Returns True if found."""
-        for i, feat in enumerate(self._feats):
-            if feat.name.lower() == name.lower():
-                self._on_feat_click(i)
-                return True
-        return False
+        return self.get_selected()
+
+    def select_feat(self, name: str, version: Optional[Feat] = None) -> bool:
+        """Select a feat by name. "Alert (Legacy)" selects the Alert entry; ``version`` is the
+        exact version to show in it."""
+        return self.select_by_name(name, version)
 
 
 class FeatDetailPanel(ctk.CTkFrame):
@@ -281,6 +62,8 @@ class FeatDetailPanel(ctk.CTkFrame):
         self.theme = get_theme_manager()
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._current_feat: Optional[Feat] = None
+        self._versions: List[Feat] = []
+        self.on_version_change: Optional[Callable[[Feat], None]] = None
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
 
@@ -315,11 +98,12 @@ class FeatDetailPanel(ctk.CTkFrame):
             padx=8, pady=2
         )
         
-        # Source info
-        self.source_label = LabeledLabel(
+        # Source info (a drop-down when the feat has several versions)
+        self.source_label = VersionBar(
             self.scroll_frame, text="",
             font=ui_font("small"),
-            text_color=self.theme.get_text_secondary()
+            text_color=self.theme.get_text_secondary(),
+            on_select=self._version_selected
         )
         self.source_label.pack(anchor="w", pady=(0, 10))
         
@@ -407,9 +191,16 @@ class FeatDetailPanel(ctk.CTkFrame):
                 spacer.pack()
                 self._desc_widgets.append(spacer)
     
-    def show_feat(self, feat: Optional[Feat]):
-        """Display details for a feat."""
+    def _version_selected(self, feat: Feat):
+        """The user picked another version in the Source drop-down."""
+        self.show_feat(feat, self._versions)
+        if self.on_version_change:
+            self.on_version_change(feat)
+
+    def show_feat(self, feat: Optional[Feat], versions: Optional[List[Feat]] = None):
+        """Display details for a feat (``versions``: every version offered in the Source drop-down)."""
         self._current_feat = feat
+        self._versions = list(versions or [])
         
         if feat is None:
             self.name_label.configure(text="Select a feat")
@@ -421,7 +212,7 @@ class FeatDetailPanel(ctk.CTkFrame):
             return
         
         # Name (with custom indicator)
-        name_text = f"* {feat.name}" if feat.is_custom else feat.name
+        name_text = f"* {display_name(feat.name)}" if feat.is_custom else display_name(feat.name)
         self.name_label.configure(text=name_text)
         
         # Type badge
@@ -437,9 +228,13 @@ class FeatDetailPanel(ctk.CTkFrame):
             source_text = f"Source: {feat.source}"
             if not feat.is_official:
                 source_text += " (Unofficial)"
+            if feat.is_legacy:
+                source_text += " [Legacy]"
             self.source_label.configure(text=source_text)
         else:
             self.source_label.configure(text="")
+        if len(self._versions) > 1:
+            self.source_label.set_versions(self._versions, feat)
         
         # Prerequisites
         if feat.has_prereq and feat.prereq:
@@ -475,6 +270,7 @@ class FeatsView(ctk.CTkFrame):
         self.settings_manager = get_settings_manager()
         self.on_back = on_back  # Callback for back button
         self._all_feats: List[Feat] = []
+        self._catalog = VersionCatalog([])
         self._filtered_feats: List[Feat] = []
         self._compare_mode = False
         self._compare_feat: Optional[Feat] = None
@@ -555,6 +351,7 @@ class FeatsView(ctk.CTkFrame):
         
         # Feat detail panel (right)
         self.detail_panel = FeatDetailPanel(self.paned)
+        self.detail_panel.on_version_change = self.list_panel.replace_selected
         
         # Add panes with minimum sizes
         self.paned.add(self.left_container, minsize=280, stretch="always")
@@ -822,6 +619,7 @@ class FeatsView(ctk.CTkFrame):
     def _load_feats(self):
         """Load feats from the manager."""
         self._all_feats = sorted(self.feat_manager.feats, key=lambda f: f.name.lower())
+        self._catalog = VersionCatalog(self._all_feats)
         # Refresh type dropdown with all available types
         all_types = self.feat_manager.get_all_types()
         type_options = ["All Types"] + [t if t else "General" for t in all_types]
@@ -926,25 +724,17 @@ class FeatsView(ctk.CTkFrame):
 
             filtered.append(feat)
         
-        # Apply legacy content filter
-        if legacy_filter == "no_legacy":
-            # Only show non-legacy feats
-            filtered = [f for f in filtered if not f.is_legacy]
-        elif legacy_filter == "legacy_only":
-            # Only show legacy feats
-            filtered = [f for f in filtered if f.is_legacy]
-        elif legacy_filter == "show_unupdated":
-            # Show non-legacy feats + legacy feats that don't have a non-legacy version
-            non_legacy_names = {f.name.lower() for f in filtered if not f.is_legacy}
-            filtered = [f for f in filtered if not f.is_legacy or f.name.lower() not in non_legacy_names]
-        # "show_all" - no filtering needed
-        
+        # One entry per feat: its versions (2024, 2014) are switched in the detail panel's Source
+        # drop-down; the Legacy content setting decides which are offered
+        filtered = self._catalog.collapse(filtered, legacy_filter)
+
         self._filtered_feats = filtered
         self.list_panel.set_feats(filtered)
     
     def _on_feat_selected(self, feat: Optional[Feat]):
         """Handle feat selection."""
-        self.detail_panel.show_feat(feat)
+        setting = self.settings_manager.settings.legacy_content_filter
+        self.detail_panel.show_feat(feat, self._catalog.options(feat, setting) if feat else None)
         
         # Enable/disable edit/delete based on selection and custom status
         if feat:
@@ -1072,7 +862,7 @@ class FeatsView(ctk.CTkFrame):
     
     def select_feat(self, name: str) -> bool:
         """Select a feat by name. Returns True if found."""
-        return self.list_panel.select_feat(name)
+        return self.list_panel.select_feat(name, self._catalog.find(name))
 
 
 class FeatEditorDialog(ctk.CTkToplevel):

@@ -3,13 +3,14 @@ Character Class data model for D&D 5e Spellbook Application.
 Defines class features, abilities, trackable resources, and subclasses.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Dict, Optional, Tuple
 import json
 import os
 import sys
 
 from paths import resource_path as get_data_path, user_data_path
+from legacy_content import strip_legacy_suffix
 
 
 @dataclass
@@ -346,6 +347,11 @@ class CharacterClassDefinition:
     
     # Available subclasses
     subclasses: List[SubclassDefinition] = field(default_factory=list)
+
+    # Official legacy (2014) subclasses of the matching "<Name> (Legacy)" class, which a character of
+    # THIS class may pick as well. Filled in by ClassManager when it loads the classes and never saved
+    # with the class (they belong to, and are saved under, the legacy class).
+    compat_subclasses: List[SubclassDefinition] = field(default_factory=list, repr=False, compare=False)
     
     # Level progression - abilities gained at each level
     levels: Dict[int, ClassLevel] = field(default_factory=dict)
@@ -397,6 +403,50 @@ class CharacterClassDefinition:
                 abilities.extend(self.levels[lvl].abilities)
         return abilities
     
+    # ----- subclasses: selection and level handling -----
+
+    @property
+    def selectable_subclasses(self) -> List[SubclassDefinition]:
+        """Every subclass a character of this class can pick: its own, then the compatible legacy ones."""
+        own = {s.name.lower() for s in self.subclasses}
+        return list(self.subclasses) + [s for s in self.compat_subclasses if s.name.lower() not in own]
+
+    def find_subclass(self, name: str) -> Optional[SubclassDefinition]:
+        """The selectable subclass with this name (case-insensitive), if any."""
+        key = (name or "").strip().lower()
+        for sub in self.selectable_subclasses:
+            if sub.name.lower() == key:
+                return sub
+        return None
+
+    def subclass_grant_level(self, level: int) -> int:
+        """The class level at which something a subclass defines at ``level`` is actually given.
+
+        A subclass is chosen at ``subclass_level``, so nothing it grants can arrive earlier. That matters
+        for 2014 subclasses on a 2024 class: a legacy Warlock patron grants its first feature at level 1,
+        a 2024 Warlock chooses its subclass at level 3, so that feature is given at level 3.
+        """
+        return max(level, self.subclass_level or 1)
+
+    def get_subclass_features_up_to_level(self, subclass: SubclassDefinition, level: int) -> List[SubclassFeature]:
+        """The subclass features a character of this class has at ``level``, each carrying the level it
+        is really given at (see subclass_grant_level)."""
+        out = []
+        for feature in subclass.features:
+            grant = self.subclass_grant_level(feature.level)
+            if grant <= level:
+                out.append(feature if grant == feature.level else replace(feature, level=grant))
+        return out
+
+    def get_subclass_spells_up_to_level(self, subclass: SubclassDefinition, level: int) -> List[SubclassSpell]:
+        """The subclass spells a character of this class has at ``level`` (grant levels adjusted)."""
+        out = []
+        for spell in subclass.subclass_spells:
+            grant = self.subclass_grant_level(spell.level_gained)
+            if grant <= level:
+                out.append(spell if grant == spell.level_gained else replace(spell, level_gained=grant))
+        return out
+
     def add_trackable_feature(self, feature: TrackableFeature) -> bool:
         """Add a trackable feature. Returns False if already at max (3)."""
         if len(self.trackable_features) >= 3:
@@ -531,6 +581,29 @@ class ClassManager:
             parent_class_name = subclass_data.get('parent_class', '')
             if parent_class_name and parent_class_name in self._classes_cache:
                 self._classes_cache[parent_class_name].subclasses.append(subclass_def)
+
+        self._attach_compatible_subclasses()
+
+    def _attach_compatible_subclasses(self):
+        """Offer each official legacy subclass to the 2024 class it grew into.
+
+        "Champion (Legacy)" belongs to "Fighter (Legacy)"; a character of the 2024 Fighter can pick it too.
+        Only official legacy subclasses are shared (homebrew stays with the class it was made for), and
+        only with a non-legacy class of the same name. The level handling is in
+        CharacterClassDefinition.subclass_grant_level.
+        """
+        by_name = {c.name.lower(): c for c in self._classes_cache.values()}
+        for legacy_class in self._classes_cache.values():
+            if not legacy_class.is_legacy:
+                continue
+            current = by_name.get(strip_legacy_suffix(legacy_class.name).lower())
+            if current is None or current is legacy_class or current.is_legacy:
+                continue
+            taken = {s.name.lower() for s in current.subclasses} | {s.name.lower() for s in current.compat_subclasses}
+            for sub in legacy_class.subclasses:
+                if sub.is_legacy and not sub.is_custom and sub.name.lower() not in taken:
+                    current.compat_subclasses.append(sub)
+                    taken.add(sub.name.lower())
     
     def _dict_to_class(self, data: dict) -> CharacterClassDefinition:
         """Convert database dict to CharacterClassDefinition object."""

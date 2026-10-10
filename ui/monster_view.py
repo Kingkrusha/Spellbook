@@ -21,7 +21,7 @@ from stat_block import StatBlockFeature
 from theme import get_theme_manager
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 from ui.monster_stat_block import MonsterStatBlock, signed as _signed
-from ui.list_batching import BatchedListMixin
+from ui.virtual_list import VirtualListPanel
 
 ALIGNMENT_OPTIONS = [
     "Unaligned", "Any Alignment", "Lawful Good", "Neutral Good", "Chaotic Good",
@@ -65,147 +65,24 @@ def _csv(text: str) -> List[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
-class MonsterListPanel(BatchedListMixin, ctk.CTkFrame):
-    """A scrollable list panel for displaying and selecting monsters."""
+class MonsterListPanel(VirtualListPanel):
+    """The virtualized, selectable list of monsters."""
 
-    BATCH_SIZE = 15
-    BATCH_DELAY_MS = 5
+    TITLE = "Monsters"
+    NOUN = "monster"
 
-    def __init__(self, parent, on_select: Callable[[Optional[Monster]], None]):
-        super().__init__(parent, corner_radius=10)
-
-        self.on_select = on_select
-        self._monsters: List[Monster] = []
-        self._selected_index: Optional[int] = None
-        self._buttons: List[ctk.CTkButton] = []
-        self._pending_after_id: Optional[str] = None
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
-
-    def _on_theme_changed(self):
-        if not self.winfo_exists():
-            return
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        for i, btn in enumerate(self._buttons):
-            btn.configure(
-                fg_color=(self.theme.get_current_color('accent_primary')
-                          if i == self._selected_index else "transparent"),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary'))
-
-    def _create_widgets(self):
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=(15, 10))
-
-        ctk.CTkLabel(header_frame, text="Monsters",
-                     font=ui_font("heading", bold=True)).pack(side="left")
-
-        self.count_label = ctk.CTkLabel(header_frame, text="0 monsters",
-                                        font=ui_font("body"),
-                                        text_color=self.theme.get_text_secondary())
-        self.count_label.pack(side="right")
-
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-    @staticmethod
-    def _button_text(monster: Monster) -> str:
+    def row_text(self, monster: Monster) -> str:
         name = f"* {monster.name}" if monster.is_custom else monster.name
         return f"{name}  (CR {monster.cr_label()})"
 
-    def _button_kwargs(self, monster: Monster, index: int) -> dict:
-        return dict(
-            text=self._button_text(monster),
-            fg_color=("transparent" if index != self._selected_index
-                      else self.theme.get_current_color('accent_primary')),
-            text_color=self.theme.get_current_color('text_primary'),
-            command=lambda i=index: self._on_click(i),
-        )
-
-    def _on_click(self, index: int):
-        old_index = self._selected_index
-        self._selected_index = index
-
-        if old_index is not None and old_index < len(self._buttons):
-            self._buttons[old_index].configure(fg_color="transparent")
-        if index < len(self._buttons):
-            self._buttons[index].configure(fg_color=self.theme.get_current_color('accent_primary'))
-        if 0 <= index < len(self._monsters):
-            self.on_select(self._monsters[index])
-
-    def _cancel_pending_load(self):
-        if self._pending_after_id is not None:
-            try:
-                self.after_cancel(self._pending_after_id)
-            except Exception:
-                pass
-            self._pending_after_id = None
-
     def set_monsters(self, monsters: List[Monster], reset_scroll: bool = True):
-        self._cancel_pending_load()
-
-        current_name = None
-        if self._selected_index is not None and self._selected_index < len(self._monsters):
-            current_name = self._monsters[self._selected_index].name
-
-        self._monsters = monsters
-        self._selected_index = next(
-            (i for i, m in enumerate(monsters) if m.name == current_name), None) if current_name else None
-
-        self.count_label.configure(text=f"{len(monsters)} monster{'s' if len(monsters) != 1 else ''}")
-
-        if reset_scroll and self.scroll_frame.winfo_children():
-            try:
-                self.scroll_frame._parent_canvas.yview_moveto(0)
-            except Exception:
-                pass
-
-        self._load_batch(0)
-
-    def _load_batch(self, start_index: int):
-        if not self.winfo_exists():
-            return
-
-        current_count = len(self._buttons)
-        total = len(self._monsters)
-        end_index = min(start_index + self._batch_size(), total)
-
-        for i in range(start_index, end_index):
-            if i < current_count:
-                btn = self._buttons[i]
-                btn.configure(**self._button_kwargs(self._monsters[i], i))
-                if not btn.winfo_ismapped():
-                    btn.pack(fill="x", pady=2)
-            else:
-                btn = ctk.CTkButton(
-                    self.scroll_frame, anchor="w", height=40, corner_radius=8,
-                    hover_color=self.theme.get_current_color('button_hover'),
-                    font=ui_font("body", 13),
-                    **self._button_kwargs(self._monsters[i], i))
-                btn.pack(fill="x", pady=2)
-                self._buttons.append(btn)
-
-        if end_index >= total:
-            for i in range(total, current_count):
-                self._buttons[i].pack_forget()
-            self._pending_after_id = None
-        else:
-            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_batch(end_index))
+        self.set_items(monsters, reset_scroll)
 
     def get_selected_monster(self) -> Optional[Monster]:
-        if self._selected_index is not None and self._selected_index < len(self._monsters):
-            return self._monsters[self._selected_index]
-        return None
+        return self.get_selected()
 
     def select_monster(self, name: str) -> bool:
-        for i, monster in enumerate(self._monsters):
-            if monster.name.lower() == name.lower():
-                self._on_click(i)
-                return True
-        return False
+        return self.select_by_name(name)
 
 
 class MonsterDetailPanel(ctk.CTkFrame):

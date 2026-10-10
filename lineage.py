@@ -9,6 +9,8 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
+from legacy_content import apply_legacy_filter
+
 
 @dataclass
 class LineageTrait:
@@ -269,6 +271,10 @@ class LineageManager:
     def get_lineage_names(self) -> List[str]:
         """Get list of all lineage names."""
         return [l.name for l in self.lineages]
+
+    def get_filtered_lineage_names(self, legacy_filter: str = "show_all") -> List[str]:
+        """Get list of lineage names filtered by the Legacy content setting."""
+        return [l.name for l in apply_legacy_filter(self.lineages, legacy_filter)]
 
 
 # Singleton instance

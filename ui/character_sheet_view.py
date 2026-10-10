@@ -21,6 +21,7 @@ from character_sheet import (
 )
 from spell import CharacterClass
 from settings import get_settings_manager
+from legacy_content import apply_legacy_filter
 from theme import get_theme_manager
 from character_class import get_class_manager, ClassAbility
 from feat import get_feat_manager
@@ -699,22 +700,14 @@ class CharacterSheetView(ctk.CTkFrame):
     
     def _get_filtered_subclasses(self, class_def) -> list:
         """Get subclass names filtered by legacy setting."""
-        if not class_def or not class_def.subclasses:
+        if not class_def or not class_def.selectable_subclasses:
             return ["(None)"]
         
         settings = get_settings_manager().settings
         legacy_filter = settings.legacy_content_filter
-        all_subclasses = class_def.subclasses
+        all_subclasses = class_def.selectable_subclasses
         
-        if legacy_filter == "no_legacy":
-            filtered = [s for s in all_subclasses if not s.is_legacy]
-        elif legacy_filter == "legacy_only":
-            filtered = [s for s in all_subclasses if s.is_legacy]
-        elif legacy_filter == "show_unupdated":
-            non_legacy_names = {s.name.lower() for s in all_subclasses if not s.is_legacy}
-            filtered = [s for s in all_subclasses if not s.is_legacy or s.name.lower() not in non_legacy_names]
-        else:  # show_all
-            filtered = all_subclasses
+        filtered = apply_legacy_filter(all_subclasses, legacy_filter)
         
         return ["(None)"] + [s.name for s in filtered]
 
@@ -955,13 +948,11 @@ class CharacterSheetView(ctk.CTkFrame):
                 if cl.subclass:
                     class_def = class_manager.get_class(cl.get_class_name())
                     if class_def:
-                        for subclass_def in class_def.subclasses:
+                        for subclass_def in class_def.selectable_subclasses:
                             if subclass_def.name == cl.subclass and subclass_def.subclass_spells:
                                 # Check if character has reached the level to gain subclass spells
-                                for spell in subclass_def.subclass_spells:
-                                    if cl.level >= spell.level_gained:
-                                        has_spellcaster = True
-                                        break
+                                if class_def.get_subclass_spells_up_to_level(subclass_def, cl.level):
+                                    has_spellcaster = True
                             if has_spellcaster:
                                 break
                 if has_spellcaster:
@@ -1150,7 +1141,7 @@ class CharacterSheetView(ctk.CTkFrame):
                     break
                 # Also check subclass for unarmored defense (e.g., Noble Genie Paladin, College of Dance Bard)
                 if cl.subclass and class_def:
-                    for subclass_def in class_def.subclasses:
+                    for subclass_def in class_def.selectable_subclasses:
                         if subclass_def.name == cl.subclass and subclass_def.unarmored_defense:
                             sheet.unarmored_defense = subclass_def.unarmored_defense
                             break
@@ -1338,7 +1329,7 @@ class CharacterSheetView(ctk.CTkFrame):
             
             # Check if subclass selection should be shown
             class_def = class_manager.get_class(cl.get_class_name())
-            if class_def and class_def.subclasses and cl.level >= class_def.subclass_level:
+            if class_def and class_def.selectable_subclasses and cl.level >= class_def.subclass_level:
                 # Get filtered subclass options based on legacy setting
                 subclass_names = self._get_filtered_subclasses(class_def)
                 current_subclass = cl.subclass if cl.subclass else "(None)"
@@ -1373,7 +1364,8 @@ class CharacterSheetView(ctk.CTkFrame):
         
         from lineage import get_lineage_manager
         lineage_manager = get_lineage_manager()
-        lineage_names = ["(None)"] + lineage_manager.get_lineage_names()
+        legacy_filter = get_settings_manager().settings.legacy_content_filter
+        lineage_names = ["(None)"] + lineage_manager.get_filtered_lineage_names(legacy_filter)
         current_lineage = character.lineage if character.lineage else "(None)"
         
         self.lineage_var = ctk.StringVar(value=current_lineage)
@@ -1396,7 +1388,8 @@ class CharacterSheetView(ctk.CTkFrame):
         
         from background import get_background_manager
         background_manager = get_background_manager()
-        background_names = ["(None)"] + background_manager.get_background_names()
+        background_names = ["(None)"] + background_manager.get_filtered_background_names(
+            get_settings_manager().settings.legacy_content_filter)
         current_background = sheet.background if sheet.background else "(None)"
         
         self.background_var = ctk.StringVar(value=current_background)
@@ -1484,10 +1477,7 @@ class CharacterSheetView(ctk.CTkFrame):
         old_subclass_name = class_level.subclass
         old_subclass_def = None
         if old_subclass_name and class_def:
-            for sc in class_def.subclasses:
-                if sc.name == old_subclass_name:
-                    old_subclass_def = sc
-                    break
+            old_subclass_def = class_def.find_subclass(old_subclass_name)
         
         # Update the subclass
         if subclass_name == "(None)":
@@ -1498,10 +1488,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Get new subclass definition
         new_subclass_def = None
         if subclass_name and subclass_name != "(None)" and class_def:
-            for sc in class_def.subclasses:
-                if sc.name == subclass_name:
-                    new_subclass_def = sc
-                    break
+            new_subclass_def = class_def.find_subclass(subclass_name)
         
         # Handle subclass-granted proficiencies
         # Remove old subclass proficiencies from other_proficiencies tracking
@@ -1726,7 +1713,8 @@ class CharacterSheetView(ctk.CTkFrame):
         # Get class names not already taken - use class_manager for all classes including custom
         class_manager = get_class_manager()
         taken_class_names = {cl.get_class_name() for cl in character.classes}
-        available_class_names = [c.name for c in class_manager.classes 
+        legacy_filter = get_settings_manager().settings.legacy_content_filter
+        available_class_names = [c.name for c in apply_legacy_filter(class_manager.classes, legacy_filter)
                                   if c.name not in taken_class_names and c.name != "Custom"]
         
         if not available_class_names:
@@ -3099,18 +3087,14 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Get trackable features from subclass definition
         if subclass_name:
-            subclass_def = None
-            for sc in class_def.subclasses:
-                if sc.name == subclass_name:
-                    subclass_def = sc
-                    break
+            subclass_def = class_def.find_subclass(subclass_name)
             
             if subclass_def and hasattr(subclass_def, 'trackable_features'):
                 for feature in subclass_def.trackable_features:
                     if feature.has_uses:
-                        # Check if level qualifies (based on level_scaling)
+                        # Check if level qualifies (based on level_scaling, and never before the subclass is chosen)
                         min_level = min(feature.level_scaling.keys()) if feature.level_scaling else 1
-                        if level >= min_level:
+                        if level >= class_def.subclass_grant_level(min_level):
                             max_uses = feature.get_max_uses_at_level(level)
                             if max_uses > 0:
                                 self._create_feature_use_stat(parent, class_name, feature.title, max_uses, sheet)
@@ -3504,9 +3488,9 @@ class CharacterSheetView(ctk.CTkFrame):
                 
                 # Subclass features
                 if subclass_name:
-                    for subclass_def in class_def.subclasses:
+                    for subclass_def in class_def.selectable_subclasses:
                         if subclass_def.name == subclass_name:
-                            sub_features = subclass_def.get_all_features_up_to_level(level)
+                            sub_features = class_def.get_subclass_features_up_to_level(subclass_def, level)
                             for feature in sub_features:
                                 if feature.title in HIDDEN_FEATURES:
                                     continue
@@ -4986,9 +4970,12 @@ class NewCharacterDialog(ctk.CTkToplevel):
         
         # Class selection - get class names from class manager
         ctk.CTkLabel(container, text="Starting Class:").pack(anchor="w")
-        self.class_var = ctk.StringVar(value="Fighter")
         class_manager = get_class_manager()
-        class_names = [c.name for c in class_manager.classes if c.name != "Custom"]
+        legacy_filter = get_settings_manager().settings.legacy_content_filter
+        class_names = [c.name for c in apply_legacy_filter(class_manager.classes, legacy_filter)
+                       if c.name != "Custom"]
+        self.class_var = ctk.StringVar(value="Fighter" if "Fighter" in class_names
+                                       else (class_names[0] if class_names else "Fighter"))
         class_combo = ScrollableComboBox(
             container, width=300,
             values=class_names,
@@ -5612,6 +5599,8 @@ class CharacterFeatEditorDialog(ctk.CTkToplevel):
         
         # Get all feats not already selected
         available = [f for f in self.feat_manager.feats if f.name not in self.selected_feats]
+        # Legacy content setting ("Name (Legacy)" pairs with the 2024 "Name")
+        available = apply_legacy_filter(available, get_settings_manager().settings.legacy_content_filter)
         
         # Apply search filter
         if search:

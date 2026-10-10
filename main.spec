@@ -6,10 +6,25 @@ import os
 # doesn't exist until that data is added). Missing files are simply skipped so
 # the build never breaks on one that isn't ready yet.
 _optional_content = [
-    (f, '.') for f in ('magic_items.json', 'monsters.json')
+    (f, '.') for f in ('magic_items.json', 'monsters.json', 'legacy_2014.json')
     if os.path.exists(os.path.join(SPECPATH, f))
 ]
 
+
+# LAN sessions. Most of these are imported lazily (inside functions, so the user can run the app
+# without ever hosting); naming them here guarantees they are bundled. The `cryptography` package
+# makes the per-session TLS certificate (lan/security.py).
+_LAN_IMPORTS = [
+    'lan', 'lan.protocol', 'lan.security', 'lan.runtime', 'lan.host', 'lan.client', 'lan.service',
+    'lan.discovery', 'lan.dice', 'transfer', 'character_io',
+    'ui.session_view', 'ui.session_widgets', 'ui.chat_overlay', 'ui.chat_input', 'ui.chat_render',
+    'ui.transfer_dialogs', 'ui.game_tools_view',
+    'initiative_state', 'initiative_rows', 'initiative_sources', 'conditions', 'tracker_hub',
+    'tracker_net', 'ui.initiative_table', 'ui.initiative_dialogs', 'ui.initiative_view',
+    'ui.initiative_window',
+    'cryptography', 'cryptography.x509', 'cryptography.hazmat.primitives.asymmetric.ec',
+    'cryptography.hazmat.primitives.serialization', 'cryptography.hazmat.primitives.hashes',
+]
 
 a = Analysis(
     ['main.py'],
@@ -28,7 +43,8 @@ a = Analysis(
         ('Spellbook Icon.png', '.'),
         ('Spellbook Icon.ico', '.'),
     ] + _optional_content,
-    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data'],
+    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data']
+                  + _LAN_IMPORTS,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

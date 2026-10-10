@@ -23,6 +23,8 @@ from typography import ui_font
 import tkinter as tk
 from typing import List, Callable, Optional
 from spell import Spell
+from content_versions import display_name
+from legacy_content import legacy_pair_key
 from theme import get_theme_manager
 from ui.platform_compat import bind_right_click
 
@@ -213,8 +215,9 @@ class SpellListPanel(ctk.CTkFrame):
         if spell.concentration:
             indicators.append("C")
         suffix = f"  ({', '.join(indicators)})" if indicators else ""
-        # display_name adds a trailing * for modified official spells.
-        return f"{spell.display_name}{suffix}"
+        # display_name adds a trailing * for modified official spells. One row stands for all the
+        # versions of a spell (2024, 2014), so no "(Legacy)" tag: the detail panel switches them.
+        return f"{display_name(spell.display_name)}{suffix}"
 
     def _bind_row(self, btn: "ctk.CTkButton", spell_index: int):
         """Point a pooled row widget at ``spell_index``."""
@@ -259,12 +262,12 @@ class SpellListPanel(ctk.CTkFrame):
 
         self._spells = spells
 
-        # Re-locate the previously selected spell in the new list.
+        # Re-locate the previously selected spell in the new list (any version of it will do).
         self._selected_index = None
         if current_name:
-            lowered = current_name.lower()
+            key = legacy_pair_key(current_name)
             for i, spell in enumerate(spells):
-                if spell.name.lower() == lowered:
+                if legacy_pair_key(spell.name) == key:
                     self._selected_index = i
                     break
 
@@ -286,22 +289,33 @@ class SpellListPanel(ctk.CTkFrame):
         # Spacer height -> canvas scrollregion settles on the next idle tick.
         self._request_render()
 
-    def select_spell(self, name: str) -> bool:
-        """Select a spell by name, scrolling it into view. Returns True if found."""
-        lowered = name.lower()
+    def select_spell(self, name: str, version: Optional[Spell] = None) -> bool:
+        """Select a spell by name, scrolling it into view. Returns True if found.
+
+        One row stands for all the versions of a spell, so "Fireball (Legacy)" selects the Fireball
+        row; ``version`` is the exact version to show in it.
+        """
+        key = legacy_pair_key(name)
         target = None
         for i, spell in enumerate(self._spells):
-            if spell.name.lower() == lowered:
+            if legacy_pair_key(spell.name) == key:
                 target = i
                 break
         if target is None:
             return False
+        if version is not None and version is not self._spells[target]:
+            self._spells[target] = version
 
         self._selected_index = target
         self._ensure_visible(target)
         self._do_render()
         self.on_select(self._spells[target])
         return True
+
+    def replace_selected(self, spell: Spell):
+        """The detail panel switched the selected row to another version of the spell."""
+        if self._selected_index is not None and self._selected_index < len(self._spells):
+            self._spells[self._selected_index] = spell
 
     def get_selected_spell(self) -> Optional[Spell]:
         """Return the currently selected spell, or None."""

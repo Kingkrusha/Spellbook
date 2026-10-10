@@ -16,7 +16,9 @@ from character_manager import CharacterManager
 from spell_manager import SpellManager
 from database import SpellDatabase
 from ui.monster_stat_block import CollapsibleMonsterCard
-from ui.rich_text_utils import RichTextRenderer, preprocess_html_to_markdown
+from ui.version_bar import VersionBar
+from content_versions import display_name
+from ui.rich_text_utils import RichTextRenderer, preprocess_html_to_markdown, follow_width, logical_width
 
 
 class SpellWarningDialog(ctk.CTkToplevel):
@@ -227,6 +229,8 @@ class SpellDetailPanel(ctk.CTkFrame):
         self.character_manager = character_manager
         self.spell_manager = spell_manager
         self._current_spell: Optional[Spell] = None
+        self._versions: List[Spell] = []
+        self.on_version_change: Optional[Callable[[Spell], None]] = None
         self._comparison_active = False
         self._comparison_results: Optional[Dict[str, int]] = None
         self._is_primary = True  # Primary panel or compare panel
@@ -262,6 +266,7 @@ class SpellDetailPanel(ctk.CTkFrame):
             anchor="w"
         )
         self.name_label.pack(fill="x", pady=(0, 5))
+        follow_width(self.content_frame, self.name_label, margin=10)
         
         # Level with colored badge
         self.level_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -391,6 +396,7 @@ class SpellDetailPanel(ctk.CTkFrame):
         
         # Bind to update wraplength dynamically on resize
         self.description_frame.bind("<Configure>", self._on_content_resize)
+        self.content_frame.bind("<Configure>", self._wrap_property_labels, add="+")
         
         # Source and Tags section (after description)
         self.meta_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -405,11 +411,13 @@ class SpellDetailPanel(ctk.CTkFrame):
             text_color=get_theme_manager().get_current_color('text_label'),
             width=120, anchor="w"
         ).pack(side="left")
-        self.source_label = ctk.CTkLabel(
+        # The source is a drop-down when the spell has several versions (2024, 2014)
+        self.source_label = VersionBar(
             source_row, text="",
             font=ui_font("body", 13),
-            anchor="w",
-            wraplength=400
+            captionless=True,
+            wraplength=400,
+            on_select=self._version_selected
         )
         self.source_label.pack(side="left", fill="x", expand=True)
         
@@ -524,9 +532,19 @@ class SpellDetailPanel(ctk.CTkFrame):
                 self._tooltip_label.destroy()
                 self._tooltip_label = None
     
-    def set_spell(self, spell: Optional[Spell]):
-        """Set the spell to display, or None to show placeholder."""
+    def _version_selected(self, spell: Spell):
+        """The user picked another version in the Source drop-down."""
+        self.set_spell(spell, self._versions)
+        if self.on_version_change:
+            self.on_version_change(spell)
+
+    def set_spell(self, spell: Optional[Spell], versions: Optional[List[Spell]] = None):
+        """Set the spell to display, or None to show placeholder.
+
+        ``versions``: every version of the spell to offer in the Source drop-down.
+        """
         self._current_spell = spell
+        self._versions = list(versions or [])
         self._comparison_active = False
         self._comparison_results = None
         
@@ -541,7 +559,7 @@ class SpellDetailPanel(ctk.CTkFrame):
         self.scroll_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Update labels - use display_name for asterisk on modified official spells
-        display_text = spell.display_name.upper()
+        display_text = display_name(spell.display_name).upper()
         self.name_label.configure(text=display_text)
         
         # Update tooltip if spell is modified
@@ -608,9 +626,11 @@ class SpellDetailPanel(ctk.CTkFrame):
         
         # Update source and tags (now below description)
         self.source_label.configure(
-            text=spell.source or "—",
+            text=(spell.source or "—") + (" [Legacy]" if spell.is_legacy else ""),
             text_color=text_color
         )
+        if len(self._versions) > 1:
+            self.source_label.set_versions(self._versions, spell)
         self.tags_label.configure(
             text=spell.display_tags() or "—",
             text_color=text_color
@@ -638,8 +658,8 @@ class SpellDetailPanel(ctk.CTkFrame):
         if self._rich_renderer is None:
             self._rich_renderer = RichTextRenderer(get_theme_manager())
         
-        # Calculate wraplength based on frame width
-        wraplength = max(300, self.description_frame.winfo_width() - 40)
+        # Wrap to the frame's width (the lines re-wrap by themselves if the panel is resized)
+        wraplength = max(100, logical_width(self.description_frame) - 40)
         
         # Render formatted text with markdown support
         self._rich_renderer.render_formatted_text(
@@ -870,6 +890,31 @@ class SpellDetailPanel(ctk.CTkFrame):
         """Handle description frame resize - may need to re-render for new width."""
         # Rich text renderer handles wrapping automatically
         pass
+
+    # Property rows: (label, width taken by something else on the same row, e.g. "Ritual")
+    def _wrap_property_labels(self, event=None):
+        """Wrap the property values (range, components, ...) to the panel's current width,
+        so they are never wider than the panel and cut off."""
+        width = logical_width(self.content_frame)
+        if width <= 1:
+            return
+        available = max(100, width - 120 - 16)  # 120 = the row's "Casting Time:" style label
+        rows = (
+            (self.prop_labels["casting_time"], 150),  # leaves room for ", Ritual"
+            (self.prop_labels["range"], 0),
+            (self.prop_labels["components"], 0),
+            (self.prop_labels["duration"], 150),      # leaves room for "Concentration, up to"
+            (self.prop_labels["classes"], 0),
+            (self.source_label, 0),
+            (self.tags_label, 0),
+        )
+        for label, taken in rows:
+            wrap = max(100, available - taken)
+            try:
+                if label.cget("wraplength") != wrap:
+                    label.configure(wraplength=wrap)
+            except Exception:
+                pass
     
     def _update_description_colors(self):
         """Update description area colors based on current theme."""

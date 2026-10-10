@@ -79,24 +79,39 @@ jobs:
           path: ${{ matrix.asset }}
           if-no-files-found: error
 
+      # The release text is the patch notes in release-notes/<tag>.md (if that file exists) followed
+      # by the download instructions. Each of the three build jobs writes the same text.
+      - name: Compose release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          notes="release-notes/${GITHUB_REF_NAME}.md"
+          : > release-body.md
+          if [ -f "$notes" ]; then
+            cat "$notes" >> release-body.md
+            printf '\n\n' >> release-body.md
+          fi
+          cat >> release-body.md <<'EOF'
+          ### Downloads
+          - **Windows:** `Spellbook-windows-x64.exe` - download and run.
+          - **macOS (Apple Silicon):** `Spellbook-macos-arm64.zip`
+          - **macOS (Intel):** `Spellbook-macos-x86_64.zip`
+
+          `SHA256SUMS` lists the checksum of each file; the in-app updater
+          checks downloads against it.
+
+          **macOS first launch:** the app is not notarized, so right-click
+          (or Control-click) `Spellbook.app` and choose **Open**, then confirm
+          once. After that it opens normally. See the README for details.
+          EOF
+
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset }}
           fail_on_unmatched_files: true
-          body: |
-            ### Downloads
-            - **Windows:** `Spellbook-windows-x64.exe` - download and run.
-            - **macOS (Apple Silicon):** `Spellbook-macos-arm64.zip`
-            - **macOS (Intel):** `Spellbook-macos-x86_64.zip`
-
-            `SHA256SUMS` lists the checksum of each file; the in-app updater
-            checks downloads against it.
-
-            **macOS first launch:** the app is not notarized, so right-click
-            (or Control-click) `Spellbook.app` and choose **Open**, then confirm
-            once. After that it opens normally. See the README for details.
+          body_path: release-body.md
 
   # Collect the three binaries built above, hash them into one SHA256SUMS file,
   # and attach it to the same release. Runs only for tag pushes (real releases).

@@ -8,6 +8,7 @@ from typography import ui_font
 from tkinter import ttk
 from typing import Optional, Callable, List, Dict
 from theme import get_theme_manager
+from content_versions import collapse_search_results
 
 
 class GlobalSearchBar(ctk.CTkFrame):
@@ -131,7 +132,8 @@ class GlobalSearchBar(ctk.CTkFrame):
     
     def _perform_search(self, query: str):
         """Search the database and show results."""
-        self._results = self.db.global_search(query, limit=50)
+        # one hit per thing, however many versions it has (the page you land on has the version drop-down)
+        self._results = collapse_search_results(self.db.global_search(query, limit=50))
         
         if self._results:
             self._show_dropdown()
@@ -209,7 +211,7 @@ class GlobalSearchBar(ctk.CTkFrame):
             # Result text: "Name In Section"
             name = result.get('name', '')
             section = result.get('section', '')
-            display_text = f"{name}"
+            display_text = result.get('label', name)
             section_text = f"in {section}"
             
             # Name label

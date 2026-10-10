@@ -12,6 +12,40 @@ from typing import Optional, List, Callable, Tuple
 from theme import get_theme_manager
 
 
+def logical_width(widget) -> int:
+    """A widget's width in CustomTkinter's unscaled units (what ``wraplength`` expects)."""
+    try:
+        scale = widget._get_widget_scaling() or 1.0
+    except Exception:
+        scale = 1.0
+    return int(widget.winfo_width() / scale)
+
+
+def follow_width(container, label, margin: int = 0, minimum: int = 100):
+    """Keep a label's ``wraplength`` matched to ``container``'s width as it is resized.
+
+    A fixed wraplength is wrong as soon as the panel is narrower than it - the text runs
+    off the edge and is cut off.
+    """
+    labels = getattr(container, "_sb_wrap_labels", None)
+    if labels is None:
+        labels = container._sb_wrap_labels = []
+
+        def update(_event=None):
+            width = logical_width(container)
+            if width <= 1:
+                return
+            for lbl, lbl_margin, lbl_min in list(labels):
+                try:
+                    wrap = max(lbl_min, width - lbl_margin)
+                    if lbl.winfo_exists() and lbl.cget("wraplength") != wrap:
+                        lbl.configure(wraplength=wrap)
+                except Exception:
+                    pass
+        container.bind("<Configure>", update, add="+")
+    labels.append((label, margin, minimum))
+
+
 def preprocess_html_to_markdown(text: str) -> str:
     """
     Convert HTML-style formatting to markdown formatting.
@@ -566,6 +600,7 @@ class RichTextRenderer:
                 anchor="w"
             )
             label.pack(anchor="w", pady=(2, 2))
+            follow_width(parent, label)
         else:
             # Has spell links - use text widget with clickable links
             self._render_line_with_spells(parent, parts, on_spell_click, wraplength)
@@ -653,7 +688,8 @@ class RichTextRenderer:
         
         text_widget.configure(state="disabled", height=estimated_lines)
         text_widget.pack(fill="x", anchor="w", pady=(2, 2))
-    
+        self._fit_height_to_content(text_widget)
+
     def _render_line_with_spells(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
         """Render a line containing spell links [[SpellName]]."""
         # Try to get the proper background color from the parent or theme
@@ -712,6 +748,7 @@ class RichTextRenderer:
         
         text_widget.configure(state="disabled", height=estimated_lines)
         text_widget.pack(fill="x", anchor="w", pady=(2, 2))
+        self._fit_height_to_content(text_widget)
 
 
 class SpellSelectorDialog(ctk.CTkToplevel):
@@ -1407,8 +1444,10 @@ class DynamicText(ctk.CTkFrame):
             underline=True
         )
         
-        # Bind to resize
+        # Bind to resize. The text widget's own <Configure> is what matters: it fires once its
+        # width has actually settled, which is when the wrapped line count can be trusted.
         self.bind("<Configure>", self._on_resize)
+        self.text_widget.bind("<Configure>", self._on_text_configure, add="+")
         self.theme.add_listener(self._on_theme_changed)
     
     def _on_theme_changed(self):
@@ -1437,6 +1476,13 @@ class DynamicText(ctk.CTkFrame):
             self.after_cancel(self._resize_job)
         self._resize_job = self.after(50, self._do_resize)
     
+    def _on_text_configure(self, event=None):
+        """The text widget changed size: re-fit its height if the wrap width changed."""
+        width = event.width if event is not None else 0
+        if width != getattr(self, "_fitted_width", None):
+            self._fitted_width = width
+            self._on_resize()
+
     def _do_resize(self):
         """Actually perform the resize."""
         width = self.winfo_width()
@@ -1452,8 +1498,10 @@ class DynamicText(ctk.CTkFrame):
         
         # Prefer the real wrapped line count. The raw markup is a poor guide:
         # a [[category:Name|display]] link is far longer than what it shows.
+        # (No update_idletasks() here: that flushes every pending layout and redraw in the whole
+        # window, and a page with dozens of these made building it quadratically slow. The
+        # text widget's <Configure> re-fits us whenever its width really changes.)
         try:
-            self.text_widget.update_idletasks()
             counted = self.text_widget.count("1.0", "end", "displaylines")
             if counted and counted[0] > 0 and self.text_widget.winfo_width() > 20:
                 self.text_widget.configure(height=max(self.min_height, counted[0]))

@@ -91,6 +91,24 @@ class AppSettings:
     # Monsters collection too, and offers them as link suggestions.
     show_spell_only_summons: bool = False
 
+    # LAN sessions (Game Tools > Session). The client id is a random per-install id the host
+    # uses to recognise a player who reconnects; it is not shown to anyone.
+    lan_display_name: str = ""
+    lan_port: int = 5150
+    lan_require_approval: bool = True  # The host approves each player before they join
+    lan_discovery: bool = True  # The host can be found automatically by players on the same network
+    lan_client_id: str = ""
+    lan_last_invite: str = ""  # Last invite a player joined with, to fill the box next time
+    lan_overlay_enabled: bool = True  # Show the chat overlay on every page while in a session
+    lan_overlay_collapsed: bool = False  # ... collapsed to a small "Chat" button
+    lan_overlay_opacity: float = 0.72  # Backdrop opacity of the (Windows) translucent overlay
+    # Initiative tracker
+    tracker_window_state: str = ""  # JSON: where each pop-up window was, whether it was pinned, ...
+    tracker_turn_beep: bool = True  # Beep (and flash the taskbar) when it becomes your turn
+    tracker_auto_open: bool = True  # Open the tracker window when the DM starts combat
+
+    lan_overlay_translucent: bool = True  # Use the translucent overlay where the OS allows it
+
     # Internal flags (not user-configurable)
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
     
@@ -122,6 +140,10 @@ class AppSettings:
             'link_suggest_backgrounds', 'link_suggest_classes', 'link_suggest_equipment',
             'link_suggest_magic_items', 'link_suggest_monsters', 'link_autocomplete_names',
             'show_spell_only_summons',
+            'lan_display_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
+            'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
+            'lan_overlay_opacity', 'lan_overlay_translucent',
+            'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered_data)

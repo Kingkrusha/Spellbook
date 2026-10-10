@@ -11,235 +11,42 @@ from tkinter import messagebox
 from typing import List, Optional, Callable
 from background import Background, BackgroundFeature, BackgroundManager, get_background_manager
 from theme import get_theme_manager
+from ui.rich_text_utils import follow_width
 from settings import get_settings_manager
-from ui.platform_compat import bind_right_click, unbind_right_click
+from legacy_content import legacy_pair_key
+from content_versions import VersionCatalog, display_name
+from ui.version_bar import VersionBar
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
-from ui.list_batching import BatchedListMixin
+from ui.virtual_list import VirtualListPanel
 
 
-class BackgroundListPanel(BatchedListMixin, ctk.CTkFrame):
-    """A scrollable list panel for displaying and selecting backgrounds."""
-    
-    # Batch size for progressive loading - smaller batches = smoother UI
-    BATCH_SIZE = 15
-    BATCH_DELAY_MS = 5  # Milliseconds between batches
-    
-    def __init__(self, parent, on_select: Callable[[Optional[Background]], None],
-                 on_right_click: Optional[Callable[[Background, int, int], None]] = None):
-        super().__init__(parent, corner_radius=10)
-        
-        self.on_select = on_select
-        self.on_right_click = on_right_click
-        self._backgrounds: List[Background] = []
-        self._selected_index: Optional[int] = None
-        self._background_buttons: List[ctk.CTkButton] = []
-        self._pending_after_id: Optional[str] = None  # Track pending after() calls
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+def _list_name(name: str) -> str:
+    """A background's name in the list: no "(Legacy)" tag, its versions are switched in the detail panel."""
+    return display_name(name)
 
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
 
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._refresh_buttons()
-    
-    def _create_widgets(self):
-        """Create the scrollable background list."""
-        # Header
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=(15, 10))
-        
-        ctk.CTkLabel(header_frame, text="Backgrounds", 
-                     font=ui_font("heading", bold=True)).pack(side="left")
-        
-        text_secondary = self.theme.get_text_secondary()
-        self.count_label = ctk.CTkLabel(header_frame, text="0 backgrounds",
-                                         font=ui_font("body"),
-                                         text_color=text_secondary)
-        self.count_label.pack(side="right")
-        
-        # Scrollable frame for background list
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-    
-    def _create_background_button(self, background: Background, index: int) -> ctk.CTkButton:
-        """Create a button for a background."""
-        display_name = background.name
-        if background.is_custom:
-            display_name = f"* {display_name}"
-        
-        btn = ctk.CTkButton(
-            self.scroll_frame,
-            text=display_name,
-            anchor="w",
-            height=40,
-            corner_radius=8,
-            fg_color=("transparent" if index != self._selected_index 
-                      else self.theme.get_current_color('accent_primary')),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            font=ui_font("body", 13),
-            command=lambda i=index: self._on_background_click(i)
-        )
-        btn.pack(fill="x", pady=2)
-        
-        # Bind right-click event
-        if self.on_right_click:
-            bind_right_click(btn, lambda e, i=index: self._on_background_right_click(e, i))
-            for child in btn.winfo_children():
-                bind_right_click(child, lambda e, i=index: self._on_background_right_click(e, i))
-        
-        return btn
-    
-    def _on_background_right_click(self, event, index: int):
-        """Handle right-click on a background button - show context menu only."""
-        if self.on_right_click and 0 <= index < len(self._backgrounds):
-            self.on_right_click(self._backgrounds[index], event.x_root, event.y_root)
-    
-    def _on_background_click(self, index: int):
-        """Handle background selection."""
-        if self._selected_index is not None and self._selected_index < len(self._background_buttons):
-            self._background_buttons[self._selected_index].configure(fg_color="transparent")
-        
-        self._selected_index = index
-        if index < len(self._background_buttons):
-            self._background_buttons[index].configure(
-                fg_color=self.theme.get_current_color('accent_primary')
-            )
-        
-        if 0 <= index < len(self._backgrounds):
-            self.on_select(self._backgrounds[index])
-        else:
-            self.on_select(None)
-    
-    def _update_background_button(self, btn: ctk.CTkButton, background: Background, index: int):
-        """Update an existing button with new background data."""
-        display_name = background.name
-        if background.is_custom:
-            display_name = f"* {display_name}"
-        
-        btn.configure(
-            text=display_name,
-            fg_color=("transparent" if index != self._selected_index 
-                      else self.theme.get_current_color('accent_primary')),
-            command=lambda i=index: self._on_background_click(i)
-        )
-        
-        # Rebind right-click events with new index
-        if self.on_right_click:
-            unbind_right_click(btn)
-            bind_right_click(btn, lambda e, i=index: self._on_background_right_click(e, i))
-            for child in btn.winfo_children():
-                unbind_right_click(child)
-                bind_right_click(child, lambda e, i=index: self._on_background_right_click(e, i))
-    
-    def _cancel_pending_load(self):
-        """Cancel any pending progressive load operation."""
-        if self._pending_after_id is not None:
-            try:
-                self.after_cancel(self._pending_after_id)
-            except Exception:
-                pass
-            self._pending_after_id = None
-    
-    def set_backgrounds(self, backgrounds: List[Background], reset_scroll: bool = True, 
+class BackgroundListPanel(VirtualListPanel):
+    """The virtualized, selectable list of backgrounds."""
+
+    TITLE = "Backgrounds"
+    NOUN = "background"
+    KEY = staticmethod(legacy_pair_key)   # one entry stands for all the versions of a background
+
+    def row_text(self, background: Background) -> str:
+        name = _list_name(background.name)
+        return f"* {name}" if background.is_custom else name
+
+    def set_backgrounds(self, backgrounds: List[Background], reset_scroll: bool = True,
                         preserve_selection: Optional[str] = None):
-        """Update the list of backgrounds.
-        
-        Uses progressive loading to prevent UI freezing - processes buttons
-        in batches with UI updates between batches.
-        """
-        # Cancel any pending progressive load
-        self._cancel_pending_load()
-        
-        self._backgrounds = backgrounds
-        
-        # Find preserved selection
-        new_selected_index = None
-        if preserve_selection:
-            for i, background in enumerate(backgrounds):
-                if background.name == preserve_selection:
-                    new_selected_index = i
-                    break
-        
-        self._selected_index = new_selected_index
-        
-        # Update count immediately
-        self.count_label.configure(text=f"{len(backgrounds)} background{'s' if len(backgrounds) != 1 else ''}")
-        
-        # Reset scroll position to top
-        if reset_scroll and self.scroll_frame.winfo_children():
-            try:
-                self.scroll_frame._parent_canvas.yview_moveto(0)
-            except Exception:
-                pass
-        
-        # Start progressive loading from index 0
-        self._load_backgrounds_batch(0)
-    
-    def _load_backgrounds_batch(self, start_index: int):
-        """Load a batch of background buttons progressively."""
-        if not self.winfo_exists():
-            return
-        
-        current_button_count = len(self._background_buttons)
-        new_background_count = len(self._backgrounds)
-        end_index = min(start_index + self._batch_size(), new_background_count)
-        
-        # Process this batch
-        for i in range(start_index, end_index):
-            if i < current_button_count:
-                # Reuse existing button - make sure it's visible
-                btn = self._background_buttons[i]
-                self._update_background_button(btn, self._backgrounds[i], i)
-                # Re-pack if it was previously hidden
-                if not btn.winfo_ismapped():
-                    btn.pack(fill="x", pady=2)
-            else:
-                # Create new button
-                btn = self._create_background_button(self._backgrounds[i], i)
-                self._background_buttons.append(btn)
-        
-        # If we've processed all backgrounds, hide excess buttons (don't destroy)
-        if end_index >= new_background_count:
-            # Hide excess buttons instead of destroying them
-            for i in range(new_background_count, current_button_count):
-                self._background_buttons[i].pack_forget()
-            # Restore selection if found
-            if self._selected_index is not None:
-                self._on_background_click(self._selected_index)
-            self._pending_after_id = None
-        else:
-            # Schedule next batch
-            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_backgrounds_batch(end_index))
-    
-    def _refresh_buttons(self):
-        """Refresh button colors after theme change."""
-        for i, btn in enumerate(self._background_buttons):
-            if i == self._selected_index:
-                btn.configure(fg_color=self.theme.get_current_color('accent_primary'))
-            else:
-                btn.configure(fg_color="transparent")
-            btn.configure(
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary')
-            )
-    
+        # Only an explicitly preserved entry stays selected, and it is shown again in the detail panel
+        self.set_items(backgrounds, reset_scroll, keep=preserve_selection, keep_current=False, notify=True)
+
     def get_selected_background(self) -> Optional[Background]:
-        """Get the currently selected background."""
-        if self._selected_index is not None and self._selected_index < len(self._backgrounds):
-            return self._backgrounds[self._selected_index]
-        return None
-    
-    def select_background(self, name: str) -> bool:
-        """Select a background by name. Returns True if found."""
-        for i, background in enumerate(self._backgrounds):
-            if background.name.lower() == name.lower():
-                self._on_background_click(i)
-                return True
-        return False
+        return self.get_selected()
+
+    def select_background(self, name: str, version: Optional[Background] = None) -> bool:
+        """Select a background by name; ``version`` is the exact version to show in its entry."""
+        return self.select_by_name(name, version)
 
 
 class BackgroundDetailPanel(ctk.CTkFrame):
@@ -250,6 +57,8 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.theme = get_theme_manager()
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._current_background: Optional[Background] = None
+        self._versions: List[Background] = []
+        self.on_version_change: Optional[Callable[[Background], None]] = None
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
 
@@ -272,11 +81,12 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
         
-        # Source info
-        self.source_label = LabeledLabel(
+        # Source info (a drop-down when the background has several versions)
+        self.source_label = VersionBar(
             self.scroll_frame, text="",
             font=ui_font("small"),
-            text_color=self.theme.get_text_secondary()
+            text_color=self.theme.get_text_secondary(),
+            on_select=self._version_selected
         )
         self.source_label.pack(anchor="w", pady=(0, 10))
         
@@ -304,9 +114,10 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.ability_value = ctk.CTkLabel(
             self.ability_row, text="",
             font=ui_font("body"),
-            anchor="w"
+            anchor="w", justify="left"
         )
         self.ability_value.pack(side="left", fill="x")
+        follow_width(self.ability_row, self.ability_value, margin=200)  # wrap to what is left of the row
         
         # Skills row
         self.skills_row = ctk.CTkFrame(self.stats_inner, fg_color="transparent")
@@ -321,9 +132,10 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.skills_value = ctk.CTkLabel(
             self.skills_row, text="",
             font=ui_font("body"),
-            anchor="w"
+            anchor="w", justify="left"
         )
         self.skills_value.pack(side="left", fill="x")
+        follow_width(self.skills_row, self.skills_value, margin=200)  # wrap to what is left of the row
         
         # Tool Proficiencies row
         self.prof_row = ctk.CTkFrame(self.stats_inner, fg_color="transparent")
@@ -338,9 +150,10 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         self.prof_value = ctk.CTkLabel(
             self.prof_row, text="",
             font=ui_font("body"),
-            anchor="w"
+            anchor="w", justify="left"
         )
         self.prof_value.pack(side="left", fill="x")
+        follow_width(self.prof_row, self.prof_value, margin=200)  # wrap to what is left of the row
         
         # Feat frame - will contain clickable feat buttons
         self.feat_frame = ctk.CTkFrame(
@@ -566,9 +379,16 @@ class BackgroundDetailPanel(ctk.CTkFrame):
                 spacer.pack()
                 self._desc_widgets.append(spacer)
     
-    def show_background(self, background: Optional[Background]):
-        """Display details for a background."""
+    def _version_selected(self, background: Background):
+        """The user picked another version in the Source drop-down."""
+        self.show_background(background, self._versions)
+        if self.on_version_change:
+            self.on_version_change(background)
+
+    def show_background(self, background: Optional[Background], versions: Optional[List[Background]] = None):
+        """Display details for a background (``versions``: every version offered in the Source drop-down)."""
         self._current_background = background
+        self._versions = list(versions or [])
         
         if background is None:
             self.name_label.configure(text="Select a background")
@@ -587,7 +407,7 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             return
         
         # Name (with custom indicator)
-        name_text = f"* {background.name}" if background.is_custom else background.name
+        name_text = f"* {display_name(background.name)}" if background.is_custom else display_name(background.name)
         self.name_label.configure(text=name_text)
         
         # Source
@@ -600,6 +420,8 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             self.source_label.configure(text=source_text)
         else:
             self.source_label.configure(text="")
+        if len(self._versions) > 1:
+            self.source_label.set_versions(self._versions, background)
         
         # Stats (ability scores, skills, proficiencies)
         if background.ability_scores:
@@ -707,6 +529,7 @@ class BackgroundsView(ctk.CTkFrame):
         self.settings_manager = get_settings_manager()
         self.on_back = on_back
         self._all_backgrounds: List[Background] = []
+        self._catalog = VersionCatalog([])
         self._filtered_backgrounds: List[Background] = []
         self._compare_mode = False
         self._compare_background: Optional[Background] = None
@@ -783,6 +606,7 @@ class BackgroundsView(ctk.CTkFrame):
         
         # Background detail panel (right)
         self.detail_panel = BackgroundDetailPanel(self.paned)
+        self.detail_panel.on_version_change = self.list_panel.replace_selected
         
         # Add panes with minimum sizes
         self.paned.add(self.left_container, minsize=280, stretch="always")
@@ -943,6 +767,7 @@ class BackgroundsView(ctk.CTkFrame):
     def _load_backgrounds(self):
         """Load all backgrounds from manager."""
         self._all_backgrounds = self.background_manager.backgrounds.copy()
+        self._catalog = VersionCatalog(self._all_backgrounds)
         self._update_filter_options()
         self._on_filter_changed(immediate=True)
     
@@ -1035,13 +860,11 @@ class BackgroundsView(ctk.CTkFrame):
             if skill_filter != "All Skills" and skill_filter not in background.skills:
                 continue
 
-            # Legacy filter from settings
-            if legacy_filter == "no_legacy" and background.is_legacy:
-                continue
-            elif legacy_filter == "legacy_only" and not background.is_legacy:
-                continue
-
             filtered.append(background)
+
+        # One entry per background: its versions (2024, 2014) are switched in the detail panel's Source
+        # drop-down; the Legacy content setting decides which are offered
+        filtered = self._catalog.collapse(filtered, legacy_filter)
         
         self._filtered_backgrounds = filtered
         
@@ -1053,7 +876,9 @@ class BackgroundsView(ctk.CTkFrame):
     
     def _on_background_selected(self, background: Optional[Background]):
         """Handle background selection."""
-        self.detail_panel.show_background(background)
+        setting = self.settings_manager.settings.legacy_content_filter
+        self.detail_panel.show_background(
+            background, self._catalog.options(background, setting) if background else None)
     
     def _on_background_right_click(self, background: Background, x: int, y: int):
         """Handle right-click on background - show context menu."""
@@ -1171,7 +996,7 @@ class BackgroundsView(ctk.CTkFrame):
     
     def select_background(self, name: str) -> bool:
         """Select a background by name. Returns True if found."""
-        return self.list_panel.select_background(name)
+        return self.list_panel.select_background(name, self._catalog.find(name))
 
 
 class BackgroundEditorDialog(ctk.CTkToplevel):

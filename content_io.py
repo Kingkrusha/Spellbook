@@ -330,6 +330,12 @@ def load_bundle_file(path: str) -> dict:
             data = json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(f"Not a valid JSON file ({e})")
+    return check_bundle(data)
+
+
+def check_bundle(data) -> dict:
+    """Sanity-check a content bundle that is already in memory (a file's JSON, or content received
+    from another player). Returns it, or raises ValueError with a readable message."""
     if not isinstance(data, dict):
         raise ValueError("The file must contain a JSON object with keys such as "
                          "'spells', 'feats' or 'magic_items'.")
@@ -834,3 +840,115 @@ def import_file(path: str, spell_manager=None, *, link_mentions: bool = True,
     """Read ``path`` and import it. Raises ValueError for an unusable file."""
     return import_bundle(load_bundle_file(path), spell_manager, link_mentions=link_mentions,
                          kinds=kinds, progress=progress, defer_link_check=defer_link_check)
+
+
+# ---------------------------------------------------------------------------
+# Previewing and resolving name clashes
+# ---------------------------------------------------------------------------
+# import_bundle() replaces a custom record that has the same name as an incoming
+# one. That is what you want when re-importing your own file, but not for content
+# that arrives from another person: they must see the clash first. preview_bundle()
+# reports it without changing anything and resolve_bundle() applies the user's
+# per-record answer (replace / keep both / skip) before import_bundle() runs.
+
+CLASH_REPLACE = "replace"
+CLASH_RENAME = "rename"
+CLASH_SKIP = "skip"
+
+
+@dataclass
+class BundlePreview:
+    new: List[Tuple[str, str]] = field(default_factory=list)        # (kind, name) not installed yet
+    replaces: List[Tuple[str, str]] = field(default_factory=list)   # would overwrite the user's own record
+    official: List[Tuple[str, str]] = field(default_factory=list)   # name used by official content: skipped
+
+    @property
+    def total(self) -> int:
+        return len(self.new) + len(self.replaces) + len(self.official)
+
+
+def _existing(kind: str, name: str, spell_manager=None):
+    """The installed object of ``kind`` called ``name`` (case-insensitive), or None."""
+    if kind == "spells":
+        return spell_manager.get_spell(name) if spell_manager is not None else None
+    m = _mgr(kind)
+    if kind == "classes":
+        return m.get_class(name)
+    if kind == "subclasses":
+        low = name.lower()
+        for c in m.classes:
+            for sub in c.subclasses:
+                if sub.name.lower() == low:
+                    return sub
+        return None
+    return getattr(m, _SIMPLE[kind][2])(name)
+
+
+def preview_bundle(data: dict, spell_manager=None,
+                   kinds: Optional[Iterable[str]] = None) -> BundlePreview:
+    """What importing ``data`` would do to each record, without changing anything."""
+    preview = BundlePreview()
+    wanted = set(kinds) if kinds else None
+    for kind, recs in normalize_bundle(data).items():
+        if wanted is not None and kind not in wanted:
+            continue
+        for rec in recs:
+            name = _clean_name(rec)
+            if not name:
+                continue
+            try:
+                existing = _existing(kind, name, spell_manager)
+            except Exception:
+                existing = None
+            if existing is None:
+                preview.new.append((kind, name))
+            elif _is_official(existing):
+                preview.official.append((kind, name))
+            else:
+                preview.replaces.append((kind, name))
+    return preview
+
+
+def _free_name(kind: str, name: str, taken: set, spell_manager=None) -> str:
+    n = 2
+    while True:
+        candidate = f"{name} ({n})"
+        if candidate.lower() not in taken and _existing(kind, candidate, spell_manager) is None:
+            return candidate
+        n += 1
+
+
+def resolve_bundle(data: dict, decisions: Optional[Dict[Tuple[str, str], str]] = None,
+                   default: str = CLASH_REPLACE, spell_manager=None) -> dict:
+    """A copy of ``data`` with the user's clash decisions applied.
+
+    ``decisions`` maps ``(kind, name.lower())`` to :data:`CLASH_REPLACE` (leave the
+    record alone), :data:`CLASH_SKIP` (drop it) or :data:`CLASH_RENAME` (keep both: the
+    incoming record is renamed "Name (2)"). Only records that clash with the user's own
+    content are affected; new records and official-name clashes pass through (the
+    importer skips the latter). A renamed record's name inside other incoming records'
+    ``[[links]]`` is not rewritten.
+    """
+    decisions = decisions or {}
+    clashing = {(k, n.lower()) for k, n in preview_bundle(data, spell_manager).replaces}
+    out = {k: v for k, v in data.items() if k not in KINDS}
+    for kind, recs in normalize_bundle(data).items():
+        taken = {_clean_name(r).lower() for r in recs}
+        kept = []
+        for rec in recs:
+            name = _clean_name(rec)
+            key = (kind, name.lower())
+            if key not in clashing:
+                kept.append(rec)
+                continue
+            choice = decisions.get(key, default)
+            if choice == CLASH_SKIP:
+                continue
+            if choice == CLASH_RENAME:
+                rec = dict(rec)
+                rec["name"] = _free_name(kind, name, taken, spell_manager)
+                taken.add(rec["name"].lower())
+            kept.append(rec)
+        if kept:
+            out[kind] = kept
+    return out

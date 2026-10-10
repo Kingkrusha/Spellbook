@@ -9,6 +9,8 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
+from legacy_content import apply_legacy_filter
+
 
 @dataclass
 class BackgroundFeature:
@@ -253,14 +255,7 @@ class BackgroundManager:
     
     def get_filtered_background_names(self, legacy_filter: str = "show_all") -> List[str]:
         """Get list of background names filtered by legacy settings."""
-        filtered = []
-        for bg in self.backgrounds:
-            if legacy_filter == "no_legacy" and bg.is_legacy:
-                continue
-            elif legacy_filter == "legacy_only" and not bg.is_legacy:
-                continue
-            filtered.append(bg.name)
-        return filtered
+        return [bg.name for bg in apply_legacy_filter(self.backgrounds, legacy_filter)]
     
     def get_unofficial_backgrounds(self) -> List[Background]:
         """Get all unofficial (custom) backgrounds."""
