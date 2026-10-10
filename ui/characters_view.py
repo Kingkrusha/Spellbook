@@ -11,6 +11,7 @@ import customtkinter as ctk
 
 from typography import ui_font
 from theme import get_theme_manager
+from ui.lazy_destroy import destroy_later
 from ui.platform_compat import bind_right_click
 from ui.scrollable_combobox import ScrollableComboBox
 
@@ -68,6 +69,10 @@ class CharactersView(ctk.CTkFrame):
         self.sort_var = ctk.StringVar(value=mem["sort"])
         self._descending = mem["descending"]
         self._search_after = None
+        # Each character's card, built once: filtering and sorting only re-order them, and a
+        # card is rebuilt only when that character's data changed (building one costs ~20 ms)
+        self._cards: dict = {}   # name -> (signature, card)
+        self._message = None     # the "no characters" / "no matches" notice, if shown
 
         self._create_widgets()
         self._update_filter_choices()
@@ -248,16 +253,32 @@ class CharactersView(ctk.CTkFrame):
 
     # ---------------------------------------------------------------- rendering
 
-    def _rebuild_list(self):
-        for child in self.list_frame.winfo_children():
-            child.destroy()
+    @staticmethod
+    def _signature(entry: dict) -> tuple:
+        """Everything a card shows; if it is unchanged the card can be reused."""
+        return (entry["name"], entry["level"], entry["class_text"], entry["species"],
+                entry["background"], entry["portrait"])
 
+    def _rebuild_list(self):
         entries = self._entries()
         shown = [e for e in entries if self._matches(e)]
         shown.sort(key=self._sort_key(self.sort_var.get()), reverse=self._descending)
 
         self.count_label.configure(
             text=f"{len(shown)} of {len(entries)} character{'s' if len(entries) != 1 else ''}")
+
+        # Cards of characters that are gone or changed are thrown away (a little at a time)
+        current = {e["name"]: self._signature(e) for e in entries}
+        for name, (signature, card) in list(self._cards.items()):
+            if current.get(name) != signature:
+                destroy_later(card)
+                del self._cards[name]
+
+        if self._message is not None:
+            self._message.destroy()
+            self._message = None
+        for _signature, card in self._cards.values():
+            card.pack_forget()
 
         if not entries:
             self._show_message("No characters yet.",
@@ -266,13 +287,17 @@ class CharactersView(ctk.CTkFrame):
             self._show_message("No characters match your search or filters.", None, clear_button=True)
         else:
             for entry in shown:
-                self._build_card(entry)
+                name = entry["name"]
+                if name not in self._cards:
+                    self._cards[name] = (self._signature(entry), self._build_card(entry))
+                self._cards[name][1].pack(fill="x", pady=4, padx=2)
 
         self._remember()
 
     def _show_message(self, title: str, hint: Optional[str], clear_button: bool = False):
         box = ctk.CTkFrame(self.list_frame, fg_color="transparent")
         box.pack(pady=60)
+        self._message = box
         ctk.CTkLabel(box, text=title, font=ui_font("heading", 16),
                      text_color=self.theme.get_text_secondary()).pack()
         if hint:
@@ -282,9 +307,9 @@ class CharactersView(ctk.CTkFrame):
             ctk.CTkButton(box, text="Clear filters", width=110, command=self._clear_filters).pack(pady=(12, 0))
 
     def _build_card(self, entry: dict):
+        """Build (not pack) one character's card."""
         card = ctk.CTkFrame(self.list_frame, fg_color=self.theme.get_current_color('bg_secondary'),
                             corner_radius=10, cursor="hand2")
-        card.pack(fill="x", pady=4, padx=2)
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="x", padx=12, pady=10)
@@ -316,11 +341,9 @@ class CharactersView(ctk.CTkFrame):
 
         name = entry["name"]
         self._bind_card(card, name)
+        return card
 
     def _bind_card(self, card: ctk.CTkFrame, name: str):
-        normal = self.theme.get_current_color('bg_secondary')
-        hover = self.theme.get_current_color('bg_tertiary')
-
         def inside(event):
             widget = card.winfo_containing(event.x_root, event.y_root)
             while widget is not None:
@@ -329,8 +352,10 @@ class CharactersView(ctk.CTkFrame):
                 widget = getattr(widget, "master", None)
             return False
 
-        card.bind("<Enter>", lambda e: card.configure(fg_color=hover))
-        card.bind("<Leave>", lambda e: None if inside(e) else card.configure(fg_color=normal))
+        # (colours are looked up when the mouse moves, not captured now: cards live across theme changes)
+        card.bind("<Enter>", lambda e: card.configure(fg_color=self.theme.get_current_color('bg_tertiary')))
+        card.bind("<Leave>", lambda e: None if inside(e)
+                  else card.configure(fg_color=self.theme.get_current_color('bg_secondary')))
 
         def bind_all(widget):
             widget.bind("<Button-1>", lambda e, n=name: self._open(n, False))

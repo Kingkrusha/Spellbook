@@ -4,10 +4,17 @@ Displays class information with feature tables like the PHB 2024.
 """
 
 import re
+import time
 import customtkinter as ctk
 from typography import ui_font
 from typing import Optional, Callable, List
 from theme import get_theme_manager
+from settings import get_settings_manager
+from content_versions import VersionCatalog, display_name
+from legacy_content import apply_legacy_filter
+from ui.version_bar import VersionBar
+from ui.rich_text_utils import follow_width
+from ui.lazy_destroy import destroy_later
 from character_class import (
     get_class_manager, CharacterClassDefinition, ClassLevel, ClassAbility,
     SubclassDefinition
@@ -57,6 +64,8 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Pending subclass to select after class page loads
         self._pending_subclass: Optional[str] = None
         self._class_loaded: bool = False
+        self._render_token = 0  # bumped by every render; a sliced render stops when it is stale
+        self._catalog = VersionCatalog([])
 
         # Filter state
         self._selected_sources: List[str] = []
@@ -257,12 +266,15 @@ class ClassesCollectionView(ctk.CTkFrame):
 
             filtered.append(class_def)
 
-        return filtered
+        # One entry per class: "Fighter" and "Fighter (Legacy)" are versions of the same entry, switched in
+        # the Source drop-down of the class page; the Legacy content setting decides which are offered
+        self._catalog = VersionCatalog(self.class_manager.classes)
+        return self._catalog.collapse(filtered, get_settings_manager().settings.legacy_content_filter)
 
     def _populate_class_list(self):
         """Populate the class list sidebar."""
-        for widget in self.class_list_frame.winfo_children():
-            widget.destroy()
+        for widget in list(self.class_list_frame.winfo_children()):
+            destroy_later(widget)   # a row is 1-3 CTk widgets; user-added classes add up
 
         classes = self._get_filtered_classes()
 
@@ -274,7 +286,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             # Class name button
             btn = ctk.CTkButton(
                 row,
-                text=class_def.name,
+                text=display_name(class_def.name),
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('button_hover'),
                 text_color=self.theme.get_current_color('text_primary'),
@@ -462,15 +474,18 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         Uses deferred rendering to prevent UI freezing.
         """
-        # Mark as loading and cancel any pending deferred render
+        # Mark as loading and cancel any pending deferred render (including a sliced one
+        # that is still filling in the previous class)
         self._class_loaded = False
+        self._render_token = getattr(self, '_render_token', 0) + 1
         if hasattr(self, '_deferred_render_id') and self._deferred_render_id:
             self.after_cancel(self._deferred_render_id)
             self._deferred_render_id = None
         
-        # Clear content and subclass tracking
-        for widget in self.content.winfo_children():
-            widget.destroy()
+        # Clear content and subclass tracking (the old page goes away a little at a time:
+        # destroying ~800 widgets in one go froze the window for seconds)
+        for widget in list(self.content.winfo_children()):
+            destroy_later(widget)
         self._subclass_cards.clear()
         
         # Render header immediately (lightweight)
@@ -488,7 +503,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         header_frame.pack(fill="x", pady=(0, 15))
         
         ctk.CTkLabel(
-            header_frame, text=class_def.name,
+            header_frame, text=display_name(class_def.name),
             font=ui_font("title", 28, bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         ).pack(side="left")
@@ -500,11 +515,16 @@ class ClassesCollectionView(ctk.CTkFrame):
         ).pack(side="left", padx=15)
         
         if class_def.source:
-            ctk.CTkLabel(
-                header_frame, text=f"Source: {class_def.source}",
+            # The source is a drop-down when the class has several versions (2024, 2014)
+            source_bar = VersionBar(
+                header_frame, text=f"Source: {class_def.source}" + (" [Legacy]" if class_def.is_legacy else ""),
                 font=ui_font("body"),
-                text_color=self.theme.get_current_color('text_secondary')
-            ).pack(side="right")
+                text_color=self.theme.get_current_color('text_secondary'),
+                on_select=lambda version: self._select_class(version.name))
+            source_bar.pack(side="right")
+            versions = self._catalog.options(class_def, get_settings_manager().settings.legacy_content_filter)
+            if len(versions) > 1:
+                source_bar.set_versions(versions, class_def)
         
         # Show loading indicator
         self._loading_label = ctk.CTkLabel(
@@ -524,7 +544,6 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         # Core traits (relatively fast)
         self._create_core_traits_section(class_def)
-        self.update_idletasks()
         
         # Description  
         if class_def.description:
@@ -548,26 +567,47 @@ class ClassesCollectionView(ctk.CTkFrame):
             font=ui_font("heading", bold=True)
         ).pack(side="left")
         
-        # Create the feature table
-        self._create_feature_table(class_def)
-        self.update_idletasks()
-        
-        # Defer detailed features (heaviest part) to next idle
-        self.after_idle(lambda: self._render_detailed_features_deferred(class_def))
+        # The feature table's 20 rows, then the detailed features and the subclasses, are built
+        # a few at a time so the window stays responsive while the page fills in (building it in
+        # one go froze the whole app for several seconds).
+        tasks = self._create_feature_table(class_def)
+        tasks.append(lambda: self._detailed_feature_tasks(class_def))
+        self._run_sliced(tasks, self._render_token)
+
+    def _run_sliced(self, tasks: list, token: int, budget: float = 0.025):
+        """Run build tasks in order, ~``budget`` seconds per slice, yielding to the event loop
+        between slices. A task may return more tasks, which run next. Stops quietly if the
+        page was re-rendered (token changed) or destroyed in the meantime."""
+        try:
+            if token != self._render_token or not self.winfo_exists():
+                return
+        except Exception:
+            return
+        deadline = time.perf_counter() + budget
+        while tasks and time.perf_counter() < deadline:
+            task = tasks.pop(0)
+            try:
+                more = task()
+            except Exception as e:
+                print(f"Class page: could not build part of the page: {e}")
+                more = None
+            if more:
+                tasks[0:0] = more
+        if tasks:
+            self.after(1, lambda: self._run_sliced(tasks, token, budget))
     
-    def _render_detailed_features_deferred(self, class_def: CharacterClassDefinition):
-        """Render detailed features and subclasses section with periodic UI updates."""
-        # Render detailed features in batches to keep UI responsive
-        self._create_detailed_features_section(class_def)
-        self.update_idletasks()
-        
+    def _detailed_feature_tasks(self, class_def: CharacterClassDefinition) -> list:
+        """Tasks that build the detailed features and the subclasses section (in that order)."""
+        tasks = self._create_detailed_features_section(class_def)  # header now, one task per feature
         # Subclasses section (always show so user can add subclasses)
-        self._create_subclasses_section(class_def)
-        self.update_idletasks()
-        
+        tasks.append(lambda: self._create_subclasses_section(class_def))
+        tasks.append(self._finish_class_render)
+        return tasks
+
+    def _finish_class_render(self):
         # Mark as fully loaded (for pending subclass selection)
         self._class_loaded = True
-        
+
         # Handle any pending subclass selection
         if self._pending_subclass:
             subclass_name = self._pending_subclass
@@ -622,13 +662,15 @@ class ClassesCollectionView(ctk.CTkFrame):
             ).pack(side="left", padx=5, pady=4)
             
             # Value column
-            ctk.CTkLabel(
+            value_label = ctk.CTkLabel(
                 row, text=value,
                 font=ui_font("small"),
                 anchor="w",
                 wraplength=550,
                 justify="left"
-            ).pack(side="left", padx=5, pady=4, fill="x", expand=True)
+            )
+            value_label.pack(side="left", padx=5, pady=4, fill="x", expand=True)
+            follow_width(row, value_label, margin=150 + 30)
     
     def _get_primary_ability(self, class_def: CharacterClassDefinition) -> str:
         """Get the primary ability for a class."""
@@ -736,8 +778,8 @@ class ClassesCollectionView(ctk.CTkFrame):
             )
             label.pack(side="left", padx=5, pady=8)
         
-        # Data rows - update UI every 5 rows to keep responsive
-        for level in range(1, 21):
+        # Data rows: built one task per row (see _run_sliced)
+        def build_row(level):
             level_data = class_def.levels.get(level)
             
             # Alternate row colors
@@ -805,11 +847,10 @@ class ClassesCollectionView(ctk.CTkFrame):
                     font=ui_font("small"),
                     width=col_widths.get(col, 90)
                 ).pack(side="left", padx=5, pady=5)
-            
-            # Update UI every 5 rows to prevent freezing
-            if level % 5 == 0:
-                self.update_idletasks()
-    
+
+        return [lambda lv=level: build_row(lv) for level in range(1, 21)]
+
+
     def _get_proficiency_bonus(self, level: int) -> int:
         """Get proficiency bonus for a given level."""
         if level >= 17:
@@ -840,13 +881,15 @@ class ClassesCollectionView(ctk.CTkFrame):
         ).pack(anchor="w", padx=10, pady=8)
         
         # Intro text
-        ctk.CTkLabel(
+        intro_label = ctk.CTkLabel(
             self.content,
             text=f"As a {class_def.name}, you gain the following class features when you reach the specified {class_def.name} levels. These features are listed in the {class_def.name} Features table.",
             font=ui_font("body"),
             wraplength=750,
             justify="left"
-        ).pack(anchor="w", pady=(0, 15))
+        )
+        intro_label.pack(anchor="w", pady=(0, 15))
+        follow_width(self.content, intro_label, margin=20)
         
         # Track which features we've already shown (by title + description hash)
         # Features like ASI with identical description should only appear once
@@ -872,7 +915,8 @@ class ClassesCollectionView(ctk.CTkFrame):
                     # Same feature appears again - track additional level
                     features_shown[feature_key][2].append(level)
         
-        # Second pass: render features with periodic UI updates
+        # Second pass: one build task per feature (run a few at a time by _run_sliced)
+        tasks = []
         rendered_features = set()
         features_rendered_count = 0
         for level in range(1, 21):
@@ -886,7 +930,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                 if ability.is_subclass_feature:
                     if level == class_def.subclass_level:
                         # Show the subclass selection feature
-                        self._create_feature_detail(level, ability)
+                        tasks.append(lambda lv=level, ab=ability: self._create_feature_detail(lv, ab))
                         features_rendered_count += 1
                     # Skip subclass feature placeholders at other levels
                     continue
@@ -903,12 +947,10 @@ class ClassesCollectionView(ctk.CTkFrame):
                 
                 # Get additional levels for this feature
                 additional_levels = features_shown.get(feature_key, (level, desc_hash, []))[2]
-                self._create_feature_detail(level, ability, additional_levels)
+                tasks.append(lambda lv=level, ab=ability, al=additional_levels:
+                             self._create_feature_detail(lv, ab, al))
                 features_rendered_count += 1
-                
-                # Update UI periodically to keep responsive
-                if features_rendered_count % 5 == 0:
-                    self.update_idletasks()
+        return tasks
     
     def _create_feature_detail(self, level: int, ability: ClassAbility, additional_levels: Optional[List] = None):
         """Create a detailed feature entry."""
@@ -1047,7 +1089,8 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Group Circle of the Land variants together
         land_variants = []
         other_subclasses = []
-        for subclass in class_def.subclasses:
+        legacy_filter = get_settings_manager().settings.legacy_content_filter
+        for subclass in apply_legacy_filter(class_def.subclasses, legacy_filter):
             if subclass.name.startswith("Circle of the Land"):
                 land_variants.append(subclass)
             else:
@@ -1138,13 +1181,15 @@ class ClassesCollectionView(ctk.CTkFrame):
         """Populate Circle of the Land content frame."""
         # Shared description for Circle of the Land
         shared_description = "Druids of the Circle of the Land are mystics and sages who safeguard ancient knowledge and rites through a vast oral tradition. These Druids meet within sacred circles of trees or standing stones to whisper primal secrets in Druidic. The circle's wisest members preside as the chief priests of communities that hold to the Old Faith and serve as advisors to the rulers of those folk.\n\nAs a member of this circle, your magic is influenced by the land where you were initiated into the circle's mysterious rites. Choose your land type from the options below."
-        ctk.CTkLabel(
+        shared_label = ctk.CTkLabel(
             content_frame, text=shared_description,
             font=ui_font("small"),
             wraplength=700,
             justify="left",
             text_color=self.theme.get_current_color('text_secondary')
-        ).pack(anchor="w", pady=(0, 15))
+        )
+        shared_label.pack(anchor="w", pady=(0, 15))
+        follow_width(content_frame, shared_label, margin=20)
         
         # Show spell lists for each land type FIRST
         spell_section = ctk.CTkFrame(content_frame, fg_color="transparent")
@@ -1172,13 +1217,15 @@ class ClassesCollectionView(ctk.CTkFrame):
                 ).pack(side="left")
                 
                 spell_names = [s.spell_name for s in variant.subclass_spells]
-                ctk.CTkLabel(
+                spells_label = ctk.CTkLabel(
                     land_frame, text=", ".join(spell_names),
                     font=ui_font("small"),
                     text_color=self.theme.get_current_color('text_secondary'),
                     wraplength=580,
                     justify="left"
-                ).pack(side="left", padx=5)
+                )
+                spells_label.pack(side="left", padx=5)
+                follow_width(land_frame, spells_label, margin=90 + 20)
         
         # Show features - but handle Nature's Ward specially to show all resistances
         for feature in template.features:
@@ -1213,13 +1260,15 @@ class ClassesCollectionView(ctk.CTkFrame):
         desc_frame.pack(fill="x", pady=(6, 0), padx=5)
         
         common_desc = "You are immune to the Poisoned condition, and you have Resistance to a damage type based on your land choice:"
-        ctk.CTkLabel(
+        common_label = ctk.CTkLabel(
             desc_frame, text=common_desc,
             font=ui_font("small"),
             wraplength=680,
             justify="left",
             text_color=self.theme.get_current_color('text_secondary')
-        ).pack(anchor="w", pady=(0, 8))
+        )
+        common_label.pack(anchor="w", pady=(0, 8))
+        follow_width(desc_frame, common_label, margin=20)
         
         # Show each land type's resistance
         resistance_map = {

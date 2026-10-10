@@ -12,235 +12,41 @@ from typing import List, Optional, Callable
 from lineage import Lineage, LineageTrait, LineageManager, get_lineage_manager
 from theme import get_theme_manager
 from settings import get_settings_manager
-from ui.platform_compat import bind_right_click, unbind_right_click
+from legacy_content import legacy_pair_key
+from content_versions import VersionCatalog, display_name
+from ui.version_bar import VersionBar
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
-from ui.list_batching import BatchedListMixin
+from ui.virtual_list import VirtualListPanel
 
 
-class LineageListPanel(BatchedListMixin, ctk.CTkFrame):
-    """A scrollable list panel for displaying and selecting lineages."""
-    
-    # Batch size for progressive loading - smaller batches = smoother UI
-    BATCH_SIZE = 15
-    BATCH_DELAY_MS = 5  # Milliseconds between batches
-    
-    def __init__(self, parent, on_select: Callable[[Optional[Lineage]], None],
-                 on_right_click: Optional[Callable[[Lineage, int, int], None]] = None):
-        super().__init__(parent, corner_radius=10)
-        
-        self.on_select = on_select
-        self.on_right_click = on_right_click
-        self._lineages: List[Lineage] = []
-        self._selected_index: Optional[int] = None
-        self._lineage_buttons: List[ctk.CTkButton] = []
-        self._pending_after_id: Optional[str] = None  # Track pending after() calls
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
+def _list_name(name: str) -> str:
+    """A lineage's name in the list: one entry for all its versions, so no "(Legacy)" tag."""
+    return display_name(name)
 
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
 
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._refresh_buttons()
-    
-    def _create_widgets(self):
-        """Create the scrollable lineage list."""
-        # Header
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=(15, 10))
-        
-        ctk.CTkLabel(header_frame, text="Lineages", 
-                     font=ui_font("heading", bold=True)).pack(side="left")
-        
-        text_secondary = self.theme.get_text_secondary()
-        self.count_label = ctk.CTkLabel(header_frame, text="0 lineages",
-                                         font=ui_font("body"),
-                                         text_color=text_secondary)
-        self.count_label.pack(side="right")
-        
-        # Scrollable frame for lineage list
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-    
-    def _create_lineage_button(self, lineage: Lineage, index: int) -> ctk.CTkButton:
-        """Create a button for a lineage."""
-        display_name = lineage.name
-        if lineage.is_custom:
-            display_name = f"* {display_name}"
-        
-        btn = ctk.CTkButton(
-            self.scroll_frame,
-            text=display_name,
-            anchor="w",
-            height=40,
-            corner_radius=8,
-            fg_color=("transparent" if index != self._selected_index 
-                      else self.theme.get_current_color('accent_primary')),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            font=ui_font("body", 13),
-            command=lambda i=index: self._on_lineage_click(i)
-        )
-        btn.pack(fill="x", pady=2)
-        
-        # Bind right-click event
-        if self.on_right_click:
-            bind_right_click(btn, lambda e, i=index: self._on_lineage_right_click(e, i))
-            for child in btn.winfo_children():
-                bind_right_click(child, lambda e, i=index: self._on_lineage_right_click(e, i))
-        
-        return btn
-    
-    def _on_lineage_right_click(self, event, index: int):
-        """Handle right-click on a lineage button - show context menu only."""
-        if self.on_right_click and 0 <= index < len(self._lineages):
-            self.on_right_click(self._lineages[index], event.x_root, event.y_root)
-    
-    def _on_lineage_click(self, index: int):
-        """Handle lineage selection."""
-        if self._selected_index is not None and self._selected_index < len(self._lineage_buttons):
-            self._lineage_buttons[self._selected_index].configure(fg_color="transparent")
-        
-        self._selected_index = index
-        if index < len(self._lineage_buttons):
-            self._lineage_buttons[index].configure(
-                fg_color=self.theme.get_current_color('accent_primary')
-            )
-        
-        if 0 <= index < len(self._lineages):
-            self.on_select(self._lineages[index])
-        else:
-            self.on_select(None)
-    
-    def _update_lineage_button(self, btn: ctk.CTkButton, lineage: Lineage, index: int):
-        """Update an existing button with new lineage data."""
-        display_name = lineage.name
-        if lineage.is_custom:
-            display_name = f"* {display_name}"
-        
-        btn.configure(
-            text=display_name,
-            fg_color=("transparent" if index != self._selected_index 
-                      else self.theme.get_current_color('accent_primary')),
-            command=lambda i=index: self._on_lineage_click(i)
-        )
-        
-        # Rebind right-click events with new index
-        if self.on_right_click:
-            unbind_right_click(btn)
-            bind_right_click(btn, lambda e, i=index: self._on_lineage_right_click(e, i))
-            for child in btn.winfo_children():
-                unbind_right_click(child)
-                bind_right_click(child, lambda e, i=index: self._on_lineage_right_click(e, i))
-    
-    def _cancel_pending_load(self):
-        """Cancel any pending progressive load operation."""
-        if self._pending_after_id is not None:
-            try:
-                self.after_cancel(self._pending_after_id)
-            except Exception:
-                pass
-            self._pending_after_id = None
-    
-    def set_lineages(self, lineages: List[Lineage], reset_scroll: bool = True, 
+class LineageListPanel(VirtualListPanel):
+    """The virtualized, selectable list of lineages."""
+
+    TITLE = "Lineages"
+    NOUN = "lineage"
+    KEY = staticmethod(legacy_pair_key)   # one entry stands for all the versions of a lineage
+
+    def row_text(self, lineage: Lineage) -> str:
+        name = _list_name(lineage.name)
+        return f"* {name}" if lineage.is_custom else name
+
+    def set_lineages(self, lineages: List[Lineage], reset_scroll: bool = True,
                      preserve_selection: Optional[str] = None):
-        """Update the list of lineages.
-        
-        Uses progressive loading to prevent UI freezing - processes buttons
-        in batches with UI updates between batches.
-        """
-        # Cancel any pending progressive load
-        self._cancel_pending_load()
-        
-        self._lineages = lineages
-        
-        # Find preserved selection
-        new_selected_index = None
-        if preserve_selection:
-            for i, lineage in enumerate(lineages):
-                if lineage.name == preserve_selection:
-                    new_selected_index = i
-                    break
-        
-        self._selected_index = new_selected_index
-        self._preserve_selection_name = preserve_selection
-        
-        # Update count immediately
-        self.count_label.configure(text=f"{len(lineages)} lineage{'s' if len(lineages) != 1 else ''}")
-        
-        # Reset scroll position to top
-        if reset_scroll and self.scroll_frame.winfo_children():
-            try:
-                self.scroll_frame._parent_canvas.yview_moveto(0)
-            except Exception:
-                pass
-        
-        # Start progressive loading from index 0
-        self._load_lineages_batch(0)
-    
-    def _load_lineages_batch(self, start_index: int):
-        """Load a batch of lineage buttons progressively."""
-        if not self.winfo_exists():
-            return
-        
-        current_button_count = len(self._lineage_buttons)
-        new_lineage_count = len(self._lineages)
-        end_index = min(start_index + self._batch_size(), new_lineage_count)
-        
-        # Process this batch
-        for i in range(start_index, end_index):
-            if i < current_button_count:
-                # Reuse existing button - make sure it's visible
-                btn = self._lineage_buttons[i]
-                self._update_lineage_button(btn, self._lineages[i], i)
-                # Re-pack if it was previously hidden
-                if not btn.winfo_ismapped():
-                    btn.pack(fill="x", pady=2)
-            else:
-                # Create new button
-                btn = self._create_lineage_button(self._lineages[i], i)
-                self._lineage_buttons.append(btn)
-        
-        # If we've processed all lineages, hide excess buttons (don't destroy)
-        if end_index >= new_lineage_count:
-            # Hide excess buttons instead of destroying them
-            for i in range(new_lineage_count, current_button_count):
-                self._lineage_buttons[i].pack_forget()
-            # Restore selection if found
-            if self._selected_index is not None:
-                self._on_lineage_click(self._selected_index)
-            self._pending_after_id = None
-        else:
-            # Schedule next batch
-            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_lineages_batch(end_index))
-    
-    def _refresh_buttons(self):
-        """Refresh button colors after theme change."""
-        for i, btn in enumerate(self._lineage_buttons):
-            if i == self._selected_index:
-                btn.configure(fg_color=self.theme.get_current_color('accent_primary'))
-            else:
-                btn.configure(fg_color="transparent")
-            btn.configure(
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary')
-            )
-    
+        # Only an explicitly preserved entry stays selected, and it is shown again in the detail panel
+        self.set_items(lineages, reset_scroll, keep=preserve_selection, keep_current=False, notify=True)
+
     def get_selected_lineage(self) -> Optional[Lineage]:
-        """Get the currently selected lineage."""
-        if self._selected_index is not None and self._selected_index < len(self._lineages):
-            return self._lineages[self._selected_index]
-        return None
-    
-    def select_lineage(self, name: str) -> bool:
-        """Select a lineage by name. Returns True if found."""
-        for i, lineage in enumerate(self._lineages):
-            if lineage.name.lower() == name.lower():
-                self._on_lineage_click(i)
-                return True
-        return False
+        return self.get_selected()
+
+    def select_lineage(self, name: str, version: Optional[Lineage] = None) -> bool:
+        """Select a lineage by name. "Orc (Legacy: VGM)" selects the Orc entry; ``version`` is
+        the exact version to show in it."""
+        return self.select_by_name(name, version)
 
 
 class LineageDetailPanel(ctk.CTkFrame):
@@ -251,6 +57,8 @@ class LineageDetailPanel(ctk.CTkFrame):
         self.theme = get_theme_manager()
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._current_lineage: Optional[Lineage] = None
+        self._versions: List[Lineage] = []
+        self.on_version_change: Optional[Callable[[Lineage], None]] = None
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
 
@@ -273,11 +81,12 @@ class LineageDetailPanel(ctk.CTkFrame):
         )
         self.name_label.pack(anchor="w", pady=(0, 5))
         
-        # Source info
-        self.source_label = LabeledLabel(
+        # Source info (a drop-down when the lineage has several versions)
+        self.source_label = VersionBar(
             self.scroll_frame, text="",
             font=ui_font("small"),
-            text_color=self.theme.get_text_secondary()
+            text_color=self.theme.get_text_secondary(),
+            on_select=self._version_selected
         )
         self.source_label.pack(anchor="w", pady=(0, 10))
         
@@ -405,9 +214,16 @@ class LineageDetailPanel(ctk.CTkFrame):
         dt.pack(fill="x", expand=True)
         self._desc_widgets.append(dt)
     
-    def show_lineage(self, lineage: Optional[Lineage]):
-        """Display details for a lineage."""
+    def _version_selected(self, lineage: Lineage):
+        """The user picked another version in the Source drop-down."""
+        self.show_lineage(lineage, self._versions)
+        if self.on_version_change:
+            self.on_version_change(lineage)
+
+    def show_lineage(self, lineage: Optional[Lineage], versions: Optional[List[Lineage]] = None):
+        """Display details for a lineage (``versions``: every version offered in the Source drop-down)."""
         self._current_lineage = lineage
+        self._versions = list(versions or [])
         
         if lineage is None:
             self.name_label.configure(text="Select a lineage")
@@ -422,7 +238,7 @@ class LineageDetailPanel(ctk.CTkFrame):
             return
         
         # Name (with custom indicator)
-        name_text = f"* {lineage.name}" if lineage.is_custom else lineage.name
+        name_text = f"* {display_name(lineage.name)}" if lineage.is_custom else display_name(lineage.name)
         self.name_label.configure(text=name_text)
         
         # Source
@@ -435,6 +251,8 @@ class LineageDetailPanel(ctk.CTkFrame):
             self.source_label.configure(text=source_text)
         else:
             self.source_label.configure(text="")
+        if len(self._versions) > 1:
+            self.source_label.set_versions(self._versions, lineage)
         
         # Stats
         self.creature_type_label.configure(text=f"Creature Type: {lineage.creature_type}")
@@ -476,6 +294,7 @@ class LineagesView(ctk.CTkFrame):
         self.settings_manager = get_settings_manager()
         self.on_back = on_back
         self._all_lineages: List[Lineage] = []
+        self._catalog = VersionCatalog([])
         self._filtered_lineages: List[Lineage] = []
         self._compare_mode = False
         self._compare_lineage: Optional[Lineage] = None
@@ -552,6 +371,7 @@ class LineagesView(ctk.CTkFrame):
         
         # Lineage detail panel (right)
         self.detail_panel = LineageDetailPanel(self.paned)
+        self.detail_panel.on_version_change = self.list_panel.replace_selected
         
         # Add panes with minimum sizes
         self.paned.add(self.left_container, minsize=280, stretch="always")
@@ -737,6 +557,7 @@ class LineagesView(ctk.CTkFrame):
     def _load_lineages(self):
         """Load all lineages from manager."""
         self._all_lineages = self.lineage_manager.lineages.copy()
+        self._catalog = VersionCatalog(self._all_lineages)
         self._update_filter_options()
         self._on_filter_changed(immediate=True)
     
@@ -851,6 +672,10 @@ class LineagesView(ctk.CTkFrame):
                 continue
 
             filtered.append(lineage)
+
+        # One entry per lineage: its versions (2024, 2014, a 2014 book's update) are switched in the
+        # detail panel's Source drop-down; the Legacy content setting decides which are offered
+        filtered = self._catalog.collapse(filtered, self.settings_manager.settings.legacy_content_filter)
         
         self._filtered_lineages = filtered
         
@@ -862,7 +687,8 @@ class LineagesView(ctk.CTkFrame):
     
     def _on_lineage_selected(self, lineage: Optional[Lineage]):
         """Handle lineage selection."""
-        self.detail_panel.show_lineage(lineage)
+        setting = self.settings_manager.settings.legacy_content_filter
+        self.detail_panel.show_lineage(lineage, self._catalog.options(lineage, setting) if lineage else None)
     
     def _on_lineage_right_click(self, lineage: Lineage, x: int, y: int):
         """Handle right-click on lineage - show context menu."""
@@ -1040,7 +866,7 @@ class LineagesView(ctk.CTkFrame):
     
     def select_lineage(self, name: str) -> bool:
         """Select a lineage by name. Returns True if found."""
-        return self.list_panel.select_lineage(name)
+        return self.list_panel.select_lineage(name, self._catalog.find(name))
 
 
 class LineageEditorDialog(ctk.CTkToplevel):

@@ -1,6 +1,6 @@
 """
 Home page: what a new tab shows. Three big entry points - Collections,
-Characters and Game Tools (not built yet, shown disabled).
+Characters and Game Tools.
 """
 
 import customtkinter as ctk
@@ -20,7 +20,7 @@ class HomeView(ctk.CTkFrame):
         ("characters", "⚔️ Characters",
          "Your characters and their sheets. Create, sort, filter, import and export them.", True),
         ("game_tools", "🎲 Game Tools",
-         "Tools to help you run your games smoothly.", False),
+         "Tools to help you run your games smoothly", True),
     ]
 
     def __init__(self, parent, on_open: Optional[Callable[[str], None]] = None):

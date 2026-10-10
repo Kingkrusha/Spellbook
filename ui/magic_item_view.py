@@ -22,8 +22,7 @@ from ui.tag_editor import TagEditor
 from ui.properties_editor import PropertiesEditor
 from ui.tooltip import HoverTooltip
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
-from ui.platform_compat import bind_right_click, unbind_right_click
-from ui.list_batching import BatchedListMixin
+from ui.virtual_list import VirtualListPanel
 
 # Conventional rarity colors, independent of the app's colour theme so
 # rarity reads consistently at a glance regardless of theme choice.
@@ -38,189 +37,24 @@ RARITY_COLORS = {
 }
 
 
-class MagicItemListPanel(BatchedListMixin, ctk.CTkFrame):
-    """A scrollable list panel for displaying and selecting magic items."""
+class MagicItemListPanel(VirtualListPanel):
+    """The virtualized, selectable list of magic items (rows coloured by rarity)."""
 
-    BATCH_SIZE = 15
-    BATCH_DELAY_MS = 5
+    TITLE = "Magic Items"
+    NOUN = "item"
 
-    def __init__(self, parent, on_select: Callable[[Optional[MagicItem]], None],
-                 on_right_click: Optional[Callable[[MagicItem, int, int], None]] = None):
-        super().__init__(parent, corner_radius=10)
-
-        self.on_select = on_select
-        self.on_right_click = on_right_click
-        self._items: List[MagicItem] = []
-        self._selected_index: Optional[int] = None
-        self._item_buttons: List[ctk.CTkButton] = []
-        self._pending_after_id: Optional[str] = None
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
-
-    def _on_theme_changed(self):
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._refresh_buttons()
-
-    def _create_widgets(self):
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=(15, 10))
-
-        ctk.CTkLabel(header_frame, text="Magic Items",
-                     font=ui_font("heading", bold=True)).pack(side="left")
-
-        self.count_label = ctk.CTkLabel(header_frame, text="0 items",
-                                        font=ui_font("body"),
-                                        text_color=self.theme.get_text_secondary())
-        self.count_label.pack(side="right")
-
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-    def _button_text(self, item: MagicItem) -> str:
+    def row_text(self, item: MagicItem) -> str:
         name = f"* {item.name}" if item.is_custom else item.name
         return f"{name}  ({item.rarity.value})"
 
-    def _create_item_button(self, item: MagicItem, index: int) -> ctk.CTkButton:
-        btn = ctk.CTkButton(
-            self.scroll_frame,
-            text=self._button_text(item),
-            anchor="w", height=40, corner_radius=8,
-            fg_color=("transparent" if index != self._selected_index
-                      else self.theme.get_current_color('accent_primary')),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=RARITY_COLORS.get(item.rarity, self.theme.get_current_color('text_primary')),
-            font=ui_font("body", 13),
-            command=lambda i=index: self._on_item_click(i)
-        )
-        btn.pack(fill="x", pady=2)
-
-        if self.on_right_click:
-            bind_right_click(btn, lambda e, i=index: self._on_item_right_click(e, i))
-            for child in btn.winfo_children():
-                bind_right_click(child, lambda e, i=index: self._on_item_right_click(e, i))
-
-        return btn
-
-    def _on_item_right_click(self, event, index: int):
-        if self.on_right_click and 0 <= index < len(self._items):
-            self.on_right_click(self._items[index], event.x_root, event.y_root)
-
-    def _on_item_click(self, index: int):
-        old_index = self._selected_index
-        self._selected_index = index
-
-        if old_index is not None and old_index < len(self._item_buttons):
-            self._item_buttons[old_index].configure(fg_color="transparent")
-
-        if index < len(self._item_buttons):
-            self._item_buttons[index].configure(
-                fg_color=self.theme.get_current_color('accent_primary')
-            )
-
-        if 0 <= index < len(self._items):
-            self.on_select(self._items[index])
-
-    def _update_item_button(self, btn: ctk.CTkButton, item: MagicItem, index: int):
-        btn.configure(
-            text=self._button_text(item),
-            text_color=RARITY_COLORS.get(item.rarity, self.theme.get_current_color('text_primary')),
-            fg_color=("transparent" if index != self._selected_index
-                      else self.theme.get_current_color('accent_primary')),
-            command=lambda i=index: self._on_item_click(i)
-        )
-
-        if self.on_right_click:
-            unbind_right_click(btn)
-            bind_right_click(btn, lambda e, i=index: self._on_item_right_click(e, i))
-            for child in btn.winfo_children():
-                unbind_right_click(child)
-                bind_right_click(child, lambda e, i=index: self._on_item_right_click(e, i))
-
-    def _cancel_pending_load(self):
-        if self._pending_after_id is not None:
-            try:
-                self.after_cancel(self._pending_after_id)
-            except Exception:
-                pass
-            self._pending_after_id = None
-
-    def set_items(self, items: List[MagicItem], reset_scroll: bool = True):
-        self._cancel_pending_load()
-
-        current_name = None
-        if self._selected_index is not None and self._selected_index < len(self._items):
-            current_name = self._items[self._selected_index].name
-
-        self._items = items
-
-        new_selected_index = None
-        if current_name:
-            for i, item in enumerate(items):
-                if item.name == current_name:
-                    new_selected_index = i
-                    break
-        self._selected_index = new_selected_index
-
-        self.count_label.configure(text=f"{len(items)} item{'s' if len(items) != 1 else ''}")
-
-        if reset_scroll and self.scroll_frame.winfo_children():
-            try:
-                self.scroll_frame._parent_canvas.yview_moveto(0)
-            except Exception:
-                pass
-
-        self._load_batch(0)
-
-    def _load_batch(self, start_index: int):
-        if not self.winfo_exists():
-            return
-
-        current_count = len(self._item_buttons)
-        total = len(self._items)
-        end_index = min(start_index + self._batch_size(), total)
-
-        for i in range(start_index, end_index):
-            if i < current_count:
-                btn = self._item_buttons[i]
-                self._update_item_button(btn, self._items[i], i)
-                if not btn.winfo_ismapped():
-                    btn.pack(fill="x", pady=2)
-            else:
-                btn = self._create_item_button(self._items[i], i)
-                self._item_buttons.append(btn)
-
-        if end_index >= total:
-            for i in range(total, current_count):
-                self._item_buttons[i].pack_forget()
-            self._pending_after_id = None
-        else:
-            self._pending_after_id = self.after(self._batch_delay(), lambda: self._load_batch(end_index))
-
-    def _refresh_buttons(self):
-        for i, btn in enumerate(self._item_buttons):
-            item = self._items[i] if i < len(self._items) else None
-            btn.configure(
-                fg_color=(self.theme.get_current_color('accent_primary')
-                          if i == self._selected_index else "transparent"),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=(RARITY_COLORS.get(item.rarity, self.theme.get_current_color('text_primary'))
-                            if item else self.theme.get_current_color('text_primary'))
-            )
+    def row_text_color(self, item: MagicItem):
+        return RARITY_COLORS.get(item.rarity, self.theme.get_current_color('text_primary'))
 
     def get_selected_item(self) -> Optional[MagicItem]:
-        if self._selected_index is not None and self._selected_index < len(self._items):
-            return self._items[self._selected_index]
-        return None
+        return self.get_selected()
 
     def select_item(self, name: str) -> bool:
-        for i, item in enumerate(self._items):
-            if item.name.lower() == name.lower():
-                self._on_item_click(i)
-                return True
-        return False
+        return self.select_by_name(name)
 
 
 class MagicItemDetailPanel(ctk.CTkFrame):

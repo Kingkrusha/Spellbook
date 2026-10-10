@@ -8,13 +8,15 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 
 ## Features
 
-- **Home page & tabs**: The app opens on a Home page with **Collections**, **Characters** and **Game Tools** (coming soon). Tabs work like a browser's: click **+** for a new tab (it opens on Home), close one with its **×** or a middle click, drag to reorder, right-click for New/Duplicate/Close Other Tabs. Each tab navigates on its own, so you can keep a character sheet open next to the spell list. Your open tabs are remembered and reopened next time you start the app (turn this off under Settings > Loading Options)
+- **Home page & tabs**: The app opens on a Home page with **Collections**, **Characters** and **Game Tools**. Tabs work like a browser's: click **+** for a new tab (it opens on Home), close one with its **×** or a middle click, drag to reorder, right-click for New/Duplicate/Close Other Tabs. Each tab navigates on its own, so you can keep a character sheet open next to the spell list. Your open tabs are remembered and reopened next time you start the app (turn this off under Settings > Loading Options)
+- **Game sessions (LAN)**: Host or join an encrypted game over your network from **Game Tools > Session**: chat with your table (with a chat overlay that follows you to every page), roll dice with `/roll`, link spells and items, and send characters and homebrew to each other. See *LAN sessions* below
 - **Characters page**: Every character in one list you can search, filter (class, species, background) and sort (name, level, class, species, background). Create, import and export characters here; click one to open its sheet
 - **Spell Management**: Search, filter, create, and organize spells with full-text search and advanced filtering
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
 - **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic
 - **Stat Blocks**: Attach creature stat blocks to summoning spells
 - **Collections Browser**: Browse official Lineages, Feats, Classes, Subclasses, and Backgrounds with global search
+- **Legacy (2014) content**: The 2014 rules are bundled too (`legacy_2014.json`: spells, feats, species, backgrounds, classes and subclasses from the published 5e books, all flagged Legacy). A 2014 entry whose name 2024 content already uses is stored as `Name (Legacy)` (for example *Fireball (Legacy)*, *Fighter (Legacy)*); browsing lists show each spell, feat, species, background and class once, and the **Source** line of its page is a drop-down that switches between its versions (the 2024 one, the 2014 one, or a 2014 book's update such as Monsters of the Multiverse). The Legacy content setting (Settings) decides which versions are offered: everything, none, only 2014, or *Show Unupdated* (2014 versions only where there is no 2024 one)
 - **Import/Export**: Import and export custom content (homebrew) as JSON files
 - **Lineages**: Browse and create custom lineages (races) with trait descriptions
 - **Feats**: Browse and create feats with prerequisites and spellcasting grants
@@ -74,6 +76,79 @@ xattr -dr com.apple.quarantine /path/to/Spellbook.app
 After the first launch it opens normally like any other app. This is standard
 for free, open-source Mac apps and costs nothing.
 
+## Initiative tracker
+
+**Game Tools > Initiative Tracker** runs combat for the table. It works on its own (no session needed),
+and over a **LAN session** it is shared: each connected player automatically gets their own view of it.
+
+- **Add** monsters (from the Monsters collection, with the HP and AC copied in; optionally rolling HP from
+  its dice), your own characters, custom creatures, or **events** (a name that spans the whole table).
+  Add several at once, numbered and optionally **grouped** so they take their turns together.
+- **Initiative:** roll it, type it, or drag a row (⠿) to where you want it. **Next turn** moves the
+  creature whose turn it is to the top and the one that just went to the bottom; the round counter
+  tracks the lap. **Back** and **Undo** fix mistakes.
+- **HP, AC and conditions** are changed from the table (click them). Changes belong to the tracker only -
+  the character sheet or monster they were copied from is never touched.
+- **Hide** a creature so it doesn't appear for players (a hidden player still sees themselves); un-hide
+  it any time, or add it hidden. In **Settings** choose whether players see monster HP as numbers, a
+  health bar or nothing, and whether they see monster AC; each creature can also override this.
+- **Players** see the table in a resizable **pop-up window that stays on top of other apps** (pin it
+  off with 📌), can edit their own HP, AC and conditions, and are told when it's their turn. The DM can
+  **Pop out** the same window for a second monitor and **Preview** what a given player sees.
+- **Over a session:** the DM's app is the only place the real encounter lives. Each player is sent only
+  what they may see - hidden creatures, hidden HP/AC and DM notes never reach their computer - and their
+  edits go to the DM's app, which applies them under the same rules (a player can only change their own
+  character). Players' windows open by themselves when combat starts (Settings: `tracker_auto_open`),
+  the DM can add a connected player's character from the **Player** tab, and players who are away show
+  as *(offline)* until they reconnect to their character.
+- **Conditions can have a duration** (rounds); it counts down when that creature's turn ends and the
+  condition drops off at zero. *Back* does not give a round back - use *Undo*.
+- **Shortcuts** on the DM page: Ctrl+→ next turn, Ctrl+← back, Ctrl+Z undo, Delete removes the selection.
+- The encounter is saved as you go, so closing the app mid-fight doesn't lose it.
+- **Platform notes:** on macOS use two-finger tap or Control-click for the row menu. The window stays
+  above other apps' ordinary windows; macOS does not let it float over another app's *full-screen*
+  space, and there is no taskbar flash for "your turn" (the banner and beep still happen). Windows
+  does not float it over exclusive-full-screen games either.
+
+## LAN sessions
+
+One player (the DM) hosts; everyone else joins. Open **Game Tools > Session**.
+
+**Hosting.** Pick a port (default 5150), an optional password, and whether you want to approve each
+player. Press *Start session* and send players the invite shown on the Session page (one per network
+address; the first is usually right). Players on the same network can also find the session in their
+own list without an invite (untick *Let players on this network find it automatically* to hide it).
+
+**Joining.** Sessions on your network are listed on the Session page; press *Join*. Because a
+discovered session could be forged, you are first shown a short **security code** to compare with the
+one on the DM's Session page. Over a VPN (Tailscale, Hamachi, ZeroTier) or on guest Wi-Fi that blocks
+discovery, paste the DM's invite instead (`address:port#code`).
+
+**Chat.** Plain messages go to everyone; `/w Name message` (or the *Whisper* button) is private.
+`/roll 2d6+3`, `/roll d20+5 adv Perception`, `/roll 4d6kh3` roll dice (the host rolls, so nobody can
+fudge); `/gmroll d20` is seen only by you and the DM. The 🔗 button links a spell, item or monster that
+everyone can click. The chat overlay at the bottom of every page collapses to a small *Chat* button
+that shows how many messages you have missed; on Windows it is translucent (adjust under Session >
+Chat overlay).
+
+**Sending things.** *Send characters / homebrew...* sends characters (with the homebrew they use) or
+homebrew objects to one player or everyone. The receiver sees what is in it and what clashes with
+their own content, chooses *keep both / replace / keep mine*, and only then is anything added.
+Official content never travels and is never overwritten.
+
+**Security.** All traffic is TLS 1.3. The host makes a throwaway certificate for each session, and
+the invite or security code pins it, so someone else on the network can't pose as the DM. The host
+approves each player and can set a password. Nothing arrives without the receiver's say-so, and
+received data is validated and size-limited. A session only exists while the host has it open.
+
+**Firewalls.** The first time you host, Windows Defender Firewall asks whether to allow Spellbook on
+private networks - say yes, otherwise players can't connect (allow TCP on the session port and UDP
+5151 for discovery). On macOS you will be asked to allow incoming connections and Local Network
+access. Both are one-time prompts.
+
+**Checking a build.** `Spellbook --lan-selftest result.json` starts a session with itself over
+loopback and writes whether the encrypted stack works in that build.
+
 ## Data Storage
 
 Writable user data lives outside the app so bundles stay read-only:
@@ -127,6 +202,15 @@ Settings are stored in `settings.json`.
 ```
 Spellbook/
 ├── main.py                 # Application entry point with splash screen
+├── lan/                    # LAN sessions: TLS transport, host/client, discovery, dice, session service
+├── transfer.py             # Sending characters and homebrew between players (no UI)
+├── initiative_state.py     # Initiative tracker rules: turn order, groups, hiding, who may do what (no UI)
+├── initiative_rows.py      # What the tracker table draws for a viewer (no UI)
+├── initiative_sources.py   # Copies of HP/AC/initiative from sheets and monsters
+├── tracker_hub.py          # The app's one encounter: autosave and the DM / player backends
+├── conditions.py           # Condition names for the tracker
+├── character_io.py         # Character export/import bundles (no UI)
+├── tests/                  # pytest suite: python -m pytest tests (needs requirements-dev.txt)
 ├── database.py             # SQLite database with schema migrations
 ├── spell.py                # Spell data model and filtering
 ├── spell_manager.py        # Spell CRUD and filtering operations
@@ -154,6 +238,9 @@ Spellbook/
 │   ├── character_transfer.py # Character import/export (JSON)
 │   ├── global_search.py    # Global search bar for collections
 │   ├── collections_view.py # Collections browser with content import/export
+│   ├── spells_view.py      # Spells page (search, filters, list, detail, compare) - one per tab
+│   ├── lazy_destroy.py     # Takes old pages apart in small slices so the window never freezes
+│   ├── virtual_list.py     # Virtualized list base for Feats/Lineages/Backgrounds/Equipment/Magic Items/Monsters (constant widget count, any size)
 │   ├── spell_list.py       # Paginated spell list panel
 │   ├── spell_detail.py     # Spell detail view with popup
 │   ├── spell_editor.py     # Spell create/edit dialog

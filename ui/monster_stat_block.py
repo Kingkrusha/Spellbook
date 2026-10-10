@@ -90,8 +90,9 @@ class MonsterStatBlock(ctk.CTkFrame):
         return "#%02x%02x%02x" % tuple(round(b + (m - b) * amount) for b, m in zip(base, mix))
 
     def _ability_table(self, monster: Monster):
-        """Two rows of three abilities. Each is four small boxes - name, score,
-        modifier, save - shaded differently so they read as separate cells."""
+        """The six abilities. Each is four small boxes - name, score, modifier, save -
+        shaded differently so they read as separate cells. They sit three to a row when
+        there is room and reflow to two or one when the panel is narrow."""
         # name box picks up the accent colour; the number boxes step from light to darker
         shades = (self._shade('accent_primary', 0.55), self._shade('text_primary', 0.20),
                   self._shade('text_primary', 0.11), self._shade('text_primary', 0.16))
@@ -99,14 +100,17 @@ class MonsterStatBlock(ctk.CTkFrame):
         table.pack(anchor="w", pady=(8, 8))
         muted = self.theme.get_text_secondary()
         box = dict(width=40, height=26, corner_radius=4)
-        for band, row in enumerate(ABILITY_ROWS):
-            top = band * 2
-            for group, ability in enumerate(row):
-                base = group * 5                          # 4 boxes plus a gap column
+        group_width = 4 * (box["width"] + 2) + 14      # four boxes plus the gap before the next group
+
+        groups = []
+        for row in ABILITY_ROWS:
+            for ability in row:
+                group = ctk.CTkFrame(table, fg_color="transparent")
+                groups.append(group)
                 proficient = monster.saving_throws.is_proficient(ability)
                 for offset, text in ((2, "MOD"), (3, "SAVE")):
-                    ctk.CTkLabel(table, text=text, font=ui_font("small", 9), text_color=muted, height=14
-                                 ).grid(row=top, column=base + offset, pady=(4 if band else 0, 0))
+                    ctk.CTkLabel(group, text=text, font=ui_font("small", 9), text_color=muted, height=14
+                                 ).grid(row=0, column=offset)
                 cells = (
                     (AbilityScore.short_name(ability), ui_font("body", bold=True)),
                     (str(monster.ability_scores.get(ability)), ui_font("body", 13)),
@@ -115,10 +119,25 @@ class MonsterStatBlock(ctk.CTkFrame):
                      ui_font("body", 13, bold=proficient)),
                 )
                 for offset, ((text, font), shade) in enumerate(zip(cells, shades)):
-                    ctk.CTkLabel(table, text=text, font=font, fg_color=shade, **box).grid(
-                        row=top + 1, column=base + offset, padx=1, pady=1)
-            table.columnconfigure(4, minsize=14)          # gap between the ability groups
-            table.columnconfigure(9, minsize=14)
+                    ctk.CTkLabel(group, text=text, font=font, fg_color=shade, **box).grid(
+                        row=1, column=offset, padx=1, pady=1)
+
+        per_row = [0]
+
+        def layout(_event=None):
+            from ui.rich_text_utils import logical_width
+            width = logical_width(self._body)
+            if width <= 1 and per_row[0]:
+                return  # not laid out yet; keep what we have
+            count = 3 if width <= 1 else max(1, min(3, width // group_width))
+            if count == per_row[0]:
+                return
+            per_row[0] = count
+            for i, group in enumerate(groups):
+                group.grid(row=i // count, column=i % count, sticky="w",
+                           padx=(0 if i % count == 0 else 14, 0), pady=(4 if i >= count else 0, 0))
+        layout()
+        self._body.bind("<Configure>", layout, add="+")
 
     # ----- content -----
 

@@ -5,3 +5,5 @@ pillow>=10.0.0
 # updater.py falls back to the system trust store - but bundling it makes the
 # check reliable inside the frozen macOS .app.
 certifi>=2024.2.2
+# LAN sessions: the host makes a throwaway TLS certificate for each session (lan/security.py).
+cryptography>=42.0.0
