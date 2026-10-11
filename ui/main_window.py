@@ -15,6 +15,8 @@ import tab_session
 from ui.restyle import install_global as install_global_restyler, restyle_app
 from ui.tab_bar import DraggableTabBar
 from ui.lazy_destroy import destroy_later
+from ui import handle_budget, lazy_destroy
+import tkinter as tk
 from ui.lazy_view import LazyView
 
 # Collections a tab can be showing (also what a restored tab may reopen on)
@@ -98,6 +100,7 @@ class MainWindow(ctk.CTkFrame):
         # Collection pages built ahead of time (see _preload_sub_view): the next collections
         # tab to open that collection takes it instead of building its own
         self._spare_sub_views: Dict[str, ctk.CTkFrame] = {}
+        self._use_clock = 0   # "last used" stamps for the handle budget (see _touch)
         
         # Build UI. Settings and a first spell browser are set up front (so the first visit
         # to Spells is instant); every other page is built when a tab navigates to it.
@@ -113,6 +116,10 @@ class MainWindow(ctk.CTkFrame):
 
         # Schedule background preloading after UI is visible
         self.after(800, self._background_preload)
+
+        # Keep the process under Windows' handle limit (see ui/handle_budget.py)
+        handle_budget.set_reclaimer(self._make_headroom)
+        self.after(2500, self._budget_tick)
 
         # Check GitHub for a newer release (silent, background, best-effort;
         # only opens a browser link - never downloads or installs anything).
@@ -189,7 +196,7 @@ class MainWindow(ctk.CTkFrame):
 
     def _preload_sub_view(self, key: str):
         """Build a collection page ahead of time (unpacked) for the next tab that needs it."""
-        if key in self._spare_sub_views:
+        if key in self._spare_sub_views or handle_budget.over(handle_budget.BACKGROUND_LIMIT):
             return
         self._spare_sub_views[key] = self._new_sub_view(key)
 
@@ -592,7 +599,8 @@ class MainWindow(ctk.CTkFrame):
             if info['type'] == 'character_sheet':
                 view = info.get('view')
                 shown = view.current_character if view is not None else None
-                character = shown.name if shown else info.get('pending_character')
+                character = (shown.name if shown else info.get('pending_character')
+                             or (info.get('suspended') or {}).get('character'))
             if tab_id == shown_id:
                 active = len(tabs)
             tabs.append({'page': info['type'], 'collection': info.get('current_collection'),
@@ -635,8 +643,11 @@ class MainWindow(ctk.CTkFrame):
         index = self.tab_bar.get_tab_index(tab_id) + 1
         page_type = info['type']
         if page_type == 'character_sheet':
-            view = info['view']
-            character = view.current_character.name if view.current_character else None
+            view = info.get('view')
+            if view is not None:
+                character = view.current_character.name if view.current_character else None
+            else:
+                character = (info.get('suspended') or {}).get('character')
             self._open_page_in_new_tab(page_type, index=index, character=character)
         elif page_type == 'collections' and info.get('current_collection'):
             new_id = self._open_page_in_new_tab(page_type, index=index)
@@ -646,6 +657,10 @@ class MainWindow(ctk.CTkFrame):
 
     def _build_page(self, tab_id: str, page_type: str, character: Optional[str] = None):
         """Create the widget for a page (not packed yet)."""
+        self._make_headroom()
+        return self._guarded_build(lambda: self._build_page_now(tab_id, page_type, character))
+
+    def _build_page_now(self, tab_id: str, page_type: str, character: Optional[str] = None):
         if page_type == "home":
             from ui.home_view import HomeView
             return HomeView(self, on_open=lambda key, tid=tab_id: self._open_from_home(tid, key))
@@ -746,7 +761,8 @@ class MainWindow(ctk.CTkFrame):
         key = info.get('page_key')
         self._hide_tab_content(tab_id)
 
-        entry = {'view': view, 'sub_views': info.pop('sub_views', None) or OrderedDict()}
+        entry = {'view': view, 'sub_views': info.pop('sub_views', None) or OrderedDict(),
+                 'used': self._touch()}
         info['view'] = None
         info.pop('sub_view', None)
         info.pop('sub_view_key', None)
@@ -786,14 +802,16 @@ class MainWindow(ctk.CTkFrame):
         from ui.character_sheet_view import get_sheet_manager
         return get_sheet_manager().get_sheet(character.name) is getattr(view, 'current_sheet', None)
 
-    def _dispose_tab(self, info: dict):
-        """Get rid of everything a closed tab was holding."""
+    def _dispose_tab(self, info: dict, immediately: bool = False):
+        """Get rid of everything a closed (or suspended) tab was holding."""
         entries = list((info.pop('cache', None) or {}).values())
         if info.get('view') is not None:
             entries.append({'view': info['view'], 'sub_views': info.pop('sub_views', None) or {}})
             info['view'] = None
+        else:
+            info.pop('sub_views', None)
         for entry in entries:
-            self._dispose_entry(entry)
+            self._dispose_entry(entry, immediately)
         info.pop('sub_view', None)
         info.pop('sub_view_key', None)
         info.pop('pending_character', None)
@@ -852,10 +870,12 @@ class MainWindow(ctk.CTkFrame):
             return
         # Already open in another tab? Go there instead of opening a second copy
         for other_id, info in self._tab_views.items():
-            if other_id == tab_id or info['type'] != 'character_sheet' or info.get('view') is None:
+            suspended = info.get('suspended') or {}
+            if other_id == tab_id or info['type'] != 'character_sheet' \
+                    or (info.get('view') is None and not suspended):
                 continue
-            shown = info['view'].current_character
-            pending = info.get('pending_character')
+            shown = info['view'].current_character if info.get('view') is not None else None
+            pending = info.get('pending_character') or suspended.get('character')
             if (shown and shown.name == name) or (pending == name):
                 self.tab_bar.select_tab(other_id)
                 return
@@ -901,8 +921,14 @@ class MainWindow(ctk.CTkFrame):
         info = self._tab_views[tab_id]
         fresh = info.get('fresh')  # page was just built: nothing to catch up on
         self._current_tab_id = tab_id
+        info['used'] = self._touch()
         if info['type'] != 'settings':
             self._last_regular_tab_id = tab_id
+        if info.get('suspended'):
+            # Its page was released to save window handles: build it again, as it was
+            self._resume_tab(tab_id)
+            self._schedule_tab_save()
+            return
         self._show_tab_content(tab_id)
         self._schedule_tab_save()
         if fresh:
@@ -967,6 +993,171 @@ class MainWindow(ctk.CTkFrame):
             if pending:
                 view.select_character(pending)
 
+    # ---- window-handle budget -------------------------------------------------------------
+    # Windows allows a process 10,000 USER objects and each CustomTkinter widget is several of
+    # them, so a handful of tabs of heavy pages could hit the limit (after which Tk cannot create
+    # anything: "No more menus can be allocated"). Everything that is not on screen is therefore
+    # disposable, in this order: prebuilt spare pages, pages a tab left behind, collection pages
+    # a tab is not showing, and finally the page of a background tab (suspended: it is rebuilt,
+    # at the same place, when its tab is selected again). Nothing the user is looking at is touched.
+
+    def _touch(self) -> int:
+        """A monotonic "last used" stamp for least-recently-used decisions."""
+        self._use_clock += 1
+        return self._use_clock
+
+    def _eviction_candidates(self) -> list:
+        """(priority, last used, kind, tab id, key) for everything that can be given up, cheapest
+        to lose first."""
+        current = self._current_tab_id
+        found = [(0, 0, 'spare', None, key) for key in self._spare_sub_views]
+        for tab_id, info in self._tab_views.items():
+            if info.get('type') in (None, 'settings'):
+                continue
+            for key, entry in (info.get('cache') or {}).items():
+                found.append((1, entry.get('used', 0), 'cache', tab_id, key))
+            shown = info.get('sub_view')
+            for key, view in (info.get('sub_views') or {}).items():
+                if view is not shown:
+                    found.append((2, (info.get('sub_used') or {}).get(key, 0), 'sub', tab_id, key))
+            if tab_id != current and info.get('view') is not None \
+                    and info['type'] in self.CACHEABLE_PAGES:
+                found.append((3, info.get('used', 0), 'tab', tab_id, None))
+        found.sort(key=lambda c: (c[0], c[1]))
+        return found
+
+    def _dispose_view(self, view, immediately: bool):
+        if view is None:
+            return
+        self._detach_orphaned_sheet(view)
+        if immediately:
+            try:
+                view.pack_forget()
+                view.destroy()
+            except Exception:
+                pass
+        else:
+            self._destroy_later(view)
+
+    def _evict(self, candidate, immediately: bool):
+        _, _, kind, tab_id, key = candidate
+        info = self._tab_views.get(tab_id) if tab_id else None
+        if kind == 'spare':
+            self._dispose_view(self._spare_sub_views.pop(key, None), immediately)
+        elif kind == 'cache' and info is not None:
+            entry = (info.get('cache') or {}).pop(key, None)
+            if entry is not None:
+                self._dispose_entry(entry, immediately)
+        elif kind == 'sub' and info is not None:
+            self._dispose_view((info.get('sub_views') or {}).pop(key, None), immediately)
+        elif kind == 'tab' and info is not None:
+            self._suspend_tab(tab_id, immediately)
+
+    def _reclaim_handles(self, target_fraction: float, immediately: bool) -> int:
+        """Free pages until the handle count is under ``target_fraction`` of the quota (all that
+        can be freed if it cannot get there). Not immediately: one page per call, torn down in
+        slices. Returns how many things were released."""
+        count = handle_budget.user_handles()
+        if count is None:
+            return 0
+        target = handle_budget.quota() * target_fraction
+        if immediately:
+            lazy_destroy.drain_all()    # what is already being taken apart still holds handles
+            count = handle_budget.user_handles() or count
+        released = 0
+        while count > target:
+            candidates = self._eviction_candidates()
+            if not candidates:
+                break
+            self._evict(candidates[0], immediately)
+            released += 1
+            if not immediately:
+                break
+            count = handle_budget.user_handles() or 0
+        return released
+
+    def _make_headroom(self):
+        """Called before building a page: if the process is close to the limit, free pages first."""
+        if handle_budget.over(handle_budget.BUILD_LIMIT):
+            self._reclaim_handles(handle_budget.TARGET, immediately=True)
+
+    def _budget_tick(self):
+        """Every couple of seconds: above the background limit, release one unneeded page."""
+        try:
+            if not self.winfo_exists():
+                return
+            level = handle_budget.level()
+            delay = 2500
+            if level is not None and level > handle_budget.BACKGROUND_LIMIT:
+                if not lazy_destroy.pending():
+                    self._reclaim_handles(handle_budget.TARGET, immediately=False)
+                delay = 700 if level > handle_budget.BUILD_LIMIT else 1200
+            self.after(delay, self._budget_tick)
+        except Exception:
+            try:
+                self.after(5000, self._budget_tick)
+            except Exception:
+                pass
+
+    def _guarded_build(self, build):
+        """Run a page build; if Windows refuses to create more windows, free everything that can
+        be freed and try once more."""
+        try:
+            return build()
+        except tk.TclError as exc:
+            if not handle_budget.is_out_of_handles_error(exc):
+                raise
+        self._reclaim_handles(0.0, immediately=True)
+        try:
+            return build()
+        except tk.TclError as exc:
+            if handle_budget.is_out_of_handles_error(exc):
+                messagebox.showerror(
+                    "Too many windows open",
+                    "Spellbook has run out of room for more windows.\n\n"
+                    "Close a few tabs (or go back to the Collections page in them) and try again.")
+            raise
+
+    def _selected_item_name(self, view, key: str) -> Optional[str]:
+        """Name of the entry selected in a collection page (so a suspended tab can reselect it)."""
+        try:
+            if key == "spells":
+                item = view.spell_list.get_selected()
+            elif key == "classes":
+                item = getattr(view, "current_class", None)
+            else:
+                item = view.list_panel.get_selected()
+            return item.name if item is not None else None
+        except Exception:
+            return None
+
+    def _suspend_tab(self, tab_id: str, immediately: bool = False):
+        """Release a background tab's pages, remembering where it was."""
+        info = self._tab_views.get(tab_id)
+        if info is None or info.get('view') is None or tab_id == self._current_tab_id:
+            return
+        state = {'type': info['type'], 'character': None,
+                 'collection': info.get('current_collection'), 'item': None}
+        view = info['view']
+        if info['type'] == 'character_sheet':
+            shown = getattr(view, 'current_character', None)
+            state['character'] = shown.name if shown else info.get('pending_character')
+        if state['collection'] and info.get('sub_view') is not None:
+            state['item'] = self._selected_item_name(info['sub_view'], info.get('sub_view_key'))
+        self._dispose_tab(info, immediately)
+        info['suspended'] = state
+        info.pop('fresh', None)
+
+    def _resume_tab(self, tab_id: str):
+        """Rebuild a suspended tab's page where it was (called as the tab is selected)."""
+        info = self._tab_views[tab_id]
+        state = info.pop('suspended', None)
+        if not state:
+            return
+        self._navigate_tab(tab_id, state['type'], character=state.get('character'))
+        if state.get('collection'):
+            self._navigate_to_collection_in_tab(tab_id, state['collection'], state.get('item'))
+
     # Collection pages (spells, classes, ...). Every collections tab has its own instance of
     # the page it is showing (info['sub_view'], kept while the tab stays on that collection),
     # so tabs never share a selection, filters or scroll position.
@@ -991,6 +1182,10 @@ class MainWindow(ctk.CTkFrame):
 
     def _new_sub_view(self, key: str):
         """Build a collection page (not packed yet)."""
+        self._make_headroom()
+        return self._guarded_build(lambda: self._new_sub_view_now(key))
+
+    def _new_sub_view_now(self, key: str):
         if key == "spells":
             from ui.spells_view import SpellsView
             return SpellsView(self, self.spell_manager, self.character_manager,
@@ -1016,6 +1211,7 @@ class MainWindow(ctk.CTkFrame):
         if view is None:
             view = self._spare_sub_views.pop(collection_key, None) or self._new_sub_view(collection_key)
         pages[collection_key] = view
+        info.setdefault('sub_used', {})[collection_key] = self._touch()
 
         shown = info.get('sub_view')
         if shown is not None and shown is not view:

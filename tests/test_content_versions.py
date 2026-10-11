@@ -198,7 +198,7 @@ def test_spell_row_and_detail_use_one_entry_with_a_version_drop_down(tk_root, le
     view.pack(fill="both", expand=True)
     pump(tk_root)
     view._refresh_spell_list()
-    listed = [s.name for s in view.spell_list._spells]
+    listed = [s.name for s in view.spell_list._items]
     assert "Fireball" in listed and "Fireball (Legacy)" not in listed
     assert "Branding Smite" in listed                            # 2014-only spells are still listed
 
@@ -216,7 +216,7 @@ def test_spell_row_and_detail_use_one_entry_with_a_version_drop_down(tk_root, le
 
     legacy_setting("no_legacy")
     view._refresh_spell_list()
-    assert "Branding Smite" not in [s.name for s in view.spell_list._spells]
+    assert "Branding Smite" not in [s.name for s in view.spell_list._items]
     view.destroy()
 
 

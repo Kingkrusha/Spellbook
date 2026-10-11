@@ -58,6 +58,27 @@ def pending() -> bool:
     return bool(_queue)
 
 
+def drain_all() -> None:
+    """Finish taking everything apart right now (frees its native handles immediately)."""
+    global _job
+    if _job is not None:
+        try:
+            _scheduler.after_cancel(_job)
+        except Exception:
+            pass
+        _job = None
+    while _queue:
+        try:
+            widget = next(_queue[0])
+        except Exception:
+            _queue.popleft()
+            continue
+        try:
+            widget.destroy()
+        except Exception:
+            pass
+
+
 def _schedule(delay_ms: int) -> None:
     global _job
     try:

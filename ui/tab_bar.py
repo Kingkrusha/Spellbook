@@ -63,7 +63,7 @@ class TabWidget(ctk.CTkFrame):
         self.full_text = display_text  # Full untruncated text for tooltip
         self.is_closable = is_closable
         self.is_active = False
-        self._current_width = self.MAX_TAB_WIDTH
+        self._tab_width = self.MAX_TAB_WIDTH
         
         # Callbacks
         self.on_click = on_click
@@ -89,7 +89,7 @@ class TabWidget(ctk.CTkFrame):
         self.pack_propagate(False)
         
         # Start with max width
-        self.configure(width=self._current_width)
+        self.configure(width=self._tab_width)
         
         # Inner container for content
         self.inner_frame = ctk.CTkFrame(self, fg_color="transparent", corner_radius=8)
@@ -245,13 +245,13 @@ class TabWidget(ctk.CTkFrame):
     
     def set_width(self, width: int):
         """Set the tab width and truncate text if needed."""
-        self._current_width = max(self.MIN_TAB_WIDTH, min(width, self.MAX_TAB_WIDTH))
-        self.configure(width=self._current_width)
+        self._tab_width = int(max(self.MIN_TAB_WIDTH, min(width, self.MAX_TAB_WIDTH)))
+        self.configure(width=self._tab_width)
         
         # Calculate available text width
         padding = 20  # Left padding
         close_space = self.CLOSE_BTN_WIDTH if self.is_closable else 0
-        available_width = self._current_width - padding - close_space
+        available_width = self._tab_width - padding - close_space
         
         # Truncate text if needed (roughly 7 pixels per character)
         chars_that_fit = max(3, available_width // 7)
@@ -267,7 +267,7 @@ class TabWidget(ctk.CTkFrame):
         """Update the tab's display text."""
         self.full_text = text
         # Re-apply current width to handle truncation
-        self.set_width(self._current_width)
+        self.set_width(self._tab_width)
     
     def get_preferred_width(self) -> int:
         """Get the preferred width based on full text."""

@@ -15,6 +15,7 @@ from legacy_content import apply_legacy_filter
 from ui.version_bar import VersionBar
 from ui.rich_text_utils import follow_width
 from ui.lazy_destroy import destroy_later
+from ui import handle_budget
 from character_class import (
     get_class_manager, CharacterClassDefinition, ClassLevel, ClassAbility,
     SubclassDefinition
@@ -474,6 +475,9 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         Uses deferred rendering to prevent UI freezing.
         """
+        # A class page adds ~800 widgets: make room first if the process is near Windows' handle limit
+        handle_budget.ensure_headroom()
+
         # Mark as loading and cancel any pending deferred render (including a sliced one
         # that is still filling in the previous class)
         self._class_loaded = False
