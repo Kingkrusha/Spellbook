@@ -111,6 +111,63 @@ def run_data_migrations():
         print(f"Data migration warning: {e}")
 
 
+def _install_crash_logging(root):
+    """Leave evidence when something goes wrong, so a report has more than "it crashed".
+
+    * Unhandled errors in Tk callbacks (button clicks, timers, ...) are recorded in
+      ``crash.log`` in the data folder, then reported as usual. The window keeps running after
+      them, so without this they are invisible in a windowed build.
+    * ``faulthandler`` writes the Python stack of every thread there if the process dies for a
+      reason Python cannot catch (a native crash), which is otherwise completely silent.
+    """
+    import time
+    import traceback
+    try:
+        from paths import user_data_path
+        handle = open(user_data_path("crash.log"), "a", encoding="utf-8", buffering=1)
+    except Exception:
+        return
+    try:
+        handle.write(f"\n===== Spellbook started {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+        import faulthandler
+        faulthandler.enable(file=handle, all_threads=True)
+    except Exception:
+        pass
+
+    def log(kind, exc, value, tb):
+        try:
+            handle.write(f"\n--- {kind} {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+            handle.write("".join(traceback.format_exception(exc, value, tb)))
+        except Exception:
+            pass
+
+    original_hook = sys.excepthook
+
+    def excepthook(exc, value, tb):
+        log("unhandled error", exc, value, tb)
+        original_hook(exc, value, tb)
+    sys.excepthook = excepthook
+
+    original_report = root.report_callback_exception
+
+    def report_callback_exception(exc, value, tb):
+        log("error in a UI callback", exc, value, tb)
+        original_report(exc, value, tb)
+    root.report_callback_exception = report_callback_exception
+
+    try:       # errors in background threads (the LAN host/client, update check)
+        import threading
+        previous = threading.excepthook
+
+        def thread_hook(args):
+            log(f"error in thread {getattr(args.thread, 'name', '?')}", args.exc_type, args.exc_value,
+                args.exc_traceback)
+            previous(args)
+        threading.excepthook = thread_hook
+    except Exception:
+        pass
+
+
 def main():
     """Application entry point."""
     # Must run before any window is created so Windows groups the taskbar
@@ -130,6 +187,7 @@ def main():
     root.geometry("1100x750")
     root.minsize(900, 600)
     root.withdraw()  # Hide until fully loaded
+    _install_crash_logging(root)
     
     # Track if we're currently closing
     closing = [False]

@@ -66,6 +66,72 @@ class SessionStatusBar(ctk.CTkFrame):
         self.label.configure(text=text)
 
 
+class NameDialog(ctk.CTkToplevel):
+    """Asks what name the table should see, every time the player hosts or joins.
+
+    The box starts with whatever they typed last time (empty on the very first use); nothing is read
+    from the computer to guess one. ``on_done(name)`` is called once with the trimmed name; closing or
+    cancelling calls nothing."""
+
+    def __init__(self, parent, initial: str, on_done: Callable[[str], None], hosting: bool = False):
+        super().__init__(parent)
+        theme = get_theme_manager()
+        self._on_done = on_done
+        self.title("Your name")
+        self.geometry("400x210")
+        self.resizable(False, False)
+        self.transient(parent.winfo_toplevel())
+
+        box = ctk.CTkFrame(self, fg_color="transparent")
+        box.pack(fill="both", expand=True, padx=22, pady=18)
+        ctk.CTkLabel(box, text="What should the table call you?", font=ui_font("heading", 17, bold=True),
+                     wraplength=350, justify="left").pack(anchor="w")
+        who = "your players" if hosting else "everyone in the session"
+        ctk.CTkLabel(box, text=f"This is the name {who} will see in chat and on the initiative tracker. "
+                               "It can be a character name.",
+                     font=ui_font("body"), text_color=theme.get_text_secondary(), wraplength=350,
+                     justify="left").pack(anchor="w", pady=(4, 8))
+        self.entry = ctk.CTkEntry(box, height=34, placeholder_text="Your name")
+        self.entry.pack(fill="x")
+        if initial:
+            self.entry.insert(0, initial)
+            self.entry.select_range(0, "end")
+        self.error = ctk.CTkLabel(box, text="", font=ui_font("small"),
+                                  text_color=theme.get_current_color('text_warning'))
+        self.error.pack(anchor="w", pady=(4, 0))
+
+        row = ctk.CTkFrame(box, fg_color="transparent")
+        row.pack(fill="x", side="bottom")
+        self.ok_btn = ctk.CTkButton(row, text="Start hosting" if hosting else "Join", width=120,
+                                    fg_color=theme.get_current_color('accent_primary'),
+                                    hover_color=theme.get_current_color('accent_hover'),
+                                    command=self._submit)
+        self.ok_btn.pack(side="left")
+        ctk.CTkButton(row, text="Cancel", width=90, fg_color=theme.get_current_color('button_normal'),
+                      hover_color=theme.get_current_color('button_hover'),
+                      command=self.destroy).pack(side="right")
+        self.entry.bind("<Return>", lambda _e: self._submit())
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.after(150, self._focus)               # CTk finishes its own window setup first
+
+    def _focus(self) -> None:
+        try:
+            self.lift()
+            self.entry.focus_set()
+        except Exception:
+            pass
+
+    def _submit(self) -> None:
+        name = " ".join(self.entry.get().split())
+        if not name:
+            self.error.configure(text="Enter a name to continue.")
+            return
+        callback, self._on_done = self._on_done, None
+        self.destroy()
+        if callback is not None:
+            callback(name)
+
+
 class VerifyDialog(ctk.CTkToplevel):
     """Before joining a session found on the network: compare its security code with the DM's.
 

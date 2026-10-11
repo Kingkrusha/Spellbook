@@ -1060,6 +1060,10 @@ class CharacterSheetView(ctk.CTkFrame):
         """Show the character sheet for the selected character."""
         self.placeholder.pack_forget()
         
+        # A sheet is ~370 widgets: make room first if the process is near Windows' handle limit
+        from ui import handle_budget
+        handle_budget.ensure_headroom()
+
         # Set flag to prevent callbacks during widget destruction/recreation
         self._rebuilding_ui = True
         

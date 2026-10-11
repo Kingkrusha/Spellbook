@@ -49,6 +49,15 @@ MAX_INBOX_ITEMS = 20
 MAX_INBOX_BYTES = 24 * 1024 * 1024       # of received payloads waiting for a decision
 
 
+def _require_name(name) -> str:
+    """The name the player typed, tidied. A blank one is refused: there is deliberately no fallback
+    (such as the computer's account name) - the player always chooses what the table sees."""
+    cleaned = P.clean_name(name, "")
+    if not cleaned:
+        raise LanError("name", "Enter the name you want the table to see.")
+    return cleaned
+
+
 def local_addresses() -> List[str]:
     """This machine's IPv4 addresses worth putting in an invite, best guess first.
 
@@ -153,14 +162,9 @@ class SessionService:
     # ---------------------------------------------------------------- settings
 
     def default_name(self) -> str:
-        name = getattr(getattr(self._settings, "settings", None), "lan_display_name", "") if self._settings else ""
-        if name:
-            return name
-        import getpass
-        try:
-            return P.clean_name(getpass.getuser(), "Player")
-        except Exception:
-            return "Player"
+        """The name the player last typed in the prompt (empty the first time). Nothing about the
+        computer or its account is ever read to guess one."""
+        return str(self.saved("lan_player_name", "") or "")
 
     def saved(self, key: str, default=None):
         """A remembered ``lan_*`` setting (e.g. ``lan_port``)."""
@@ -198,7 +202,7 @@ class SessionService:
         session without an invite; the invite still works either way."""
         if self.active:
             raise LanError("busy", "A session is already running.")
-        name = P.clean_name(name, "DM")
+        name = _require_name(name)
         if discoverable is None:
             discoverable = bool(self.saved("lan_discovery", True))
         host = LanHost(name, password=password, require_approval=require_approval,
@@ -214,7 +218,7 @@ class SessionService:
         self.peers = host.peers()
         self.chat = []
         self.last_end_reason = ""
-        self._remember(lan_display_name=name, lan_port=port, lan_require_approval=require_approval,
+        self._remember(lan_player_name=name, lan_port=port, lan_require_approval=require_approval,
                        lan_discovery=bool(discoverable))
         self._add_line("system", "Session started. Share an invite with your players.")
         self._wake()
@@ -342,14 +346,14 @@ class SessionService:
             invite = P.Invite.parse(invite_text)
         except ValueError as e:
             raise LanError("invite", str(e))
-        name = P.clean_name(name)
+        name = _require_name(name)
         client = LanClient(name, client_id=self.client_id(), password=password,
                            app_version=self.app_version, schema=self.schema)
         self._client = client
         self.security_code = P.format_fingerprint(invite.fingerprint[:10])
         self.role = JOINING
         self.my_name = name
-        self._remember(lan_display_name=name, lan_last_invite=invite_text.strip())
+        self._remember(lan_player_name=name, lan_last_invite=invite_text.strip())
 
         def work():
             try:
