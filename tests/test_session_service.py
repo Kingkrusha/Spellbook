@@ -142,7 +142,7 @@ def test_approval_round_trip():
 def test_settings_are_remembered():
     class FakeSettings:
         class settings:
-            lan_display_name = ""
+            lan_player_name = ""
             lan_port = 5150
             lan_require_approval = True
             lan_client_id = ""
@@ -158,7 +158,50 @@ def test_settings_are_remembered():
     assert cid and svc.client_id() == cid                       # created once, then stable
     svc.start_host("Zed", port=0, bind="127.0.0.1", require_approval=False)
     try:
-        assert fake.settings.lan_display_name == "Zed"
+        assert fake.settings.lan_player_name == "Zed"
         assert svc.default_name() == "Zed"
     finally:
         svc.shutdown()
+
+
+def test_the_name_is_never_taken_from_the_computer(monkeypatch):
+    """No account/user name is read to suggest or fill in a name: the player is always asked."""
+    import getpass
+    import os
+
+    def boom(*a, **k):
+        raise AssertionError("the session read the computer's user name")
+
+    monkeypatch.setattr(getpass, "getuser", boom)
+    monkeypatch.setattr(os, "getlogin", boom)
+    monkeypatch.setenv("USERNAME", "SomebodyReal")
+    monkeypatch.setenv("USER", "SomebodyReal")
+
+    svc = SessionService()                          # nothing saved yet
+    assert svc.default_name() == ""
+
+    class FakeSettings:
+        class settings:
+            lan_player_name = ""
+            lan_port = 5150
+            lan_require_approval = True
+            lan_client_id = ""
+            lan_last_invite = ""
+
+        def update(self, **kw):
+            for k, v in kw.items():
+                setattr(self.settings, k, v)
+
+    assert SessionService(FakeSettings()).default_name() == ""
+
+
+def test_a_blank_name_is_refused_for_hosting_and_joining():
+    svc = SessionService()
+    for blank in ("", "   ", "\t\n", None):
+        with pytest.raises(LanError) as e:
+            svc.start_host(blank, port=0, bind="127.0.0.1", require_approval=False, discoverable=False)
+        assert e.value.code == "name"
+        with pytest.raises(LanError) as e:
+            svc.join("127.0.0.1:5150#" + "A" * 26, blank)
+        assert e.value.code == "name"
+    assert svc.role == NONE and not svc.active

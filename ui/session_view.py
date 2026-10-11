@@ -149,13 +149,6 @@ class SessionView(ctk.CTkFrame):
 
     def _build_idle(self):
         s = self.service
-        top = ctk.CTkFrame(self.body, fg_color="transparent")
-        top.pack(fill="x", pady=(0, 12))
-        ctk.CTkLabel(top, text="Your name in the session", font=ui_font("body")).pack(side="left", padx=(0, 10))
-        self._name_entry = ctk.CTkEntry(top, width=220, height=32)
-        self._name_entry.pack(side="left")
-        self._name_entry.insert(0, s.default_name())
-
         if s.last_end_reason:
             note = ctk.CTkFrame(self.body, fg_color="transparent")
             note.pack(fill="x", pady=(0, 10))
@@ -278,24 +271,46 @@ class SessionView(ctk.CTkFrame):
                           hover_color=self.theme.get_current_color('accent_hover'),
                           command=lambda f=f: self._on_join_found(f)).pack(side="right", padx=4)
 
+    def _ask_name(self, then, hosting: bool = False):
+        """Prompt for the name to use in the session, then call ``then(name)``. It is asked every time
+        (starting from what was typed last), and never guessed from the computer."""
+        from ui.session_widgets import NameDialog
+        NameDialog(self.winfo_toplevel(), self.service.default_name(), then, hosting=hosting)
+
     def _on_join_found(self, found):
         from ui.session_widgets import VerifyDialog
         VerifyDialog(self.winfo_toplevel(), found, lambda: self._join_found(found))
 
     def _join_found(self, found):
         self._join_error.configure(text="")
+        password = self._join_pw_entry.get()
+
+        def go(name):
+            try:
+                self.service.join_found(found, name, password)
+            except LanError as e:
+                self._show_error(self._join_error, e.message)
+        self._ask_name(go)
+
+    def _show_error(self, label, message: str):
+        """Put a message on a label if the page it is on is still showing."""
         try:
-            self.service.join_found(found, self._name_entry.get(), self._join_pw_entry.get())
-        except LanError as e:
-            self._join_error.configure(text=e.message)
+            if label.winfo_exists():
+                label.configure(text=message)
+        except Exception:
+            pass
 
     def _reconnect(self):
         """Rejoin the last session by invite (works while that host's session is still running)."""
-        try:
-            self.service.join(self.service.saved("lan_last_invite", ""), self._name_entry.get())
-        except LanError as e:
-            self.service.last_end_reason = e.message
-            self._render()
+        invite = self.service.saved("lan_last_invite", "")
+
+        def go(name):
+            try:
+                self.service.join(invite, name)
+            except LanError as e:
+                self.service.last_end_reason = e.message
+                self._render()
+        self._ask_name(go)
 
     # ------------------------------------------------------------- send / inbox
 
@@ -344,11 +359,16 @@ class SessionView(ctk.CTkFrame):
         except ValueError:
             self._host_error.configure(text="The port must be a number between 1 and 65535.")
             return
-        try:
-            self.service.start_host(self._name_entry.get(), self._pw_entry.get(),
-                                    self._approve_var.get(), port, discoverable=self._discover_var.get())
-        except LanError as e:
-            self._host_error.configure(text=e.message)
+        # read the form now: the page may be rebuilt while the name prompt is open
+        password, approve, discover = self._pw_entry.get(), self._approve_var.get(), self._discover_var.get()
+        error_label = self._host_error
+
+        def go(name):
+            try:
+                self.service.start_host(name, password, approve, port, discoverable=discover)
+            except LanError as e:
+                self._show_error(error_label, e.message)
+        self._ask_name(go, hosting=True)
 
     def _on_join(self):
         self._join_error.configure(text="")
@@ -356,10 +376,15 @@ class SessionView(ctk.CTkFrame):
         if not invite:
             self._join_error.configure(text="Paste the invite from your DM first.")
             return
-        try:
-            self.service.join(invite, self._name_entry.get(), self._join_pw_entry.get())
-        except LanError as e:
-            self._join_error.configure(text=e.message)
+        password = self._join_pw_entry.get()
+        error_label = self._join_error
+
+        def go(name):
+            try:
+                self.service.join(invite, name, password)
+            except LanError as e:
+                self._show_error(error_label, e.message)
+        self._ask_name(go)
 
     # --------------------------------------------------------------- joining
 
