@@ -48,7 +48,8 @@ class Feat:
     is_official: bool = True  # True for official content, False for homebrew
     is_custom: bool = False  # True if user-created
     is_legacy: bool = False  # True for 2014 (legacy) content
-    
+    roll_effects: List[dict] = field(default_factory=list)  # homebrew: what it does to the Dice Analyzer's rolls
+
     def plain_description(self) -> str:
         """Description with [[link]] markup replaced by its visible text (for searching)."""
         from object_link_sweep import strip_links
@@ -56,7 +57,7 @@ class Feat:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
-        return {
+        data = {
             "name": self.name,
             "type": self.type,
             "is_spellcasting": self.is_spellcasting,
@@ -71,7 +72,10 @@ class Feat:
             "is_custom": self.is_custom,
             "is_legacy": self.is_legacy,
         }
-    
+        if self.roll_effects:
+            data["roll_effects"] = self.roll_effects
+        return data
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Feat':
         """Create Feat from dictionary."""
@@ -94,6 +98,7 @@ class Feat:
             is_official=data.get("is_official", True),
             is_custom=data.get("is_custom", False),
             is_legacy=data.get("is_legacy", False),
+            roll_effects=data.get("roll_effects", []) or [],
         )
     
     def get_type_display(self) -> str:
@@ -191,7 +196,8 @@ class FeatManager:
             source=data.get('source', ''),
             is_official=data.get('is_official', True),
             is_custom=data.get('is_custom', False),
-            is_legacy=data.get('is_legacy', False)
+            is_legacy=data.get('is_legacy', False),
+            roll_effects=data.get('roll_effects', []) or []
         )
     
     def _feat_to_dict(self, feat: Feat) -> dict:
@@ -209,7 +215,8 @@ class FeatManager:
             'source': feat.source,
             'is_official': feat.is_official,
             'is_custom': feat.is_custom,
-            'is_legacy': feat.is_legacy
+            'is_legacy': feat.is_legacy,
+            'roll_effects': feat.roll_effects
         }
     
     def load(self) -> bool:

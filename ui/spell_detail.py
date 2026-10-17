@@ -178,24 +178,21 @@ class AddToListDialog(ctk.CTkToplevel):
                           command=self.destroy).pack(pady=10)
             return
         
-        # Character list
+        # Character list, with a search box over it (matches the name or the classes)
         theme = get_theme_manager()
-        scroll = ctk.CTkScrollableFrame(container)
-        scroll.pack(fill="both", expand=True, pady=(0, 15))
+        self._characters = list(characters)
+        self._search_var = ctk.StringVar()
+        search = ctk.CTkEntry(container, textvariable=self._search_var, height=32,
+                              placeholder_text="Search characters...")
+        search.pack(fill="x", pady=(0, 10))
+        search.focus_set()
+        self._search_var.trace_add("write", lambda *_a: self._fill_characters())
+        search.bind("<Return>", lambda _e: self._pick_only_match())
 
+        self._scroll = ctk.CTkScrollableFrame(container)
+        self._scroll.pack(fill="both", expand=True, pady=(0, 15))
         btn_text = theme.get_current_color('text_primary')
-        for char in characters:
-            char_btn = ctk.CTkButton(
-                scroll,
-                text=f"{char.name}\n{char.display_classes()}",
-                height=50,
-                anchor="w",
-                fg_color=theme.get_current_color('bg_secondary'),
-                hover_color=theme.get_current_color('button_hover'),
-                text_color=btn_text,
-                command=lambda c=char: self._select_character(c.name)
-            )
-            char_btn.pack(fill="x", pady=3)
+        self._fill_characters()
 
         # Cancel button
         ctk.CTkButton(container, text="Cancel", width=100,
@@ -203,6 +200,45 @@ class AddToListDialog(ctk.CTkToplevel):
                       text_color=btn_text,
                       command=self.destroy).pack()
     
+    def _matching(self) -> list:
+        """The characters whose name or classes contain every word typed in the search box."""
+        words = self._search_var.get().lower().split()
+        found = []
+        for char in self._characters:
+            text = f"{char.name} {char.display_classes()}".lower()
+            if all(w in text for w in words):
+                found.append(char)
+        return found
+
+    def _fill_characters(self):
+        """Rebuild the list of character buttons for the current search."""
+        theme = get_theme_manager()
+        for widget in self._scroll.winfo_children():
+            widget.destroy()
+        found = self._matching()
+        if not found:
+            ctk.CTkLabel(self._scroll, text="No character matches.",
+                         text_color=theme.get_text_secondary()).pack(pady=20)
+            return
+        btn_text = theme.get_current_color('text_primary')
+        for char in found:
+            ctk.CTkButton(
+                self._scroll,
+                text=f"{char.name}\n{char.display_classes()}",
+                height=50,
+                anchor="w",
+                fg_color=theme.get_current_color('bg_secondary'),
+                hover_color=theme.get_current_color('button_hover'),
+                text_color=btn_text,
+                command=lambda c=char: self._select_character(c.name)
+            ).pack(fill="x", pady=3)
+
+    def _pick_only_match(self):
+        """Enter in the search box picks the character when only one is left."""
+        found = self._matching()
+        if len(found) == 1:
+            self._select_character(found[0].name)
+
     def _select_character(self, name: str):
         """Select a character and close dialog."""
         self.result = name

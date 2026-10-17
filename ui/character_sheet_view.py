@@ -934,12 +934,9 @@ class CharacterSheetView(ctk.CTkFrame):
             for cl in self.current_character.classes
         )
         
-        # Also check for spellcasting subclasses (e.g., Eldritch Knight, Arcane Trickster)
+        # Also check for spellcasting subclasses (Eldritch Knight, Arcane Trickster, Warrior of the Mystic Arts)
         if not has_spellcaster:
-            has_spellcaster = any(
-                cl.subclass == "Eldritch Knight" or cl.subclass == "Arcane Trickster"
-                for cl in self.current_character.classes
-            )
+            has_spellcaster = bool(self.current_character.third_casters())
         
         # Check for subclasses with subclass_spells (e.g., Warrior of Shadow, Warrior of the Elements)
         if not has_spellcaster:
@@ -958,11 +955,27 @@ class CharacterSheetView(ctk.CTkFrame):
                 if has_spellcaster:
                     break
         
+        # Spells from a species, a feat or a feature (Magic Initiate, Fairy Magic) need the tab too
+        if not has_spellcaster:
+            character = self.current_character
+            has_spellcaster = bool(character.known_spells or character.subclass_spells
+                                   or self._character_has_spell_grants(character))
+        
         if has_spellcaster:
             # Make sure it's packed after inventory
             self.spells_tab_btn.pack(side="left", padx=5)
         else:
             self.spells_tab_btn.pack_forget()
+    
+    @staticmethod
+    def _character_has_spell_grants(character) -> bool:
+        """Whether a species or feat gives the character spells (given or still to choose)."""
+        try:
+            from spell_grants import build_report
+            report = build_report(character)
+            return bool(report.fixed or report.picks)
+        except Exception:
+            return False
     
     def _get_character_names(self) -> List[str]:
         """Get list of character names."""
@@ -1530,6 +1543,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         lineage_name = value if value != "(None)" else ""
         character.lineage = lineage_name
+        self._refresh_granted_spells(character)           # a species can give spells (Fairy Magic, a Tiefling's legacy)
 
         # Update base speed from lineage if selected, then recalculate the
         # derived speed (Monk's Unarmored Movement, carry-weight encumbrance)
@@ -1550,6 +1564,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
         # Refresh just the features section instead of whole sheet
         self._refresh_lineage_traits_section()
+        self._update_spell_tab_visibility()
     
     def _on_background_change(self, value: str):
         """Handle background selection change."""
@@ -3868,6 +3883,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if dialog.result is not None:
             # Update character feats
             self.current_character.feats = dialog.result
+            self._refresh_granted_spells(self.current_character)      # feats can give spells
             # Save the character
             self.character_manager.update_character(self.current_character.name, self.current_character)
             self.character_manager.save_characters()
@@ -3876,25 +3892,18 @@ class CharacterSheetView(ctk.CTkFrame):
             # Update spell tab visibility based on feats
             self._update_spell_tab_for_feats()
     
+    def _refresh_granted_spells(self, character):
+        """Add (or take away) the spells the character's species, feats and features give."""
+        from character import update_subclass_spells
+        try:
+            update_subclass_spells(character)
+        except Exception as e:                      # never let a spell lookup problem block picking a feat or species
+            print(f"Could not update granted spells: {e}")
+
     def _update_spell_tab_for_feats(self):
-        """Update spell tab visibility based on character's spellcasting feats."""
-        if not self.current_character:
-            return
-        
-        # Check if character has any spellcasting feats
-        has_spellcasting_feat = False
-        feat_manager = get_feat_manager()
-        for feat_name in self.current_character.feats:
-            feat = feat_manager.get_feat(feat_name)
-            if feat and feat.is_spellcasting:
-                has_spellcasting_feat = True
-                break
-        
-        # If has spellcasting feat, notify parent to show spells tab
-        if has_spellcasting_feat:
-            callback = getattr(self, 'on_spellcasting_feat_changed', None)
-            if callback:
-                callback(True)
+        """Show the spells tab when a feat gives the character spells."""
+        if self.current_character:
+            self._update_spell_tab_visibility()
 
     def _create_proficiencies_section(self, parent, sheet: CharacterSheet):
         """Create the other proficiencies & languages section."""

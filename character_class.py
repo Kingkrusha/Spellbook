@@ -75,16 +75,21 @@ class ClassAbility:
     # Tables for features - list of tables, each table is a dict with title, columns, rows
     # Example: [{"title": "Magic Item Plans", "columns": ["Magic Item Plan", "Attunement"], "rows": [["Bag of Holding", "No"], ...]}]
     tables: List[Dict] = field(default_factory=list)
-    
+    # Homebrew only: what this feature does to the Dice Analyzer's rolls (see roll_effects.py)
+    roll_effects: List[Dict] = field(default_factory=list)
+
     def to_dict(self) -> dict:
-        return {
+        data = {
             "title": self.title,
             "description": self.description,
             "is_subclass_feature": self.is_subclass_feature,
             "subclass_name": self.subclass_name,
             "tables": self.tables
         }
-    
+        if self.roll_effects:
+            data["roll_effects"] = self.roll_effects
+        return data
+
     @classmethod
     def from_dict(cls, data: dict) -> "ClassAbility":
         return cls(
@@ -92,7 +97,8 @@ class ClassAbility:
             description=data.get("description", ""),
             is_subclass_feature=data.get("is_subclass_feature", False),
             subclass_name=data.get("subclass_name", ""),
-            tables=data.get("tables", [])
+            tables=data.get("tables", []),
+            roll_effects=data.get("roll_effects", []) or []
         )
 
 
@@ -147,22 +153,27 @@ class SubclassFeature:
     title: str
     description: str = ""
     tables: List[Dict] = field(default_factory=list)  # Tables for this feature
-    
+    roll_effects: List[Dict] = field(default_factory=list)  # homebrew: what it does to the Dice Analyzer's rolls
+
     def to_dict(self) -> dict:
-        return {
+        data = {
             "level": self.level,
             "title": self.title,
             "description": self.description,
             "tables": self.tables
         }
-    
+        if self.roll_effects:
+            data["roll_effects"] = self.roll_effects
+        return data
+
     @classmethod
     def from_dict(cls, data: dict) -> "SubclassFeature":
         return cls(
             level=data.get("level", 1),
             title=data.get("title", ""),
             description=data.get("description", ""),
-            tables=data.get("tables", [])
+            tables=data.get("tables", []),
+            roll_effects=data.get("roll_effects", []) or []
         )
 
 

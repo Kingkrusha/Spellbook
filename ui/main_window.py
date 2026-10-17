@@ -519,6 +519,8 @@ class MainWindow(ctk.CTkFrame):
             "game_tools": "Game Tools",
             "session": "Session",
             "initiative": "Initiative",
+            "dice_analyzer": "Dice Analyzer",
+            "matchup": "Matchup",
         }.get(page_type, "Spellbook")
 
     def _open_page_in_new_tab(self, page_type: str, index: Optional[int] = None,
@@ -571,7 +573,7 @@ class MainWindow(ctk.CTkFrame):
         page = entry.get('page')
         character = entry.get('character')
         if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
-                    "initiative"):
+                    "initiative", "dice_analyzer", "matchup"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -707,7 +709,70 @@ class MainWindow(ctk.CTkFrame):
                 self, self.tracker_hub, get_managers=self._transfer_managers,
                 on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
                 open_window=self.open_tracker_window, get_players=self._tracker_players)
+        if page_type == "dice_analyzer":
+            return self._build_dice_analyzer(tab_id)
+        if page_type == "matchup":
+            return self._build_matchup(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
+
+    def _analysis_tools(self):
+        """What the Dice Analyzer and Matchup pages need: a character loader and the lookups for the things a sheet
+        only knows by name (spells, equipment, classes, magic items, homebrew feats and species)."""
+        from character_rolls import Lookups
+        from equipment import get_equipment_manager
+        from character_class import get_class_manager
+        from ui.character_sheet_view import get_sheet_manager
+        from magic_item import get_magic_item_manager
+        from feat import get_feat_manager
+        from lineage import get_lineage_manager
+
+        def load_character(name):
+            character = self.character_manager.get_character(name)
+            if character is None:
+                return None
+            sheet = get_sheet_manager().get_sheet(name)
+            if sheet is None:
+                # no sheet yet: analyse a blank one (without saving it) at the character's level
+                from character_sheet import CharacterSheet, calculate_proficiency_bonus
+                sheet = CharacterSheet(character_name=name)
+                sheet.proficiency_bonus = calculate_proficiency_bonus(sum(c.level for c in character.classes) or 1)
+                sheet._unsaved = True
+            return character, sheet
+
+        lookups = Lookups(spell=self.spell_manager.get_spell,
+                          equipment=lambda n: get_equipment_manager().get_item(n),
+                          class_def=lambda n: get_class_manager().get_class(n),
+                          magic_item=lambda n: get_magic_item_manager().get_item(n),
+                          feat=lambda n: get_feat_manager().get_feat(n),
+                          lineage=lambda n: get_lineage_manager().get_lineage(n))
+        return load_character, lookups
+
+    def _build_dice_analyzer(self, tab_id: str):
+        """The Dice Analyzer page. What it remembers (the roll typed in, the character and roll picked)
+        is kept per tab here, so leaving the page and coming back finds it as it was."""
+        from ui.dice_analyzer_view import DiceAnalyzerView
+        load_character, lookups = self._analysis_tools()
+        state = self._tab_views[tab_id].setdefault('dice_state', {}) if tab_id in self._tab_views else {}
+        return DiceAnalyzerView(
+            self, state,
+            character_names=lambda: [c.name for c in self.character_manager.characters],
+            load_character=load_character, lookups=lookups,
+            on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
+
+    def _build_matchup(self, tab_id: str):
+        """The Matchup page (a one-on-one fight between two creatures or characters)."""
+        from monster import get_monster_manager
+        from ui.matchup_view import MatchupView
+        load_character, lookups = self._analysis_tools()
+        state = self._tab_views[tab_id].setdefault('matchup_state', {}) if tab_id in self._tab_views else {}
+        monsters = get_monster_manager()
+        return MatchupView(
+            self, state,
+            character_names=lambda: [c.name for c in self.character_manager.characters],
+            load_character=load_character, lookups=lookups,
+            monster_names=lambda: sorted(m.name for m in monsters.browsable),
+            get_monster=lambda n: monsters.get_monster(n),
+            on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
 
     # Pages a tab has left are kept (hidden) for a while, so going back to Home, the Characters
     # list, a character sheet or a collection is instant. Building and - especially - destroying
@@ -861,6 +926,10 @@ class MainWindow(ctk.CTkFrame):
                 self.open_tracker_window("remote")        # players watch it in the pop-up window
             else:
                 self._navigate_tab(tab_id, "initiative")
+        elif key == "dice_analyzer":
+            self._navigate_tab(tab_id, "dice_analyzer")
+        elif key == "matchup":
+            self._navigate_tab(tab_id, "matchup")
 
     def _open_character(self, tab_id: str, name: str, new_tab: bool = False):
         """Open a character's sheet in this tab (or a new one)."""

@@ -17,20 +17,31 @@ class LineageTrait:
     """A trait belonging to a lineage (similar to a mini-feat)."""
     name: str
     description: str
-    
+    roll_effects: List[dict] = field(default_factory=list)   # homebrew: what it does to the Dice Analyzer's rolls
+    # homebrew: spells the trait gives, [{"spell": "Misty Step", "level": 3, "option": ""}] (level = character
+    # level it arrives at; an option names the variant of the trait that gives it)
+    spells: List[dict] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
-        return {
+        data = {
             "name": self.name,
             "description": self.description
         }
-    
+        if self.roll_effects:
+            data["roll_effects"] = self.roll_effects
+        if self.spells:
+            data["spells"] = self.spells
+        return data
+
     @classmethod
     def from_dict(cls, data: dict) -> 'LineageTrait':
         """Create LineageTrait from dictionary."""
         return cls(
             name=data.get("name", "Unknown Trait"),
-            description=data.get("description", "")
+            description=data.get("description", ""),
+            roll_effects=data.get("roll_effects", []) or [],
+            spells=data.get("spells", []) or []
         )
 
 
@@ -127,7 +138,7 @@ class LineageManager:
         """Convert database dict to Lineage object."""
         traits = []
         for t in data.get('traits', []):
-            traits.append(LineageTrait(name=t.get('name', ''), description=t.get('description', '')))
+            traits.append(LineageTrait.from_dict(t))
         
         return Lineage(
             name=data.get('name', ''),
@@ -150,7 +161,7 @@ class LineageManager:
             'creature_type': lineage.creature_type,
             'size': lineage.size,
             'speed': lineage.speed,
-            'traits': [{'name': t.name, 'description': t.description} for t in lineage.traits],
+            'traits': [t.to_dict() for t in lineage.traits],
             'source': lineage.source,
             'is_official': lineage.is_official,
             'is_custom': lineage.is_custom,

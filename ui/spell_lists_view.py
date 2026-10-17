@@ -36,7 +36,33 @@ def get_effective_max_cantrips(character: CharacterSpellList) -> int:
         return character.custom_max_cantrips if character.custom_max_cantrips > 0 else 999
     class_levels = character.get_class_levels_tuple()
     ek_level = character.get_eldritch_knight_level()
-    return get_max_cantrips(class_levels, ek_level)
+    return get_max_cantrips(class_levels, ek_level) + character.third_caster_extra_cantrips()
+
+
+def default_spell_stats(character: CharacterSpellList, spell_manager) -> list:
+    """The spell attack / save DC entries for a character, read from their sheet (ability scores, proficiency
+    bonus, linked magic items). A character without a sheet yet gets a blank one at their level."""
+    from character_rolls import Lookups, spell_numbers
+    from equipment import get_equipment_manager
+    from character_class import get_class_manager
+    from magic_item import get_magic_item_manager
+    from feat import get_feat_manager
+    from lineage import get_lineage_manager
+    from ui.character_sheet_view import get_sheet_manager
+    from character_sheet import CharacterSheet, calculate_proficiency_bonus
+
+    sheet = get_sheet_manager().get_sheet(character.name)
+    if sheet is None:
+        sheet = CharacterSheet(character_name=character.name)
+        sheet.proficiency_bonus = calculate_proficiency_bonus(sum(c.level for c in character.classes) or 1)
+    lookups = Lookups(spell=spell_manager.get_spell,
+                      equipment=lambda n: get_equipment_manager().get_item(n),
+                      class_def=lambda n: get_class_manager().get_class(n),
+                      magic_item=lambda n: get_magic_item_manager().get_item(n),
+                      feat=lambda n: get_feat_manager().get_feat(n),
+                      lineage=lambda n: get_lineage_manager().get_lineage(n))
+    granted = bool(character.known_spells or character.subclass_spells)
+    return spell_numbers(character, sheet, lookups, extra_casters=granted)
 
 
 class CharacterCard(ctk.CTkFrame):
@@ -140,7 +166,8 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                  on_spell_click: Optional[Callable[[str], None]] = None,
                  on_character_updated: Optional[Callable[[], None]] = None,
                  settings_manager: Optional[SettingsManager] = None,
-                 scrollable: bool = True):
+                 scrollable: bool = True,
+                 stats_provider: Optional[Callable[[CharacterSpellList], list]] = None):
         super().__init__(parent, corner_radius=10)
         try:
             self.configure(fg_color=get_theme_manager().get_current_color('bg_primary'))
@@ -154,6 +181,8 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         self.on_character_updated = on_character_updated
         self.settings_manager = settings_manager or get_settings_manager()
         self._scrollable = scrollable  # Whether to use scrollable frame
+        # What the spell attack / save DC boxes show: character -> [SpellStat] (see character_rolls.spell_numbers)
+        self.stats_provider = stats_provider or (lambda character: default_spell_stats(character, spell_manager))
         # Theme manager for dynamic colors
         self.theme = get_theme_manager()
         # Listen for theme changes to update appearance
@@ -205,10 +234,25 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         )
         self.prepared_label.pack(side="right", padx=(0, 15))
         
+        # Spell attack modifier and spell save DC (shown once a character is set)
+        self.stats_frame = ctk.CTkFrame(self, fg_color="transparent")
+
         # Button bar
         self.button_bar = ctk.CTkFrame(self, fg_color="transparent")
-        
+
         btn_text = self.theme.get_current_color('text_primary')
+        self.add_btn = ctk.CTkButton(
+            self.button_bar, text="+ Add Spells", width=110,
+            fg_color=self.theme.get_current_color('accent_primary'), hover_color=self.theme.get_current_color('accent_hover'),
+            text_color=self.theme.get_current_color('text_on_accent'),
+            command=self._on_add_spells
+        )
+        self.grants_btn = ctk.CTkButton(
+            self.button_bar, text="Granted Spells", width=120,
+            fg_color=self.theme.get_current_color('button_normal'), hover_color=self.theme.get_current_color('button_hover'),
+            text_color=btn_text,
+            command=self._on_granted_spells
+        )
         self.long_rest_btn = ctk.CTkButton(
             self.button_bar, text="Long Rest", width=90,
             fg_color=self.theme.get_current_color('button_success'), hover_color=self.theme.get_current_color('button_success_hover'),
@@ -601,6 +645,7 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             self.scroll_frame.pack_forget()
             self.hint_label.pack_forget()
             self.button_bar.pack_forget()
+            self.stats_frame.pack_forget()
             self.warlock_frame.pack_forget()
             self.placeholder.place(relx=0.5, rely=0.5, anchor="center")
             self.title_label.configure(text="Known Spells")
@@ -609,10 +654,14 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             return
         
         self.placeholder.place_forget()
+        self._refresh_granted(character)
         self._initialize_slots(character)
-        
-        # Show button bar
+
+        # Show button bar (with the spell attack / save DC boxes above it)
         self.button_bar.pack(fill="x", padx=15, pady=(0, 10))
+        self._update_stats()
+        self.add_btn.pack(side="right")
+        self._update_grants_button()
         
         # Show/hide short rest
         class_levels = character.get_class_levels_tuple()
@@ -637,6 +686,125 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         
         self._build_spell_list()
     
+    # ------------------------------------------------------------------ granted spells, stats and adding spells
+    def _refresh_granted(self, character: CharacterSpellList):
+        """Bring the spells a species, feat or feature gives up to date (existing characters get them the first
+        time their list is opened; a changed feat or species is handled where it is changed)."""
+        try:
+            from spell_grants import build_report
+            from character import update_subclass_spells
+            report = build_report(character)
+            wanted = {g.spell.lower() for g in report.fixed}
+            for pick in report.picks:
+                wanted |= {n.lower() for n in pick.chosen}
+            have = {n.lower() for n in character.subclass_spells}
+            recorded = {n.lower() for n in character.spell_sources}
+            if (wanted - have) or (recorded - wanted):
+                update_subclass_spells(character)
+                self._save_character()
+        except Exception as e:                       # a lookup problem must not stop the list from opening
+            print(f"Could not update granted spells: {e}")
+
+    def _update_stats(self):
+        """The spell attack modifier and spell save DC boxes (magic items counted)."""
+        for child in self.stats_frame.winfo_children():
+            child.destroy()
+        character = self._current_character
+        try:
+            stats = self.stats_provider(character) if character else []
+        except Exception as e:
+            print(f"Could not work out the spell numbers: {e}")
+            stats = []
+        if not stats:
+            self.stats_frame.pack_forget()
+            return
+        self.stats_frame.pack(fill="x", padx=15, pady=(0, 10), before=self.button_bar)
+        c = self.theme.get_current_color
+        for stat in stats:
+            group = ctk.CTkFrame(self.stats_frame, fg_color="transparent")
+            group.pack(side="left", padx=(0, 18), anchor="n")
+            ctk.CTkLabel(group, text=f"{stat.label} • {stat.ability}", font=ui_font("small", 11),
+                         text_color=c("text_label"), anchor="w").pack(fill="x")
+            boxes = ctk.CTkFrame(group, fg_color="transparent")
+            boxes.pack(fill="x")
+            for title, value in (("Spell attack", f"{stat.attack:+d}"), ("Spell save DC", str(stat.dc))):
+                box = ctk.CTkFrame(boxes, fg_color=c("bg_secondary"), corner_radius=8, width=118, height=62)
+                box.pack(side="left", padx=(0, 8))
+                box.pack_propagate(False)
+                ctk.CTkLabel(box, text=value, font=ui_font("heading", 22, bold=True)).pack(pady=(6, 0))
+                ctk.CTkLabel(box, text=title, font=ui_font("small", 11), text_color=self.theme.get_text_secondary()
+                             ).pack()
+            if stat.notes:
+                ctk.CTkLabel(group, text="; ".join(stat.notes), font=ui_font("small", 10),
+                             text_color=self.theme.get_text_secondary(), anchor="w", justify="left",
+                             wraplength=260).pack(fill="x", pady=(2, 0))
+
+    def _update_grants_button(self):
+        """Show the Granted Spells button when a species, feat or feature gives this character spells."""
+        character = self._current_character
+        show = False
+        label = "Granted Spells"
+        if character is not None:
+            try:
+                from spell_grants import build_report
+                report = build_report(character)
+                show = bool(report.fixed or report.picks or report.options)
+                left = report.unresolved()
+                if left:
+                    label = f"Granted Spells ({left} to choose)"
+            except Exception:
+                show = False
+        if show:
+            self.grants_btn.configure(text=label, width=190 if "choose" in label else 130)
+            self.grants_btn.pack(side="right", padx=(8, 0), before=self.add_btn)
+        else:
+            self.grants_btn.pack_forget()
+
+    def _on_granted_spells(self):
+        if not self._current_character:
+            return
+        from ui.granted_spells_dialog import GrantedSpellsDialog
+        dialog = GrantedSpellsDialog(self.winfo_toplevel(), self._current_character, self.spell_manager,
+                                     on_change=self._granted_changed, settings=self.settings_manager.settings)
+        self.wait_window(dialog)
+        self._rebuild()
+
+    def _granted_changed(self):
+        self._save_character()
+        if self.on_character_updated:
+            self.on_character_updated()
+
+    def _on_add_spells(self):
+        """Open the search-and-add dialog for the current character."""
+        if not self._current_character:
+            return
+        from ui.add_spells_dialog import AddSpellsDialog
+        dialog = AddSpellsDialog(self.winfo_toplevel(), self._current_character, self.spell_manager,
+                                 add_fn=self._add_spell, settings=self.settings_manager.settings)
+        self.wait_window(dialog)
+        if dialog.added:
+            self._rebuild()
+
+    def _add_spell(self, spell) -> bool:
+        """Add a spell to the current character's list (called by the Add Spells dialog)."""
+        character = self._current_character
+        if character is None or not character.add_spell(spell.name):
+            return False
+        self._save_character()
+        if self.on_character_updated:
+            self.on_character_updated()
+        return True
+
+    def _rebuild(self):
+        """Rebuild the spell rows (after spells were added or the granted ones changed)."""
+        if not self._current_character:
+            return
+        self._clear_all()
+        self._slot_entries.clear()
+        self._build_spell_list()
+        self._update_stats()
+        self._update_grants_button()
+
     def _initialize_slots(self, character: CharacterSpellList):
         """Initialize spell slots to max if not set."""
         max_slots = get_effective_max_slots(character)
@@ -900,13 +1068,17 @@ class CharacterSpellsPanel(ctk.CTkFrame):
         row.pack(fill="x", pady=1, padx=5)
         row.pack_propagate(False)  # Fix the height
 
-        # Remove button
-        remove_btn = ctk.CTkButton(
-            row, text="✕", width=22, height=22,
-            fg_color=theme.get_current_color('button_danger'), hover_color=theme.get_current_color('button_danger_hover'),
-            command=lambda sn=spell.name: self.on_remove_spell(sn)
-        )
-        remove_btn.pack(side="left", padx=(4, 0))
+        # Remove button (a spell a species, feat or feature gives goes when that does, not by hand)
+        granted_by = character.spell_sources.get(spell.name, "")
+        if granted_by:
+            ctk.CTkFrame(row, width=26, height=22, fg_color="transparent").pack(side="left", padx=(4, 0))
+        else:
+            remove_btn = ctk.CTkButton(
+                row, text="✕", width=22, height=22,
+                fg_color=theme.get_current_color('button_danger'), hover_color=theme.get_current_color('button_danger_hover'),
+                command=lambda sn=spell.name: self.on_remove_spell(sn)
+            )
+            remove_btn.pack(side="left", padx=(4, 0))
 
         # Spell name (using label with click binding for compactness)
         hover_color = theme.get_current_color('accent_hover')
@@ -961,11 +1133,14 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                 prepared_cb.configure(state="disabled")
                 prepared_var.set(True)  # Always checked
                 # Add "(Always Prepared)" indicator
-                ctk.CTkLabel(
+                star = ctk.CTkLabel(
                     row, text="★",
                     font=ui_font("small", 10),
                     text_color=self.theme.get_current_color('accent_primary')
-                ).pack(side="right", padx=(0, 2))
+                )
+                star.pack(side="right", padx=(0, 2))
+                from ui.tooltip import HoverTooltip
+                HoverTooltip(star, f"Always prepared: {granted_by or 'class or subclass feature'}")
         else:
             # Cantrips - add small spacer for alignment
             prepared_var = ctk.BooleanVar(value=True)  # Cantrips always "prepared"

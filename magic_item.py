@@ -68,10 +68,11 @@ class MagicItem:
     attunement_optional: bool = False  # only meaningful when requires_attunement
     is_official: bool = True   # True for official content, False for homebrew
     is_custom: bool = False    # True if user-created
+    roll_effects: List[dict] = field(default_factory=list)  # homebrew: what it does to the Dice Analyzer's rolls
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
-        return {
+        data = {
             "name": self.name,
             "type": self.type,
             "cost": self.cost,
@@ -88,6 +89,9 @@ class MagicItem:
             "is_official": self.is_official,
             "is_custom": self.is_custom,
         }
+        if self.roll_effects:
+            data["roll_effects"] = self.roll_effects
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "MagicItem":
@@ -109,6 +113,7 @@ class MagicItem:
             attunement_optional=data.get("attunement_optional", False),
             is_official=data.get("is_official", True),
             is_custom=data.get("is_custom", False),
+            roll_effects=data.get("roll_effects", []) or [],
         )
 
     def plain_description(self) -> str:
@@ -199,6 +204,7 @@ class MagicItemManager:
             attunement_optional=data.get("attunement_optional", False),
             is_official=data.get("is_official", True),
             is_custom=data.get("is_custom", False),
+            roll_effects=data.get("roll_effects", []) or [],
         )
 
     def _item_to_dict(self, item: MagicItem) -> dict:
@@ -219,6 +225,7 @@ class MagicItemManager:
             "attunement_optional": item.attunement_optional,
             "is_official": item.is_official,
             "is_custom": item.is_custom,
+            "roll_effects": item.roll_effects,
         }
 
     def load(self) -> bool:
