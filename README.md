@@ -13,7 +13,7 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 - **Characters page**: Every character in one list you can search, filter (class, species, background) and sort (name, level, class, species, background). Create, import and export characters here; click one to open its sheet
 - **Spell Management**: Search, filter, create, and organize spells with full-text search and advanced filtering
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
-- **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic
+- **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic. The spells section of a character sheet shows the **spell attack modifier** and **spell save DC** at the top (linked magic items counted), has a **+ Add Spells** button that opens a searchable dialog (with a switch for *only spells this character can learn*: their class lists, up to the highest level they can cast, plus a Warlock patron's expanded spells) and a **Granted Spells** button for the spells their species, feats and features give. Right-clicking a spell in the collection and choosing *Add to Spell List* offers a searchable list of characters
 - **Stat Blocks**: Attach creature stat blocks to summoning spells
 - **Collections Browser**: Browse official Lineages, Feats, Classes, Subclasses, and Backgrounds with global search
 - **Legacy (2014) content**: The 2014 rules are bundled too (`legacy_2014.json`: spells, feats, species, backgrounds, classes and subclasses from the published 5e books, all flagged Legacy). A 2014 entry whose name 2024 content already uses is stored as `Name (Legacy)` (for example *Fireball (Legacy)*, *Fighter (Legacy)*); browsing lists show each spell, feat, species, background and class once, and the **Source** line of its page is a drop-down that switches between its versions (the 2024 one, the 2014 one, or a 2014 book's update such as Monsters of the Multiverse). The Legacy content setting (Settings) decides which versions are offered: everything, none, only 2014, or *Show Unupdated* (2014 versions only where there is no 2024 one)
@@ -75,6 +75,110 @@ xattr -dr com.apple.quarantine /path/to/Spellbook.app
 ```
 After the first launch it opens normally like any other app. This is standard
 for free, open-source Mac apps and costs nothing.
+
+## Dice Analyzer
+
+**Game Tools > Dice Analyzer** shows the odds of a roll: the average, spread, lowest and highest result,
+the chance of reaching any number you pick, and a graph of every possible total (hover a bar for its odds).
+
+- **Custom** mode: build a roll from rows of dice or type it (`2d6+1d4+4`, `4d6kh3`, `d20adv+5`, `d20emph+7`,
+  `1000d20-12`). Each kind of dice can be added or subtracted and can have **Reroll ≤ N** (rerolls once; add `!` to
+  keep rerolling), a **Min** (Reliable Talent is `d20` with Min 10), a way of rolling - **Advantage, Disadvantage,
+  Double advantage / Double disadvantage** (three d20s, keep the highest / lowest) or **Emphasis** (two d20s, keep
+  the one furthest from 10, the higher on a tie) - and **keep highest / lowest n**. The whole roll can also be
+  rolled twice, keeping the higher or lower. Big piles are exact (thousands of dice); absurd sizes use a flagged
+  approximation.
+- **Character** mode opens on an **overview**: a horizontal bar for every saving throw and skill, showing the
+  **average or median** result (toggle at the top; ● proficient, ◆ expertise). How you roll, **Rage** (Barbarian)
+  and **Bladesong** can be switched on for every bar at once. Click a bar to open that roll in detail, or use the
+  buttons for **Attacks**, **Spells**, **Concentration save** (spellcasters), Initiative and ability checks.
+- In detail, every roll has its own options and the full graph. Numbers come from the sheet, so they match it.
+  - **Rolling with**: Normal, Advantage, Disadvantage, Double advantage, Double disadvantage or Emphasis. Sources of
+    advantage do not stack with each other; advantage and disadvantage cancel one level for one.
+  - **Based on**: a skill can use a different ability than its default (Strength for Intimidation...).
+  - **Bonus dice**: add as many dice as you like, each adding or subtracting (Bardic Inspiration, Guidance, Bless,
+    Bane, Mind Sliver, psionic dice, superiority dice...), with presets to start from.
+  - **Class, feat and species features** (2024 and 2014 versions) are applied when the sheet shows them (class and
+    subclass levels, feats, lineage), and the rest can be ticked under **Character features**. Automatic ones are
+    things like Jack of All Trades, Reliable Talent, Remarkable Athlete, Halfling Luck, Aura of Protection, Danger
+    Sense, Feral Instinct, Alert, dragonmark dice, Otherworldly Glamour, Gnomish Cunning and improved critical
+    hits. Situational ones appear as choices for the roll: Rage and Primal Knowledge, Bladesong, Vow of Enmity,
+    Steady Aim, Innate Sorcery, Lucky, Elven Accuracy, Starry Form, Trance of Order, **Save against** (Fey
+    Ancestry, Brave, Dwarven Resilience, spells and magic), and the like.
+  - **If the roll fails** options need a target number (the "Chance to reach" box or the AC / DC): Indomitable,
+    Stroke of Luck, Tactical Mind, Peerless Skill, Flash of Genius, Dark One's Own Luck, Fanatical Focus, Guided
+    Strike, Boon of Combat Prowess and other rerolls, extra dice and automatic successes.
+  - **Damage extras** for weapon attacks: Rage, Sneak Attack, Divine Smite, Radiant Strikes, Divine Strike,
+    Hunter's Mark / Hex, Brutal Strike, Frenzy, Great Weapon Master, Great Weapon Fighting, Savage Attacker,
+    Piercer, Dueling, Brutal Critical and Savage Attacks, many species and feat extras. For spells: Agonizing
+    Blast, Potent Spellcasting, Empowered Evocation, Empowered Spell, Elemental Adept, Disciple of Life, Supreme
+    Healing and more. Spell damage is read from the spell's description, including cantrip and slot scaling.
+  - **Character features** has a search box: with nothing typed it shows what was found on the sheet, the things a
+    sheet cannot show and the linked items; type to search every feature the analyzer knows and tick any of them.
+  - **Homebrew**: custom feats, species traits, class and subclass features and magic items can say what they do to
+    rolls, so the analyzer treats them like the built-in ones (see *Roll effects* below).
+  - **Magic items**: the sheet's linked magic items are read from their descriptions (homebrew too). An item that
+    needs attunement counts only while attuned, and each can be switched off under **Character features**. They
+    add bonuses to saves, checks and initiative, advantage on skills, spell attack and save DC bonuses, abilities
+    they set (Gauntlets of Ogre Power), and magic weapons (their +N and extra damage; pick one in the attack's
+    **Magic weapon** choice, it is chosen automatically when the attack has the item's name).
+
+## Roll effects (homebrew that the Dice Analyzer understands)
+
+The editors for **feats**, **species traits**, **class features**, **subclass features** and **magic items** have a
+**Roll effects** section. Each effect says what it changes (skill checks, saving throws, weapon attacks, spell
+attacks, weapon or spell damage, healing ...), who it applies to (for example only Stealth, only Strength saves, only
+fire damage), and what it does: advantage or disadvantage, a number (which can grow with proficiency bonus, level or
+an ability modifier), extra dice, "a low d20 counts as 10", rerolls, critical hit range, an extra d20, "if the roll
+fails" options, extra damage. An effect can always apply or be a choice you switch on for a roll. Magic items can also
+add to spell attack and save DC, set an ability score, or add a bonus to a weapon.
+
+The effects are stored with the object (so they export, import and are sent to other players with it) and are applied
+to any character that has the feat, the species, the class or subclass at that level, or the attuned item. An item
+that lists its roll effects is used as written; one that does not is still read from its description.
+
+## Matchup
+
+**Game Tools > Matchup** puts two combatants in a one-on-one fight: each can be a **character** (from the Characters
+page), a **monster** (searchable, from the Monsters collection) or a **custom creature** typed in. You get the odds of
+each side winning, how long a fight lasts, who goes first, how many rounds each needs to kill the other, the damage each
+does to the *other* (armor class, saving throws, resistances, immunities and vulnerabilities all counted), and the
+**tide turners**.
+
+- **Monsters** are read from their stat blocks: attacks and Multiattack, saving throw effects (breath weapons,
+  Recharge, daily uses), the spells in their Spellcasting entry, Legendary Resistance, Magic Resistance and
+  Regeneration.
+- **Both sides are searchable** (characters by name, monsters by name), and each side's **chance to hit** the other
+  is shown (per attack, and the chance to fail a save for breath weapons and save-or-suck spells).
+- **Characters** use the Dice Analyzer's engine, so attacks and spells match it (features and linked magic items
+  included). Casters get a table of the best spell at each spell level (cantrips included) with the average damage and
+  the damage **per slot level** (cantrips excluded there), and the fight uses spell slots until they run out. You can
+  add resistances and immunities by hand, switch on class damage boosts (Sneak Attack, Rage) and fight at current hit
+  points.
+- **Tide turners** list what averages cannot capture: conditions each side can inflict (and whether the opponent is
+  immune), debuff and control spells, Legendary Resistance, healing and defensive abilities, burst abilities, damage
+  that does nothing against the opponent, and big differences in speed, flight, reach or range.
+- The fight is simulated thousands of times (initiative, recharge, daily uses, spell slots, legendary resistance,
+  regeneration); bonus actions, reactions, terrain and positioning are not simulated.
+
+## Spells that species, feats and features give
+
+Class and subclass spells have always been added to a character automatically (always prepared, and not counted
+against the spells they can prepare). Species, feats and the remaining class and subclass features that give spells now
+work the same way (`spell_grants.py`, with the official content described in `spell_grant_data.py`):
+
+- A species' innate spells arrive at the character levels they are gained (Fairy Magic, the Marks of Eberron, a
+  Tiefling's legacy, ...); species that make you choose a variant (the Elf's lineage, a Tiefling's legacy, the
+  Gnome's lineage) use the variant picked in **Granted Spells**.
+- A feat's set spells are added when the feat is taken (Fey Touched's Misty Step, Telepathic's Detect Thoughts, an
+  Eldritch Invocation's at-will spell, ...); spells a feat lets you *choose* (Magic Initiate's cantrips) are chosen in
+  **Granted Spells** and added the same way.
+- Class and subclass features that give a spell the class tables do not list (a Wizard school's Polymorph, the Wild
+  Heart's rituals, a Moon Druid's Alter Self, ...) are added from the class level they arrive at.
+- Granted spells show a ★ (hover it for where the spell comes from), cannot be removed by hand (they go when the
+  feat, species or feature does), and do not count against prepared spells or known cantrips.
+- Custom feats use their *Set spells* field; custom species can list the spells a trait gives in the trait editor
+  (`Spell, character level, variant` per line).
 
 ## Initiative tracker
 
@@ -204,6 +308,17 @@ Spellbook/
 ├── main.py                 # Application entry point with splash screen
 ├── lan/                    # LAN sessions: TLS transport, host/client, discovery, dice, session service
 ├── transfer.py             # Sending characters and homebrew between players (no UI)
+├── matchup.py              # One-on-one fight analysis: stat-block reader, defences, fight simulation, tide turners (no UI)
+├── spell_grants.py         # Spells given by species, feats and features: what applies to a character, choices, writing it to the character (no UI)
+├── spell_grant_data.py     # Which bundled species, feats, classes and subclasses give which spells
+├── spell_access.py         # Which spells a character can learn: class lists, highest castable level, expanded lists (no UI)
+├── roll_effects.py         # Homebrew roll effects: validation, description and conversion into analyzer rules (no UI)
+├── dice_analyzer.py        # Dice probability engine: exact distributions, rerolls, minimums, keep-highest (no UI)
+├── character_rolls.py      # A character's rolls as dice odds (no UI)
+├── character_context.py    # A character's classes, feats, lineage and items as the rules see them, and how features are recognised
+├── character_rules.py      # What class, feat and species features do to d20 rolls and damage (tables)
+├── item_effects.py         # What linked magic items do to rolls, read from their descriptions
+├── roll_rules.py           # The d20 as it is built up, and the maths for "if the roll fails" options
 ├── initiative_state.py     # Initiative tracker rules: turn order, groups, hiding, who may do what (no UI)
 ├── initiative_rows.py      # What the tracker table draws for a viewer (no UI)
 ├── initiative_sources.py   # Copies of HP/AC/initiative from sheets and monsters
@@ -244,7 +359,9 @@ Spellbook/
 │   ├── spell_list.py       # Paginated spell list panel
 │   ├── spell_detail.py     # Spell detail view with popup
 │   ├── spell_editor.py     # Spell create/edit dialog
-│   ├── spell_lists_view.py # Character spell lists management
+│   ├── spell_lists_view.py # Character spell lists management (attack/save DC boxes, add spells, granted spells)
+│   ├── add_spells_dialog.py # Searchable "add spells" dialog (learnable-only switch) and the picker for chosen spells
+│   ├── granted_spells_dialog.py # Spells given by species, feats and features, and the choices that decide them
 │   ├── character_editor.py # Character create/edit dialog
 │   ├── character_sheet_view.py # Full character sheet UI
 │   ├── classes_view.py     # Class browser with feature tables

@@ -18,6 +18,12 @@ class GameToolsView(ctk.CTkFrame):
         ("initiative", "⚔️ Initiative Tracker",
          "Run combat: turn order, HP, AC and conditions for everyone at the table, with a pop-up "
          "window players can keep on top of their other apps.", True),
+        ("dice_analyzer", "🎲 Dice Analyzer",
+         "The odds of any roll: mixed dice, modifiers, advantage, rerolls and minimums, or a roll from a "
+         "character sheet with the character's features counted.", True),
+        ("matchup", "🥊 Matchup",
+         "Put two creatures or characters in a one-on-one fight: the odds, how long it takes, each side's damage "
+         "against the other and what could swing it.", True),
     ]
 
     def __init__(self, parent, service=None, on_open: Optional[Callable[[str], None]] = None,
@@ -41,15 +47,32 @@ class GameToolsView(ctk.CTkFrame):
                 command=on_home).pack(side="left", padx=(0, 15))
         ctk.CTkLabel(header, text="Game Tools", font=ui_font("title", 28, bold=True)).pack(side="left")
 
-        row = ctk.CTkFrame(outer, fg_color="transparent")
-        row.pack(anchor="n")
-        for column, tool in enumerate(self.TOOLS):
-            self._card(row, column, *tool)
+        # the cards wrap onto more rows when the window is narrow
+        self._row = ctk.CTkFrame(outer, fg_color="transparent")
+        self._row.pack(anchor="n")
+        self._cards = []
+        for tool in self.TOOLS:
+            self._cards.append(self._card(self._row, 0, *tool))
+        self._columns = 0
+        outer.bind("<Configure>", self._on_resize)
+        self._layout(3)
+
+    CARD_SPAN = 330
+
+    def _on_resize(self, event):
+        self._layout(max(1, (event.width - 40) // self.CARD_SPAN))
+
+    def _layout(self, columns: int):
+        columns = max(1, min(columns, len(self._cards)))
+        if columns == self._columns:
+            return
+        self._columns = columns
+        for i, card in enumerate(self._cards):
+            card.grid(row=i // columns, column=i % columns, padx=14, pady=10, sticky="n")
 
     def _card(self, parent, column: int, key: str, title: str, description: str, enabled: bool):
         card = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_secondary'),
                             corner_radius=14, width=300, height=220)
-        card.grid(row=0, column=column, padx=14, pady=10)
         card.pack_propagate(False)
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=22, pady=22)
@@ -81,3 +104,4 @@ class GameToolsView(ctk.CTkFrame):
                 hover_color=self.theme.get_current_color('bg_tertiary'),
                 text_color=self.theme.get_text_secondary(), state="disabled"
             ).pack(side="bottom", anchor="w")
+        return card

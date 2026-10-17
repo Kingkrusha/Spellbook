@@ -701,6 +701,11 @@ class LineagesView(ctk.CTkFrame):
             char = self.character_manager.get_active_character()
             if char:
                 char.lineage = self._context_lineage.name
+                try:
+                    from character import update_subclass_spells
+                    update_subclass_spells(char)               # a species can give spells
+                except Exception as e:
+                    print(f"Could not update granted spells: {e}")
                 self.character_manager.save_characters()
                 messagebox.showinfo(
                     "Lineage Set",
@@ -1003,7 +1008,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
             command=self.destroy
         ).pack(side="left")
     
-    def _add_trait(self, name: str = "", description: str = ""):
+    def _add_trait(self, name: str = "", description: str = "", roll_effects=None, spells=None):
         """Add a trait entry."""
         from ui.rich_text_utils import RichTextEditor
         
@@ -1046,7 +1051,22 @@ class LineageEditorDialog(ctk.CTkToplevel):
         
         desc_entry.pack(fill="x", pady=(0, 0))
         desc_entry.insert("1.0", description)
-        
+
+        from spell_grants import format_trait_spells
+        ctk.CTkLabel(inner, text="Spells this trait gives (optional):", font=ui_font("body")).pack(anchor="w", pady=(10, 0))
+        ctk.CTkLabel(inner, text="One per line: Spell, character level, variant. For example \"Misty Step, 3\"; "
+                                 "add a variant name when the trait offers a choice. They are always prepared and "
+                                 "do not count against the spells a character can prepare.",
+                     font=ui_font("small"), text_color=self.theme.get_text_secondary(), anchor="w", justify="left",
+                     wraplength=560).pack(fill="x")
+        frame._spells_text = ctk.CTkTextbox(inner, height=60)
+        frame._spells_text.pack(fill="x", pady=(2, 0))
+        frame._spells_text.insert("1.0", format_trait_spells(spells))
+
+        from ui.roll_effects_editor import RollEffectsEditor
+        frame._roll_editor = RollEffectsEditor(inner, roll_effects)
+        frame._roll_editor.pack(fill="x", pady=(10, 0))
+
         self._trait_entries.append((name_entry, desc_entry, frame))
     
     def _remove_trait(self, frame):
@@ -1069,7 +1089,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         self.desc_text.insert("1.0", lineage.description)
         
         for trait in lineage.traits:
-            self._add_trait(trait.name, trait.description)
+            self._add_trait(trait.name, trait.description, trait.roll_effects, trait.spells)
 
     _REVIEW_FIELD_LABELS = {
         "name": "Name", "creature_type": "Creature Type", "size": "Size",
@@ -1155,12 +1175,23 @@ class LineageEditorDialog(ctk.CTkToplevel):
             return
         
         # Gather traits
+        from spell_grants import default_lookup, parse_trait_spells
         traits = []
-        for name_entry, desc_entry, _ in self._trait_entries:
+        for name_entry, desc_entry, trait_frame in self._trait_entries:
             trait_name = name_entry.get().strip()
             trait_desc = desc_entry.get("1.0", "end-1c").strip()
+            editor = getattr(trait_frame, "_roll_editor", None)
+            spells_box = getattr(trait_frame, "_spells_text", None)
+            trait_spells = []
+            if spells_box is not None:
+                trait_spells, problems = parse_trait_spells(spells_box.get("1.0", "end-1c"), default_lookup())
+                if problems:
+                    messagebox.showerror("Trait spells", f"{trait_name or 'A trait'}:\n" + "\n".join(problems),
+                                         parent=self)
+                    return
             if trait_name:
-                traits.append(LineageTrait(name=trait_name, description=trait_desc))
+                traits.append(LineageTrait(name=trait_name, description=trait_desc,
+                                           roll_effects=editor.get() if editor else [], spells=trait_spells))
         
         lineage = Lineage(
             name=name,

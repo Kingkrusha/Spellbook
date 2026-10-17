@@ -52,6 +52,20 @@ class ClassLevel:
         return self.character_class.value
 
 
+# Subclasses that give a third of a caster's spellcasting: (class, subclass) -> (spell list, spellcasting ability)
+THIRD_CASTERS = {
+    ("fighter", "eldritch knight"): ("Wizard", "INT"),
+    ("rogue", "arcane trickster"): ("Wizard", "INT"),
+    ("monk", "warrior of the mystic arts"): ("Sorcerer", "WIS"),
+}
+
+
+def _plain(name: str) -> str:
+    """A subclass name in lower case without a "(Legacy)" tag."""
+    text = (name or "").strip().lower()
+    return text[:-len("(legacy)")].strip() if text.endswith("(legacy)") else text
+
+
 @dataclass
 class CharacterSpellList:
     """Represents a character's known spell list."""
@@ -72,6 +86,10 @@ class CharacterSpellList:
     # Lineage
     lineage: str = ""  # Lineage name
     hidden_features: List[str] = field(default_factory=list)  # List of hidden feature identifiers
+    # Spells granted by species, feats and features (see spell_grants)
+    grant_options: Dict[str, str] = field(default_factory=dict)       # {"lineage:Elf": "Drow"}: the variant picked
+    grant_choices: Dict[str, List[str]] = field(default_factory=dict)  # {pick key: spells the character chose}
+    spell_sources: Dict[str, str] = field(default_factory=dict)       # {spell: "Feat: Fey Touched"} (rebuilt)
     
     @property
     def primary_class(self) -> Optional[ClassLevel]:
@@ -106,13 +124,32 @@ class CharacterSpellList:
     def has_eldritch_knight(self) -> bool:
         """Check if character has the Eldritch Knight subclass."""
         return any(cl.character_class == CharacterClass.FIGHTER and cl.subclass == "Eldritch Knight" for cl in self.classes)
-    
-    def get_eldritch_knight_level(self) -> int:
-        """Get the Fighter level if character has Eldritch Knight subclass, 0 otherwise."""
+
+    def third_casters(self) -> List[Tuple["ClassLevel", str, str]]:
+        """The classes whose subclass makes them a third caster (Eldritch Knight, Arcane Trickster, Warrior of the
+        Mystic Arts): [(class level, spell list class, spellcasting ability)]."""
+        found = []
         for cl in self.classes:
-            if cl.character_class == CharacterClass.FIGHTER and cl.subclass == "Eldritch Knight":
-                return cl.level
-        return 0
+            if cl.character_class == CharacterClass.CUSTOM or cl.level < 3:
+                continue
+            key = (cl.character_class.value.lower(), _plain(cl.subclass))
+            if key in THIRD_CASTERS:
+                found.append((cl,) + THIRD_CASTERS[key])
+        return found
+
+    def get_eldritch_knight_level(self) -> int:
+        """The class level of the character's third-caster subclass, 0 if they have none. The name stays from when
+        only the Eldritch Knight existed: the Arcane Trickster and the Warrior of the Mystic Arts use the same
+        spell slots and prepared spells."""
+        return max([cl.level for cl, _l, _a in self.third_casters()] or [0])
+
+    def third_caster_spell_lists(self) -> List[CharacterClass]:
+        """The class spell lists a third-caster subclass casts from (Wizard, or Sorcerer for the Mystic Arts)."""
+        return [CharacterClass.from_string(lst) for _cl, lst, _a in self.third_casters()]
+
+    def third_caster_extra_cantrips(self) -> int:
+        """The Arcane Trickster knows one cantrip more than the other third casters (Mage Hand)."""
+        return 1 if any(_plain(cl.subclass) == "arcane trickster" for cl, _l, _a in self.third_casters()) else 0
     
     def display_classes(self) -> str:
         """Return formatted string of all classes and levels."""
@@ -274,7 +311,10 @@ class CharacterSpellList:
             "custom_max_cantrips": self.custom_max_cantrips,
             "feats": self.feats,
             "lineage": self.lineage,
-            "hidden_features": self.hidden_features
+            "hidden_features": self.hidden_features,
+            "grant_options": self.grant_options,
+            "grant_choices": self.grant_choices,
+            "spell_sources": self.spell_sources
         }
     
     @classmethod
@@ -304,7 +344,10 @@ class CharacterSpellList:
             custom_max_cantrips=data.get("custom_max_cantrips", 0),
             feats=data.get("feats", []),
             lineage=data.get("lineage", ""),
-            hidden_features=data.get("hidden_features", [])
+            hidden_features=data.get("hidden_features", []),
+            grant_options=dict(data.get("grant_options", {}) or {}),
+            grant_choices={k: list(v) for k, v in (data.get("grant_choices", {}) or {}).items()},
+            spell_sources=dict(data.get("spell_sources", {}) or {})
         )
 
 
@@ -541,6 +584,10 @@ def update_subclass_spells(character: CharacterSpellList, class_manager=None) ->
                 # Auto-prepare subclass spells
                 if spell.spell_name not in character.prepared_spells:
                     character.prepared_spells.append(spell.spell_name)
+    
+    # Spells given by the character's species, feats and features (see spell_grants)
+    from spell_grants import add_granted_spells
+    add_granted_spells(character, class_manager)
     
     # Remove old subclass spells that are no longer granted
     for spell in old_subclass_spells:

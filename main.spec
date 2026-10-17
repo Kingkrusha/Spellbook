@@ -22,6 +22,7 @@ _LAN_IMPORTS = [
     'initiative_state', 'initiative_rows', 'initiative_sources', 'conditions', 'tracker_hub',
     'tracker_net', 'ui.initiative_table', 'ui.initiative_dialogs', 'ui.initiative_view',
     'ui.initiative_window',
+    'dice_analyzer', 'character_rolls', 'character_context', 'character_rules', 'roll_rules', 'item_effects', 'roll_effects', 'matchup', 'spell_grants', 'spell_access', 'spell_grant_data', 'ui.roll_effects_editor', 'ui.matchup_view', 'ui.add_spells_dialog', 'ui.granted_spells_dialog', 'ui.dice_analyzer_view', 'ui.distribution_chart', 'ui.bar_list_chart',
     'cryptography', 'cryptography.x509', 'cryptography.hazmat.primitives.asymmetric.ec',
     'cryptography.hazmat.primitives.serialization', 'cryptography.hazmat.primitives.hashes',
 ]

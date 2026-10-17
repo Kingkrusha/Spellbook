@@ -540,6 +540,7 @@ class SpellDatabase:
                 is_official INTEGER NOT NULL DEFAULT 1,
                 is_custom INTEGER NOT NULL DEFAULT 0,
                 is_legacy INTEGER NOT NULL DEFAULT 0,
+                roll_effects_json TEXT DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -589,6 +590,7 @@ class SpellDatabase:
                 attunement_optional INTEGER NOT NULL DEFAULT 0,
                 is_official INTEGER NOT NULL DEFAULT 1,
                 is_custom INTEGER NOT NULL DEFAULT 0,
+                roll_effects_json TEXT DEFAULT '[]',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -746,6 +748,8 @@ class SpellDatabase:
             ("equipment", "properties_json", "TEXT DEFAULT '[]'"),
             ("magic_items", "properties_json", "TEXT DEFAULT '[]'"),
             ("magic_items", "requires_attunement", "INTEGER NOT NULL DEFAULT 0"),
+            ("magic_items", "roll_effects_json", "TEXT DEFAULT '[]'"),
+            ("feats", "roll_effects_json", "TEXT DEFAULT '[]'"),
             ("monsters", "ac_text", "TEXT DEFAULT ''"),
             ("monsters", "hp_text", "TEXT DEFAULT ''"),
             ("monsters", "speed_text", "TEXT DEFAULT ''"),
@@ -2498,7 +2502,7 @@ class SpellDatabase:
             'source': row['source'] or '',
             'is_official': bool(row['is_official']),
             'is_custom': bool(row['is_custom']),
-            'is_legacy': bool(row['is_legacy'])
+            'is_legacy': bool(row['is_legacy']),
         }
     
     # ==================== FEAT METHODS ====================
@@ -2525,8 +2529,8 @@ class SpellDatabase:
             cursor.execute("""
                 INSERT INTO feats (name, type, is_spellcasting, spell_lists_json, spells_num_json,
                                    has_prereq, prereq, set_spells_json, description, source,
-                                   is_official, is_custom, is_legacy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   is_official, is_custom, is_legacy, roll_effects_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 feat_data['name'],
                 feat_data.get('type', ''),
@@ -2540,7 +2544,8 @@ class SpellDatabase:
                 feat_data.get('source', ''),
                 1 if feat_data.get('is_official', True) else 0,
                 1 if feat_data.get('is_custom', False) else 0,
-                1 if feat_data.get('is_legacy', False) else 0
+                1 if feat_data.get('is_legacy', False) else 0,
+                json.dumps(feat_data.get('roll_effects', []) or [])
             ))
             return cursor.lastrowid or 0
     
@@ -2551,7 +2556,8 @@ class SpellDatabase:
             cursor.execute("""
                 UPDATE feats SET name = ?, type = ?, is_spellcasting = ?, spell_lists_json = ?,
                 spells_num_json = ?, has_prereq = ?, prereq = ?, set_spells_json = ?, description = ?,
-                source = ?, is_official = ?, is_custom = ?, is_legacy = ?, updated_at = CURRENT_TIMESTAMP
+                source = ?, is_official = ?, is_custom = ?, is_legacy = ?, roll_effects_json = ?,
+                updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
                 feat_data['name'],
@@ -2567,6 +2573,7 @@ class SpellDatabase:
                 1 if feat_data.get('is_official', True) else 0,
                 1 if feat_data.get('is_custom', False) else 0,
                 1 if feat_data.get('is_legacy', False) else 0,
+                json.dumps(feat_data.get('roll_effects', []) or []),
                 feat_id
             ))
             return cursor.rowcount > 0
@@ -2596,7 +2603,8 @@ class SpellDatabase:
             'source': row['source'] or '',
             'is_official': bool(row['is_official']),
             'is_custom': bool(row['is_custom']),
-            'is_legacy': bool(row['is_legacy'])
+            'is_legacy': bool(row['is_legacy']),
+            'roll_effects': self._safe_json_list(row, 'roll_effects_json'),
         }
     
     # ==================== EQUIPMENT METHODS ====================
@@ -2732,8 +2740,8 @@ class SpellDatabase:
                 INSERT INTO magic_items (name, type, cost, weight, source, enchanting_materials_json,
                                          description, tags_json, properties_json, rarity,
                                          requires_attunement, attunement_requirement, attunement_optional,
-                                         is_official, is_custom)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                         is_official, is_custom, roll_effects_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 item_data['name'],
                 item_data.get('type', 'Wondrous Item'),
@@ -2749,7 +2757,8 @@ class SpellDatabase:
                 item_data.get('attunement_requirement', ''),
                 1 if item_data.get('attunement_optional', False) else 0,
                 1 if item_data.get('is_official', True) else 0,
-                1 if item_data.get('is_custom', False) else 0
+                1 if item_data.get('is_custom', False) else 0,
+                json.dumps(item_data.get('roll_effects', []) or [])
             ))
             return cursor.lastrowid or 0
 
@@ -2761,7 +2770,7 @@ class SpellDatabase:
                 UPDATE magic_items SET name = ?, type = ?, cost = ?, weight = ?, source = ?,
                 enchanting_materials_json = ?, description = ?, tags_json = ?, properties_json = ?,
                 rarity = ?, requires_attunement = ?, attunement_requirement = ?, attunement_optional = ?,
-                is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
+                is_official = ?, is_custom = ?, roll_effects_json = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
                 item_data['name'],
@@ -2779,6 +2788,7 @@ class SpellDatabase:
                 1 if item_data.get('attunement_optional', False) else 0,
                 1 if item_data.get('is_official', True) else 0,
                 1 if item_data.get('is_custom', False) else 0,
+                json.dumps(item_data.get('roll_effects', []) or []),
                 item_id
             ))
             return cursor.rowcount > 0
@@ -2810,6 +2820,7 @@ class SpellDatabase:
             'attunement_optional': bool(row['attunement_optional']),
             'is_official': bool(row['is_official']),
             'is_custom': bool(row['is_custom']),
+            'roll_effects': self._safe_json_list(row, 'roll_effects_json'),
         }
 
     @staticmethod

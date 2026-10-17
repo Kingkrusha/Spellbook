@@ -417,6 +417,10 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
         toolbar.pack(fill="x", pady=(5, 5))
         self.desc_text.pack(fill="x", pady=(0, 10))
 
+        from ui.roll_effects_editor import RollEffectsEditor
+        self.roll_editor = RollEffectsEditor(scroll, allow_item_effects=True)
+        self.roll_editor.pack(fill="x", pady=(0, 10))
+
         btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(10, 0))
 
@@ -465,6 +469,7 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
         self.tag_editor.set_tags(item.tags)
         self.properties_editor.set_properties(item.properties)
         self.desc_text.insert("1.0", item.description)
+        self.roll_editor.set(item.roll_effects)
 
     _REVIEW_FIELD_LABELS = {
         "name": "Name", "type": "Type", "rarity": "Rarity", "cost": "Cost",
@@ -571,6 +576,7 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
             attunement_optional=self.attunement_optional_var.get() if requires_attunement else False,
             is_official=False,
             is_custom=True,
+            roll_effects=self.roll_editor.get(),
         )
         self.destroy()
 

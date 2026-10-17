@@ -52,8 +52,8 @@ def validate_spell_for_character(
         char_classes = get_character_classes(class_levels)
         spell_classes = spell.classes
         
-        # Check for Eldritch Knight Fighter subclass - can cast Wizard spells
-        has_eldritch_knight = character.has_eldritch_knight()
+        # Third-caster subclasses (Eldritch Knight, Arcane Trickster: Wizard spells; Mystic Arts: Sorcerer spells)
+        third_caster_lists = character.third_caster_spell_lists()
         
         # Check for Bard's Magical Secrets (level 10+)
         # Disables ALL class warnings - Bard can learn spells from any class
@@ -82,10 +82,10 @@ def validate_spell_for_character(
         # Magical Secrets disables all class warnings
         if has_magical_secrets:
             pass  # Skip all class warnings
-        # Eldritch Knight allows Wizard spells
-        elif has_eldritch_knight:
-            if CharacterClass.WIZARD in spell_classes:
-                pass  # Eldritch Knight can cast Wizard spells
+        # Third casters cast from their own list (Wizard, or Sorcerer for the Warrior of the Mystic Arts)
+        elif third_caster_lists:
+            if any(c in third_caster_lists for c in spell_classes):
+                pass  # A third caster can cast spells from that list
             elif not any(c in char_classes for c in spell_classes):
                 class_names = ", ".join(c.value for c in spell_classes)
                 char_class_names = ", ".join(c.value for c in char_classes)
@@ -146,7 +146,7 @@ def validate_spell_for_character(
             # Use custom max cantrips
             max_cantrips = character.custom_max_cantrips
         else:
-            max_cantrips = get_max_cantrips(class_levels, ek_level)
+            max_cantrips = get_max_cantrips(class_levels, ek_level) + character.third_caster_extra_cantrips()
         
         if max_cantrips == 0 and not has_custom_class:
             # Only warn if not a custom class (custom class with 0 means unlimited)
@@ -155,12 +155,12 @@ def validate_spell_for_character(
                 f"cannot learn cantrips."
             )
         elif spell_manager is not None and max_cantrips > 0:
-            # Count current cantrips (excluding class feature spells like Mending for Artificer)
-            class_feature_spells = getattr(character, 'class_feature_spells', [])
+            # Count current cantrips (excluding the ones a class, subclass, species or feat gives)
+            granted = set(getattr(character, 'class_feature_spells', [])) | set(getattr(character, 'subclass_spells', []))
             current_cantrips = 0
             for known_spell_name in character.known_spells:
-                # Don't count class feature spells against the limit
-                if known_spell_name in class_feature_spells:
+                # Don't count granted spells against the limit
+                if known_spell_name in granted:
                     continue
                 known_spell = spell_manager.get_spell(known_spell_name)
                 if known_spell and known_spell.level == 0:

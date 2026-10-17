@@ -982,7 +982,11 @@ class FeatEditorDialog(ctk.CTkToplevel):
         toolbar.pack(fill="x", pady=(5, 5))
         
         self.desc_text.pack(fill="x", pady=(0, 10))
-        
+
+        from ui.roll_effects_editor import RollEffectsEditor
+        self.roll_editor = RollEffectsEditor(scroll)
+        self.roll_editor.pack(fill="x", pady=(0, 10))
+
         # Buttons
         btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(10, 0))
@@ -1036,6 +1040,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
             self.set_spells_entry.insert(0, ", ".join(feat.set_spells))
         
         self.desc_text.insert("1.0", feat.description)
+        self.roll_editor.set(feat.roll_effects)
 
     _REVIEW_FIELD_LABELS = {
         "name": "Name", "type": "Type", "prereq": "Prerequisite",
@@ -1164,9 +1169,10 @@ class FeatEditorDialog(ctk.CTkToplevel):
             source=source,
             is_official=False,
             is_custom=True,
-            is_legacy=False
+            is_legacy=False,
+            roll_effects=self.roll_editor.get()
         )
-        
+
         self.destroy()
 
 

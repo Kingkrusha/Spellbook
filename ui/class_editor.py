@@ -126,6 +126,10 @@ class FeatureEditorDialog(ctk.CTkToplevel):
             container, text="Is Subclass Feature (placeholder for subclass abilities)",
             variable=self.is_subclass_var, font=ui_font("body")
         ).pack(fill="x", pady=(0, 15))
+
+        from ui.roll_effects_editor import RollEffectsEditor
+        self.roll_editor = RollEffectsEditor(container)
+        self.roll_editor.pack(fill="x", pady=(0, 15))
         
         # Buttons
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -154,6 +158,7 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         self.title_entry.insert(0, feature.title)
         self.description_text.insert("1.0", feature.description)
         self.is_subclass_var.set(feature.is_subclass_feature)
+        self.roll_editor.set(feature.roll_effects)
     
     def _on_save(self):
         """Save the feature."""
@@ -176,7 +181,8 @@ class FeatureEditorDialog(ctk.CTkToplevel):
             description=description,
             is_subclass_feature=self.is_subclass_var.get(),
             subclass_name=subclass_name,
-            tables=tables
+            tables=tables,
+            roll_effects=self.roll_editor.get()
         )
         self.destroy()
 
@@ -1939,13 +1945,17 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
         toolbar.pack(fill="x", pady=(0, 5))
         
         self.description_text.pack(fill="both", expand=True, pady=(0, 15))
-        
+
+        from ui.roll_effects_editor import RollEffectsEditor
+        self.roll_editor = RollEffectsEditor(container)
+        self.roll_editor.pack(fill="x", pady=(0, 15))
+
         # Buttons
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
-        
+
         btn_text = self.theme.get_current_color('text_primary')
-        
+
         ctk.CTkButton(
             btn_frame, text="Cancel", width=100,
             fg_color=self.theme.get_current_color('button_normal'),
@@ -1953,7 +1963,7 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
             text_color=btn_text,
             command=self.destroy
         ).pack(side="right", padx=(10, 0))
-        
+
         ctk.CTkButton(
             btn_frame, text="Save", width=100,
             fg_color=self.theme.get_current_color('button_success'),
@@ -1961,25 +1971,26 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
             text_color=btn_text,
             command=self._on_save
         ).pack(side="right")
-    
+
     def _populate(self, feature: SubclassFeature):
         """Populate from existing feature."""
         self.level_var.set(str(feature.level))
         self.title_entry.insert(0, feature.title)
         self.description_text.insert("1.0", feature.description)
-    
+        self.roll_editor.set(feature.roll_effects)
+
     def _on_save(self):
         """Save the feature."""
         title = self.title_entry.get().strip()
         if not title:
             messagebox.showwarning("Warning", "Please enter a feature title.", parent=self)
             return
-        
+
         description = self.description_text.get("1.0", "end-1c").strip()
         if not description:
             messagebox.showwarning("Warning", "Please enter a description.", parent=self)
             return
-        
+
         # Preserve tables from original feature if editing
         tables = self._feature.tables if self._feature else []
         
@@ -1987,7 +1998,8 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
             level=int(self.level_var.get()),
             title=title,
             description=description,
-            tables=tables
+            tables=tables,
+            roll_effects=self.roll_editor.get()
         )
         self.destroy()
 
