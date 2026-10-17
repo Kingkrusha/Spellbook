@@ -16,7 +16,7 @@ class HomeView(ctk.CTkFrame):
     # (key, title, description, enabled)
     SECTIONS = [
         ("collections", "📚 Collections",
-         "View, sort and search databases of spells, classes, feats, lineages, backgrounds, equipment, magic items and monsters.", True),
+         "View, sort and search databases of spells, classes, feats, lineages, backgrounds, equipment, magic items, monsters and rules.", True),
         ("characters", "⚔️ Characters",
          "Your characters and their sheets. Create, sort, filter, import and export them.", True),
         ("game_tools", "🎲 Game Tools",

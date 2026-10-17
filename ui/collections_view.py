@@ -277,7 +277,7 @@ class CollectionsView(ctk.CTkFrame):
             ("📖 Backgrounds", "backgrounds", True, "Character background options"),
             ("🛡️ Equipment", "equipment", True, "Mundane items and gear"),
             ("👹 Monsters", "monsters", True, "Creature stat blocks"),
-            ("📚 Rules", "rules", False, "Game rules and references"),
+            ("📚 Rules", "rules", True, "Game rules and references, searchable by their text"),
         ]
         
         row = 0
@@ -373,7 +373,8 @@ class CollectionsView(ctk.CTkFrame):
             'Lineages': 'lineages',
             'Classes': 'classes',
             'Subclasses': 'classes',  # Subclasses navigate to classes
-            'Backgrounds': 'backgrounds'
+            'Backgrounds': 'backgrounds',
+            'Rules': 'rules'
         }
         
         nav_key = section_map.get(section, section.lower())
@@ -424,6 +425,8 @@ class CollectionsView(ctk.CTkFrame):
         get_magic_item_manager().load()
         from monster import get_monster_manager
         get_monster_manager().load()
+        from rules import get_rules_manager
+        get_rules_manager().load()
 
         # Reload spell manager if available
         if self.spell_manager:
@@ -530,7 +533,7 @@ class ImportDialog(ctk.CTkToplevel):
             info_frame,
             text="ℹ️ JSON files can contain any of these content types:\n"
                  "   • Spells (with summon stat blocks), Feats, Classes, Subclasses\n"
-                 "   • Lineages, Backgrounds, Equipment, Magic Items, Monsters\n"
+                 "   • Lineages, Backgrounds, Equipment, Magic Items, Monsters, Rules\n"
                  "   • Imported content is marked as custom (unofficial)\n"
                  "   • Official content is never overwritten: an entry with the\n"
                  "     same name as an official one is skipped and reported\n"

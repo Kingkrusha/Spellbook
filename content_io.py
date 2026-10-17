@@ -2,7 +2,7 @@
 One import/export path for user (unofficial) content.
 
 Every content kind the app stores - spells, feats, lineages, backgrounds,
-classes, subclasses, equipment, magic items and monsters - goes through the functions
+classes, subclasses, equipment, magic items, monsters and rules pages - goes through the functions
 here, so the Import/Export dialogs, the single-spell export and the managers'
 ``import_from_json`` helpers all behave the same way.
 
@@ -14,7 +14,7 @@ A UTF-8 JSON object. The header is optional (older exports and the bundled
     {"format": "spellbook-content", "version": 1, "exported_at": "...",
      "spells": [...], "feats": [...], "lineages": [...], "backgrounds": [...],
      "classes": [...], "subclasses": [...], "equipment": [...], "magic_items": [...],
-     "monsters": [...]}
+     "monsters": [...], "rules": [...]}
 
 Classes may also be a ``{"Name": {...}}`` dict (what ``classes.json`` and the
 old per-manager export used). Spells may carry a ``stat_blocks`` list (summon
@@ -63,13 +63,15 @@ KINDS: "OrderedDict[str, str]" = OrderedDict([
     ("equipment", "Equipment"),
     ("magic_items", "Magic Items"),
     ("monsters", "Monsters"),
+    ("rules", "Rules"),
 ])
 
 # Order shown to users (dialogs, summaries).
 DISPLAY_ORDER = ["spells", "feats", "classes", "subclasses", "lineages",
-                 "backgrounds", "equipment", "magic_items", "monsters"]
+                 "backgrounds", "equipment", "magic_items", "monsters", "rules"]
 
-# sweep category used for each kind (object_link_sweep / object_links)
+# sweep category used for each kind (object_link_sweep / object_links). Rules pages are not
+# here: their text is not swept for mentions (it is full of ordinary words).
 _LINK_CATEGORY = {
     "spells": "spell", "feats": "feat", "lineages": "lineage",
     "backgrounds": "background", "classes": "class", "subclasses": "subclass",
@@ -86,7 +88,7 @@ def label(kind: str) -> str:
 _SINGULAR = {
     "spells": "Spell", "feats": "Feat", "lineages": "Lineage", "backgrounds": "Background",
     "classes": "Class", "subclasses": "Subclass", "equipment": "Equipment item",
-    "magic_items": "Magic item", "monsters": "Monster",
+    "magic_items": "Magic item", "monsters": "Monster", "rules": "Rules page",
 }
 
 
@@ -180,6 +182,9 @@ def _mgr(kind: str):
     if kind == "monsters":
         from monster import get_monster_manager
         return get_monster_manager()
+    if kind == "rules":
+        from rules import get_rules_manager
+        return get_rules_manager()
     raise KeyError(kind)
 
 
@@ -207,6 +212,8 @@ def unofficial_objects(kind: str, spell_manager=None) -> list:
         return m.get_unofficial_subclasses()
     if kind == "monsters":
         return m.get_unofficial_monsters()
+    if kind == "rules":
+        return m.get_unofficial_rules()
     return m.get_unofficial_items()          # equipment, magic_items
 
 
@@ -455,7 +462,9 @@ def _build_universe(bundle: "OrderedDict[str, List[dict]]", spell_manager=None):
     # Spell-only summons are left out: they belong to their spell, not to prose
     names["monster"].update(m.name for m in _mgr("monsters").monsters if not m.spell_only)
     for kind, recs in bundle.items():
-        cat = _LINK_CATEGORY[kind]
+        cat = _LINK_CATEGORY.get(kind)
+        if cat is None:
+            continue
         for r in recs:
             if isinstance(r, dict) and r.get("name"):
                 if kind == "equipment" and "Mount" in (r.get("tags") or []):
@@ -516,6 +525,7 @@ _SIMPLE = {
     "equipment": ("equipment", "Equipment", "get_item", "add_item"),
     "magic_items": ("magic_item", "MagicItem", "get_item", "add_item"),
     "monsters": ("monster", "Monster", "get_monster", "add_monster"),
+    "rules": ("rules", "RulePage", "get_rule", "add_rule"),
 }
 
 

@@ -45,6 +45,15 @@ _IGNORED_KEYSYMS = {
 }
 
 
+_rule_opener: Optional[Callable[[str], None]] = None
+
+
+def set_rule_opener(opener: Optional[Callable[[str], None]]):
+    """Register what "Open in Rules" does (the main window opens a Rules tab on that page)."""
+    global _rule_opener
+    _rule_opener = opener
+
+
 def open_link_popup(parent, category: str, name: str):
     """Open the right popup for an existing (category, name) link, or warn if
     the target can no longer be found (renamed/deleted since the link was made)."""
@@ -82,8 +91,8 @@ class LinkPopup(ctk.CTkToplevel):
         self.target = target
         self.obj = target.get_object()
 
-        big = target.category in ("class", "subclass", "monster")
-        self.title(target.name)
+        big = target.category in ("class", "subclass", "monster", "rule")
+        self.title(target.label)
         self.geometry("560x680" if big else "480x520")
         self.minsize(420, 380)
         self.resizable(True, True)
@@ -99,6 +108,9 @@ class LinkPopup(ctk.CTkToplevel):
 
     def _build(self):
         theme = self.theme
+        if self.target.category == "rule" and self.obj is not None:
+            self._build_rule()
+            return
         scroll = ctk.CTkScrollableFrame(self, fg_color=theme.get_current_color('bg_primary'))
         scroll.pack(fill="both", expand=True, padx=15, pady=15)
 
@@ -140,6 +152,38 @@ class LinkPopup(ctk.CTkToplevel):
             renderer(scroll)
         else:
             self._render_description(scroll, getattr(self.obj, "description", ""))
+
+    def _build_rule(self):
+        """A rules page or section: its text in the same viewer the Rules page uses."""
+        from ui.rule_text import RuleTextView
+        theme = self.theme
+        ref = self.obj
+        outer = ctk.CTkFrame(self, fg_color=theme.get_current_color('bg_primary'))
+        outer.pack(fill="both", expand=True, padx=8, pady=8)
+        head = ctk.CTkFrame(outer, fg_color="transparent")
+        head.pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(head, text=ref.title, font=ui_font("title", 22, bold=True),
+                     wraplength=440, justify="left", anchor="w").pack(anchor="w", pady=(0, 4))
+        badges = ctk.CTkFrame(head, fg_color="transparent")
+        badges.pack(anchor="w")
+        ctk.CTkLabel(badges, text="Rules", font=ui_font("small"),
+                     fg_color=theme.get_current_color('accent_primary'), corner_radius=5,
+                     padx=8, pady=2).pack(side="left", padx=(0, 6))
+        where = ref.page.name if ref.section is not None else ref.page.category
+        if where:
+            ctk.CTkLabel(badges, text=where, font=ui_font("small"),
+                         text_color=theme.get_text_secondary()).pack(side="left")
+        if _rule_opener is not None:
+            ctk.CTkButton(
+                head, text="Open in Rules", width=120, height=28,
+                fg_color=theme.get_current_color('button_normal'),
+                hover_color=theme.get_current_color('button_hover'),
+                text_color=theme.get_current_color('text_primary'),
+                command=lambda: (_rule_opener(ref.name), self.destroy()),
+            ).pack(anchor="w", pady=(8, 0))
+        view = RuleTextView(outer, on_link=lambda cat, name: open_link_popup(self, cat, name))
+        view.pack(fill="both", expand=True, pady=(6, 0))
+        view.set_markup(ref.description)
 
     # ---- shared pieces ---------------------------------------------------
 
@@ -340,7 +384,7 @@ class LinkSuggestionPopup(ctk.CTkToplevel):
         for target in matches:
             row = ctk.CTkButton(
                 body, anchor="w",
-                text=f"{target.name}   ({target.category_label}"
+                text=f"{target.label}   ({target.category_label}"
                      f"{' · ' + target.subtitle if target.subtitle else ''})",
                 fg_color="transparent",
                 hover_color=self.theme.get_current_color('accent_primary'),
@@ -726,7 +770,7 @@ class LinkAwareText:
             # Correct what was typed to the object's real name, e.g. "fire"
             # -> "Fire Bolt" (case-preserving substring is not attempted -
             # the point is to end up with the canonical name on screen).
-            display = target.name
+            display = target.label
         self._materializing = True
         try:
             self._orig_delete(start, end)

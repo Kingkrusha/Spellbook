@@ -21,7 +21,7 @@ from ui.lazy_view import LazyView
 
 # Collections a tab can be showing (also what a restored tab may reopen on)
 COLLECTION_KEYS = ("spells", "classes", "feats", "lineages", "backgrounds",
-                   "equipment", "magic_items", "monsters")
+                   "equipment", "magic_items", "monsters", "rules")
 
 # Pause between startup preload steps, so the window stays responsive
 PRELOAD_STEP_GAP_MS = 350
@@ -121,6 +121,10 @@ class MainWindow(ctk.CTkFrame):
         handle_budget.set_reclaimer(self._make_headroom)
         self.after(2500, self._budget_tick)
 
+        # Rule links in popups ("Open in Rules") open a Rules tab
+        from ui.object_link_widgets import set_rule_opener
+        set_rule_opener(self.open_rule)
+
         # Check GitHub for a newer release (silent, background, best-effort;
         # only opens a browser link - never downloads or installs anything).
         self.after(4000, self._maybe_check_for_updates)
@@ -175,6 +179,8 @@ class MainWindow(ctk.CTkFrame):
             steps.append(("equipment", lambda: self._preload_sub_view("equipment")))
         if getattr(settings, 'preload_magic_items', True):
             steps.append(("magic items", lambda: self._preload_sub_view("magic_items")))
+        if getattr(settings, 'preload_rules', True):
+            steps.append(("rules", lambda: self._preload_sub_view("rules")))
         if settings.preload_character_sheets:
             steps.append(("character sheets", self._preload_character_sheets))
         self._run_preload_steps(steps)
@@ -1239,12 +1245,14 @@ class MainWindow(ctk.CTkFrame):
         "equipment": ("ui.equipment_view", "EquipmentView"),
         "magic_items": ("ui.magic_item_view", "MagicItemView"),
         "monsters": ("ui.monster_view", "MonsterView"),
+        "rules": ("ui.rules_view", "RulesView"),
     }
     # Method each page has for selecting an item by name
     SUB_VIEW_SELECTORS = {
         "spells": "select_spell", "classes": "select_class", "feats": "select_feat",
         "lineages": "select_lineage", "backgrounds": "select_background",
         "equipment": "select_item", "magic_items": "select_item", "monsters": "select_monster",
+        "rules": "select_rule",
     }
     # How long each page needs to finish rendering before an item can be selected in it
     SUB_VIEW_SELECT_DELAY_MS = {"spells": 100, "classes": 300}
@@ -1380,7 +1388,8 @@ class MainWindow(ctk.CTkFrame):
             'classes': 'Classes',
             'equipment': 'Equipment',
             'magic_items': 'Magic Items',
-            'monsters': 'Monsters'
+            'monsters': 'Monsters',
+            'rules': 'Rules'
         }
 
         if item_name and collection_key == 'classes':
@@ -1390,6 +1399,12 @@ class MainWindow(ctk.CTkFrame):
             tab_name = name_map.get(collection_key, 'Collections')
 
         self.tab_bar.update_tab_text(tab_id, tab_name)
+
+    def open_rule(self, name: str):
+        """Open a rules page (``Page`` or ``Page#Section``) in a new tab, next to the current one."""
+        index = self.tab_bar.get_tab_index(self._current_tab_id) + 1 if self._current_tab_id else None
+        tab_id = self._open_page_in_new_tab("collections", index=index)
+        self._navigate_to_collection_in_tab(tab_id, "rules", name)
 
     def _navigate_to_spell(self, spell_name: str):
         """Open a spell in a new Spells tab (so the sheet it was clicked from stays put)."""
@@ -1440,9 +1455,9 @@ class MainWindow(ctk.CTkFrame):
         # Light/dark switched: re-resolve every role-tagged colour on screen
         restyle_app()
 
-        # Update theme-dependent widgets that use tk (not ctk) on the spell pages
+        # Update theme-dependent widgets that use tk (not ctk) on the spell pages and the rules text
         for key, view in self._all_sub_views():
-            if key == "spells":
+            if key in ("spells", "rules"):
                 view.apply_theme()
 
     def _on_theme_changed(self):
@@ -1452,9 +1467,9 @@ class MainWindow(ctk.CTkFrame):
         # widgets that never passed an explicit colour)
         restyle_app()
 
-        # Update widgets that rely on TK colors or CTkFrame backgrounds (spell pages)
+        # Update widgets that rely on TK colors or CTkFrame backgrounds (spell pages, rules text)
         for key, view in self._all_sub_views():
-            if key == "spells":
+            if key in ("spells", "rules"):
                 view.apply_theme()
 
         # Update root and main frame backgrounds so transparent widgets reflect the theme

@@ -53,6 +53,8 @@ class SettingsView(ctk.CTkFrame):
             value=getattr(settings_manager.settings, 'preload_equipment', True))
         self._preload_magic_items_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'preload_magic_items', True))
+        self._preload_rules_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'preload_rules', True))
         self._preload_sheets_var = ctk.BooleanVar(value=settings_manager.settings.preload_character_sheets)
 
         # Object linking - as-you-type suggestions, per content category. The
@@ -74,6 +76,8 @@ class SettingsView(ctk.CTkFrame):
             value=not getattr(settings_manager.settings, 'link_suggest_magic_items', True))
         self._link_disable_monsters_var = ctk.BooleanVar(
             value=not getattr(settings_manager.settings, 'link_suggest_monsters', True))
+        self._link_disable_rules_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_rules', False))
         self._link_autocomplete_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'link_autocomplete_names', True))
 
@@ -823,6 +827,14 @@ class SettingsView(ctk.CTkFrame):
 
         self._create_toggle_row(
             loading_content,
+            "Preload Rules",
+            self._preload_rules_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+
+        self._create_toggle_row(
+            loading_content,
             "Preload Character Sheet Data",
             self._preload_sheets_var,
             self._on_setting_change,
@@ -896,6 +908,10 @@ class SettingsView(ctk.CTkFrame):
         self._create_toggle_row(
             linking_content, "Disable linking suggestions for Monsters",
             self._link_disable_monsters_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Rules (on by default: rules terms are everyday words)",
+            self._link_disable_rules_var, self._on_setting_change, pady=(10, 0),
         )
 
         sep = ctk.CTkFrame(linking_content, fg_color=self.theme_manager.get_current_color('bg_tertiary'), height=1)
@@ -1087,6 +1103,7 @@ class SettingsView(ctk.CTkFrame):
             preload_backgrounds=self._preload_backgrounds_var.get(),
             preload_equipment=self._preload_equipment_var.get(),
             preload_magic_items=self._preload_magic_items_var.get(),
+            preload_rules=self._preload_rules_var.get(),
             preload_character_sheets=self._preload_sheets_var.get(),
             auto_check_updates=self._auto_check_updates_var.get(),
             restore_tabs=self._restore_tabs_var.get(),
@@ -1098,6 +1115,7 @@ class SettingsView(ctk.CTkFrame):
             link_suggest_equipment=not self._link_disable_equipment_var.get(),
             link_suggest_magic_items=not self._link_disable_magic_items_var.get(),
             link_suggest_monsters=not self._link_disable_monsters_var.get(),
+            link_suggest_rules=not self._link_disable_rules_var.get(),
             link_autocomplete_names=self._link_autocomplete_var.get(),
             show_spell_only_summons=self._show_spell_only_summons_var.get(),
         )
@@ -1226,6 +1244,7 @@ class SettingsView(ctk.CTkFrame):
         self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
         self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
         self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
+        self._link_disable_rules_var.set(not getattr(settings, 'link_suggest_rules', False))
         self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
         self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 
@@ -1268,6 +1287,7 @@ class SettingsView(ctk.CTkFrame):
         self._preload_backgrounds_var.set(settings.preload_backgrounds)
         self._preload_equipment_var.set(getattr(settings, 'preload_equipment', True))
         self._preload_magic_items_var.set(getattr(settings, 'preload_magic_items', True))
+        self._preload_rules_var.set(getattr(settings, 'preload_rules', True))
         self._preload_sheets_var.set(settings.preload_character_sheets)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
         self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
@@ -1279,6 +1299,7 @@ class SettingsView(ctk.CTkFrame):
         self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
         self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
         self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
+        self._link_disable_rules_var.set(not getattr(settings, 'link_suggest_rules', False))
         self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
         self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 

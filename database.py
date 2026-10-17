@@ -17,7 +17,7 @@ class SpellDatabase:
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 30  # bundled legacy (2014) content
+    SCHEMA_VERSION = 31  # bundled rules pages
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -501,6 +501,15 @@ class SpellDatabase:
                 cursor.execute("UPDATE schema_version SET version = 30")
                 current_version = 30
 
+        # Migration to version 31: add the bundled rules pages (rules.json, the
+        # Free Basic Rules). Inserted by name and only if the name is missing, so
+        # a user's own page - or an edit - is never touched. Idempotent, and
+        # retried on the next launch if seeding can't run.
+        if current_version < 31:
+            if self._seed_official_rules(cursor):
+                cursor.execute("UPDATE schema_version SET version = 31")
+                current_version = 31
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -598,6 +607,25 @@ class SpellDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_name ON magic_items(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_type ON magic_items(type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_rarity ON magic_items(rarity)")
+
+        # Rules pages (the rulebook text; one markup string per page, see rules.py)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                category TEXT DEFAULT '',
+                description TEXT DEFAULT '',
+                source TEXT DEFAULT '',
+                tags_json TEXT DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_name ON rules(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON rules(category)")
 
         # Monsters table (creature stat blocks). Plain values get their own
         # column; lists / dicts are stored as JSON (see _MONSTER_SCALARS/_JSONS).
@@ -1375,6 +1403,9 @@ class SpellDatabase:
         # Bundled monsters (shared with the v28 backfill migration)
         self._seed_official_monsters(cursor)
 
+        # Bundled rules pages (shared with the v31 backfill migration)
+        self._seed_official_rules(cursor)
+
         # Migrate backgrounds (shared with the v23 backfill migration)
         self._seed_backgrounds(cursor)
 
@@ -1611,6 +1642,48 @@ class SpellDatabase:
         
         return count
     
+    def _seed_official_rules(self, cursor) -> bool:
+        """Insert the bundled rules.json pages whose name is not in the table.
+
+        Idempotent (existing rows - user edits or homebrew pages that reuse a
+        name - are left alone), so it serves both a fresh database and the
+        backfill migration. Returns True on success.
+        """
+        import os
+        path = self._bundled_json_path('rules.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                records = json.load(f).get('rules', [])
+            added = 0
+            for rec in records:
+                name = (rec.get('name') or '').strip()
+                if not name:
+                    continue
+                cursor.execute("SELECT 1 FROM rules WHERE name = ? COLLATE NOCASE", (name,))
+                if cursor.fetchone():
+                    continue
+                cursor.execute("""
+                    INSERT INTO rules (name, category, description, source, tags_json, sort_order,
+                                       is_official, is_custom)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+                """, (
+                    name,
+                    rec.get('category', ''),
+                    rec.get('description', ''),
+                    rec.get('source', ''),
+                    json.dumps(rec.get('tags', [])),
+                    int(rec.get('order', 0) or 0),
+                ))
+                added += 1
+            if added:
+                print(f"Seeded {added} rules pages")
+            return True
+        except Exception as e:
+            print(f"Error seeding rules (will retry next launch): {e}")
+            return False
+
     def _seed_official_monsters(self, cursor) -> bool:
         """Insert the bundled monsters.json records whose name is not in the table.
 
@@ -2714,6 +2787,85 @@ class SpellDatabase:
             return value if isinstance(value, list) else []
         except (ValueError, TypeError):
             return []
+
+    # ==================== RULES METHODS ====================
+
+    def get_all_rules(self) -> List[dict]:
+        """All rules pages, in book order (the user's own after them)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM rules ORDER BY (sort_order = 0), sort_order, name COLLATE NOCASE")
+            return [self._row_to_rule_dict(row) for row in cursor.fetchall()]
+
+    def get_rule_by_name(self, name: str) -> Optional[dict]:
+        """A rules page by name (case-insensitive)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM rules WHERE name = ? COLLATE NOCASE", (name,))
+            row = cursor.fetchone()
+            return self._row_to_rule_dict(row) if row else None
+
+    def insert_rule(self, data: dict) -> int:
+        """Insert a new rules page."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO rules (name, category, description, source, tags_json, sort_order,
+                                   is_official, is_custom)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data['name'],
+                data.get('category', ''),
+                data.get('description', ''),
+                data.get('source', ''),
+                json.dumps(data.get('tags', [])),
+                int(data.get('order', 0) or 0),
+                1 if data.get('is_official', True) else 0,
+                1 if data.get('is_custom', False) else 0,
+            ))
+            return cursor.lastrowid or 0
+
+    def update_rule(self, rule_id: int, data: dict) -> bool:
+        """Update an existing rules page."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE rules SET name = ?, category = ?, description = ?, source = ?, tags_json = ?,
+                sort_order = ?, is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                data['name'],
+                data.get('category', ''),
+                data.get('description', ''),
+                data.get('source', ''),
+                json.dumps(data.get('tags', [])),
+                int(data.get('order', 0) or 0),
+                1 if data.get('is_official', True) else 0,
+                1 if data.get('is_custom', False) else 0,
+                rule_id,
+            ))
+            return cursor.rowcount > 0
+
+    def delete_rule(self, rule_id: int) -> bool:
+        """Delete a rules page by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM rules WHERE id = ?", (rule_id,))
+            return cursor.rowcount > 0
+
+    def _row_to_rule_dict(self, row) -> dict:
+        """Convert a database row to a rules page dictionary."""
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'category': row['category'] or '',
+            'description': row['description'] or '',
+            'source': row['source'] or '',
+            'tags': self._safe_json_list(row, 'tags_json'),
+            'order': row['sort_order'] or 0,
+            'is_official': bool(row['is_official']),
+            'is_custom': bool(row['is_custom']),
+        }
 
     # ==================== MAGIC ITEM METHODS ====================
 

@@ -15,6 +15,7 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
 - **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic. The spells section of a character sheet shows the **spell attack modifier** and **spell save DC** at the top (linked magic items counted), has a **+ Add Spells** button that opens a searchable dialog (with a switch for *only spells this character can learn*: their class lists, up to the highest level they can cast, plus a Warlock patron's expanded spells) and a **Granted Spells** button for the spells their species, feats and features give. Right-clicking a spell in the collection and choosing *Add to Spell List* offers a searchable list of characters
 - **Stat Blocks**: Attach creature stat blocks to summoning spells
+- **Rules**: The Free Basic Rules (2024) as 67 pages (`rules.json`): Playing the Game, Character Creation, Equipment, Spells, the Rules Glossary, the Gameplay Toolbox (travel, hazards, traps, poison), Magic Items and the stat block rules. The glossary's conditions, hazards, areas of effect and action definitions have pages of their own (**Conditions**, **Hazards**, **Areas of Effect**, **Actions**). Search reads the *text* of the pages, not just their names, and ranks by relevance: a page's name beats a heading, which beats a tag, which beats the words in a section. Searching *Stunned* opens **Conditions** at its *Stunned* section with every use of the word lit up (▲/▼ step through the matches); half-typed words, plurals and endings (*stun*, *grappling*, *paralyze*) match, every word of a search has to be on the page, `"quoted words"` must appear together, and *Titles only* leaves the text out. Filter by category (the book's chapters), tag, source and official/homebrew. The **Jump to section...** list and the cross-reference links (and **Back**) move around a page; the whole thing is also in the Collections global search. Add your own pages (a `#` heading line starts a section; bold, italic, bullets, tables and links work) and import/export them like other homebrew. `[[rule:Conditions#Stunned]]` links to a page or a section from any description (suggestions for rules are off by default, as rules terms are everyday words: Settings > Linking)
 - **Collections Browser**: Browse official Lineages, Feats, Classes, Subclasses, and Backgrounds with global search
 - **Legacy (2014) content**: The 2014 rules are bundled too (`legacy_2014.json`: spells, feats, species, backgrounds, classes and subclasses from the published 5e books, all flagged Legacy). A 2014 entry whose name 2024 content already uses is stored as `Name (Legacy)` (for example *Fireball (Legacy)*, *Fighter (Legacy)*); browsing lists show each spell, feat, species, background and class once, and the **Source** line of its page is a drop-down that switches between its versions (the 2024 one, the 2014 one, or a 2014 book's update such as Monsters of the Multiverse). The Legacy content setting (Settings) decides which versions are offered: everything, none, only 2014, or *Show Unupdated* (2014 versions only where there is no 2024 one)
 - **Import/Export**: Import and export custom content (homebrew) as JSON files
@@ -337,6 +338,7 @@ Spellbook/
 ├── feat.py                 # Feat data model and manager
 ├── background.py           # Background data model and manager
 ├── monster.py              # Monster (creature stat block) data model and manager
+├── rules.py                # Rules pages: sections, the relevance-ranked text search, manager (no UI)
 ├── stat_block.py           # Named trait/action entries used by monsters
 ├── spell_slots.py          # Spell slot calculations by class/level
 ├── validation.py           # Spell validation for characters
@@ -352,6 +354,8 @@ Spellbook/
 │   ├── characters_view.py  # Characters page: search, filter, sort, open, delete
 │   ├── character_transfer.py # Character import/export (JSON)
 │   ├── global_search.py    # Global search bar for collections
+│   ├── rules_view.py       # Rules page: search, filters, page list, detail with section jump, editor
+│   ├── rule_text.py        # One-widget viewer for a rules page: headings, lists, links, laid-out tables, match highlights
 │   ├── collections_view.py # Collections browser with content import/export
 │   ├── spells_view.py      # Spells page (search, filters, list, detail, compare) - one per tab
 │   ├── lazy_destroy.py     # Takes old pages apart in small slices so the window never freezes

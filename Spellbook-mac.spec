@@ -61,10 +61,11 @@ a = Analysis(
         ('tools', 'tools'),
         ('Spellbook Icon.png', '.'),
     ] + [
-        (f, '.') for f in ('magic_items.json', 'monsters.json', 'legacy_2014.json')
+        (f, '.') for f in ('magic_items.json', 'monsters.json', 'rules.json', 'legacy_2014.json')
         if os.path.exists(os.path.join(SPECPATH, f))
     ],
-    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data']
+    hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data',
+                      'rules', 'ui.rules_view', 'ui.rule_text']
                   + _LAN_IMPORTS,
     hookspath=[],
     hooksconfig={},
