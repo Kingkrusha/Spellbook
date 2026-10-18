@@ -1231,15 +1231,29 @@ class MainWindow(ctk.CTkFrame):
     # the page it is showing (info['sub_view'], kept while the tab stays on that collection),
     # so tabs never share a selection, filters or scroll position.
 
-    SUB_VIEW_CLASSES = {
-        "classes": ("ui.classes_view", "ClassesCollectionView"),
-        "feats": ("ui.feats_view", "FeatsView"),
-        "lineages": ("ui.lineages_view", "LineagesView"),
-        "backgrounds": ("ui.backgrounds_view", "BackgroundsView"),
-        "equipment": ("ui.equipment_view", "EquipmentView"),
-        "magic_items": ("ui.magic_item_view", "MagicItemView"),
-        "monsters": ("ui.monster_view", "MonsterView"),
-    }
+    @staticmethod
+    def _sub_view_class(key: str):
+        """The page class for a collection. These are plain imports, not importlib.import_module
+        on a string: PyInstaller only bundles modules it can see imported, so a string-built
+        import left every page but Spells/Feats/Monsters out of the packaged app."""
+        if key == "classes":
+            from ui.classes_view import ClassesCollectionView as view_class
+        elif key == "feats":
+            from ui.feats_view import FeatsView as view_class
+        elif key == "lineages":
+            from ui.lineages_view import LineagesView as view_class
+        elif key == "backgrounds":
+            from ui.backgrounds_view import BackgroundsView as view_class
+        elif key == "equipment":
+            from ui.equipment_view import EquipmentView as view_class
+        elif key == "magic_items":
+            from ui.magic_item_view import MagicItemView as view_class
+        elif key == "monsters":
+            from ui.monster_view import MonsterView as view_class
+        else:
+            raise KeyError(key)
+        return view_class
+
     # Method each page has for selecting an item by name
     SUB_VIEW_SELECTORS = {
         "spells": "select_spell", "classes": "select_class", "feats": "select_feat",
@@ -1259,9 +1273,7 @@ class MainWindow(ctk.CTkFrame):
             from ui.spells_view import SpellsView
             return SpellsView(self, self.spell_manager, self.character_manager,
                               self.settings_manager, on_back=self._back_to_collections)
-        import importlib
-        module, class_name = self.SUB_VIEW_CLASSES[key]
-        view_class = getattr(importlib.import_module(module), class_name)
+        view_class = self._sub_view_class(key)
         if key == "classes":
             return view_class(self, on_back=self._back_to_collections)
         return view_class(self, character_manager=self.character_manager,
