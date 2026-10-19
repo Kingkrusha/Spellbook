@@ -176,7 +176,15 @@ def test_the_spell_panel_shows_the_spell_attack_and_save_dc(tk_root, spells):
     panel.set_character(c)
     pump(tk_root, 0.2)
     texts = labels(panel.stats_frame)
-    assert "+7" in texts and "15" in texts and "Spell attack" in texts and "Spell save DC" in texts
+    values = []
+
+    def entries(widget):
+        for child in widget.winfo_children():
+            if isinstance(child, ctk.CTkEntry):
+                values.append(child.get())
+            entries(child)
+    entries(panel.stats_frame)
+    assert values == ["+7", "15"] and "Spell attack" in texts and "Spell save DC" in texts
     assert any("War Mage" in t for t in texts)
     assert "Wizard • INT" in texts
     assert panel.add_btn.winfo_manager() == "pack"

@@ -949,9 +949,37 @@ class SpellStat:
     """A spellcasting ability's numbers: the spell attack modifier and the spell save DC."""
     label: str                         # "Wizard", "Cleric / Druid", "Species and feat spells"
     ability: str                       # "INT"
-    attack: int
+    attack: int                        # what is shown: the number typed on the sheet, else the automatic one
     dc: int
     notes: List[str] = field(default_factory=list)       # what magic items add, or why they do not count
+    auto_attack: Optional[int] = None  # what the rules give, whatever was typed (None: the same as shown)
+    auto_dc: Optional[int] = None
+    attack_parts: List[str] = field(default_factory=list)  # "+3 proficiency", "+4 Intelligence", "+1 Wand of ..."
+    dc_parts: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.auto_attack is None:
+            self.auto_attack = self.attack
+        if self.auto_dc is None:
+            self.auto_dc = self.dc
+
+    @property
+    def attack_manual(self) -> bool:
+        return self.attack != self.auto_attack
+
+    @property
+    def dc_manual(self) -> bool:
+        return self.dc != self.auto_dc
+
+    def attack_tip(self) -> str:
+        if self.attack_manual:
+            return f"Manually set\nAuto detection: {self.auto_attack:+d}\n(Clear the box to go back to automatic.)"
+        return "Spell attack modifier\n" + ", ".join(self.attack_parts)
+
+    def dc_tip(self) -> str:
+        if self.dc_manual:
+            return f"Manually set\nAuto detection: {self.auto_dc}\n(Clear the box to go back to automatic.)"
+        return "Spell save DC\n" + ", ".join(self.dc_parts)
 
 
 def spell_numbers(character, sheet, lookups: Optional[Lookups] = None, extra_casters: bool = False) -> List[SpellStat]:
@@ -968,7 +996,15 @@ def spell_numbers(character, sheet, lookups: Optional[Lookups] = None, extra_cas
         best = max(("INT", "WIS", "CHA"), key=lambda a: ctx.mod(a))
         casters = [("Species and feat spells", best)]
     for name, ability in casters:
-        stat = SpellStat(name, ability, ctx.spell_attack_bonus(ability, name), ctx.spell_dc(ability, name))
+        auto_attack = ctx.spell_attack_bonus(ability, name, raw=True)
+        auto_dc = ctx.spell_dc(ability, name, raw=True)
+        typed = getattr(sheet, "stat_overrides", {})
+        stat = SpellStat(name, ability, int(typed.get(f"spell_attack:{ability}", auto_attack)),
+                         int(typed.get(f"spell_dc:{ability}", auto_dc)), auto_attack=auto_attack, auto_dc=auto_dc)
+        full = {"STR": "Strength", "DEX": "Dexterity", "CON": "Constitution", "INT": "Intelligence", "WIS": "Wisdom",
+                "CHA": "Charisma"}.get(ability, ability)
+        stat.attack_parts = [f"{ctx.prof:+d} proficiency", f"{ctx.mod(ability):+d} {full}"]
+        stat.dc_parts = ["8", f"{ctx.prof:+d} proficiency", f"{ctx.mod(ability):+d} {full}"]
         for it in items:
             if not (it.spell_attack or it.spell_dc):
                 continue
@@ -977,6 +1013,10 @@ def spell_numbers(character, sheet, lookups: Optional[Lookups] = None, extra_cas
             bonus = f"+{it.spell_attack} attack, +{it.spell_dc} DC"
             if it in ctx.active_items:
                 stat.notes.append(f"{it.name}: {bonus}")
+                if it.spell_attack:
+                    stat.attack_parts.append(f"{it.spell_attack:+d} {it.name}")
+                if it.spell_dc:
+                    stat.dc_parts.append(f"{it.spell_dc:+d} {it.name}")
             else:
                 stat.notes.append(f"{it.name}: {bonus} (not counted: {it.reason or 'not usable'})")
         for other in entries:

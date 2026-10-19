@@ -188,8 +188,9 @@ class CollectionsView(ctk.CTkFrame):
     """Main collections hub with buttons for different content types."""
     
     def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[..., None]] = None,
-                 on_home: Optional[Callable[[], None]] = None):
+                 on_home: Optional[Callable[[], None]] = None, on_open_studio: Optional[Callable[[], None]] = None):
         super().__init__(parent, fg_color="transparent")
+        self.on_open_studio = on_open_studio
 
         self.spell_manager = spell_manager
         self.on_navigate = on_navigate  # Callback for navigation to sub-pages
@@ -227,6 +228,15 @@ class CollectionsView(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         btn_frame.pack(side="right")
         
+        if self.on_open_studio:
+            ctk.CTkButton(
+                btn_frame, text="🛠 Homebrew Studio",
+                width=150,
+                fg_color=self.theme.get_current_color('accent_primary'),
+                hover_color=self.theme.get_current_color('accent_secondary'),
+                command=self.on_open_studio
+            ).pack(side="left", padx=5)
+
         # Content import/export
         ctk.CTkButton(
             btn_frame, text="📥 Import",

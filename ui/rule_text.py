@@ -16,6 +16,7 @@ from __future__ import annotations
 import bisect
 import re
 import tkinter as tk
+import tkinter.font as tkfont
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -40,13 +41,15 @@ class Seg:
 
 
 _PLACEHOLDER_BASE = 0xE000          # a private-use character stands in for each link while emphasis is parsed
-_DELIM_RE = re.compile(r"\*\*|\*")
+_DELIM_RE = re.compile(r"\*\*|\*|(?<!_)_(?!_)")      # a run of underscores ("Name: ____") is not emphasis
+_BAR_RE = re.compile(r"-{3,}")                           # a line of its own: a horizontal bar
 _OPENERS_BEFORE_ITALIC = set("([{\"“‘'—–-/")
 
 
 def inline_segments(text: str) -> List[Seg]:
-    """Split markup into styled segments. ``**bold**``, ``*italic*`` and ``[[links]]`` (which may sit
-    inside emphasis); an asterisk that does not open and close a span ("Value*") stays as it is."""
+    """Split markup into styled segments. ``**bold**``, ``*italic*`` / ``_italic_`` and ``[[links]]``
+    (which may sit inside emphasis); an asterisk that does not open and close a span ("Value*")
+    stays as it is."""
     links: List[str] = []
 
     def hide(m):
@@ -296,6 +299,8 @@ class RuleTextView(ctk.CTkFrame):
         t.tag_configure("b", foreground=self._color("text_label"))
         t.tag_configure("link", foreground=self._color("spell_link"), underline=True)
         t.tag_configure("kind", foreground=self._color("text_secondary"))
+        for tag in ("bar1", "bar2", "hr"):
+            t.tag_configure(tag, background=self._color("scrollbar_thumb"))
         t.tag_configure("hit", background=self._color("level_9"), foreground=self._color("text_primary"))
         t.tag_configure("hit_current", background=self._color("accent_primary"),
                         foreground=self._color("text_on_accent"))
@@ -339,6 +344,15 @@ class RuleTextView(ctk.CTkFrame):
         t.tag_configure("li", spacing3=3)
         t.tag_configure("kind", font=ui_font("small", max(9, size - 1), italic=True))
         t.tag_configure("gap", font=ui_font("body", 4), spacing1=0, spacing3=0)
+        # bars: the line is as tall as its font, so the font is tiny; the spacing is the air around it
+        # (fonts sized in pixels, so a line is a couple of pixels tall whatever the text-size setting)
+        # (spacing around a line is painted with the line's background, so the air is separate lines)
+        self._bar_fonts = [tkfont.Font(root=self.text, size=-px) for px in (3, 2, 3, 5, 9)]
+        t.tag_configure("bar1", font=self._bar_fonts[0], spacing1=0, spacing3=0)
+        t.tag_configure("bar2", font=self._bar_fonts[1], spacing1=0, spacing3=0)
+        t.tag_configure("hr", font=self._bar_fonts[2], spacing1=0, spacing3=0)
+        t.tag_configure("air", font=self._bar_fonts[3], spacing1=0, spacing3=0)
+        t.tag_configure("air_big", font=self._bar_fonts[4], spacing1=0, spacing3=0)
         for tag in ("t_head", "t_odd", "t_even"):
             t.tag_configure(tag, wrap="none", spacing1=2, spacing3=2, lmargin1=self.TABLE_INDENT,
                             lmargin2=self.TABLE_INDENT, font=self._f_table)
@@ -387,6 +401,8 @@ class RuleTextView(ctk.CTkFrame):
             if m:
                 section += 1
                 self._insert_heading(len(m.group(1)), m.group(2), section)
+            elif single and _BAR_RE.fullmatch(block.strip()):
+                self._insert_bar("hr")
             elif block.lstrip().startswith("|") and parse_table(block):
                 headers, rows = parse_table(block)
                 self._insert_table(headers, rows)
@@ -446,6 +462,14 @@ class RuleTextView(ctk.CTkFrame):
         if kind:
             t.insert("end", f"   {kind}", (f"h{min(level, 4)}", "kind"))
         t.insert("end", "\n", (f"h{min(level, 4)}",))
+        self._insert_bar("bar1" if level <= 2 else "bar2")        # the line under a heading
+
+    def _insert_bar(self, tag: str):
+        """A horizontal bar across the page: a line of tiny text with a coloured background."""
+        if tag == "hr":
+            self.text.insert("end", "\n", ("air_big",))
+        self.text.insert("end", "\n", (tag,))
+        self.text.insert("end", "\n", ("air_big" if tag == "hr" else "air",))
 
     def _insert_paragraph(self, block: str):
         self._insert_segments(link_segments(block), ("p",))

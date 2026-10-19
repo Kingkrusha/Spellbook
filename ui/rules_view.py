@@ -22,6 +22,7 @@ from ui.rule_text import RuleTextView
 from ui.scrollable_combobox import ScrollableComboBox
 from ui.tag_editor import TagEditor
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 ALL_CATEGORIES = "All Categories"
 DEFAULT_CATEGORY_TEXT = "Homebrew"
@@ -236,8 +237,8 @@ class RuleDetailPanel(ctk.CTkFrame):
             self.text_view.scroll_to_section(index)
 
 
-class RuleEditorDialog(ctk.CTkToplevel):
-    """Dialog for adding or editing the user's own rules page."""
+class RuleEditorBody:
+    """Dialog for adding or editing the user's own rules page. (the form; see ui/editor_host.py)"""
 
     def __init__(self, parent, title: str, page: Optional[RulePage] = None):
         super().__init__(parent)
@@ -293,9 +294,9 @@ class RuleEditorDialog(ctk.CTkToplevel):
         ctk.CTkLabel(scroll, text="Text", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
         ctk.CTkLabel(
             scroll,
-            text="A line starting with # is a heading (## a sub-heading, up to ####); start a line with - "
-                 "for a bullet. **bold**, *italic*, and tables with the Table button. Link other content "
-                 "or rules (e.g. [[rule:Conditions#Stunned]]) with the link suggestions.",
+            text="Use the Aa menu for headings (each section gets a bar under its heading) and lists, B and I "
+                 "for bold and italic, ― Bar for a horizontal bar (a line of ---) and Table for tables. "
+                 "Link other content or rules (e.g. [[rule:Conditions#Stunned]]) with the link suggestions.",
             font=ui_font("small"), text_color=self.theme.get_text_secondary(),
             justify="left", wraplength=540).pack(anchor="w", pady=(0, 4))
         self.desc_text = ctk.CTkTextbox(scroll, height=380)
@@ -307,7 +308,7 @@ class RuleEditorDialog(ctk.CTkToplevel):
         btns = ctk.CTkFrame(scroll, fg_color="transparent")
         btns.pack(fill="x", pady=(10, 0))
         ctk.CTkButton(btns, text="Cancel", width=100, fg_color="transparent", border_width=1,
-                      command=self.destroy).pack(side="right", padx=(5, 0))
+                      command=self._finish).pack(side="right", padx=(5, 0))
         ctk.CTkButton(btns, text="Save", width=100,
                       fg_color=self.theme.get_current_color('accent_primary'),
                       command=self._save).pack(side="right")
@@ -320,31 +321,44 @@ class RuleEditorDialog(ctk.CTkToplevel):
         self.tag_editor.set_tags(page.tags)
         self.desc_text.insert("1.0", page.description)
 
-    def _save(self):
+    def build_result(self, strict: bool = True) -> RulePage:
+        """The page the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
-        if "#" in name or "|" in name or "[" in name or "]" in name:
-            messagebox.showerror("Error", "The name cannot contain # | [ or ].", parent=self)
-            return
-        clash = self.manager.get_page(name)
-        if clash is not None and (self._editing is None or clash.name.lower() != self._editing.name.lower()):
-            messagebox.showerror(
-                "Error", f"A rules page called '{clash.name}' already exists. Choose another name.", parent=self)
-            return
         text = self.desc_text.get("1.0", "end-1c").strip()
-        if not text:
-            messagebox.showerror("Error", "The page needs some text.", parent=self)
-            return
-        self.result = RulePage(
+        if strict:
+            if not name:
+                raise ValueError("Name is required.")
+            if "#" in name or "|" in name or "[" in name or "]" in name:
+                raise ValueError("The name cannot contain # | [ or ].")
+            clash = self.manager.get_page(name)
+            if clash is not None and not self.EMBEDDED and (
+                    self._editing is None or clash.name.lower() != self._editing.name.lower()):
+                raise ValueError(f"A rules page called '{clash.name}' already exists. Choose another name.")
+            if not text:
+                raise ValueError("The page needs some text.")
+        return RulePage(
             name=name,
             category=self.category_var.get().strip() or DEFAULT_CATEGORY_TEXT,
             description=text,
             source=self.source_entry.get().strip(),
             tags=self.tag_editor.get_tags(),
             order=0, is_official=False, is_custom=True)
-        self.destroy()
+
+    def _save(self):
+        try:
+            self.result = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            return
+        self._finish()
+
+
+class RuleEditorDialog(RuleEditorBody, DialogWindow):
+    """Dialog for adding or editing the user's own rules page."""
+
+
+class RuleEditorPanel(RuleEditorBody, EmbeddedWindow):
+    """The RuleEditorDialog form inside the Homebrew Studio."""
 
 
 class RulesView(ctk.CTkFrame):
@@ -715,6 +729,9 @@ class RulesView(ctk.CTkFrame):
     # ------------------------------------------------------------------ editing
 
     def _on_add(self):
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "rules"):
+            return
         dialog = RuleEditorDialog(self.winfo_toplevel(), "Add Rules Page")
         self.wait_window(dialog)
         if dialog.result and self.manager.add_rule(dialog.result):

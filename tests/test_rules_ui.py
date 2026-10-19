@@ -422,3 +422,28 @@ def test_the_editor_fills_in_an_existing_page(tk_root):
             dialog.destroy()
         except Exception:
             pass
+
+
+# --------------------------------------------------------------------------- bars and italics
+
+def test_headings_get_a_bar_and_a_bar_line_draws_one(host, tk_root):
+    from ui.rule_text import RuleTextView
+    view = RuleTextView(host)
+    view.pack(fill="both", expand=True)
+    view.set_markup("Intro _slanted_ and *also*.\n\n# One\n\nText.\n\n## Two\n\nText.\n\n---\n\n### Three\n\nEnd.")
+    pump(tk_root, 0.3)
+    t = view.text
+    bar_lines = {tag: [i for i in range(1, int(t.index("end").split(".")[0])) if tag in t.tag_names(f"{i}.0")]
+                 for tag in ("bar1", "bar2", "hr")}
+    assert len(bar_lines["bar1"]) == 2 and len(bar_lines["bar2"]) == 1     # one under each heading
+    assert len(bar_lines["hr"]) == 1                                       # the "---"
+    assert "---" not in view.plain_text()
+    assert [view.has_section(i) for i in (1, 2, 3, 4)] == [True, True, True, False]
+    assert "i" in t.tag_names(t.search("slanted", "1.0")) and "i" in t.tag_names(t.search("also", "1.0"))
+    view.destroy()
+
+
+def test_underscore_runs_and_words_are_not_italic():
+    from ui.rule_text import inline_segments
+    assert [s.italic for s in inline_segments("snake_case and Name: ____ here")] == [False]
+    assert [(s.text, s.italic) for s in inline_segments("a _b_ c")][1] == ("b", True)

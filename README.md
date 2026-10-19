@@ -15,9 +15,11 @@ A desktop application for managing D&D 5th Edition (2024) spells, characters, an
 - **Character Sheets**: Complete D&D 5e character sheets with ability scores, skills, combat stats, class features, and inventory
 - **Spell Lists**: Per-character spell tracking with slot management, multiclass support, and Warlock pact magic. The spells section of a character sheet shows the **spell attack modifier** and **spell save DC** at the top (linked magic items counted), has a **+ Add Spells** button that opens a searchable dialog (with a switch for *only spells this character can learn*: their class lists, up to the highest level they can cast, plus a Warlock patron's expanded spells) and a **Granted Spells** button for the spells their species, feats and features give. Right-clicking a spell in the collection and choosing *Add to Spell List* offers a searchable list of characters
 - **Stat Blocks**: Attach creature stat blocks to summoning spells
+- **Homebrew Studio**: Write your own content (every kind the collections hold) with the editors inside the page, reference panels beside the draft, similar existing content pointed out as you write, and a CR check for monsters. See *Homebrew Studio* below
 - **Rules**: The Free Basic Rules (2024) as 67 pages (`rules.json`): Playing the Game, Character Creation, Equipment, Spells, the Rules Glossary, the Gameplay Toolbox (travel, hazards, traps, poison), Magic Items and the stat block rules. The glossary's conditions, hazards, areas of effect and action definitions have pages of their own (**Conditions**, **Hazards**, **Areas of Effect**, **Actions**). Search reads the *text* of the pages, not just their names, and ranks by relevance: a page's name beats a heading, which beats a tag, which beats the words in a section. Searching *Stunned* opens **Conditions** at its *Stunned* section with every use of the word lit up (▲/▼ step through the matches); half-typed words, plurals and endings (*stun*, *grappling*, *paralyze*) match, every word of a search has to be on the page, `"quoted words"` must appear together, and *Titles only* leaves the text out. Filter by category (the book's chapters), tag, source and official/homebrew. The **Jump to section...** list and the cross-reference links (and **Back**) move around a page; the whole thing is also in the Collections global search. Add your own pages (a `#` heading line starts a section; bold, italic, bullets, tables and links work) and import/export them like other homebrew. `[[rule:Conditions#Stunned]]` links to a page or a section from any description (suggestions for rules are off by default, as rules terms are everyday words: Settings > Linking)
 - **Collections Browser**: Browse official Lineages, Feats, Classes, Subclasses, and Backgrounds with global search
 - **Legacy (2014) content**: The 2014 rules are bundled too (`legacy_2014.json`: spells, feats, species, backgrounds, classes and subclasses from the published 5e books, all flagged Legacy). A 2014 entry whose name 2024 content already uses is stored as `Name (Legacy)` (for example *Fireball (Legacy)*, *Fighter (Legacy)*); browsing lists show each spell, feat, species, background and class once, and the **Source** line of its page is a drop-down that switches between its versions (the 2024 one, the 2014 one, or a 2014 book's update such as Monsters of the Multiverse). The Legacy content setting (Settings) decides which versions are offered: everything, none, only 2014, or *Show Unupdated* (2014 versions only where there is no 2024 one)
+- **Text styles**: Every description editor (spells, feats, species, backgrounds, classes, equipment, magic items, monsters, rules, and the same editors inside the Homebrew Studio) has the same toolbar: **Table**, **Spell**, **B** (`**bold**`), **I** (`_italic_`), **Aa ▾** (heading `# `, subheading `## `, small heading `### `, bullet and numbered lists, plain text; it restyles the selected lines or the line the cursor is on) and **― Bar** (a horizontal bar, a line of `---`). Descriptions draw them everywhere they are shown (collection pages, link popups, Studio reference panels); a heading carries a bar underneath it, as on the Rules pages. Older text keeps its meaning: where a lone `*text*` was bold (feats, backgrounds, class features) it still is, and `_text_` is the italic that works everywhere
 - **Import/Export**: Import and export custom content (homebrew) as JSON files
 - **Lineages**: Browse and create custom lineages (races) with trait descriptions
 - **Feats**: Browse and create feats with prerequisites and spellcasting grants
@@ -161,6 +163,93 @@ does to the *other* (armor class, saving throws, resistances, immunities and vul
   that does nothing against the opponent, and big differences in speed, flight, reach or range.
 - The fight is simulated thousands of times (initiative, recharge, daily uses, spell slots, legendary resistance,
   regeneration); bonus actions, reactions, terrain and positioning are not simulated.
+
+## Homebrew Studio
+
+**Game Tools > Homebrew Studio** (also a button on the Collections page) is for writing new content with the rest of
+the collection beside you, so what you make is not redundant and not out of line with what already exists.
+
+- **The same editors as the collections**, for every kind of content you can add there (spells, feats, classes,
+  subclasses, lineages, backgrounds, equipment, magic items, monsters and rules pages), but inside the page instead of a
+  pop-up. Start from scratch (**＋ New**) or from a copy of existing content (**From existing content...**). Drafts are
+  kept as you type (`studio.json`; nothing is added to the collections) and listed under **Drafts**. **Publish to
+  collection** adds the draft the way an import does: it never replaces official content and updates your own earlier
+  copy. **⋯** duplicates, exports (JSON) or deletes a draft.
+- **The Add buttons open the Studio.** With *Add buttons open the Homebrew Studio* on (Settings > Loading Options, on by
+  default), the add buttons of the collection pages (spells, feats, lineages, backgrounds, equipment, magic items,
+  monsters and duplicating one, rules pages, new classes and subclasses) open a new Studio tab on that kind of content
+  instead of the stand-alone editor window. Editing something that exists, and adding from pasted text, still use the
+  editor window; turn the setting off to use it for new content too.
+- **The monster editor works like a character sheet.** Proficiency bonus follows the CR, the hit die follows the size
+  (d4 Tiny ... d20 Gargantuan), and hit points are the number of hit dice times half the die plus a half plus the
+  Constitution modifier (the hit dice formula, `6d10 + 12`, is written for you; *Set HP by hand* turns that off).
+  Modifiers, saving throw bonuses, skill bonuses, initiative and passive Perception are shown beside the scores. An action,
+  bonus action, reaction or legendary action can be an **Attack** (a core stat plus the proficiency bonus to hit, the stat's
+  modifier added once to the damage, optional extra damage and effects) or a **Saving throw** effect (DC = 8 + proficiency +
+  a stat); the stat block text is written for you and every linked entry follows when a score or the CR changes. Hover any
+  worked-out number to see where it comes from ("+4 from Strength, +3 from proficiency", "Proficiency bonus is based off of
+  CR"). *Link to stats* turns existing attack text into one of these when its numbers already follow from the stats
+  (about nine in ten Monster Manual attacks do, word for word). Sections fold away (Skills, Legendary and Lair Actions,
+  Lore... start folded unless they have content).
+- **Class and subclass editors fill in the levels for you.** Every level 1-20 of a class is a section that is already
+  there: open it and write its features as cards (a name and a description, in place; *Details...* for tables and roll
+  effects). Ability Score Improvement (levels 4, 8, 12, 16) and Epic Boon (19) are filled in for a new class, and the
+  levels with a **Subclass feature** tick follow the Subclass Level (3 gives 3, 6, 10 and 14) until you tick one yourself. A
+  subclass reads the levels its class gives subclass features at (Fighter: 3, 7, 10, 15, 18) and has a section, with a blank
+  card ready, for each; *Add a level* covers an unusual one.
+- **Insights - Similar** reads what you wrote and finds existing content that does the same thing, down to one class
+  feature, one species trait or one monster ability. It compares *wording* (rare words count for more) and *mechanics*:
+  "treats low d20 rolls as a higher number", "resistance to fire damage", "advantage on saving throws", "darkvision"...
+  are recognised however they are phrased, and named in the result ("Same effect: ..."), with the words you share lit
+  up. A magic item that lets you treat a d20 roll below 10 as a 10 for Perception brings up the Rogue's *Reliable Talent*,
+  the Eloquence Bard's *Silver Tongue*, *Zone of Amicability* and the *Scholar's Anchoring Bangle*. Drafts with several
+  parts (a class, a monster, a species) are compared one part at a time and each result says which part it resembles;
+  choose a part, narrow the search to one kind of content, leave out 2014 content, or type a description of your own to
+  look for. Warnings above the results: a name that is already used (an official one would be skipped on publishing) and
+  links to content that is not installed.
+  Insights are strict, so they stay worth reading. A result needs **at least 4 matching words** (or a shared mechanic
+  worth that much), content whose text is **exactly** what you wrote is left out, and content that is not tagged
+  official is left out unless you tick **Unofficial content** above the results. A draft part that matches **more than
+  10 things** is dropped with a note ("reads as standard wording"), so wording like "you have advantage on" does not flag
+  half the game. Settings > Loading Options has the minimum words, the maximum matches (*No limit* turns it off) and
+  whether exact matches are hidden.
+- **Insights - Balance** (monsters) reads AC, hit points, damage per round (Multiattack, recharge and daily powers,
+  spells, legendary actions), attack bonus and save DC, counts resistances, immunities, regeneration and saving throw
+  proficiencies as extra hit points or armor class, and **suggests a CR**: the defensive CR (hit points, moved by armor
+  class) and the offensive CR (damage, moved by attack bonus or DC) averaged, as the Dungeon Master's Guide builds
+  monsters. If you have set a CR it lists every figure that is **higher (or lower) than is typical for that CR**, with how
+  it compares to the official monsters of that CR in your collection, and **Use CR n** applies the suggestion. The
+  "typical" figures start from the DMG's table and lean towards what the Monster Manual monsters in the collection
+  really have (they keep well under the table's hit points at low levels); run on those same official monsters the
+  suggestion is within one CR of the real one for about 88% (it is a guide, not a verdict). The closest official monsters (by hit points, damage and AC) are listed
+  to open beside the draft. The attack reading is the Matchup tool's (`matchup.py`).
+- **Reference panels**: **＋ Panel** adds a pane (up to four, side by side) with its own search box that opens any
+  spell, feat, class, subclass, species, background, equipment, magic item, monster, rules page, or a single class
+  feature, trait or monster ability. Clicking a result in Insights opens it in the selected panel (**Open beside it**
+  makes a new one); **Copy link** copies the `[[...]]` link for a description.
+
+Code: `homebrew_index.py` (entries, similarity, mechanics), `monster_cr.py` (CR), `studio_store.py` (drafts, publishing),
+`studio_service.py` (index thread, search, analysis), `ui/studio_view.py` and friends. The collection editors are now a
+form plus two thin windows (`ui/editor_host.py`): the dialog the collection pages open and the panel the Studio embeds.
+
+## Numbers on the character sheet: hover, bonuses and manual settings
+
+Armor Class, Hit Point maximum and Initiative on the front of the sheet, and the Spell attack and Spell save DC boxes on
+the spell tab, all explain themselves when you hover them ("10 base, +2 Dexterity, +1 Ring of Protection"). They are
+worked out from the sheet and also count bonuses found in the **magic items** you are attuned to (or that need no
+attunement), your **class and subclass features** up to your level, **feats**, and **species traits**: "+1 bonus to AC",
+"add your Proficiency Bonus to Initiative" (Alert), "hit point maximum increases by 2 per level" (Tough), and so on.
+Temporary or conditional wording (reactions, "until the end of your turn", "while raging", a shield spell) is not counted.
+Armor-only or unarmored-only bonuses are checked against what is worn.
+
+Every one of these boxes can be typed in. A number you set is marked as manual and kept: the hover then says
+`Manually set` / `Auto detection: <what it would be>`. Empty the box (or type the automatic number) to go back to
+automatic. The initiative tracker uses the initiative shown here. The equipment, magic item and feat pickers on the
+sheet have a green **Add** button on the right of every row, as the spell picker does, and stay open so several can be added.
+Feats are removed by right-clicking the feat's button on the sheet.
+
+Code: `sheet_stats.py` (reading bonuses, the explained numbers), with overrides stored in `character_sheets.json`
+(`stat_overrides`).
 
 ## Spells that species, feats and features give
 

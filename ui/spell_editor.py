@@ -9,6 +9,7 @@ from tkinter import messagebox
 from typing import Optional, List
 from spell import Spell, CharacterClass, PROTECTED_TAGS, is_protected_tag
 from theme import get_theme_manager
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 
 class TagSelectionDialog(ctk.CTkToplevel):
@@ -155,8 +156,8 @@ class TagSelectionDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-class SpellEditorDialog(ctk.CTkToplevel):
-    """A dialog for creating or editing a spell."""
+class SpellEditorBody:
+    """A dialog for creating or editing a spell. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, title: str, spell: Optional[Spell] = None, spell_manager=None,
                  prefill_spell: Optional[Spell] = None, review_fields: Optional[List[str]] = None,
@@ -728,8 +729,8 @@ class SpellEditorDialog(ctk.CTkToplevel):
         
         return ", ".join(parts)
     
-    def _validate(self) -> bool:
-        """Validate form inputs. Returns True if valid."""
+    def _problems(self) -> List[str]:
+        """What is wrong with the form (empty if it can be saved)."""
         errors = []
         
         if not self.name_entry.get().strip():
@@ -762,23 +763,25 @@ class SpellEditorDialog(ctk.CTkToplevel):
         if not self.description_text.get("1.0", "end").strip():
             errors.append("Description is required")
         
-        if errors:
-            messagebox.showerror("Validation Error", "\n".join(errors))
-            return False
-        
-        return True
+        return errors
     
-    def _on_save(self):
-        """Handle save button click."""
-        if not self._validate():
-            return
-        
+    def build_result(self, strict: bool = True) -> Spell:
+        """The spell the form describes (strict: ValueError listing what is missing; otherwise gaps are filled in)."""
+        if strict:
+            errors = self._problems()
+            if errors:
+                raise ValueError("\n".join(errors))
+
         # Parse level
         level_str = self.level_var.get()
-        if level_str.startswith("0"):
+        try:
+            level = 0 if level_str.startswith("0") else int(level_str)
+        except ValueError:
             level = 0
-        else:
-            level = int(level_str)
+        try:
+            range_value = int(self.range_entry.get().strip())
+        except ValueError:
+            range_value = 0
         
         # Get selected classes
         classes = [
@@ -800,12 +803,12 @@ class SpellEditorDialog(ctk.CTkToplevel):
             is_modified = False
         
         # Create spell object
-        self.result = Spell(
+        return Spell(
             name=self.name_entry.get().strip(),
             level=level,
             casting_time=self.casting_time_entry.get().strip(),
             ritual=self.ritual_var.get(),
-            range_value=int(self.range_entry.get().strip()),
+            range_value=range_value,
             components=self._build_components_string(),
             duration=self.duration_entry.get().strip(),
             concentration=self.concentration_var.get(),
@@ -816,10 +819,25 @@ class SpellEditorDialog(ctk.CTkToplevel):
             is_modified=is_modified,
             is_legacy=self.legacy_var.get()
         )
-        
-        self.destroy()
-    
+
+    def _on_save(self):
+        """Handle save button click."""
+        try:
+            self.result = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Validation Error", str(e), parent=self)
+            return
+        self._finish()
+
     def _on_cancel(self):
         """Handle cancel button click."""
         self.result = None
-        self.destroy()
+        self._finish()
+
+
+class SpellEditorDialog(SpellEditorBody, DialogWindow):
+    """A dialog for creating or editing a spell."""
+
+
+class SpellEditorPanel(SpellEditorBody, EmbeddedWindow):
+    """The SpellEditorDialog form inside the Homebrew Studio."""

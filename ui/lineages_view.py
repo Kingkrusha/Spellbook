@@ -17,6 +17,7 @@ from content_versions import VersionCatalog, display_name
 from ui.version_bar import VersionBar
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 
 def _list_name(name: str) -> str:
@@ -183,13 +184,8 @@ class LineageDetailPanel(ctk.CTkFrame):
         
         # Trait description with dynamic resizing
         if trait.description:
-            from ui.rich_text_utils import DynamicText
-            dt = DynamicText(
-                inner, self.theme,
-                bg_color='bg_secondary'  # Use theme color key
-            )
-            dt.set_text(trait.description)
-            dt.pack(fill="x", expand=True)
+            from ui.rich_text_utils import render_description_blocks
+            render_description_blocks(inner, trait.description, self.theme, bg_color='bg_secondary')
     
     def _clear_description(self):
         """Clear all description widgets."""
@@ -206,13 +202,8 @@ class LineageDetailPanel(ctk.CTkFrame):
         if not text:
             return
         
-        dt = DynamicText(
-            self.description_container, self.theme,
-            bg_color='bg_primary'  # Use theme color key
-        )
-        dt.set_text(text)
-        dt.pack(fill="x", expand=True)
-        self._desc_widgets.append(dt)
+        from ui.rich_text_utils import render_description_blocks
+        self._desc_widgets.extend(render_description_blocks(self.description_container, text, self.theme))
     
     def _version_selected(self, lineage: Lineage):
         """The user picked another version in the Source drop-down."""
@@ -754,6 +745,10 @@ class LineagesView(ctk.CTkFrame):
             self._on_add_lineage_from_text()
             return
 
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "lineages"):
+            return
+
         dialog = LineageEditorDialog(self.winfo_toplevel(), self.lineage_manager)
         dialog.grab_set()
         self.wait_window(dialog)
@@ -874,8 +869,8 @@ class LineagesView(ctk.CTkFrame):
         return self.list_panel.select_lineage(name, self._catalog.find(name))
 
 
-class LineageEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating/editing lineages."""
+class LineageEditorBody:
+    """Dialog for creating/editing lineages. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, lineage_manager: LineageManager, lineage: Optional[Lineage] = None,
                  prefill_lineage: Optional[Lineage] = None, review_fields: Optional[List[str]] = None,
@@ -1005,7 +1000,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
             width=100,
             fg_color="transparent",
             hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
+            command=self._finish
         ).pack(side="left")
     
     def _add_trait(self, name: str = "", description: str = "", roll_effects=None, spells=None):
@@ -1161,18 +1156,18 @@ class LineageEditorDialog(ctk.CTkToplevel):
                 except Exception:
                     pass
 
-    def _save(self):
-        """Save the lineage."""
+    def build_result(self, strict: bool = True) -> Lineage:
+        """The lineage the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
-        
+        if not name and strict:
+            raise ValueError("Name is required.")
+
         try:
             speed = int(self.speed_entry.get())
         except ValueError:
-            messagebox.showerror("Error", "Speed must be a number.", parent=self)
-            return
+            if strict:
+                raise ValueError("Speed must be a number.")
+            speed = 30
         
         # Gather traits
         from spell_grants import default_lookup, parse_trait_spells
@@ -1185,15 +1180,13 @@ class LineageEditorDialog(ctk.CTkToplevel):
             trait_spells = []
             if spells_box is not None:
                 trait_spells, problems = parse_trait_spells(spells_box.get("1.0", "end-1c"), default_lookup())
-                if problems:
-                    messagebox.showerror("Trait spells", f"{trait_name or 'A trait'}:\n" + "\n".join(problems),
-                                         parent=self)
-                    return
+                if problems and strict:
+                    raise ValueError(f"Trait spells - {trait_name or 'A trait'}:\n" + "\n".join(problems))
             if trait_name:
                 traits.append(LineageTrait(name=trait_name, description=trait_desc,
                                            roll_effects=editor.get() if editor else [], spells=trait_spells))
         
-        lineage = Lineage(
+        return Lineage(
             name=name,
             description=self.desc_text.get("1.0", "end-1c").strip(),
             creature_type=self.creature_type_entry.get().strip() or "Humanoid",
@@ -1205,7 +1198,22 @@ class LineageEditorDialog(ctk.CTkToplevel):
             is_custom=True,
             is_legacy=False
         )
-        
-        self.lineage_manager.add_lineage(lineage)
+
+    def _save(self):
+        try:
+            lineage = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            return
+        if not self.EMBEDDED:
+            self.lineage_manager.add_lineage(lineage)
         self.result = lineage
-        self.destroy()
+        self._finish()
+
+
+class LineageEditorDialog(LineageEditorBody, DialogWindow):
+    """Dialog for creating/editing lineages."""
+
+
+class LineageEditorPanel(LineageEditorBody, EmbeddedWindow):
+    """The LineageEditorDialog form inside the Homebrew Studio."""

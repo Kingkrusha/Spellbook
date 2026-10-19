@@ -434,7 +434,11 @@ class ClassesCollectionView(ctk.CTkFrame):
                 pass
     
     def _open_class_editor(self, class_def: Optional[CharacterClassDefinition] = None):
-        """Open the class editor dialog."""
+        """Open the class editor dialog (a new class goes to the Homebrew Studio when that setting is on)."""
+        if class_def is None:
+            from ui.studio_launch import open_in_studio
+            if open_in_studio(self, "classes"):
+                return
         dialog = ClassEditorDialog(self, class_def, on_save=self._on_class_saved)
         self.wait_window(dialog)
     
@@ -444,7 +448,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         self._select_class(class_def.name)
     
     def _open_subclass_editor(self, parent_class: CharacterClassDefinition, subclass: Optional[SubclassDefinition] = None):
-        """Open the subclass editor dialog."""
+        """Open the subclass editor dialog (a new subclass goes to the Homebrew Studio when that setting is on)."""
+        if subclass is None:
+            from ui.studio_launch import open_in_studio
+            if open_in_studio(self, "subclasses", parent=parent_class.name):
+                return
         dialog = SubclassEditorDialog(self, parent_class, subclass, on_save=self._on_subclass_saved)
         self.wait_window(dialog)
     
@@ -551,16 +559,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         # Description  
         if class_def.description:
-            from ui.rich_text_utils import DynamicText
+            from ui.rich_text_utils import render_description_blocks
             desc_frame = ctk.CTkFrame(self.content, fg_color="transparent")
             desc_frame.pack(fill="x", expand=True, pady=(0, 20))
-            
-            dt = DynamicText(
-                desc_frame, self.theme,
-                bg_color='bg_primary'
-            )
-            dt.set_text(class_def.description)
-            dt.pack(fill="x", expand=True)
+
+            render_description_blocks(desc_frame, class_def.description, self.theme, pady=(0, 0))
         
         # Feature table header
         table_header = ctk.CTkFrame(self.content, fg_color="transparent")
@@ -1021,10 +1024,18 @@ class ClassesCollectionView(ctk.CTkFrame):
         """
         import re
         
-        # Split by double newlines to get paragraphs
-        paragraphs = text.split('\n\n')
-        
+        from ui.rich_text_utils import RichTextRenderer, description_blocks
+
+        # Paragraphs; a table (lines starting with |) is its own block and is drawn as a table
+        paragraphs = [block for _kind, block in description_blocks(text)]
+
         for para_idx, paragraph in enumerate(paragraphs):
+            if paragraph.lstrip().startswith('|'):
+                renderer = RichTextRenderer(self.theme)
+                headers, rows, _consumed = renderer.parse_markdown_table(paragraph.split('\n'))
+                if headers and rows:
+                    renderer.render_table(parent, headers, rows)
+                    continue
             lines = paragraph.strip().split('\n')
             
             # Combine lines that should flow together
@@ -1392,14 +1403,10 @@ class ClassesCollectionView(ctk.CTkFrame):
         """Populate a subclass content frame with description and features."""
         # Description with dynamic resizing
         if subclass.description:
-            from ui.rich_text_utils import DynamicText
-            dt = DynamicText(
-                content_frame, self.theme,
-                font_size=11,
-                bg_color='bg_primary'
-            )
-            dt.set_text(subclass.description)
-            dt.pack(fill="x", expand=True, pady=(0, 15))
+            from ui.rich_text_utils import render_description_blocks
+            holder = ctk.CTkFrame(content_frame, fg_color="transparent")
+            holder.pack(fill="x", expand=True, pady=(0, 15))
+            render_description_blocks(holder, subclass.description, self.theme, font_size=11)
         
         # Features with full details
         for feature in subclass.features:

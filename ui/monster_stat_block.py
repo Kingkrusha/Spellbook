@@ -51,7 +51,12 @@ class MonsterStatBlock(ctk.CTkFrame):
     # ----- building blocks -----
 
     def _text(self, text: str, size: int = 13, pady=(1, 1)):
-        from ui.rich_text_utils import DynamicText
+        from ui.rich_text_utils import DynamicText, render_description_blocks
+        if "\n|" in "\n" + text:                        # a feature with a table: draw it as one
+            holder = ctk.CTkFrame(self._body, fg_color="transparent")
+            holder.pack(fill="x", anchor="w", pady=pady)
+            render_description_blocks(holder, text, self.theme, bg_color=self._bg_key, font_size=size, pady=(0, 0))
+            return holder
         dt = DynamicText(self._body, self.theme, font_size=size, bg_color=self._bg_key)
         dt.set_text(text)
         dt.pack(fill="x", anchor="w", pady=pady)

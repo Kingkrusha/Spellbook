@@ -65,6 +65,14 @@ class TrackableFeature:
         )
 
 
+# What nearly every class gets at certain levels. The editors fill these in for a new class, and the Homebrew Studio
+# does not count them as "your own" text when it looks for similar content.
+ASI_FEATURE = ("Ability Score Improvement",
+               "You gain the Ability Score Improvement feat or another feat of your choice for which you qualify.")
+EPIC_BOON_FEATURE = ("Epic Boon", "You gain an Epic Boon feat or another feat of your choice for which you qualify.")
+STANDARD_FEATURES = (ASI_FEATURE, EPIC_BOON_FEATURE)
+
+
 @dataclass
 class ClassAbility:
     """An ability or feature gained at a specific level."""

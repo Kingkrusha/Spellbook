@@ -77,34 +77,24 @@ def open_link_popup(parent, category: str, name: str):
 # Detail popup
 # --------------------------------------------------------------------------- #
 
-class LinkPopup(ctk.CTkToplevel):
-    """Read-only detail popup for any non-spell link target.
+class LinkDetailView(ctk.CTkFrame):
+    """Read-only detail of any link target (spell, feat, class, monster, rules page...), as a frame.
 
-    Classes, subclasses and monsters get a taller window (a features list, a
-    full stat block), since dumping their text at the same size as a one-line
-    item description reads badly.
-    """
+    It is what a link popup shows, and what the Homebrew Studio's reference panels show. Classes, subclasses and
+    monsters are long (a features list, a full stat block); ``wrap`` is the text width labels wrap to."""
 
-    def __init__(self, parent, target: LinkTarget):
-        super().__init__(parent)
+    def __init__(self, parent, target: LinkTarget, wrap: int = 460, on_close: Optional[Callable[[], None]] = None):
+        super().__init__(parent, fg_color="transparent")
         self.theme = get_theme_manager()
         self.target = target
         self.obj = target.get_object()
-
-        big = target.category in ("class", "subclass", "monster", "rule")
-        self.title(target.label)
-        self.geometry("560x680" if big else "480x520")
-        self.minsize(420, 380)
-        self.resizable(True, True)
-        self.transient(parent)
-
+        self.wrap = wrap
+        self._on_close = on_close
         self._build()
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
-        self.lift()
+    def _close(self):
+        if self._on_close is not None:
+            self._on_close()
 
     def _build(self):
         theme = self.theme
@@ -116,7 +106,7 @@ class LinkPopup(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             scroll, text=self.target.name, font=ui_font("title", 22, bold=True),
-            wraplength=460, justify="left", anchor="w",
+            wraplength=self.wrap, justify="left", anchor="w",
         ).pack(anchor="w", pady=(0, 4))
 
         badge_row = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -139,6 +129,7 @@ class LinkPopup(ctk.CTkToplevel):
             return
 
         renderer = {
+            "spell": self._render_spell,
             "feat": self._render_feat,
             "lineage": self._render_lineage,
             "background": self._render_background,
@@ -163,7 +154,7 @@ class LinkPopup(ctk.CTkToplevel):
         head = ctk.CTkFrame(outer, fg_color="transparent")
         head.pack(fill="x", padx=8, pady=(6, 2))
         ctk.CTkLabel(head, text=ref.title, font=ui_font("title", 22, bold=True),
-                     wraplength=440, justify="left", anchor="w").pack(anchor="w", pady=(0, 4))
+                     wraplength=max(200, self.wrap - 20), justify="left", anchor="w").pack(anchor="w", pady=(0, 4))
         badges = ctk.CTkFrame(head, fg_color="transparent")
         badges.pack(anchor="w")
         ctk.CTkLabel(badges, text="Rules", font=ui_font("small"),
@@ -179,7 +170,7 @@ class LinkPopup(ctk.CTkToplevel):
                 fg_color=theme.get_current_color('button_normal'),
                 hover_color=theme.get_current_color('button_hover'),
                 text_color=theme.get_current_color('text_primary'),
-                command=lambda: (_rule_opener(ref.name), self.destroy()),
+                command=lambda: (_rule_opener(ref.name), self._close()),
             ).pack(anchor="w", pady=(8, 0))
         view = RuleTextView(outer, on_link=lambda cat, name: open_link_popup(self, cat, name))
         view.pack(fill="both", expand=True, pady=(6, 0))
@@ -200,20 +191,17 @@ class LinkPopup(ctk.CTkToplevel):
             parent, text=text, font=ui_font("subheading", bold=True),
         ).pack(anchor="w", pady=(12, 4))
 
-    def _render_description(self, parent, text: str):
-        from ui.rich_text_utils import DynamicText
+    def _open_inner_link(self, inner: str):
+        open_link_popup(self, *parse_link_markup(inner)[:2])
 
-        if not text:
-            return
-        for paragraph in text.split("\n\n"):
-            if not paragraph.strip():
-                continue
-            dt = DynamicText(
-                parent, self.theme, bg_color='bg_primary',
-                on_spell_click=lambda inner: open_link_popup(self, *parse_link_markup(inner)[:2]),
-            )
-            dt.set_text(paragraph.strip())
-            dt.pack(fill="x", expand=True, pady=(2, 2))
+    def _render_description(self, parent, text: str, bg_color: str = 'bg_primary'):
+        """A description with its tables, bold, italics, headings, bars and links (see
+        ``render_description_blocks``); a link opens its own popup."""
+        from ui.rich_text_utils import render_description_blocks
+
+        if text:
+            render_description_blocks(parent, text, self.theme, on_spell_click=self._open_inner_link,
+                                      bg_color=bg_color)
 
     def _named_entries(self, parent, entries: List[Tuple[str, str]], empty_ok: bool = True):
         """Render a list of (name, description) pairs - traits, features, etc."""
@@ -225,14 +213,26 @@ class LinkPopup(ctk.CTkToplevel):
                 text_color=self.theme.get_current_color('accent_primary'), anchor="w",
             ).pack(anchor="w", padx=10, pady=(6, 0))
             if desc:
-                ctk.CTkLabel(
-                    row, text=desc, font=ui_font("small"), wraplength=460,
-                    justify="left", anchor="w",
-                ).pack(anchor="w", padx=10, pady=(0, 8))
+                body = ctk.CTkFrame(row, fg_color="transparent")
+                body.pack(fill="x", padx=10, pady=(0, 8))
+                self._render_description(body, desc, bg_color='bg_secondary')
             else:
                 ctk.CTkFrame(row, height=4, fg_color="transparent").pack()
 
     # ---- per-category renderers -------------------------------------------
+
+    def _render_spell(self, parent):
+        sp = self.obj
+        self._stat_line(parent, [p for p in (sp.display_level(), "Ritual" if sp.ritual else "",
+                                             "Concentration" if sp.concentration else "") if p])
+        for label, value in (("Casting Time", sp.casting_time), ("Range", sp.display_range()),
+                             ("Components", sp.components or "-"), ("Duration", sp.duration),
+                             ("Classes", sp.display_classes())):
+            if value:
+                LabeledLabel(parent, text=f"{label}: {value}", font=ui_font("body", 13), anchor="w",
+                             justify="left").pack(anchor="w", pady=1)
+        ctk.CTkFrame(parent, height=6, fg_color="transparent").pack()
+        self._render_description(parent, sp.description)
 
     def _render_feat(self, parent):
         f = self.obj
@@ -285,7 +285,7 @@ class LinkPopup(ctk.CTkToplevel):
             ctk.CTkLabel(
                 parent, text=item.display_tags(), font=ui_font("body"),
                 text_color=self.theme.get_current_color('accent_primary'),
-                wraplength=460, justify="left", anchor="w",
+                wraplength=self.wrap, justify="left", anchor="w",
             ).pack(anchor="w", pady=(0, 8))
 
         properties = getattr(item, "properties", None)
@@ -320,7 +320,7 @@ class LinkPopup(ctk.CTkToplevel):
                         continue
                     ctk.CTkLabel(
                         list_frame, text=f"Level {level} — {ability.title}",
-                        font=ui_font("body"), anchor="w", justify="left", wraplength=460,
+                        font=ui_font("body"), anchor="w", justify="left", wraplength=self.wrap,
                     ).pack(anchor="w", pady=1)
 
     def _render_subclass(self, parent):
@@ -334,8 +334,41 @@ class LinkPopup(ctk.CTkToplevel):
             for feature in sorted(s.features, key=lambda x: x.level):
                 ctk.CTkLabel(
                     list_frame, text=f"Level {feature.level} — {feature.title}",
-                    font=ui_font("body"), anchor="w", justify="left", wraplength=460,
+                    font=ui_font("body"), anchor="w", justify="left", wraplength=self.wrap,
                 ).pack(anchor="w", pady=1)
+
+
+
+
+class LinkPopup(ctk.CTkToplevel):
+    """Read-only detail popup for any non-spell link target.
+
+    Classes, subclasses and monsters get a taller window (a features list, a
+    full stat block), since dumping their text at the same size as a one-line
+    item description reads badly.
+    """
+
+    def __init__(self, parent, target: LinkTarget):
+        super().__init__(parent)
+        self.theme = get_theme_manager()
+        self.target = target
+
+        big = target.category in ("class", "subclass", "monster", "rule")
+        self.title(target.label)
+        self.geometry("560x680" if big else "480x520")
+        self.minsize(420, 380)
+        self.resizable(True, True)
+        self.transient(parent)
+
+        self.view = LinkDetailView(self, target, on_close=self.destroy)
+        self.view.pack(fill="both", expand=True)
+        self.obj = self.view.obj
+
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        self.lift()
 
 
 # --------------------------------------------------------------------------- #

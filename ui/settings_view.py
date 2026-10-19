@@ -89,6 +89,16 @@ class SettingsView(ctk.CTkFrame):
         self._restore_tabs_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'restore_tabs', True))
 
+        # Homebrew
+        self._studio_for_new_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'studio_for_new_content', True))
+        self._studio_min_words_var = ctk.StringVar(
+            value=str(getattr(settings_manager.settings, 'studio_min_words', 4)))
+        _max = getattr(settings_manager.settings, 'studio_max_matches', 10)
+        self._studio_max_matches_var = ctk.StringVar(value=str(_max) if _max else "No limit")
+        self._studio_hide_exact_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'studio_hide_exact', True))
+
         # Updates
         self._auto_check_updates_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'auto_check_updates', True)
@@ -768,6 +778,57 @@ class SettingsView(ctk.CTkFrame):
             justify="left"
         ).pack(anchor="w", pady=(8, 20))
 
+        self._create_toggle_row(
+            loading_content,
+            "Add buttons open the Homebrew Studio",
+            self._studio_for_new_var,
+            self._on_setting_change
+        )
+        ctk.CTkLabel(
+            loading_content,
+            text="The buttons that add content on each collection page (+ Add Spell, + Add Monster...)\n"
+                 "open a new Homebrew Studio tab, with reference panels and similar-content checks beside\n"
+                 "the editor. When off, they open the stand-alone editor window. Editing an existing\n"
+                 "entry always uses the editor window.",
+            font=ui_font("body"),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(8, 20))
+
+        ctk.CTkLabel(
+            loading_content, text="Homebrew Studio insights: how strict is \"similar\"?",
+            font=ui_font("subheading", bold=True)
+        ).pack(anchor="w", pady=(0, 6))
+        words_row = ctk.CTkFrame(loading_content, fg_color="transparent")
+        words_row.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(words_row, text="Words in common needed to show a match:",
+                     font=ui_font("subheading")).pack(side="left")
+        ctk.CTkOptionMenu(words_row, values=[str(n) for n in range(1, 9)], variable=self._studio_min_words_var,
+                          width=90, command=lambda _v: self._on_setting_change()).pack(side="right")
+        max_row = ctk.CTkFrame(loading_content, fg_color="transparent")
+        max_row.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(max_row, text="Leave a part out when it matches more than:",
+                     font=ui_font("subheading")).pack(side="left")
+        ctk.CTkOptionMenu(max_row, values=["No limit", "3", "5", "10", "15", "20", "30", "50"],
+                          variable=self._studio_max_matches_var, width=90,
+                          command=lambda _v: self._on_setting_change()).pack(side="right")
+        self._create_toggle_row(
+            loading_content,
+            "Hide content whose text is exactly the same as the draft's",
+            self._studio_hide_exact_var,
+            self._on_setting_change
+        )
+        ctk.CTkLabel(
+            loading_content,
+            text="A match needs that many words in common (words like \"the\" and numbers do not count). A part of a\n"
+                 "draft that matches more than the limit is standard wording (\"make a Wisdom saving throw\"), so it is\n"
+                 "left out instead of flagging half the collection; Insights says when it does that. Whether\n"
+                 "unofficial content is compared too is the checkbox on the Insights panel.",
+            font=ui_font("body"),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(8, 20))
+
         ctk.CTkLabel(
             loading_content,
             text="Preloading data in the background after startup can reduce loading times when\n"
@@ -1107,6 +1168,11 @@ class SettingsView(ctk.CTkFrame):
             preload_character_sheets=self._preload_sheets_var.get(),
             auto_check_updates=self._auto_check_updates_var.get(),
             restore_tabs=self._restore_tabs_var.get(),
+            studio_for_new_content=self._studio_for_new_var.get(),
+            studio_min_words=int(self._studio_min_words_var.get() or 4),
+            studio_max_matches=(0 if self._studio_max_matches_var.get() == "No limit"
+                                else int(self._studio_max_matches_var.get() or 10)),
+            studio_hide_exact=self._studio_hide_exact_var.get(),
             link_suggest_spells=not self._link_disable_spells_var.get(),
             link_suggest_feats=not self._link_disable_feats_var.get(),
             link_suggest_lineages=not self._link_disable_lineages_var.get(),
@@ -1236,6 +1302,11 @@ class SettingsView(ctk.CTkFrame):
         self._legacy_filter_var.set(settings.legacy_content_filter)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
         self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
+        self._studio_for_new_var.set(getattr(settings, 'studio_for_new_content', True))
+        self._studio_min_words_var.set(str(getattr(settings, 'studio_min_words', 4)))
+        self._studio_max_matches_var.set(str(getattr(settings, 'studio_max_matches', 10))
+                                         if getattr(settings, 'studio_max_matches', 10) else "No limit")
+        self._studio_hide_exact_var.set(getattr(settings, 'studio_hide_exact', True))
         self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
         self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
         self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
@@ -1291,6 +1362,11 @@ class SettingsView(ctk.CTkFrame):
         self._preload_sheets_var.set(settings.preload_character_sheets)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
         self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
+        self._studio_for_new_var.set(getattr(settings, 'studio_for_new_content', True))
+        self._studio_min_words_var.set(str(getattr(settings, 'studio_min_words', 4)))
+        self._studio_max_matches_var.set(str(getattr(settings, 'studio_max_matches', 10))
+                                         if getattr(settings, 'studio_max_matches', 10) else "No limit")
+        self._studio_hide_exact_var.set(getattr(settings, 'studio_hide_exact', True))
         self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
         self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
         self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))

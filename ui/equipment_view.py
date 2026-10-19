@@ -23,6 +23,7 @@ from ui.properties_editor import PropertiesEditor
 from ui.tooltip import HoverTooltip
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 
 class EquipmentListPanel(VirtualListPanel):
@@ -268,8 +269,8 @@ class EquipmentDetailPanel(ctk.CTkFrame):
             self.source_label.pack(anchor="w", pady=(14, 0))
 
 
-class EquipmentEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating or editing an equipment item."""
+class EquipmentEditorBody:
+    """Dialog for creating or editing an equipment item. (the form; see ui/editor_host.py)"""
 
     def __init__(self, parent, title: str, item: Optional[Equipment] = None,
                  prefill_item: Optional[Equipment] = None, review_fields: Optional[List[str]] = None,
@@ -370,7 +371,7 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
         ctk.CTkButton(
             btn_frame, text="Cancel", width=100,
             fg_color="transparent", border_width=1,
-            command=self.destroy
+            command=self._finish
         ).pack(side="right", padx=(5, 0))
 
         ctk.CTkButton(
@@ -460,11 +461,11 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
             except Exception:
                 pass
 
-    def _save(self):
+    def build_result(self, strict: bool = True) -> Equipment:
+        """The item the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
+        if not name and strict:
+            raise ValueError("Name is required.")
 
         weight_text = self.weight_entry.get().strip() or "0"
         try:
@@ -472,13 +473,14 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
             if weight < 0:
                 raise ValueError
         except ValueError:
-            messagebox.showerror("Error", "Weight must be a non-negative number.", parent=self)
-            return
+            if strict:
+                raise ValueError("Weight must be a non-negative number.")
+            weight = 0.0
 
         crafting_materials_text = self.crafting_materials_entry.get().strip()
         crafting_materials = [m.strip() for m in crafting_materials_text.split(",") if m.strip()]
 
-        self.result = Equipment(
+        return Equipment(
             name=name,
             type=self.type_var.get().strip() or DEFAULT_EQUIPMENT_TYPE,
             cost=self.cost_entry.get().strip(),
@@ -492,7 +494,22 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
             is_official=False,
             is_custom=True,
         )
-        self.destroy()
+
+    def _save(self):
+        try:
+            self.result = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            return
+        self._finish()
+
+
+class EquipmentEditorDialog(EquipmentEditorBody, DialogWindow):
+    """Dialog for creating or editing an equipment item."""
+
+
+class EquipmentEditorPanel(EquipmentEditorBody, EmbeddedWindow):
+    """The EquipmentEditorDialog form inside the Homebrew Studio."""
 
 
 class EquipmentView(ctk.CTkFrame):
@@ -978,6 +995,10 @@ class EquipmentView(ctk.CTkFrame):
             return
         if source_dialog.result == "auto":
             self._on_add_item_from_text()
+            return
+
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "equipment"):
             return
 
         dialog = EquipmentEditorDialog(self.winfo_toplevel(), "Add Equipment")

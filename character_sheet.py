@@ -751,6 +751,11 @@ class CharacterSheet:
     shield_bonus: int = 0  # Shield AC bonus (0 = no shield, 2 = normal shield, etc.)
     unarmored_defense: str = ""  # Formula like "10 + DEX + CON" for Barbarian
     initiative_bonus: int = 0  # Additional bonus beyond DEX
+    # What items and features add to initiative (worked out by the sheet view; see sheet_stats.py) and the numbers the
+    # player typed over the automatic ones: {"armor_class": 17, "hp_max": 60, "initiative": 3, "spell_attack:INT": 8,
+    # "spell_dc:INT": 14}. A number with an entry here is "manually set".
+    initiative_auto_bonus: int = 0
+    stat_overrides: Dict[str, int] = field(default_factory=dict)
     speed: int = 30
     base_speed: int = 30  # Base speed before bonuses (race-based)
     hit_points: HitPoints = field(default_factory=HitPoints)
@@ -827,8 +832,12 @@ class CharacterSheet:
         return self.proficiency_bonus
     
     def get_initiative(self) -> int:
-        """Calculate initiative bonus."""
-        return self.ability_scores.modifier(AbilityScore.DEXTERITY) + self.initiative_bonus
+        """Initiative bonus: the number typed over it, else Dexterity plus the sheet's bonus plus what items and
+        features add."""
+        if "initiative" in self.stat_overrides:
+            return int(self.stat_overrides["initiative"])
+        return (self.ability_scores.modifier(AbilityScore.DEXTERITY) + self.initiative_bonus
+                + self.initiative_auto_bonus)
     
     def get_passive_perception(self) -> int:
         """Calculate passive perception."""
@@ -949,6 +958,8 @@ class CharacterSheet:
             "shield_bonus": self.shield_bonus,
             "unarmored_defense": self.unarmored_defense,
             "initiative_bonus": self.initiative_bonus,
+            **({"initiative_auto_bonus": self.initiative_auto_bonus} if self.initiative_auto_bonus else {}),
+            **({"stat_overrides": dict(self.stat_overrides)} if self.stat_overrides else {}),
             "speed": self.speed,
             "base_speed": self.base_speed,
             "hit_points": self.hit_points.to_dict(),
@@ -1004,6 +1015,8 @@ class CharacterSheet:
             shield_bonus=data.get("shield_bonus", 2 if data.get("has_shield", False) else 0),  # Migrate legacy
             unarmored_defense=data.get("unarmored_defense", ""),
             initiative_bonus=data.get("initiative_bonus", 0),
+            initiative_auto_bonus=int(data.get("initiative_auto_bonus", 0) or 0),
+            stat_overrides={str(k): int(v) for k, v in (data.get("stat_overrides") or {}).items()},
             speed=data.get("speed", 30),
             base_speed=data.get("base_speed", data.get("speed", 30)),  # Default to speed for migration
             hit_points=HitPoints.from_dict(data.get("hit_points", {})),

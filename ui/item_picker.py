@@ -30,15 +30,23 @@ class ItemPickerDialog(ctk.CTkToplevel):
 
     ``subtitle_fn(item) -> str`` builds the secondary line shown under each
     item's name (type/rarity/cost/weight, whatever's relevant for that
-    collection). ``self.result`` is the picked domain object, or ``None`` if
-    the dialog was cancelled.
+    collection). Every row has a green **Add** button, like the spell list's Add
+    Spells dialog. With ``add_fn(item) -> bool`` the dialog stays open and adds
+    each item as it is clicked (``self.added`` lists the names, a row shows how
+    many of it were added); without it, Add picks the item and closes, and
+    ``self.result`` is the picked domain object (``None`` if cancelled).
+    ``hide_fn(item) -> bool`` leaves out items that cannot be picked again (feats the character already has).
     """
 
     def __init__(self, parent, title: str, items: List, subtitle_fn: Callable[[object], str],
-                 search_fn: Callable[[str], List]):
+                 search_fn: Callable[[str], List], add_fn: Optional[Callable[[object], bool]] = None,
+                 hide_fn: Optional[Callable[[object], bool]] = None):
         super().__init__(parent)
         self.theme = get_theme_manager()
         self.result = None
+        self.add_fn = add_fn
+        self._hide_fn = hide_fn
+        self.added: List[str] = []
         self._all_items = items
         self._subtitle_fn = subtitle_fn
         self._search_fn = search_fn
@@ -84,13 +92,22 @@ class ItemPickerDialog(ctk.CTkToplevel):
 
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=90,
-            fg_color=theme.get_current_color('button_normal'),
-            hover_color=theme.get_current_color('button_hover'),
-            text_color=theme.get_current_color('text_primary'),
-            command=self._on_cancel
-        ).pack(side="right")
+        if self.add_fn is not None:
+            ctk.CTkButton(
+                btn_frame, text="Done", width=110,
+                fg_color=theme.get_current_color('accent_primary'),
+                hover_color=theme.get_current_color('accent_hover'),
+                text_color=theme.get_current_color('text_on_accent'),
+                command=self._on_cancel
+            ).pack(side="right")
+        else:
+            ctk.CTkButton(
+                btn_frame, text="Cancel", width=90,
+                fg_color=theme.get_current_color('button_normal'),
+                hover_color=theme.get_current_color('button_hover'),
+                text_color=theme.get_current_color('text_primary'),
+                command=self._on_cancel
+            ).pack(side="right")
 
         self._populate(self._all_items)
 
@@ -109,6 +126,8 @@ class ItemPickerDialog(ctk.CTkToplevel):
         for widget in self.list_frame.winfo_children():
             widget.destroy()
 
+        if self._hide_fn is not None:
+            items = [i for i in items if not self._hide_fn(i)]
         if not items:
             ctk.CTkLabel(
                 self.list_frame, text="No items found.",
@@ -130,28 +149,37 @@ class ItemPickerDialog(ctk.CTkToplevel):
             ).pack(pady=(6, 4))
 
     def _create_row(self, item):
-        theme = self.theme
-        row = ctk.CTkButton(
-            self.list_frame, text="", anchor="w", height=44,
-            fg_color="transparent", hover_color=theme.get_current_color('bg_tertiary'),
-            command=lambda i=item: self._pick(i)
-        )
+        c = self.theme.get_current_color
+        row = ctk.CTkFrame(self.list_frame, fg_color=c("spell_row"), corner_radius=6)
         row.pack(fill="x", pady=2, padx=2)
-
-        # Overlay two lines of text on the button (name + subtitle) since
-        # CTkButton is single-line - a small inner frame gives real layout.
-        inner = ctk.CTkFrame(row, fg_color="transparent")
-        inner.place(relx=0, rely=0.5, anchor="w", x=12)
-        ctk.CTkLabel(
-            inner, text=item.name, font=ui_font("subheading", 13, bold=True),
-            text_color=theme.get_current_color('text_primary'), anchor="w"
-        ).pack(anchor="w")
+        ctk.CTkButton(
+            row, text="Add", width=64, height=28, fg_color=c("button_success"),
+            hover_color=c("button_success_hover"), text_color=c("text_primary"),
+            command=lambda i=item: self._add(i)
+        ).pack(side="right", padx=8, pady=4)
+        text = ctk.CTkFrame(row, fg_color="transparent")
+        text.pack(side="left", fill="x", expand=True, padx=(8, 0), pady=4)
+        name_row = ctk.CTkFrame(text, fg_color="transparent")
+        name_row.pack(fill="x")
+        ctk.CTkLabel(name_row, text=item.name, font=ui_font("subheading", 13, bold=True), anchor="w"
+                     ).pack(side="left")
+        count = self.added.count(item.name)
+        if count:
+            ctk.CTkLabel(name_row, text=f"  added ×{count}" if count > 1 else "  added ✓", font=ui_font("small"),
+                         text_color=c("button_success")).pack(side="left")
         subtitle = self._subtitle_fn(item)
         if subtitle:
-            ctk.CTkLabel(
-                inner, text=subtitle, font=ui_font("small"),
-                text_color=theme.get_text_secondary(), anchor="w"
-            ).pack(anchor="w")
+            ctk.CTkLabel(text, text=subtitle, font=ui_font("small"), text_color=self.theme.get_text_secondary(),
+                         anchor="w", justify="left", wraplength=330).pack(fill="x")
+
+    def _add(self, item):
+        """The green Add button: add it and stay open, or (no ``add_fn``) pick it and close."""
+        if self.add_fn is None:
+            self._pick(item)
+            return
+        if self.add_fn(item):
+            self.added.append(item.name)
+            self._run_search()
 
     def _pick(self, item):
         self.result = item
@@ -217,8 +245,9 @@ class PickCharacterDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-def pick_equipment(parent) -> Optional[object]:
-    """Open the equipment picker and return the chosen Equipment, or None."""
+def pick_equipment(parent, add_fn: Optional[Callable[[object], bool]] = None) -> Optional[object]:
+    """Open the equipment picker and return the chosen Equipment, or None. With ``add_fn`` the dialog adds each item
+    as its Add button is clicked and stays open; the return value is then the list of names added."""
     from equipment import get_equipment_manager
 
     manager = get_equipment_manager()
@@ -232,14 +261,52 @@ def pick_equipment(parent) -> Optional[object]:
 
     dialog = ItemPickerDialog(
         parent, "Add Equipment", manager.items, subtitle,
-        lambda q: manager.search_items(q)
+        lambda q: manager.search_items(q), add_fn=add_fn
     )
     parent.wait_window(dialog)
-    return dialog.result
+    return dialog.added if add_fn is not None else dialog.result
 
 
-def pick_magic_item(parent) -> Optional[object]:
-    """Open the magic item picker and return the chosen MagicItem, or None."""
+def pick_feat(parent, owned: List[str], add_fn: Callable[[object], bool]) -> List[str]:
+    """Open the feat picker (same layout as the equipment and spell pickers); returns the names added. Feats named in
+    ``owned`` are not offered, and one disappears from the list once added."""
+    from feat import get_feat_manager
+    from legacy_content import apply_legacy_filter
+    from settings import get_settings_manager
+
+    manager = get_feat_manager()
+    taken = set(owned)
+
+    def visible():
+        return apply_legacy_filter(manager.feats, get_settings_manager().settings.legacy_content_filter)
+
+    def subtitle(feat):
+        parts = [feat.type] if feat.type else []
+        if feat.is_spellcasting:
+            parts.append("Spellcasting")
+        if feat.has_prereq and feat.prereq:
+            parts.append(f"Prerequisite: {feat.prereq}")
+        return "  •  ".join(parts)
+
+    def search(query):
+        q = query.lower()
+        return [f for f in visible() if q in f.name.lower() or q in (f.type or "").lower()
+                or q in f.plain_description().lower()]
+
+    def add(feat) -> bool:
+        if feat.name in taken or not add_fn(feat):
+            return False
+        taken.add(feat.name)
+        return True
+
+    dialog = ItemPickerDialog(parent, "Add Feat", visible(), subtitle, search, add_fn=add,
+                              hide_fn=lambda f: f.name in taken)
+    parent.wait_window(dialog)
+    return dialog.added
+
+
+def pick_magic_item(parent, add_fn: Optional[Callable[[object], bool]] = None) -> Optional[object]:
+    """Open the magic item picker and return the chosen MagicItem, or None (see ``pick_equipment`` for ``add_fn``)."""
     from magic_item import get_magic_item_manager
 
     manager = get_magic_item_manager()
@@ -254,7 +321,7 @@ def pick_magic_item(parent) -> Optional[object]:
 
     dialog = ItemPickerDialog(
         parent, "Add Magic Item", manager.items, subtitle,
-        lambda q: manager.search_items(q)
+        lambda q: manager.search_items(q), add_fn=add_fn
     )
     parent.wait_window(dialog)
-    return dialog.result
+    return dialog.added if add_fn is not None else dialog.result

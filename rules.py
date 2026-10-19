@@ -56,6 +56,8 @@ def strip_markup(text: str) -> str:
                 continue                              # the |---|---| row
             cells = [c.strip() for c in stripped.strip("|").split("|")]
             line = "  ".join(c for c in cells if c)
+        elif re.fullmatch(r"-{3,}", stripped):
+            continue                                  # a horizontal bar
         else:
             m = _HEADING_RE.match(stripped)
             if m:
@@ -66,6 +68,7 @@ def strip_markup(text: str) -> str:
     text = "\n".join(out)
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text, flags=re.S)
     text = re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", text, flags=re.S)
+    text = re.sub(r"(?<![\w_])_(?=[^\s_])(.+?)(?<=[^\s_])_(?![\w_])", r"\1", text, flags=re.S)
     return text
 
 

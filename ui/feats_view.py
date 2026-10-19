@@ -17,6 +17,7 @@ from theme import get_theme_manager
 from settings import get_settings_manager
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 
 def _list_name(name: str) -> str:
@@ -756,6 +757,10 @@ class FeatsView(ctk.CTkFrame):
             self._on_add_feat_from_text()
             return
 
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "feats"):
+            return
+
         dialog = FeatEditorDialog(self, "Add Feat")
         self.wait_window(dialog)
 
@@ -865,8 +870,8 @@ class FeatsView(ctk.CTkFrame):
         return self.list_panel.select_feat(name, self._catalog.find(name))
 
 
-class FeatEditorDialog(ctk.CTkToplevel):
-    """Dialog for adding/editing a feat."""
+class FeatEditorBody:
+    """Dialog for adding/editing a feat. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, title: str, feat: Optional[Feat] = None,
                  prefill_feat: Optional[Feat] = None, review_fields: Optional[List[str]] = None,
@@ -994,7 +999,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         ctk.CTkButton(
             btn_frame, text="Cancel", width=100,
             fg_color="transparent", border_width=1,
-            command=self.destroy
+            command=self._finish
         ).pack(side="right", padx=(5, 0))
         
         ctk.CTkButton(
@@ -1110,12 +1115,11 @@ class FeatEditorDialog(ctk.CTkToplevel):
             except Exception:
                 pass
 
-    def _save(self):
-        """Save the feat."""
+    def build_result(self, strict: bool = True) -> Feat:
+        """The feat the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Feat name is required.")
-            return
+        if not name and strict:
+            raise ValueError("Feat name is required.")
         
         feat_type = self.type_var.get()
         if feat_type == "General":
@@ -1156,7 +1160,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         # Get source (custom feats are always unofficial and non-legacy)
         source = self.source_entry.get().strip()
         
-        self.result = Feat(
+        return Feat(
             name=name,
             type=feat_type,
             is_spellcasting=is_spellcasting,
@@ -1173,7 +1177,21 @@ class FeatEditorDialog(ctk.CTkToplevel):
             roll_effects=self.roll_editor.get()
         )
 
-        self.destroy()
+    def _save(self):
+        try:
+            self.result = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            return
+        self._finish()
+
+
+class FeatEditorDialog(FeatEditorBody, DialogWindow):
+    """Dialog for adding/editing a feat."""
+
+
+class FeatEditorPanel(FeatEditorBody, EmbeddedWindow):
+    """The FeatEditorDialog form inside the Homebrew Studio."""
 
 
 class AddFeatToCharacterDialog(ctk.CTkToplevel):

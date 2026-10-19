@@ -430,3 +430,10 @@ def test_stripping_links_reads_a_rules_link_as_its_section():
     from object_link_sweep import strip_links
     assert strip_links("see [[rule:Conditions#Stunned]], [[rule:Combat]] and [[rule:Combat#Cover|cover]]") \
         == "see Stunned, Combat and cover"
+
+
+def test_bars_and_underscore_italics_are_not_words():
+    assert strip_markup("# Head\n\n---\n\nSome _slanted_ text and snake_case.") == "Head\n\n\nSome slanted text and snake_case."
+    page = RulePage(name="Bars", description="Intro\n\n# A\n\nBody\n\n---\n\nMore\n\n# B\n\nEnd")
+    assert [s.title for s in page.sections if s.level] == ["A", "B"]
+    assert "---" in page.sections[1].text and "---" not in page.sections[1].plain

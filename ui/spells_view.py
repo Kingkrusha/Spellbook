@@ -895,6 +895,10 @@ class SpellsView(ctk.CTkFrame):
             self._on_new_spell_from_text()
             return
 
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "spells"):
+            return
+
         dialog = SpellEditorDialog(self.winfo_toplevel(), "New Spell", spell_manager=self.spell_manager)
         self.wait_window(dialog)
 

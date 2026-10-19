@@ -18,6 +18,7 @@ from content_versions import VersionCatalog, display_name
 from ui.version_bar import VersionBar
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 
 def _list_name(name: str) -> str:
@@ -356,28 +357,11 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         if not text:
             return
         
-        # Split by paragraphs (double newlines)
-        paragraphs = text.split('\n\n')
-        
-        for para_idx, paragraph in enumerate(paragraphs):
-            if not paragraph.strip():
-                continue
-            
-            # Create a DynamicText for this paragraph with single asterisk bold pattern
-            dt = DynamicText(
-                self.description_container, self.theme,
-                bg_color='bg_primary'  # Use theme color key for proper theme switching
-            )
-            # Use single asterisk pattern for bold
-            dt.set_text(paragraph.strip(), bold_pattern=r'\*([^*]+)\*')
-            dt.pack(fill="x", expand=True, pady=(2, 2))
-            self._desc_widgets.append(dt)
-            
-            # Add spacing between paragraphs
-            if para_idx < len(paragraphs) - 1:
-                spacer = ctk.CTkLabel(self.description_container, text="", height=5)
-                spacer.pack()
-                self._desc_widgets.append(spacer)
+        from ui.rich_text_utils import render_description_blocks
+
+        # Paragraphs and tables; a lone *text* is bold in this collection's text
+        self._desc_widgets.extend(render_description_blocks(
+            self.description_container, text, self.theme, bold_pattern=r'\*([^*]+)\*', pady=(3, 3)))
     
     def _version_selected(self, background: Background):
         """The user picked another version in the Source drop-down."""
@@ -934,6 +918,9 @@ class BackgroundsView(ctk.CTkFrame):
     
     def _on_add_background(self):
         """Open dialog to add a new background."""
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "backgrounds"):
+            return
         dialog = BackgroundEditorDialog(self.winfo_toplevel(), self.background_manager)
         dialog.grab_set()
         self.wait_window(dialog)
@@ -999,8 +986,8 @@ class BackgroundsView(ctk.CTkFrame):
         return self.list_panel.select_background(name, self._catalog.find(name))
 
 
-class BackgroundEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating/editing backgrounds."""
+class BackgroundEditorBody:
+    """Dialog for creating/editing backgrounds. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, background_manager: BackgroundManager, background: Optional[Background] = None):
         super().__init__(parent)
@@ -1129,7 +1116,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
             width=100,
             fg_color="transparent",
             hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
+            command=self._finish
         ).pack(side="left")
     
     def _add_feature(self, name: str = "", description: str = ""):
@@ -1213,22 +1200,18 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         for feature in background.features:
             self._add_feature(feature.name, feature.description)
     
-    def _save(self):
-        """Save the background."""
+    def build_result(self, strict: bool = True) -> Background:
+        """The background the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
-        
         source = self.source_entry.get().strip()
-        if not source:
-            messagebox.showerror("Error", "Source is required.", parent=self)
-            return
-        
         description = self.desc_text.get("1.0", "end-1c").strip()
-        if not description:
-            messagebox.showerror("Error", "Description is required.", parent=self)
-            return
+        if strict:
+            if not name:
+                raise ValueError("Name is required.")
+            if not source:
+                raise ValueError("Source is required.")
+            if not description:
+                raise ValueError("Description is required.")
         
         # Parse comma-separated fields
         ability_scores = [s.strip() for s in self.ability_scores_entry.get().split(",") if s.strip()]
@@ -1245,7 +1228,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
             if feature_name:
                 features.append(BackgroundFeature(name=feature_name, description=feature_desc))
         
-        background = Background(
+        return Background(
             name=name,
             source=source,
             is_legacy=self.legacy_var.get(),
@@ -1259,7 +1242,22 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
             is_official=False,
             is_custom=True
         )
-        
-        self.background_manager.add_background(background)
+
+    def _save(self):
+        try:
+            background = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            return
+        if not self.EMBEDDED:
+            self.background_manager.add_background(background)
         self.result = background
-        self.destroy()
+        self._finish()
+
+
+class BackgroundEditorDialog(BackgroundEditorBody, DialogWindow):
+    """Dialog for creating/editing backgrounds."""
+
+
+class BackgroundEditorPanel(BackgroundEditorBody, EmbeddedWindow):
+    """The BackgroundEditorDialog form inside the Homebrew Studio."""

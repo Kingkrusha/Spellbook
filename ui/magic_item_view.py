@@ -23,6 +23,7 @@ from ui.properties_editor import PropertiesEditor
 from ui.tooltip import HoverTooltip
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 # Conventional rarity colors, independent of the app's colour theme so
 # rarity reads consistently at a glance regardless of theme choice.
@@ -283,8 +284,8 @@ class MagicItemDetailPanel(ctk.CTkFrame):
             self.source_label.pack(anchor="w", pady=(14, 0))
 
 
-class MagicItemEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating or editing a magic item."""
+class MagicItemEditorBody:
+    """The form for creating or editing a magic item (see ui/editor_host.py)."""
 
     def __init__(self, parent, title: str, item: Optional[MagicItem] = None,
                  prefill_item: Optional[MagicItem] = None, review_fields: Optional[List[str]] = None,
@@ -427,7 +428,7 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
         ctk.CTkButton(
             btn_frame, text="Cancel", width=100,
             fg_color="transparent", border_width=1,
-            command=self.destroy
+            command=self._finish
         ).pack(side="right", padx=(5, 0))
 
         ctk.CTkButton(
@@ -539,11 +540,12 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
             except Exception:
                 pass
 
-    def _save(self):
+    def build_result(self, strict: bool = True) -> MagicItem:
+        """The item the form describes. Strict (Save): raises ValueError if it is incomplete. Otherwise gaps are
+        filled in (a half-written draft)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
+        if not name and strict:
+            raise ValueError("Name is required.")
 
         weight_text = self.weight_entry.get().strip() or "0"
         try:
@@ -551,8 +553,9 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
             if weight < 0:
                 raise ValueError
         except ValueError:
-            messagebox.showerror("Error", "Weight must be a non-negative number.", parent=self)
-            return
+            if strict:
+                raise ValueError("Weight must be a non-negative number.")
+            weight = 0.0
 
         enchanting_materials_text = self.enchanting_materials_entry.get().strip()
         enchanting_materials = [m.strip() for m in enchanting_materials_text.split(",") if m.strip()]
@@ -560,7 +563,7 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
         requires_attunement = self.requires_attunement_var.get()
         attunement_requirement = self.attunement_entry.get().strip() if requires_attunement else ""
 
-        self.result = MagicItem(
+        return MagicItem(
             name=name,
             type=self.type_var.get().strip() or DEFAULT_MAGIC_ITEM_TYPE,
             cost=self.cost_entry.get().strip(),
@@ -578,7 +581,22 @@ class MagicItemEditorDialog(ctk.CTkToplevel):
             is_custom=True,
             roll_effects=self.roll_editor.get(),
         )
-        self.destroy()
+
+    def _save(self):
+        try:
+            self.result = self.build_result(strict=True)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e), parent=self)
+            return
+        self._finish()
+
+
+class MagicItemEditorDialog(MagicItemEditorBody, DialogWindow):
+    """Dialog for creating or editing a magic item."""
+
+
+class MagicItemEditorPanel(MagicItemEditorBody, EmbeddedWindow):
+    """The magic item form inside the Homebrew Studio."""
 
 
 class MagicItemView(ctk.CTkFrame):
@@ -1074,6 +1092,10 @@ class MagicItemView(ctk.CTkFrame):
             return
         if source_dialog.result == "auto":
             self._on_add_item_from_text()
+            return
+
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "magic_items"):
             return
 
         dialog = MagicItemEditorDialog(self.winfo_toplevel(), "Add Magic Item")
