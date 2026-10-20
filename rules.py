@@ -24,6 +24,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from collection_manager import DbBackedManager
+
 DEFAULT_CATEGORY = "Homebrew"
 
 _HEADING_RE = re.compile(r"^(#{1,4})[ \t]+(.+?)[ \t]*$")
@@ -668,30 +670,15 @@ class RuleSearchIndex:
 # Manager
 # --------------------------------------------------------------------------- #
 
-class RulesManager:
+class RulesManager(DbBackedManager):
     """Manages the rules pages stored in the database."""
 
     _instance: Optional["RulesManager"] = None
 
     def __init__(self):
-        self._db = None
-        self._cache: Optional[List[RulePage]] = None
+        super().__init__()
         self._by_name: Dict[str, RulePage] = {}
         self._index = RuleSearchIndex()
-
-    @classmethod
-    def get_instance(cls) -> "RulesManager":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
-    @property
-    def db(self):
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
 
     # ---- loading ----------------------------------------------------------
 

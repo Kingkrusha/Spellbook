@@ -1265,19 +1265,8 @@ class SettingsView(ctk.CTkFrame):
                     "Failed to restore spells. Please try again.",
                     parent=self.winfo_toplevel())
     
-    def _on_reset_defaults(self):
-        """Reset all settings to defaults."""
-        self.build_all_sections_now()      # the variables below live in the deferred sections
-        self.settings_manager.reset_to_defaults()
-        # Custom themes are the user's own work, so they are kept; only the
-        # selection goes back to the default theme. Fonts return to stock.
-        self.theme_manager.set_theme("default")
-        get_font_manager().reset()
-        editor = getattr(self, '_typography_editor', None)
-        if editor is not None:
-            editor.refresh()
-        
-        # Update UI variables
+    def _sync_variables_from_settings(self):
+        """Point every control's variable at the current settings (the sections must already be built)."""
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
         theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
@@ -1291,58 +1280,6 @@ class SettingsView(ctk.CTkFrame):
         self._warn_prepared_var.set(settings.warn_too_many_prepared)
         self._comparison_var.set(settings.show_comparison_highlights)
         self._allow_delete_official_var.set(settings.allow_delete_official_spells)
-        self._auto_calc_hp_var.set(settings.auto_calculate_hp)
-        self._auto_calc_ac_var.set(settings.auto_calculate_ac)
-        self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
-        self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
-        self._warn_multiclass_var.set(settings.warn_multiclass_removal)
-        self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
-        self._show_carry_weight_var.set(settings.show_carry_weight_indicator)
-        self._enable_encumbrance_var.set(settings.enable_encumbrance_rule)
-        self._legacy_filter_var.set(settings.legacy_content_filter)
-        self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
-        self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
-        self._studio_for_new_var.set(getattr(settings, 'studio_for_new_content', True))
-        self._studio_min_words_var.set(str(getattr(settings, 'studio_min_words', 4)))
-        self._studio_max_matches_var.set(str(getattr(settings, 'studio_max_matches', 10))
-                                         if getattr(settings, 'studio_max_matches', 10) else "No limit")
-        self._studio_hide_exact_var.set(getattr(settings, 'studio_hide_exact', True))
-        self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
-        self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
-        self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
-        self._link_disable_backgrounds_var.set(not getattr(settings, 'link_suggest_backgrounds', True))
-        self._link_disable_classes_var.set(not getattr(settings, 'link_suggest_classes', True))
-        self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
-        self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
-        self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
-        self._link_disable_rules_var.set(not getattr(settings, 'link_suggest_rules', False))
-        self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
-        self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
-
-        # Apply appearance
-        ctk.set_appearance_mode(settings.appearance_mode)
-        if self.on_appearance_changed:
-            self.on_appearance_changed(settings.appearance_mode)
-    
-    def refresh_from_settings(self):
-        """Refresh UI from current settings (call when view becomes visible)."""
-        if getattr(self, "_pending_sections", None):
-            # Still being built: sections not built yet read the current settings
-            # when they are, so there is nothing stale to refresh.
-            self._sync_theme_menu()
-            return
-        settings = self.settings_manager.settings
-        self._appearance_var.set(settings.appearance_mode)
-        theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
-        self._theme_menu.configure(values=self._theme_names())
-        self._theme_var.set(self.theme_manager.display_name(theme_key))
-        self._spell_added_var.set(settings.show_spell_added_notification)
-        self._rest_notif_var.set(settings.show_rest_notification)
-        self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
-        self._warn_class_var.set(settings.warn_wrong_class)
-        self._warn_level_var.set(settings.warn_spell_too_high_level)
-        self._warn_prepared_var.set(settings.warn_too_many_prepared)
-        self._comparison_var.set(settings.show_comparison_highlights)
         self._auto_calc_hp_var.set(settings.auto_calculate_hp)
         self._auto_calc_ac_var.set(settings.auto_calculate_ac)
         self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
@@ -1378,6 +1315,35 @@ class SettingsView(ctk.CTkFrame):
         self._link_disable_rules_var.set(not getattr(settings, 'link_suggest_rules', False))
         self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
         self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
+
+    def _on_reset_defaults(self):
+        """Reset all settings to defaults."""
+        self.build_all_sections_now()      # the variables below live in the deferred sections
+        self.settings_manager.reset_to_defaults()
+        # Custom themes are the user's own work, so they are kept; only the
+        # selection goes back to the default theme. Fonts return to stock.
+        self.theme_manager.set_theme("default")
+        get_font_manager().reset()
+        editor = getattr(self, '_typography_editor', None)
+        if editor is not None:
+            editor.refresh()
+
+        self._sync_variables_from_settings()
+
+        # Apply appearance
+        settings = self.settings_manager.settings
+        ctk.set_appearance_mode(settings.appearance_mode)
+        if self.on_appearance_changed:
+            self.on_appearance_changed(settings.appearance_mode)
+
+    def refresh_from_settings(self):
+        """Refresh UI from current settings (call when view becomes visible)."""
+        if getattr(self, "_pending_sections", None):
+            # Still being built: sections not built yet read the current settings
+            # when they are, so there is nothing stale to refresh.
+            self._sync_theme_menu()
+            return
+        self._sync_variables_from_settings()
 
     def _on_theme_changed(self):
         """Update dynamic label/input colors when the appearance changes."""

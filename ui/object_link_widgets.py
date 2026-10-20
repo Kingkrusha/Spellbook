@@ -10,6 +10,7 @@ equipment, magic items, classes/subclasses all go through RichTextEditor).
 
 from __future__ import annotations
 
+from ui.window_utils import center_on_parent
 import re
 import tkinter as tk
 from tkinter import messagebox
@@ -364,10 +365,7 @@ class LinkPopup(ctk.CTkToplevel):
         self.view.pack(fill="both", expand=True)
         self.obj = self.view.obj
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        center_on_parent(self, parent, clamp=True)
         self.lift()
 
 

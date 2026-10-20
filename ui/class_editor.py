@@ -3,6 +3,7 @@ Class and Subclass Editor Dialogs for D&D Spellbook Application.
 Allows users to create and edit custom classes and subclasses.
 """
 
+from ui.window_utils import add_cancel_save
 import customtkinter as ctk
 from typography import ui_font
 from tkinter import messagebox
@@ -89,64 +90,91 @@ HALF_CASTER_SLOTS = {
 }
 
 
-class FeatureEditorDialog(ctk.CTkToplevel):
-    """Dialog for adding/editing a single feature at a level."""
-    
-    def __init__(self, parent, title: str = "Add Feature", feature: Optional[ClassAbility] = None):
-        super().__init__(parent)
-        
-        self.theme = get_theme_manager()
-        self.result: Optional[ClassAbility] = None
-        self._feature = feature
-        
+class _FeatureDialogBase(ctk.CTkToplevel):
+    """What the class editor's feature dialogs share: a modal window, the title / description / roll-effect fields
+    and the two-field check on save. A subclass sets ``theme`` and ``result`` and then calls ``_open``."""
+
+    def _open(self, parent, title: str, size: tuple, min_size: tuple, feature=None):
         self.title(title)
-        self.geometry("600x550")
-        self.minsize(500, 450)
+        self.geometry(f"{size[0]}x{size[1]}")
+        self.minsize(*min_size)
         self.resizable(True, True)
-        
+
         self.transient(parent)
         self.grab_set()
-        
+
         self._create_widgets()
-        
+
         if feature:
             self._populate_from_feature(feature)
-        
+
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 600) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 550) // 2
+        x = parent.winfo_rootx() + (parent.winfo_width() - size[0]) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - size[1]) // 2
         self.geometry(f"+{x}+{y}")
-    
-    def _create_widgets(self):
-        """Create dialog widgets."""
-        from ui.rich_text_utils import RichTextEditor
-        
-        container = ctk.CTkFrame(self, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Title
-        ctk.CTkLabel(
-            container, text="Feature Title *",
-            font=ui_font("subheading", 13, bold=True)
-        ).pack(fill="x", pady=(0, 5))
-        
-        self.title_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Extra Attack")
+
+    def _add_title_entry(self, container, placeholder: str):
+        ctk.CTkLabel(container, text="Feature Title *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
+        self.title_entry = ctk.CTkEntry(container, height=35, placeholder_text=placeholder)
         self.title_entry.pack(fill="x", pady=(0, 15))
-        
-        # Description
-        ctk.CTkLabel(
-            container, text="Description *",
-            font=ui_font("subheading", 13, bold=True)
-        ).pack(fill="x", pady=(0, 5))
-        
-        # Rich text toolbar
+
+    def _add_description_editor(self, container):
+        """The description box with its rich-text toolbar."""
+        from ui.rich_text_utils import RichTextEditor
+
+        ctk.CTkLabel(container, text="Description *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
+
         self.description_text = ctk.CTkTextbox(container, height=180, font=ui_font("body"))
         self._rich_editor = RichTextEditor(self, self.description_text, self.theme)
         toolbar = self._rich_editor.create_toolbar(container)
         toolbar.pack(fill="x", pady=(0, 5))
-        
+
         self.description_text.pack(fill="both", expand=True, pady=(0, 15))
-        
+
+    def _add_roll_effects_editor(self, container):
+        from ui.roll_effects_editor import RollEffectsEditor
+        self.roll_editor = RollEffectsEditor(container)
+        self.roll_editor.pack(fill="x", pady=(0, 15))
+
+    def _add_buttons(self, container, pady=0):
+        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=pady)
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_save)
+
+    def _title_and_description(self):
+        """The trimmed ``(title, description)``, or None (after a warning) when either is missing."""
+        title = self.title_entry.get().strip()
+        if not title:
+            messagebox.showwarning("Warning", "Please enter a feature title.", parent=self)
+            return None
+
+        description = self.description_text.get("1.0", "end-1c").strip()
+        if not description:
+            messagebox.showwarning("Warning", "Please enter a description.", parent=self)
+            return None
+        return title, description
+
+
+class FeatureEditorDialog(_FeatureDialogBase):
+    """Dialog for adding/editing a single feature at a level."""
+
+    def __init__(self, parent, title: str = "Add Feature", feature: Optional[ClassAbility] = None):
+        super().__init__(parent)
+
+        self.theme = get_theme_manager()
+        self.result: Optional[ClassAbility] = None
+        self._feature = feature
+
+        self._open(parent, title, (600, 550), (500, 450), feature)
+
+    def _create_widgets(self):
+        """Create dialog widgets."""
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
+
+        self._add_title_entry(container, "e.g., Extra Attack")
+        self._add_description_editor(container)
+
         # Is Subclass Feature checkbox
         self.is_subclass_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
@@ -154,32 +182,9 @@ class FeatureEditorDialog(ctk.CTkToplevel):
             variable=self.is_subclass_var, font=ui_font("body")
         ).pack(fill="x", pady=(0, 15))
 
-        from ui.roll_effects_editor import RollEffectsEditor
-        self.roll_editor = RollEffectsEditor(container)
-        self.roll_editor.pack(fill="x", pady=(0, 15))
-        
-        # Buttons
-        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
-        btn_frame.pack(fill="x")
-        
-        btn_text = self.theme.get_current_color('text_primary')
-        
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save", width=100,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_save
-        ).pack(side="right")
-    
+        self._add_roll_effects_editor(container)
+        self._add_buttons(container)
+
     def _populate_from_feature(self, feature: ClassAbility):
         """Populate from existing feature."""
         self.title_entry.insert(0, feature.title)
@@ -189,16 +194,11 @@ class FeatureEditorDialog(ctk.CTkToplevel):
     
     def _on_save(self):
         """Save the feature."""
-        title = self.title_entry.get().strip()
-        if not title:
-            messagebox.showwarning("Warning", "Please enter a feature title.", parent=self)
+        fields = self._title_and_description()
+        if not fields:
             return
-        
-        description = self.description_text.get("1.0", "end-1c").strip()
-        if not description:
-            messagebox.showwarning("Warning", "Please enter a description.", parent=self)
-            return
-        
+        title, description = fields
+
         # Preserve tables and subclass_name from original feature if editing
         tables = self._feature.tables if self._feature else []
         subclass_name = self._feature.subclass_name if self._feature else ""
@@ -214,42 +214,24 @@ class FeatureEditorDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-class TrackableFeatureEditorDialog(ctk.CTkToplevel):
+class TrackableFeatureEditorDialog(_FeatureDialogBase):
     """Dialog for adding/editing a trackable feature."""
-    
+
     def __init__(self, parent, feature: Optional[TrackableFeature] = None):
         super().__init__(parent)
-        
+
         self.theme = get_theme_manager()
         self.result: Optional[TrackableFeature] = None
-        
-        self.title("Edit Trackable Feature" if feature else "Add Trackable Feature")
-        self.geometry("500x550")
-        self.minsize(450, 500)
-        self.resizable(True, True)
-        
-        self.transient(parent)
-        self.grab_set()
-        
-        self._create_widgets()
-        
-        if feature:
-            self._populate_from_feature(feature)
-        
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 500) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 550) // 2
-        self.geometry(f"+{x}+{y}")
-    
+
+        self._open(parent, "Edit Trackable Feature" if feature else "Add Trackable Feature", (500, 550), (450, 500),
+                   feature)
+
     def _create_widgets(self):
         """Create dialog widgets."""
         scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         scroll.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Title
-        ctk.CTkLabel(scroll, text="Feature Title *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
-        self.title_entry = ctk.CTkEntry(scroll, height=35, placeholder_text="e.g., Rage")
-        self.title_entry.pack(fill="x", pady=(0, 15))
+
+        self._add_title_entry(scroll, "e.g., Rage")
         
         # Description
         ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
@@ -289,27 +271,7 @@ class TrackableFeatureEditorDialog(ctk.CTkToplevel):
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(fill="x", pady=(0, 15))
         
-        # Buttons
-        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(20, 0))
-        
-        btn_text = self.theme.get_current_color('text_primary')
-        
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save", width=100,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_save
-        ).pack(side="right")
+        self._add_buttons(scroll, pady=(20, 0))
     
     def _populate_from_feature(self, feature: TrackableFeature):
         """Populate from existing feature."""
@@ -449,23 +411,8 @@ class ClassEditorBody:
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=15, pady=15)
         
-        btn_text = self.theme.get_current_color('text_primary')
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=self._finish
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save Class", width=120,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_save_class
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self._finish, self._on_save_class, confirm_text="Save Class", confirm_width=120)
     
     def _on_tab_change(self, tab_name: str):
         """Handle tab change - lazy load tab content if not yet created."""
@@ -1377,23 +1324,8 @@ class SubclassEditorBody:
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=15, pady=15)
         
-        btn_text = self.theme.get_current_color('text_primary')
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=self._finish
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save Subclass", width=120,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_save_subclass
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self._finish, self._on_save_subclass, confirm_text="Save Subclass", confirm_width=120)
     
     def _create_basic_tab(self):
         """Create the basic info tab."""
@@ -1665,38 +1597,21 @@ class SubclassEditorPanel(SubclassEditorBody, EmbeddedWindow):
     """The subclass form inside the Homebrew Studio."""
 
 
-class SubclassFeatureEditorDialog(ctk.CTkToplevel):
+class SubclassFeatureEditorDialog(_FeatureDialogBase):
     """Dialog for editing a single subclass feature."""
-    
+
     def __init__(self, parent, min_level: int = 1, feature: Optional[SubclassFeature] = None):
         super().__init__(parent)
-        
+
         self.theme = get_theme_manager()
         self.result: Optional[SubclassFeature] = None
         self._min_level = min_level
         self._feature = feature  # Store original feature to preserve tables
-        
-        self.title("Edit Feature" if feature else "Add Feature")
-        self.geometry("600x500")
-        self.minsize(500, 400)
-        self.resizable(True, True)
-        
-        self.transient(parent)
-        self.grab_set()
-        
-        self._create_widgets()
-        
-        if feature:
-            self._populate(feature)
-        
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 600) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 500) // 2
-        self.geometry(f"+{x}+{y}")
-    
+
+        self._open(parent, "Edit Feature" if feature else "Add Feature", (600, 500), (500, 400), feature)
+
     def _create_widgets(self):
         """Create dialog widgets."""
-        from ui.rich_text_utils import RichTextEditor
         
         container = ctk.CTkFrame(self, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=20, pady=20)
@@ -1714,48 +1629,12 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
         )
         self.level_combo.pack(side="left", padx=(15, 0))
         
-        # Title
-        ctk.CTkLabel(container, text="Feature Title *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
-        self.title_entry = ctk.CTkEntry(container, height=35, placeholder_text="e.g., Frenzy")
-        self.title_entry.pack(fill="x", pady=(0, 15))
-        
-        # Description with rich text toolbar
-        ctk.CTkLabel(container, text="Description *", font=ui_font("subheading", 13, bold=True)).pack(fill="x", pady=(0, 5))
-        
-        self.description_text = ctk.CTkTextbox(container, height=180, font=ui_font("body"))
-        self._rich_editor = RichTextEditor(self, self.description_text, self.theme)
-        toolbar = self._rich_editor.create_toolbar(container)
-        toolbar.pack(fill="x", pady=(0, 5))
-        
-        self.description_text.pack(fill="both", expand=True, pady=(0, 15))
+        self._add_title_entry(container, "e.g., Frenzy")
+        self._add_description_editor(container)
+        self._add_roll_effects_editor(container)
+        self._add_buttons(container)
 
-        from ui.roll_effects_editor import RollEffectsEditor
-        self.roll_editor = RollEffectsEditor(container)
-        self.roll_editor.pack(fill="x", pady=(0, 15))
-
-        # Buttons
-        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
-        btn_frame.pack(fill="x")
-
-        btn_text = self.theme.get_current_color('text_primary')
-
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-
-        ctk.CTkButton(
-            btn_frame, text="Save", width=100,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_save
-        ).pack(side="right")
-
-    def _populate(self, feature: SubclassFeature):
+    def _populate_from_feature(self, feature: SubclassFeature):
         """Populate from existing feature."""
         self.level_var.set(str(feature.level))
         self.title_entry.insert(0, feature.title)
@@ -1764,15 +1643,10 @@ class SubclassFeatureEditorDialog(ctk.CTkToplevel):
 
     def _on_save(self):
         """Save the feature."""
-        title = self.title_entry.get().strip()
-        if not title:
-            messagebox.showwarning("Warning", "Please enter a feature title.", parent=self)
+        fields = self._title_and_description()
+        if not fields:
             return
-
-        description = self.description_text.get("1.0", "end-1c").strip()
-        if not description:
-            messagebox.showwarning("Warning", "Please enter a description.", parent=self)
-            return
+        title, description = fields
 
         # Preserve tables from original feature if editing
         tables = self._feature.tables if self._feature else []
@@ -1839,23 +1713,8 @@ class SubclassSpellEditorDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(20, 0))
         
-        btn_text = self.theme.get_current_color('text_primary')
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            text_color=btn_text,
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Add", width=100,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_save
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_save, confirm_text="Add")
     
     def _on_save(self):
         """Save the spell."""

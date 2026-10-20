@@ -8,6 +8,7 @@ the caller then turns into a linked inventory row (see character_sheet_view.py's
 _add_equipment_item / _add_magic_item).
 """
 
+from ui.window_utils import add_cancel_save, center_on_parent
 from typing import Callable, List, Optional
 
 import customtkinter as ctk
@@ -62,10 +63,7 @@ class ItemPickerDialog(ctk.CTkToplevel):
 
         self._create_widgets(title)
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        center_on_parent(self, parent, clamp=True)
 
     def _create_widgets(self, title: str):
         theme = self.theme
@@ -224,21 +222,9 @@ class PickCharacterDialog(ctk.CTkToplevel):
 
         btn_frame = ctk.CTkFrame(content, fg_color="transparent")
         btn_frame.pack(fill="x")
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color="transparent", border_width=1,
-            command=self.destroy
-        ).pack(side="right", padx=(5, 0))
-        ctk.CTkButton(
-            btn_frame, text="Add", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            command=self._on_add
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_add, confirm_text="Add", outlined=True)
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        center_on_parent(self, parent, clamp=True)
 
     def _on_add(self):
         self.result = self.char_var.get()

@@ -15,7 +15,7 @@ new one - never a half-written file.
 import json
 import os
 import tempfile
-from typing import Any
+from typing import Any, Callable, List
 
 
 def atomic_write_text(path: str, text: str, encoding: str = "utf-8") -> None:
@@ -61,3 +61,24 @@ def atomic_write_json(
     """
     text = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii)
     atomic_write_text(path, text)
+
+
+class SaveErrorListeners:
+    """For a manager that saves user data: lets the UI hear about a failed load or save.
+
+    Without it a failure was only ever ``print()``-ed - invisible in a windowed build with no console - so edits
+    could silently vanish without the user ever finding out. The manager sets ``self._error_listeners = []`` and
+    calls ``self._notify_error(message)`` where it used to print."""
+
+    _error_listeners: List[Callable[[str], None]]
+
+    def add_error_listener(self, callback: Callable[[str], None]):
+        """Add a listener to be notified when a load/save fails."""
+        self._error_listeners.append(callback)
+
+    def _notify_error(self, message: str):
+        for listener in self._error_listeners:
+            try:
+                listener(message)
+            except Exception:
+                pass

@@ -11,6 +11,7 @@ import json
 from tkinter import filedialog, messagebox
 
 from theme import get_theme_manager
+from ui.window_utils import add_export_cancel
 
 
 def import_characters(parent, character_manager, spell_manager=None) -> bool:
@@ -216,21 +217,7 @@ class CharacterSheetExportDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
 
-        ctk.CTkButton(
-            btn_frame, text="📤 Export Selected",
-            width=150, height=40,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_secondary'),
-            command=self._export
-        ).pack(side="left")
-
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
-            width=100, height=40,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
-        ).pack(side="right")
+        add_export_cancel(btn_frame, self.theme, "📤 Export Selected", self._export, self.destroy)
 
     def _select_all(self):
         """Select all characters."""

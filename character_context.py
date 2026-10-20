@@ -20,8 +20,7 @@ from item_effects import ItemInfo
 ABILITIES = ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
 ABILITY_NAMES = {"STR": "Strength", "DEX": "Dexterity", "CON": "Constitution",
                  "INT": "Intelligence", "WIS": "Wisdom", "CHA": "Charisma"}
-ENUM = {"STR": AbilityScore.STRENGTH, "DEX": AbilityScore.DEXTERITY, "CON": AbilityScore.CONSTITUTION,
-        "INT": AbilityScore.INTELLIGENCE, "WIS": AbilityScore.WISDOM, "CHA": AbilityScore.CHARISMA}
+ENUM = {AbilityScore.short_name(a): a for a in AbilityScore}
 ABBR = {v: k for k, v in ENUM.items()}
 
 _LEGACY = re.compile(r"\s*\((?:legacy[^)]*)\)", re.IGNORECASE)

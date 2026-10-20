@@ -10,14 +10,19 @@ from typography import ui_font
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from typing import Callable, List, Optional
-from spell import Spell, CharacterClass, AdvancedFilters, TagFilterMode, SourceFilterMode
+from spell import Spell, CharacterClass, AdvancedFilters, TagFilterMode, SourceFilterMode, is_protected_tag
 from validation import validate_spell_for_character
 from theme import get_theme_manager
-from ui.filter_widgets import TagFilterDialog, SourceFilterDialog
+from ui.bulk_actions import BulkActionsMixin, BulkWarningsDialog
+from ui.collection_page import SearchTitlesMixin, SourceFilterMixin
+from ui.text_import_flow import announce_added, import_from_pasted_text
+from ui.filter_widgets import TagFilterDialog
 
 
-class SpellsView(ctk.CTkFrame):
+class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTkFrame):
     """The spell browser for one tab."""
+
+    MANAGER_ATTR = "spell_manager"
 
     def __init__(self, parent, spell_manager, character_manager, settings_manager,
                  on_back: Optional[Callable[[], None]] = None):
@@ -42,6 +47,7 @@ class SpellsView(ctk.CTkFrame):
         self._create_toolbar()
         self._create_advanced_filters()
         self._create_main_content()
+        self._setup_bulk_actions()
         self._create_context_menu()
 
         # Follow changes to the spell collection
@@ -168,7 +174,8 @@ class SpellsView(ctk.CTkFrame):
         self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
         self.search_entry = ctk.CTkEntry(search_frame, textvariable=self.search_var,
                                          width=160, placeholder_text="Search spells...")
-        self.search_entry.pack(side="left")
+        self.search_entry.pack(side="left", padx=(0, 8))
+        self._add_titles_only(search_frame, (0, 0))
 
         # Level filter
         level_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
@@ -392,38 +399,6 @@ class SpellsView(ctk.CTkFrame):
         self._tag_filter_mode = dialog.result_mode
         self._update_tags_label()
         self._on_filter_changed(immediate=True)
-    
-    def _open_source_filter(self):
-        """Open the source filter dialog."""
-        available_sources = self.spell_manager.get_all_sources()
-        dialog = SourceFilterDialog(
-            self.winfo_toplevel(),
-            available_sources,
-            self._selected_sources,
-            self._source_filter_mode
-        )
-        self.wait_window(dialog)
-        
-        self._selected_sources = dialog.result
-        self._source_filter_mode = dialog.result_mode
-        self._update_source_label()
-        self._on_filter_changed(immediate=True)
-    
-    def _update_source_label(self):
-        """Update the source label with selected source count and mode."""
-        count = len(self._selected_sources)
-        mode_labels = {
-            SourceFilterMode.INCLUDE: "include",
-            SourceFilterMode.EXCLUDE: "exclude"
-        }
-        mode_str = mode_labels.get(self._source_filter_mode, "")
-        
-        if count == 0:
-            self.source_label.configure(text="None selected")
-        elif count == 1:
-            self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
-        else:
-            self.source_label.configure(text=f"{count} sources ({mode_str})")
     
     def _update_tags_label(self):
         """Update the tags label with selected tag count and mode."""
@@ -822,7 +797,8 @@ class SpellsView(ctk.CTkFrame):
         legacy_filter = self.settings_manager.settings.legacy_content_filter
         filtered_spells = self.spell_manager.get_filtered_spells(
             search_text, level_filter, class_name_filter, advanced, legacy_filter,
-            collapse_versions=True  # one row per spell; its versions are in the detail panel's Source drop-down
+            collapse_versions=True,  # one row per spell; its versions are in the detail panel's Source drop-down
+            titles_only=self._titles_only()
         )
         self.spell_list.set_spells(filtered_spells, reset_scroll=reset_scroll)
     
@@ -914,61 +890,24 @@ class SpellsView(ctk.CTkFrame):
         from ui.spell_editor import SpellEditorDialog
         from ui.spell_text_import import SpellTextImportDialog
 
-        import_dialog = SpellTextImportDialog(self.winfo_toplevel())
-        self.wait_window(import_dialog)
-        parsed_list = import_dialog.result
-        if not parsed_list:
-            return
-
-        try:
+        def load_converter():
             from text_import.spell_parser import to_spell
-        except Exception as exc:
-            messagebox.showerror("Auto-Detect Unavailable",
-                                 f"Could not load the text importer:\n{exc}")
-            return
+            return to_spell
 
-        added = []
-        total = len(parsed_list)
-        for idx, parsed in enumerate(parsed_list, 1):
-            try:
-                draft = to_spell(parsed)
-            except Exception as exc:
-                messagebox.showerror("Parse Error",
-                                     f"Could not build spell {idx} of {total}:\n{exc}")
-                continue
-
-            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
-            progress = f"{idx} of {total}" if total > 1 else ""
-
-            editor = SpellEditorDialog(
+        added = import_from_pasted_text(
+            self, import_cls=SpellTextImportDialog, load_converter=load_converter, noun="spell",
+            noun_phrase="a spell",
+            make_editor=lambda draft, review, progress: SpellEditorDialog(
                 self.winfo_toplevel(),
                 f"Review Spell: {draft.name or 'Untitled'}",
                 spell_manager=self.spell_manager,
                 prefill_spell=draft, review_fields=review, batch_progress=progress,
-            )
-            self.wait_window(editor)
-
-            if editor.result:
-                if self.spell_manager.add_spell(editor.result):
-                    added.append(editor.result.name)
-                else:
-                    messagebox.showerror(
-                        "Error",
-                        f"A spell named '{editor.result.name}' already exists. "
-                        "It was not added.")
-            elif idx < total:
-                if not messagebox.askyesno(
-                        "Continue?",
-                        "Skip this spell and continue reviewing the remaining "
-                        f"{total - idx} spell(s)?"):
-                    break
+            ),
+            add=self.spell_manager.add_spell)
 
         if added:
             self.spell_list.select_spell(added[-1])
-            if len(added) > 1:
-                messagebox.showinfo("Spells Added",
-                                    f"Added {len(added)} spells:\n" + "\n".join(added))
-
+            announce_added(added, "spells")
 
     def _on_edit_spell(self, spell):
         """Open dialog to edit an existing spell."""
@@ -1030,6 +969,61 @@ class SpellsView(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to export spell:\n{e}")
     
+    # ---- bulk actions (the list's "Select" mode) ---------------------------------------------
+
+    BULK_ACTIONS = ("add", "tags", "classes", "source")
+    BULK_NOUN, BULK_PLURAL = "spell", "spells"
+    BULK_EDIT_OFFICIAL = True            # like the Edit button: a bundled spell's tags, source and classes can change
+    BULK_PANEL_ATTR = "spell_list"
+
+    def _bulk_fetch(self, name: str):
+        return self.spell_manager.get_spell(name)
+
+    def _bulk_store(self, entries: list) -> int:
+        return self.spell_manager.update_spells([(spell.name, spell) for spell in entries])
+
+    def _bulk_reload(self):
+        self._refresh_spell_list(reset_scroll=False)
+
+    def _bulk_all_tags(self) -> List[str]:
+        return self.spell_manager.get_all_tags()
+
+    def _bulk_all_sources(self) -> List[str]:
+        return self.spell_manager.get_all_sources()
+
+    def _bulk_class_names(self) -> List[str]:
+        return CharacterClass.spellcasting_class_names()
+
+    def _bulk_is_protected_tag(self):
+        return is_protected_tag
+
+    def _bulk_set_classes(self, spell, names: List[str]):
+        spell.class_names = names
+        spell.classes = [CharacterClass.from_string(n) for n in names]
+
+    def _bulk_give(self, character, entries: list) -> Optional[str]:
+        flagged = [(s.name, w) for s in entries if (w := self._validate_spell_for_character(s, character))]
+        skipped = 0
+        if flagged:
+            dialog = BulkWarningsDialog(
+                self.winfo_toplevel(),
+                f"{len(flagged)} of the {len(entries)} spells have warnings for {character.name}:",
+                flagged, len(entries) - len(flagged))
+            self.wait_window(dialog)
+            if dialog.result is None:
+                return None
+            if dialog.result == "clean":
+                with_warnings = {name for name, _w in flagged}
+                skipped = len(with_warnings)
+                entries = [s for s in entries if s.name not in with_warnings]
+        added, already = self.character_manager.add_spells_to_character(character.name, [s.name for s in entries])
+        lines = [f"Added {self._bulk_count_text(added)} to {character.name}'s spell list."]
+        if already:
+            lines.append(f"{already} {'was' if already == 1 else 'were'} already on it.")
+        if skipped:
+            lines.append(f"{skipped} with warnings left out.")
+        return "\n".join(lines)
+
     def _on_add_to_list(self, spell, character_name: str):
         """Add a spell to a character's known spells."""
         if self.character_manager.add_spell_to_character(character_name, spell.name):

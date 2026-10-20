@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from collection_manager import DbBackedManager
 from character_sheet import (
     AbilityScore, AbilityScores, SavingThrows, Skill, SkillProficiencies,
 )
@@ -568,37 +569,18 @@ class Monster:
         )
 
 
-class MonsterManager:
+class MonsterManager(DbBackedManager):
     """Manages the monster database using SQLite."""
 
     _instance: Optional["MonsterManager"] = None
 
-    def __init__(self):
-        self._db = None
-        self._monsters_cache: Optional[List[Monster]] = None
-
-    @classmethod
-    def get_instance(cls) -> "MonsterManager":
-        """Get singleton instance."""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
-    @property
-    def db(self):
-        """Get database instance, initializing if needed."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
+    def _load_all(self) -> List[Monster]:
+        return [Monster.from_dict(d) for d in self.db.get_all_monsters()]
 
     @property
     def monsters(self) -> List[Monster]:
         """Get all monsters, using cache if available."""
-        if self._monsters_cache is None:
-            self._reload_cache()
-        return self._monsters_cache or []
+        return self._cached()
 
     @property
     def browsable(self) -> List[Monster]:
@@ -607,23 +589,6 @@ class MonsterManager:
         from settings import get_settings_manager
         show = getattr(get_settings_manager().settings, "show_spell_only_summons", False)
         return [m for m in self.monsters if show or not m.spell_only]
-
-    def _reload_cache(self):
-        """Reload monsters from database into cache."""
-        self._monsters_cache = [Monster.from_dict(d) for d in self.db.get_all_monsters()]
-
-    def _invalidate_cache(self):
-        """Invalidate the cache to force reload on next access."""
-        self._monsters_cache = None
-
-    def load(self) -> bool:
-        """Reload monsters from database (for compatibility)."""
-        self._invalidate_cache()
-        return True
-
-    def save(self) -> bool:
-        """No-op for database backend (saves happen immediately)."""
-        return True
 
     def get_monster(self, name: str) -> Optional[Monster]:
         """Get a monster by name."""

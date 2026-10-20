@@ -4,6 +4,7 @@ Displays a searchable/filterable list of monsters with a stat block panel,
 laid out the same way as the Spells/Feats/Magic Items pages.
 """
 
+from ui.window_utils import center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 import tkinter as tk
@@ -21,8 +22,10 @@ from stat_block import StatBlockFeature
 from theme import get_theme_manager
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 from ui.monster_stat_block import MonsterStatBlock, signed as _signed
+from ui.bulk_actions import BulkActionsMixin
+from ui.collection_page import CollectionPageMixin
 from ui.virtual_list import VirtualListPanel
-from ui.editor_host import DialogWindow, EmbeddedWindow
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
 from ui.collapsible import CollapsibleSection
 from ui.menu_button import MenuButton
 from ui.monster_features import StatFeatureList
@@ -123,7 +126,7 @@ class MonsterDetailPanel(ctk.CTkFrame):
             self._stat_block.pack(fill="x")
 
 
-class MonsterEditorBody:
+class MonsterEditorBody(EditorBody):
     """The monster form (see ui/editor_host.py). It works like a character sheet: the numbers that follow from other
     numbers are worked out for you and say where they come from when you hover them - proficiency bonus from the CR,
     hit die from the size, hit points from the hit dice and Constitution, saves, skills and initiative from the scores,
@@ -154,10 +157,7 @@ class MonsterEditorBody:
         self._ready = True
         self._update_preview()
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{max(y, 0)}")
+        center_on_parent(self, parent, clamp=True)
 
     # ----- layout -----
 
@@ -719,16 +719,6 @@ class MonsterEditorBody:
             raise ValueError(f"There is no spell named '{monster.spell_name}'.")
         return monster
 
-    def _save(self):
-        try:
-            monster = self.build_result(strict=True)
-        except ValueError as e:
-            messagebox.showerror("Error", str(e), parent=self)
-            return
-        self.result = monster
-        self._finish()
-
-
 class MonsterEditorDialog(MonsterEditorBody, DialogWindow):
     """Dialog for creating or editing a monster."""
 
@@ -806,7 +796,7 @@ class _MultiFilter:
         return not any(s in have for s in wanted)
 
 
-class MonsterView(ctk.CTkFrame):
+class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     """Main view for browsing and managing monsters."""
 
     def __init__(self, parent, character_manager=None, on_back=None):
@@ -825,6 +815,7 @@ class MonsterView(ctk.CTkFrame):
         self._listed_spell_only = False
 
         self._create_widgets()
+        self._setup_bulk_actions()
         self._load_monsters()
         self.theme.add_listener(self._on_theme_changed)
         self.settings_manager.add_listener(self._on_settings_changed)
@@ -845,24 +836,12 @@ class MonsterView(ctk.CTkFrame):
 
     # ----- layout -----
 
-    def _create_widgets(self):
-        self._create_filter_bar()
-
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-        self.paned = tk.PanedWindow(
-            self.content, orient=tk.HORIZONTAL, sashwidth=8, sashrelief=tk.RAISED,
-            handlesize=0, opaqueresize=False, sashcursor="sb_h_double_arrow")
-        self.paned.pack(fill="both", expand=True)
-        self.paned.configure(bg=self.theme.get_current_color("pane_sash"))
-
+    def _create_panes(self):
         self.list_panel = MonsterListPanel(self.paned, on_select=self._on_monster_selected)
         self.detail_panel = MonsterDetailPanel(self.paned)
 
         self.paned.add(self.list_panel, minsize=280, stretch="always")
         self.paned.add(self.detail_panel, minsize=400, stretch="always")
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
 
     def _bar(self, pady=(0, 5)) -> ctk.CTkFrame:
         bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -965,7 +944,8 @@ class MonsterView(ctk.CTkFrame):
                         command=lambda: self._on_filter_changed(immediate=True)).pack(side="left", padx=(0, 10))
         self.lair_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(bar, text="Has Lair", variable=self.lair_var, width=80,
-                        command=lambda: self._on_filter_changed(immediate=True)).pack(side="left")
+                        command=lambda: self._on_filter_changed(immediate=True)).pack(side="left", padx=(0, 10))
+        self._add_titles_only(bar, (0, 0))
 
         # Row 3: where it comes from, where it lives, what it carries
         bar = self._bar()
@@ -1001,6 +981,22 @@ class MonsterView(ctk.CTkFrame):
 
     # ----- data -----
 
+    BULK_ACTIONS = ("source",)
+    BULK_NOUN, BULK_PLURAL = "monster", "monsters"
+
+    def _bulk_fetch(self, name: str):
+        return self.monster_manager.get_monster(name)
+
+    def _bulk_store(self, entries: list) -> int:
+        with self.monster_manager.batch():
+            return sum(bool(self.monster_manager.update_monster(e.name, e)) for e in entries)
+
+    def _bulk_reload(self):
+        self._load_monsters()
+
+    def _bulk_all_sources(self) -> List[str]:
+        return self.monster_manager.get_all_sources()
+
     def _load_monsters(self):
         from object_link_sweep import strip_links
         self._listed_spell_only = bool(self.settings_manager.settings.show_spell_only_summons)
@@ -1033,6 +1029,7 @@ class MonsterView(ctk.CTkFrame):
 
     def _clear_filters(self):
         self.search_var.set("")
+        self.titles_var.set(False)
         self.type_var.set("All Types")
         self.size_var.set("All Sizes")
         self.alignment_var.set("All Alignments")
@@ -1047,13 +1044,6 @@ class MonsterView(ctk.CTkFrame):
         for f in self._filters:
             f.clear()
         self._on_filter_changed(immediate=True)
-
-    def _on_filter_changed(self, immediate: bool = False):
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-        delay = 10 if immediate else self._filter_debounce_delay
-        self._filter_debounce_id = self.after(delay, self._apply_filters)
 
     @staticmethod
     def _bound(var: ctk.StringVar) -> Optional[int]:
@@ -1080,7 +1070,8 @@ class MonsterView(ctk.CTkFrame):
 
         filtered = []
         for m in self._all_monsters:
-            if search and search not in self._search_index.get(m.name, ""):
+            if search and search not in (m.name.lower() if self._titles_only()
+                                         else self._search_index.get(m.name, "")):
                 continue
             if type_filter != "All Types" and m.creature_type != type_filter:
                 continue
@@ -1161,7 +1152,7 @@ class MonsterView(ctk.CTkFrame):
             return
         if self.monster_manager.add_monster(monster):
             self._load_monsters()
-            self.list_panel.select_monster(monster.name)
+            self.list_panel.select_when_listed(monster.name)
 
     def _on_edit_monster(self):
         monster = self.list_panel.get_selected_monster()
@@ -1176,7 +1167,7 @@ class MonsterView(ctk.CTkFrame):
             return
         if self.monster_manager.update_monster(monster.name, result):
             self._load_monsters()
-            self.list_panel.select_monster(result.name)
+            self.list_panel.select_when_listed(result.name)
             self.detail_panel.show_monster(result)
 
     def _on_delete_monster(self):

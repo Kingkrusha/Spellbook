@@ -22,21 +22,22 @@ from typing import Dict, List, Optional, Tuple
 from text_import.base import (
     Confidence,
     ParsedObject,
+    begin_block,
+    blocks_from_anchors,
     clean_lines,
     guess_description_tags,
+    join_paragraphs,
+    known_class_names,
     split_labelled_fragments,
+    split_on_blank_gaps,
     strip_markdown,
 )
 
 try:  # keep the parser importable in isolation (tests, notebooks)
     from spell import CharacterClass
-    _KNOWN_CLASSES = [c.lower() for c in CharacterClass.all_class_names_with_custom()]
 except Exception:  # pragma: no cover
     CharacterClass = None
-    _KNOWN_CLASSES = [
-        "artificer", "bard", "cleric", "druid", "paladin",
-        "ranger", "sorcerer", "warlock", "wizard",
-    ]
+_KNOWN_CLASSES = known_class_names()
 
 
 # --------------------------------------------------------------------------- #
@@ -106,25 +107,10 @@ def split_blocks(text: str) -> List[str]:
 
     if not header_idx:
         # No recognisable headers: split on blank-line gaps of 2+.
-        chunks = re.split(r"\n\s*\n\s*\n*", text.strip())
-        return [c.strip() for c in chunks if c.strip()] or [text.strip()]
+        return split_on_blank_gaps(text)
 
     # Name line = nearest non-empty line above each header.
-    starts: List[int] = []
-    for hi in header_idx:
-        j = hi - 1
-        while j >= 0 and not lines[j]:
-            j -= 1
-        starts.append(j if j >= 0 else hi)
-
-    starts = sorted(set(starts))
-    blocks: List[str] = []
-    for k, start in enumerate(starts):
-        end = starts[k + 1] if k + 1 < len(starts) else len(lines)
-        chunk = "\n".join(lines[start:end]).strip()
-        if chunk:
-            blocks.append(chunk)
-    return blocks
+    return blocks_from_anchors(lines, header_idx)
 
 
 # --------------------------------------------------------------------------- #
@@ -325,11 +311,7 @@ def _parse_classes(value: str, labelled: bool) -> Tuple[List[str], Confidence]:
 # --------------------------------------------------------------------------- #
 
 def parse_spell_block(text: str) -> ParsedObject:
-    obj = ParsedObject(kind="spell", raw_text=text)
-    lines = [ln for ln in clean_lines(text)]
-    # drop leading blanks
-    while lines and not lines[0]:
-        lines.pop(0)
+    obj, lines = begin_block("spell", text)
     if not lines:
         return obj
 
@@ -503,17 +485,7 @@ def parse_spell_block(text: str) -> ParsedObject:
         obj.set("source", "", Confidence.MISSING)
 
     # description: trim, collapse blank runs, join paragraphs with the app's "\"
-    paras: List[str] = []
-    buf: List[str] = []
-    for ln in desc_lines:
-        if ln:
-            buf.append(ln)
-        elif buf:
-            paras.append(" ".join(buf))
-            buf = []
-    if buf:
-        paras.append(" ".join(buf))
-    description = "\\".join(paras).strip()
+    description = join_paragraphs(desc_lines, "\\")
     obj.set("description", description,
             Confidence.HIGH if len(description) > 20 else Confidence.LOW)
 

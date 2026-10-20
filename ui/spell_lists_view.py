@@ -3,6 +3,7 @@ Spell Lists View for D&D Spellbook.
 Displays and manages character spell lists.
 """
 
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
 from typography import ui_font
 import tkinter as tk
@@ -158,7 +159,7 @@ class CharacterCard(ctk.CTkFrame):
             pass
 
 
-class CharacterSpellsPanel(ctk.CTkFrame):
+class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
     """Panel showing the spells known by a selected character."""
     
     def __init__(self, parent, spell_manager: SpellManager,
@@ -311,15 +312,6 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             font=ui_font("subheading"),
             text_color=text_secondary
         )
-
-    def destroy(self):
-        """Clean up listeners when panel is destroyed."""
-        try:
-            if hasattr(self, '_theme') and self._theme:
-                self._theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
 
     def _on_theme_changed(self):
         """Reconfigure color-sensitive widgets when theme changes."""

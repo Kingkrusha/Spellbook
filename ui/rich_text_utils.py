@@ -3,13 +3,33 @@ Rich Text Utilities for D&D 5e Spellbook Application.
 Provides global utilities for rendering formatted text, tables, and spell popups.
 """
 
+from ui.window_utils import add_cancel_save, center_on_parent
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
+from rules import split_cells as split_table_cells
 from typography import ui_font
 import tkinter as tk
 from tkinter import messagebox
 import re
 from typing import Optional, List, Callable, Tuple
 from theme import get_theme_manager
+
+
+def description_text(parent, theme, bg, font) -> tk.Text:
+    """The borderless, word-wrapping Text that descriptions are drawn in (arrow cursor: it is for reading)."""
+    return tk.Text(
+        parent,
+        wrap="word",
+        font=font,
+        bg=bg,
+        fg=theme.get_current_color('text_primary'),
+        relief="flat",
+        borderwidth=0,
+        highlightthickness=0,
+        padx=0,
+        pady=2,
+        cursor="arrow"
+    )
 
 
 def logical_width(widget) -> int:
@@ -134,37 +154,6 @@ BAR_LINE_RE = re.compile(r"^-{3,}[ \t]*$")
 _ITALIC_UNDERSCORE_RE = re.compile(r"(?<![\w_])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\w_])")
 _ITALIC_STAR_RE = re.compile(r"(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])")
 DEFAULT_BOLD_PATTERN = r'\*\*([^*]+)\*\*'
-
-
-def split_table_cells(line: str):
-    """The cells of one markdown table line. A ``|`` inside ``[[...]]`` (``[[spell:Fireball|fire]]``) is part
-    of the link, not a column divider."""
-    line = line.strip()
-    if line.startswith("|"):
-        line = line[1:]
-    if line.endswith("|"):
-        line = line[:-1]
-    cells, current, depth, i = [], [], 0, 0
-    while i < len(line):
-        two = line[i:i + 2]
-        if two == "[[":
-            depth += 1
-            current.append(two)
-            i += 2
-            continue
-        if two == "]]" and depth:
-            depth -= 1
-            current.append(two)
-            i += 2
-            continue
-        if line[i] == "|" and depth == 0:
-            cells.append("".join(current).strip())
-            current = []
-        else:
-            current.append(line[i])
-        i += 1
-    cells.append("".join(current).strip())
-    return cells
 
 
 def split_italics(text: str, star_italic: bool = True):
@@ -422,20 +411,7 @@ class RichTextRenderer:
                     btn.pack(fill="x", padx=6, pady=6, anchor="w")
                 else:
                     # Plain text cell - use Text widget for word wrapping
-                    text_widget = tk.Text(
-                        cell_frame,
-                        wrap="word",
-                        font=ui_font("small"),
-                        bg=row_bg if row_bg != "transparent" else self.theme.get_current_color('bg_tertiary'),
-                        fg=self.theme.get_current_color('text_primary'),
-                        relief="flat",
-                        borderwidth=0,
-                        highlightthickness=0,
-                        padx=6,
-                        pady=6,
-                        height=1,
-                        cursor="arrow"
-                    )
+                    text_widget = self._cell_text_widget(cell_frame, row_bg if row_bg != "transparent" else self.theme.get_current_color('bg_tertiary'))
                     text_widget.insert("1.0", cell_text)
                     # Calculate required height based on content length
                     num_lines = max(1, (len(cell_text) // 35) + 1)
@@ -467,20 +443,7 @@ class RichTextRenderer:
                                         on_spell_click: Optional[Callable], parent):
         """Render a table cell containing spell links."""
         # Use a Text widget for mixed content
-        text_widget = tk.Text(
-            cell_frame,
-            wrap="word",
-            font=ui_font("small"),
-            bg=self.theme.get_current_color('bg_tertiary'),
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=6,
-            pady=6,
-            height=1,
-            cursor="arrow"
-        )
+        text_widget = self._cell_text_widget(cell_frame)
         
         # Configure tags
         text_widget.tag_configure("normal", font=ui_font("small"))
@@ -522,20 +485,7 @@ class RichTextRenderer:
                                       bold_pattern: str, on_spell_click: Optional[Callable], parent):
         """Render a table cell with bold formatting and/or spell links."""
         # Use a Text widget for mixed content
-        text_widget = tk.Text(
-            cell_frame,
-            wrap="word",
-            font=ui_font("small"),
-            bg=self.theme.get_current_color('bg_tertiary'),
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=6,
-            pady=6,
-            height=1,
-            cursor="arrow"
-        )
+        text_widget = self._cell_text_widget(cell_frame)
         
         # Configure tags
         text_widget.tag_configure("normal", font=ui_font("small"))
@@ -708,11 +658,10 @@ class RichTextRenderer:
             # Has spell links - use text widget with clickable links
             self._render_line_with_spells(parent, parts, on_spell_click, wraplength)
     
-    def _render_formatted_line(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
-        """Render a line with bold formatting and spell links."""
+    def _line_text_widget(self, parent) -> tk.Text:
+        """A borderless, read-only-looking Text for one line of description (spell links need a Text)."""
         # Try to get the proper background color from the parent or theme
         try:
-            # Try to get color from parent frame first
             parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
             if parent_bg is None or parent_bg == 'SystemButtonFace':
                 bg_color = self.theme.get_current_color('bg_primary')
@@ -720,20 +669,29 @@ class RichTextRenderer:
                 bg_color = parent_bg
         except Exception:
             bg_color = self.theme.get_current_color('bg_primary')
-        
-        text_widget = tk.Text(
-            parent,
+
+        return description_text(parent, self.theme, bg_color, ui_font("body"))
+
+    def _cell_text_widget(self, cell_frame, bg=None) -> tk.Text:
+        """The Text a table cell is drawn in (word wrap, links); ``bg`` defaults to the tertiary background."""
+        return tk.Text(
+            cell_frame,
             wrap="word",
-            font=ui_font("body"),
-            bg=bg_color,
+            font=ui_font("small"),
+            bg=bg if bg is not None else self.theme.get_current_color('bg_tertiary'),
             fg=self.theme.get_current_color('text_primary'),
             relief="flat",
             borderwidth=0,
             highlightthickness=0,
-            padx=0,
-            pady=2,
+            padx=6,
+            pady=6,
+            height=1,
             cursor="arrow"
         )
+
+    def _render_formatted_line(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
+        """Render a line with bold formatting and spell links."""
+        text_widget = self._line_text_widget(parent)
         
         # Configure tags
         # Bold text in a description is a feature/field name ("Hit Points.", "Casting Time:")
@@ -796,29 +754,7 @@ class RichTextRenderer:
 
     def _render_line_with_spells(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
         """Render a line containing spell links [[SpellName]]."""
-        # Try to get the proper background color from the parent or theme
-        try:
-            parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
-            if parent_bg is None or parent_bg == 'SystemButtonFace':
-                bg_color = self.theme.get_current_color('bg_primary')
-            else:
-                bg_color = parent_bg
-        except Exception:
-            bg_color = self.theme.get_current_color('bg_primary')
-        
-        text_widget = tk.Text(
-            parent,
-            wrap="word",
-            font=ui_font("body"),
-            bg=bg_color,
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=2,
-            cursor="arrow"
-        )
+        text_widget = self._line_text_widget(parent)
         
         # Configure tags
         text_widget.tag_configure("normal", font=ui_font("body"))
@@ -881,10 +817,7 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         self._load_spells()
         
         # Center on parent and ensure visibility
-        self.update_idletasks()
-        x = toplevel_parent.winfo_rootx() + (toplevel_parent.winfo_width() - self.winfo_width()) // 2
-        y = toplevel_parent.winfo_rooty() + (toplevel_parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, toplevel_parent)
         
         # Ensure dialog appears on top and grabs focus
         self.lift()
@@ -962,21 +895,9 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(15, 0))
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        self.select_btn = ctk.CTkButton(
-            btn_frame, text="Select", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_select,
-            state="disabled"
-        )
-        self.select_btn.pack(side="right")
+        _, self.select_btn = add_cancel_save(btn_frame, self.theme, self.destroy, self._on_select,
+                                             confirm_text="Select", accent=True)
+        self.select_btn.configure(state="disabled")
     
     def _load_spells(self):
         """Load all spells from database."""
@@ -1111,10 +1032,7 @@ class TableEditorDialog(ctk.CTkToplevel):
             self._refresh_table()
         
         # Center on parent and ensure visibility
-        self.update_idletasks()
-        x = toplevel_parent.winfo_rootx() + (toplevel_parent.winfo_width() - self.winfo_width()) // 2
-        y = toplevel_parent.winfo_rooty() + (toplevel_parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, toplevel_parent)
         
         # Ensure dialog appears on top and grabs focus
         self.lift()
@@ -1194,19 +1112,8 @@ class TableEditorDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Insert", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_insert
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_insert, confirm_text="Insert",
+                        cancel_width=100, confirm_width=100, accent=True)
     
     def _parse_existing_table(self, table_str: str):
         """Parse an existing markdown table string."""
@@ -1546,7 +1453,7 @@ class RichTextEditor:
         self.text_widget.focus()
 
 
-class DynamicText(ctk.CTkFrame):
+class DynamicText(ThemeListenerMixin, ctk.CTkFrame):
     """
     A text container that dynamically resizes and re-wraps text to match
     the width of its parent container. Supports bold text formatting.
@@ -1586,19 +1493,7 @@ class DynamicText(ctk.CTkFrame):
         self._bg_color = bg_color
         
         # Create the text widget
-        self.text_widget = tk.Text(
-            self,
-            wrap="word",
-            font=ui_font("body", font_size),
-            bg=bg_color,
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=2,
-            cursor="arrow"
-        )
+        self.text_widget = description_text(self, self.theme, bg_color, ui_font("body", font_size))
         self.text_widget.pack(fill="x", expand=True)
         
         # Configure tags
@@ -1893,15 +1788,6 @@ class DynamicText(ctk.CTkFrame):
         else:
             open_link_popup(self, category, name)
     
-    def destroy(self):
-        """Clean up on destruction."""
-        try:
-            self.theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
-
-
 def description_blocks(text: str):
     """A description as [("text" | "table", block)]: paragraphs (separated by blank lines), with every run
     of lines starting with ``|`` split out as a table, whether or not a blank line sits before it."""

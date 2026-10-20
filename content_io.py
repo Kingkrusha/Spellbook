@@ -110,6 +110,12 @@ class ImportReport:
     links_added: int = 0
     # records whose [[links]] still have to be checked (see finalize_link_check)
     pending_links: List[Tuple[str, dict]] = field(default_factory=list)
+    # The final check (finalize_link_check) goes back over what several files brought in, because a record can
+    # mention, or link to, something that only arrived with a later file:
+    imported_records: List[Tuple[str, dict]] = field(default_factory=list)   # what went in, to be linked again
+    retry_subclasses: List[dict] = field(default_factory=list)               # subclasses whose class wasn't there yet
+    late_links: int = 0                                                      # mentions only that final check linked
+    spell_manager: Any = field(default=None, repr=False, compare=False)
 
     @property
     def imported(self) -> int:
@@ -122,7 +128,11 @@ class ImportReport:
         self.failed += other.failed
         self.warnings += [w for w in other.warnings if w not in self.warnings]
         self.links_added += other.links_added
+        self.late_links += other.late_links
         self.pending_links += other.pending_links
+        self.imported_records += other.imported_records
+        self.retry_subclasses += other.retry_subclasses
+        self.spell_manager = self.spell_manager or other.spell_manager
         return self
 
     def summary_lines(self) -> List[str]:
@@ -134,6 +144,8 @@ class ImportReport:
                 lines.append(f"{label(kind)}: {bit}")
         if self.links_added:
             lines.append(f"{self.links_added} mention(s) linked to other content")
+        if self.late_links:
+            lines.append(f"{self.late_links} of those point at content from a later file")
         return lines
 
     def problem_lines(self, limit: int = 12) -> List[str]:
@@ -694,6 +706,7 @@ def _import_subclasses(recs: List[dict], report: ImportReport, tick):
         elif result == "missing_parent":
             report.skipped.append(("subclasses", name,
                                    f"its class '{sub.parent_class}' isn't installed - import the class first"))
+            report.retry_subclasses.append(rec)
 
 
 def _reference_warnings(bundle: "OrderedDict[str, List[dict]]", report: ImportReport, spell_manager):
@@ -749,6 +762,7 @@ def import_bundle(data: dict, spell_manager=None, *, link_mentions: bool = True,
     ``finalize_link_check`` - use it when importing several files in a row, so a link from
     one file to something in the next isn't reported as missing."""
     report = ImportReport()
+    report.spell_manager = spell_manager
     bundle = normalize_bundle(data, report)
     if kinds:
         keep = set(kinds)
@@ -814,10 +828,15 @@ def import_bundle(data: dict, spell_manager=None, *, link_mentions: bool = True,
     # 4. things the file refers to that aren't installed
     emit("Checking references...")
     _reference_warnings(bundle, report, spell_manager)
+    refused = {(k, n.lower()) for k, n, _why in report.skipped + report.failed}
     for kind, recs in bundle.items():
         for rec in recs:
-            if isinstance(rec, dict) and find_links(rec):
+            if not isinstance(rec, dict):
+                continue
+            if find_links(rec):
                 report.pending_links.append((kind, rec))
+            if defer_link_check and link_mentions and kind in _LINK_CATEGORY and (kind, _clean_name(rec).lower()) not in refused:
+                report.imported_records.append((kind, rec))     # more files follow: see finalize_link_check
     if not defer_link_check:
         finalize_link_check(report)
     if progress:
@@ -825,8 +844,92 @@ def import_bundle(data: dict, spell_manager=None, *, link_mentions: bool = True,
     return report
 
 
+_SAVERS = {
+    "classes": lambda recs, report, spell_manager: _import_classes(recs, report, _no_tick),
+    "subclasses": lambda recs, report, spell_manager: _import_subclasses(recs, report, _no_tick),
+    "spells": lambda recs, report, spell_manager: _import_spells(recs, report, spell_manager, _no_tick),
+}
+
+
+def _no_tick(_name: str):
+    pass
+
+
+def _save_again(kind: str, recs: List[dict], spell_manager) -> ImportReport:
+    """Store ``recs`` again (the same way an import does); the counts go to a report of their own."""
+    scratch = ImportReport()
+    save = _SAVERS.get(kind)
+    if save:
+        save(recs, scratch, spell_manager)
+    else:
+        _import_simple(kind, recs, scratch, _no_tick)
+    return scratch
+
+
+def _retry_orphan_subclasses(report: ImportReport):
+    """A subclass is skipped when its class isn't installed. If the class came with a later file, add it now."""
+    waiting, report.retry_subclasses = report.retry_subclasses, []
+    for rec in waiting:
+        name = _clean_name(rec)
+        try:
+            again = _save_again("subclasses", [rec], report.spell_manager)
+        except Exception:
+            report.retry_subclasses.append(rec)
+            continue
+        done = again.added["subclasses"] + again.updated["subclasses"]
+        if not done:
+            report.retry_subclasses.append(rec)
+            continue
+        report.skipped = [s for s in report.skipped
+                          if not (s[0] == "subclasses" and s[1] == name and s[2].startswith("its class"))]
+        report.added.update(again.added)
+        report.updated.update(again.updated)
+
+
+def _relink_imported(report: ImportReport):
+    """Link the mentions that couldn't be linked while their target was missing.
+
+    Each file is linked against what is installed plus that file, so a mention of something that arrives with
+    a later file stays plain text. Once every file is in, go over what was imported once more against everything
+    that is installed now, and store the records that gained links."""
+    records, report.imported_records = report.imported_records, []
+    if not records:
+        return
+    try:
+        universe = _build_universe(OrderedDict(), report.spell_manager)
+    except Exception:
+        return
+    changed: "OrderedDict[str, List[dict]]" = OrderedDict()
+    for kind, rec in records:
+        fresh = copy.deepcopy(rec)
+        added = link_record(kind, fresh, universe)
+        if added:
+            changed.setdefault(kind, []).append(fresh)
+            report.links_added += added
+            report.late_links += added
+    for kind in KINDS:
+        recs = changed.get(kind)
+        if not recs:
+            continue
+        try:
+            again = _save_again(kind, recs, report.spell_manager)
+        except Exception as e:
+            report.warnings.append(f"Could not store the links added to {label(kind).lower()}: {e}")
+            continue
+        for k, name, err in again.failed:
+            report.warnings.append(f"Could not store the links added to {singular(k).lower()} '{name}': {err}")
+        for rec in recs:
+            report.pending_links.append((kind, rec))        # the freshly linked text is checked below too
+
+
 def finalize_link_check(report: ImportReport) -> ImportReport:
-    """Warn about object links, in what was imported, whose target is not installed."""
+    """The last step of an import (of one file or, once all of them are in, of several).
+
+    Anything that failed only because something it needs was not installed *at the time* is looked at again,
+    now that everything is: subclasses whose class arrived later are added, mentions of content that arrived
+    later are linked, and what still points at nothing is reported."""
+    _retry_orphan_subclasses(report)
+    _relink_imported(report)
     if not report.pending_links:
         return report
     try:

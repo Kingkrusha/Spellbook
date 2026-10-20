@@ -3,6 +3,8 @@ Character Editor Dialog for D&D Spellbook.
 Dialog for creating and editing character spell lists.
 """
 
+from ui.window_utils import center_on_parent
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
 from typography import ui_font
 from tkinter import messagebox
@@ -226,7 +228,7 @@ class ClassLevelRow(ctk.CTkFrame):
         )
 
 
-class CharacterEditorDialog(ctk.CTkToplevel):
+class CharacterEditorDialog(ThemeListenerMixin, ctk.CTkToplevel):
     """A dialog for creating or editing a character spell list."""
     
     def __init__(self, parent, title: str, character: Optional[CharacterSpellList] = None):
@@ -258,10 +260,7 @@ class CharacterEditorDialog(ctk.CTkToplevel):
             self._add_class_row(is_primary=True)
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
         
         # Focus on name entry
         self.name_entry.focus_set()
@@ -474,16 +473,6 @@ class CharacterEditorDialog(ctk.CTkToplevel):
         except Exception:
             pass
 
-    def destroy(self):
-        """Remove theme listener and destroy the dialog."""
-        try:
-            if hasattr(self, '_theme') and self._theme:
-                self._theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
-
-
 class CustomSpellSlotsDialog(ctk.CTkToplevel):
     """Dialog for editing custom spell slot limits for Custom class characters."""
     
@@ -507,10 +496,7 @@ class CustomSpellSlotsDialog(ctk.CTkToplevel):
         self._create_widgets()
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
     
     def _create_widgets(self):
         """Create all dialog widgets."""

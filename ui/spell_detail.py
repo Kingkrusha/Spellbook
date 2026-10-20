@@ -3,6 +3,8 @@ Spell Detail Panel for D&D Spellbook (CustomTkinter version).
 Displays detailed information about a selected spell.
 """
 
+from ui.window_utils import center_on_parent
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
 from typography import ui_font
 import tkinter as tk
@@ -41,10 +43,7 @@ class SpellWarningDialog(ctk.CTkToplevel):
         self._create_widgets(spell_name, warnings)
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
     
     def _create_widgets(self, spell_name: str, warnings: List[str]):
         """Create dialog widgets."""
@@ -143,10 +142,7 @@ class AddToListDialog(ctk.CTkToplevel):
         self._create_widgets(spell_name, characters)
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
     
     def _create_widgets(self, spell_name: str, characters: list):
         """Create dialog widgets."""
@@ -245,7 +241,7 @@ class AddToListDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-class SpellDetailPanel(ctk.CTkFrame):
+class SpellDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
     """A panel for displaying detailed spell information."""
     
     def __init__(self, parent, on_edit: Callable[[Spell], None],
@@ -913,15 +909,6 @@ class SpellDetailPanel(ctk.CTkFrame):
         except Exception:
             pass
 
-    def destroy(self):
-        """Remove theme listener when destroyed."""
-        try:
-            if hasattr(self, '_theme') and self._theme:
-                self._theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
-    
     def _on_content_resize(self, event):
         """Handle description frame resize - may need to re-render for new width."""
         # Rich text renderer handles wrapping automatically
@@ -1177,10 +1164,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
         self._create_widgets()
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent)
         
         # Bind Escape to close
         self.bind("<Escape>", lambda e: self.destroy())

@@ -6,6 +6,8 @@ text of the pages (not just their names) and puts the best match first: "Stunned
 Conditions page at its Stunned section, with every use of the word lit up.
 """
 
+from ui.window_utils import center_on_parent
+from ui.theme_listener import ThemeListenerMixin
 import tkinter as tk
 from tkinter import messagebox
 from typing import List, Optional
@@ -21,8 +23,9 @@ from ui.label_text import LabeledLabel
 from ui.rule_text import RuleTextView
 from ui.scrollable_combobox import ScrollableComboBox
 from ui.tag_editor import TagEditor
+from ui.collection_page import CollectionPageMixin
 from ui.virtual_list import VirtualListPanel
-from ui.editor_host import DialogWindow, EmbeddedWindow
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
 
 ALL_CATEGORIES = "All Categories"
 DEFAULT_CATEGORY_TEXT = "Homebrew"
@@ -48,7 +51,7 @@ class RulesListPanel(VirtualListPanel):
         return self.select_by_name(name)
 
 
-class RuleDetailPanel(ctk.CTkFrame):
+class RuleDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
     """One rules page: its name and details above the text, with a jump list of its sections."""
 
     def __init__(self, parent, on_link=None, on_back=None):
@@ -62,13 +65,6 @@ class RuleDetailPanel(ctk.CTkFrame):
         self._query = ""
         self._create_widgets()
         self.theme.add_listener(self._on_theme_changed)
-
-    def destroy(self):
-        try:
-            self.theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
 
     def _on_theme_changed(self):
         try:
@@ -237,7 +233,7 @@ class RuleDetailPanel(ctk.CTkFrame):
             self.text_view.scroll_to_section(index)
 
 
-class RuleEditorBody:
+class RuleEditorBody(EditorBody):
     """Dialog for adding or editing the user's own rules page. (the form; see ui/editor_host.py)"""
 
     def __init__(self, parent, title: str, page: Optional[RulePage] = None):
@@ -257,10 +253,7 @@ class RuleEditorBody:
         if page:
             self._populate(page)
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        center_on_parent(self, parent, clamp=True)
 
     def _create_widgets(self):
         from ui.rich_text_utils import RichTextEditor
@@ -344,15 +337,6 @@ class RuleEditorBody:
             tags=self.tag_editor.get_tags(),
             order=0, is_official=False, is_custom=True)
 
-    def _save(self):
-        try:
-            self.result = self.build_result(strict=True)
-        except ValueError as e:
-            messagebox.showerror("Error", str(e), parent=self)
-            return
-        self._finish()
-
-
 class RuleEditorDialog(RuleEditorBody, DialogWindow):
     """Dialog for adding or editing the user's own rules page."""
 
@@ -361,7 +345,7 @@ class RuleEditorPanel(RuleEditorBody, EmbeddedWindow):
     """The RuleEditorDialog form inside the Homebrew Studio."""
 
 
-class RulesView(ctk.CTkFrame):
+class RulesView(CollectionPageMixin, ctk.CTkFrame):
     """Main view for browsing, searching and managing rules pages."""
 
     def __init__(self, parent, character_manager=None, on_back=None):
@@ -419,30 +403,13 @@ class RulesView(ctk.CTkFrame):
 
     # ------------------------------------------------------------------ layout
 
-    def _create_widgets(self):
-        self._create_filter_bar()
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-        self.paned = tk.PanedWindow(
-            self.content, orient=tk.HORIZONTAL, sashwidth=8, sashrelief=tk.RAISED,
-            handlesize=0, opaqueresize=False, sashcursor="sb_h_double_arrow")
-        self.paned.pack(fill="both", expand=True)
-        self.paned.configure(bg=self.theme.get_current_color("pane_sash"))
-
+    def _create_panes(self):
         self.list_panel = RulesListPanel(self.paned, on_select=self._on_item_selected)
         self.detail_panel = RuleDetailPanel(self.paned, on_link=self._on_rule_link, on_back=self._go_back)
         self.detail_panel.set_back_enabled(False)
 
         self.paned.add(self.list_panel, minsize=260, stretch="always")
         self.paned.add(self.detail_panel, minsize=420, stretch="always")
-        self.after(100, lambda: self._place_sash())
-
-    def _place_sash(self):
-        try:
-            self.paned.sash_place(0, 320, 0)
-        except tk.TclError:
-            pass
 
     def _button(self, parent, text, command, width=110, danger=False):
         theme = self.theme
@@ -585,13 +552,6 @@ class RulesView(ctk.CTkFrame):
         self._update_source_label()
         self._update_tags_label()
         self._on_filter_changed(immediate=True)
-
-    def _on_filter_changed(self, immediate: bool = False):
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-        delay = 10 if immediate else self._filter_debounce_delay
-        self._filter_debounce_id = self.after(delay, self._apply_filters)
 
     @staticmethod
     def _matches_tags(values: List[str], selected: List[str], mode: TagFilterMode) -> bool:

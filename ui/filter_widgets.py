@@ -12,6 +12,7 @@ INCLUDE/EXCLUDE), not spell-specific, and reusing them keeps every collection's
 filter state the same type as the spell page's.
 """
 
+from ui.window_utils import center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 from typing import Dict, List
@@ -55,10 +56,7 @@ class _BaseMultiSelectDialog(ctk.CTkToplevel):
         self._create_widgets(prompt, available_values, selected_values, current_mode, empty_message)
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
 
     def _create_widgets(self, prompt, available_values, selected_values, current_mode, empty_message):
         theme = get_theme_manager()

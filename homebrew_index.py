@@ -27,6 +27,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+from rules import stem as _stem
+
 # --------------------------------------------------------------------------- families
 
 # key -> label, in the order shown to users
@@ -111,26 +113,6 @@ def strip_attack_formula(text: str) -> str:
     removed. Every claw and bite has one, so it would make every claw look like every other claw; what is left is
     what the attack *also* does."""
     return _ATTACK_FORMULA.sub("", text or "").strip()
-
-
-def _stem(word: str) -> str:
-    """A crude stem: enough to make stun/stuns/stunned and paralyze/paralyzed equal."""
-    w = word
-    if len(w) > 4 and w.endswith("ies"):
-        w = w[:-3] + "y"
-    elif len(w) > 4 and w.endswith("sses"):
-        w = w[:-2]
-    elif len(w) > 3 and w.endswith("s") and not w.endswith(("ss", "us", "is")):
-        w = w[:-1]
-    if len(w) > 5 and w.endswith("ing"):
-        w = w[:-3]
-    elif len(w) > 4 and w.endswith("ed"):
-        w = w[:-2]
-    if len(w) > 3 and w[-1] == w[-2] and w[-1] not in "aeiouls":
-        w = w[:-1]
-    if len(w) > 4 and w.endswith("e"):
-        w = w[:-1]
-    return w
 
 
 # a few words that mean the same thing in rules text

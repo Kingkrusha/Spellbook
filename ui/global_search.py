@@ -4,6 +4,7 @@ Provides a search bar with overlay dropdown showing results from all collections
 """
 
 import customtkinter as ctk
+from collection_manager import LazyDatabase
 from typography import ui_font
 from tkinter import ttk
 from typing import Optional, Callable, List, Dict
@@ -11,7 +12,7 @@ from theme import get_theme_manager
 from content_versions import collapse_search_results
 
 
-class GlobalSearchBar(ctk.CTkFrame):
+class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
     """Search bar with overlaying dropdown results."""
     
     def __init__(self, parent, on_result_selected: Optional[Callable[[str, str, int], None]] = None):
@@ -34,15 +35,6 @@ class GlobalSearchBar(ctk.CTkFrame):
         
         self._create_widgets()
         self._bind_events()
-    
-    @property
-    def db(self):
-        """Get database instance."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
     
     def _load_search_colors(self):
         """The bar follows the theme's input-field colours."""

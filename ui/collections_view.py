@@ -11,8 +11,10 @@ from tkinter import messagebox, filedialog
 from typing import Optional, Callable
 from theme import get_theme_manager
 from ui.global_search import GlobalSearchBar
+from ui.splash_screen import ProgressWindowMixin
+from ui.window_utils import add_export_cancel
 
-class ImportProgressSplash(ctk.CTkToplevel):
+class ImportProgressSplash(ProgressWindowMixin, ctk.CTkToplevel):
     """Progress splash screen shown during content import."""
     
     def __init__(self, parent):
@@ -95,16 +97,6 @@ class ImportProgressSplash(ctk.CTkToplevel):
             text_color=self.theme.get_text_secondary()
         )
         self.count_label.pack(pady=(0, 10))
-    
-    def set_status(self, message: str):
-        """Update the status message."""
-        self.status_label.configure(text=message)
-        self.update()
-    
-    def set_progress(self, value: float):
-        """Set progress bar value (0.0 to 1.0)."""
-        self.progress.set(value)
-        self.update()
     
     def set_count(self, current: int, total: int, item_type: str = "items"):
         """Update the item counter."""
@@ -813,21 +805,7 @@ class ExportDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(25, 0))
 
-        ctk.CTkButton(
-            btn_frame, text="📤 Export to JSON",
-            width=150, height=40,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_secondary'),
-            command=self._export
-        ).pack(side="left")
-
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
-            width=100, height=40,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
-        ).pack(side="right")
+        add_export_cancel(btn_frame, self.theme, "📤 Export to JSON", self._export, self.destroy)
 
     def _selected_kinds(self):
         """content_io kinds chosen in the dropdown (None = all of them)."""

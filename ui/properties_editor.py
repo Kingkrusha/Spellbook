@@ -14,6 +14,7 @@ Mirrors the look/feel of ui/tag_editor.py: a header with a "+ Add Property"
 button and a card below listing each property with Edit / remove controls.
 """
 
+from ui.window_utils import center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 from tkinter import messagebox
@@ -60,10 +61,7 @@ class PropertyDialog(ctk.CTkToplevel):
 
         self._build(name, description)
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent)
 
     def _build(self, name: str, description: str):
         theme = self.theme

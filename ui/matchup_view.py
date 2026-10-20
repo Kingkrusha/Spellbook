@@ -8,8 +8,6 @@ level) and the tide turners - the things averages cannot capture.
 
 from __future__ import annotations
 
-import queue
-import threading
 import tkinter as tk
 from typing import Callable, Dict, List, Optional
 
@@ -18,6 +16,7 @@ import customtkinter as ctk
 import matchup as M
 from theme import get_theme_manager
 from typography import ui_font
+from ui.background_work import BackgroundWorkMixin
 from ui.lazy_destroy import destroy_later
 
 TRIALS = 4000
@@ -315,7 +314,9 @@ class _SideCard(ctk.CTkFrame):
         return side
 
 
-class MatchupView(ctk.CTkFrame):
+class MatchupView(BackgroundWorkMixin, ctk.CTkFrame):
+    POLL_MS = 60
+
     def __init__(self, parent, state: dict, character_names: Callable[[], List[str]],
                  load_character: Callable[[str], Optional[tuple]], lookups, monster_names: Callable[[], List[str]],
                  get_monster: Callable[[str], object], on_back: Optional[Callable[[], None]] = None):
@@ -328,10 +329,7 @@ class MatchupView(ctk.CTkFrame):
         self.monster_names = monster_names
         self.get_monster = get_monster
         self.on_back = on_back
-        self._job = None
-        self._poll_job = None
-        self._token = 0
-        self._done: "queue.Queue" = queue.Queue()
+        self._init_background_work()
         self.result: Optional[M.Result] = None
         self._sides: List[M.Side] = []
         c = self.theme.get_current_color
@@ -363,7 +361,6 @@ class MatchupView(ctk.CTkFrame):
         self.status.pack(fill="x", pady=(10, 0))
         self.results = ctk.CTkFrame(self.scroll, fg_color="transparent")
         self.results.pack(fill="x", pady=(6, 0))
-        self.bind("<Destroy>", self._on_destroy, add="+")
         self.changed(now=True)
 
     # ---- running it
@@ -380,15 +377,14 @@ class MatchupView(ctk.CTkFrame):
         self.changed(now=True)
 
     def changed(self, now: bool = False):
-        if self._job is not None:
-            try:
-                self.after_cancel(self._job)
-            except (tk.TclError, ValueError):
-                pass
-        try:
-            self._job = self.after(1 if now else DEBOUNCE_MS, self._start)
-        except tk.TclError:
-            self._job = None
+        self._debounce(self._start, DEBOUNCE_MS, now)
+
+    def _on_work_done(self, result):
+        self.result = result
+        self._render(result)
+
+    def _on_work_failed(self, message: str):
+        self.status.configure(text=message)
 
     def _start(self):
         self._job = None
@@ -402,42 +398,8 @@ class MatchupView(ctk.CTkFrame):
             return
         self.card_a.refresh_info(a)
         self.card_b.refresh_info(b)
-        self._token += 1
-        token = self._token
         self.status.configure(text="Working out the fight...")
-
-        def work():
-            try:
-                self._done.put((token, ("ok", M.analyze(a, b, TRIALS))))
-            except Exception as e:                       # a bug must not leave the page on "Working out"
-                self._done.put((token, ("err", f"Something went wrong ({type(e).__name__}: {e}).")))
-
-        threading.Thread(target=work, daemon=True).start()
-        self._poll()
-
-    def _poll(self):
-        if self._poll_job is not None:
-            return
-        self._poll_job = self.after(60, self._poll_tick)
-
-    def _poll_tick(self):
-        self._poll_job = None
-        latest = None
-        try:
-            while True:
-                latest = self._done.get_nowait()
-        except queue.Empty:
-            pass
-        if latest is not None and latest[0] == self._token:
-            kind, payload = latest[1]
-            if kind == "ok":
-                self.result = payload
-                self._render(payload)
-            else:
-                self.status.configure(text=payload)
-            return
-        if self._token and (latest is None or latest[0] != self._token):
-            self._poll()
+        self._run_in_thread(lambda: M.analyze(a, b, TRIALS))
 
     # ---- showing it
     def _label(self, parent, text, bold=False, size=12, color=None, wrap=860, pady=(0, 0)):
@@ -570,14 +532,3 @@ class MatchupView(ctk.CTkFrame):
         notes.pack(fill="x", pady=(0, 20))
         self._label(notes, "How this was worked out", bold=True)
         self._label(notes, "\n".join(f"• {n}" for n in r.notes), size=11, color="text_secondary")
-
-    def _on_destroy(self, event):
-        if event.widget is not self:
-            return
-        self._token += 1
-        for job in (self._job, self._poll_job):
-            if job is not None:
-                try:
-                    self.after_cancel(job)
-                except (tk.TclError, ValueError):
-                    pass

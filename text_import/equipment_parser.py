@@ -26,9 +26,14 @@ from typing import Dict, List, Optional, Tuple
 from text_import.base import (
     Confidence,
     ParsedObject,
+    begin_block,
+    blocks_from_anchors,
     clean_lines,
+    cluster_anchors,
+    join_paragraphs,
     match_label,
     split_labelled_fragments,
+    split_on_blank_gaps,
     strip_markdown,
 )
 
@@ -100,29 +105,8 @@ def split_blocks(text: str) -> List[str]:
     anchors = [i for i, ln in enumerate(lines) if ln and _is_anchor_line(ln)]
 
     if not anchors:
-        chunks = re.split(r"\n\s*\n\s*\n*", text.strip())
-        return [c.strip() for c in chunks if c.strip()] or [text.strip()]
-
-    clusters: List[int] = [anchors[0]]
-    for idx in anchors[1:]:
-        if idx - clusters[-1] > 3:
-            clusters.append(idx)
-
-    starts: List[int] = []
-    for cluster_start in clusters:
-        j = cluster_start - 1
-        while j >= 0 and not lines[j]:
-            j -= 1
-        starts.append(j if j >= 0 else cluster_start)
-
-    starts = sorted(set(starts))
-    blocks: List[str] = []
-    for k, start in enumerate(starts):
-        end = starts[k + 1] if k + 1 < len(starts) else len(lines)
-        chunk = "\n".join(lines[start:end]).strip()
-        if chunk:
-            blocks.append(chunk)
-    return blocks
+        return split_on_blank_gaps(text)
+    return blocks_from_anchors(lines, cluster_anchors(anchors))
 
 
 def _match_type(value: str) -> Optional[str]:
@@ -438,10 +422,7 @@ def _row_to_parsed_object(fields: List[str], column_roles: Dict[int, str]) -> Op
 
 
 def parse_equipment_block(text: str) -> ParsedObject:
-    obj = ParsedObject(kind="equipment", raw_text=text)
-    lines = clean_lines(text)
-    while lines and not lines[0]:
-        lines.pop(0)
+    obj, lines = begin_block("equipment", text)
     if not lines:
         return obj
 
@@ -515,17 +496,7 @@ def parse_equipment_block(text: str) -> ParsedObject:
     obj.set("crafting_tool", found.get("crafting_tool", ""),
             Confidence.HIGH if "crafting_tool" in found else Confidence.MISSING)
 
-    paras: List[str] = []
-    buf: List[str] = []
-    for ln in desc_lines:
-        if ln:
-            buf.append(ln)
-        elif buf:
-            paras.append(" ".join(buf))
-            buf = []
-    if buf:
-        paras.append(" ".join(buf))
-    description = "\n\n".join(paras).strip()
+    description = join_paragraphs(desc_lines, "\n\n")
     obj.set("description", description,
             Confidence.HIGH if len(description) > 10 else Confidence.LOW)
 

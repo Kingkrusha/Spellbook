@@ -13,6 +13,7 @@ The markup is the one described in rules.py. The pure helpers (``inline_segments
 
 from __future__ import annotations
 
+from ui.theme_listener import ThemeListenerMixin
 import bisect
 import re
 import tkinter as tk
@@ -181,7 +182,7 @@ def wrap_words(words: List[Word], width: float, measure: Callable[[Word], float]
 # The widget
 # --------------------------------------------------------------------------- #
 
-class RuleTextView(ctk.CTkFrame):
+class RuleTextView(ThemeListenerMixin, ctk.CTkFrame):
     """A read-only, scrollable view of rules markup."""
 
     TABLE_INDENT = 6
@@ -653,10 +654,3 @@ class RuleTextView(ctk.CTkFrame):
                     self.text.tag_add("hit_current", start, end)
         except tk.TclError:
             pass
-
-    def destroy(self):
-        try:
-            self.theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
