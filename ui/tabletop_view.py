@@ -86,8 +86,10 @@ class TabletopView(ctk.CTkFrame):
                  remote_backend: Optional[Callable[[], Optional[N.RemoteTable]]] = None,
                  on_back: Optional[Callable[[], None]] = None,
                  characters: Optional[Callable[[], List[dict]]] = None,
-                 table: Optional[T.Tabletop] = None, assets: Optional[T.AssetStore] = None):
+                 table: Optional[T.Tabletop] = None, assets: Optional[T.AssetStore] = None,
+                 initiative: Optional[Callable[[], object]] = None):
         super().__init__(parent, fg_color="transparent")
+        self.initiative = initiative          # -> the tabletop_initiative.InitiativeLink (DM only)
         self.theme = get_theme_manager()
         self.state = state
         self.service = service
@@ -171,6 +173,10 @@ class TabletopView(ctk.CTkFrame):
             HoverTooltip(self.show_button, "The players' Tabletop shows this map (when you host a session).")
             self.undo_button = self._button(head, "↶ Undo", self._undo, width=70)
             self.undo_button.pack(side="left")
+            if self.initiative is not None:
+                turn = self._button(head, "Next Turn ▶", self._next_turn, width=100)
+                turn.pack(side="left", padx=6)
+                HoverTooltip(turn, "Move the initiative tracker to the next turn (starts combat if it hasn't).")
         else:
             self.scene_label = ctk.CTkLabel(head, text="", font=ui_font("subheading"),
                                             text_color=self.theme.get_text_secondary())
@@ -247,6 +253,11 @@ class TabletopView(ctk.CTkFrame):
         self._button(row, "＋ Token", self._add_blank_token, width=86).pack(side="left", padx=(0, 4))
         self._button(row, "Monster…", self._add_monster, width=86).pack(side="left", padx=(0, 4))
         self._button(row, "Character…", self._add_character, width=90).pack(side="left")
+        if self.initiative is not None:
+            add_all = self._button(tab, "⚔ Add map to initiative", self._add_map_to_initiative)
+            add_all.pack(fill="x", pady=(2, 0))
+            HoverTooltip(add_all, "Every creature token on this map that isn't in the initiative tracker yet. "
+                                  "HP and conditions then stay in step, and the token whose turn it is glows.")
 
         self.selected_box = ctk.CTkFrame(tab, fg_color=self._c("bg_secondary"), corner_radius=8)
         self.selected_box.pack(fill="x", pady=6)
@@ -317,7 +328,7 @@ class TabletopView(ctk.CTkFrame):
                          text_color=self.theme.get_text_secondary()).pack(anchor="w")
             return
         for t in scene["tokens"][:200]:
-            label = t["name"] + ("  (hidden)" if t.get("hidden") else "") + (
+            label = t["name"] + ("  ⚔" if t.get("entry") else "") + ("  (hidden)" if t.get("hidden") else "") + (
                 f"  ({t['owner_name']})" if t.get("owner_name") else "")
             ctk.CTkButton(self.token_list, text=label, anchor="w", height=24, fg_color="transparent",
                           text_color=self._c("text_primary"), hover_color=self._c("button_hover"),
@@ -659,7 +670,8 @@ class TabletopView(ctk.CTkFrame):
                     b.configure(state="disabled")
                 return
             hp = f"  ·  {t['hp']}/{t['hp_max']} HP" if t.get("hp") is not None and t.get("hp_max") else ""
-            self.selected_label.configure(text=f"{t['name']}{hp}")
+            init = "  ·  in initiative" if t.get("entry") else ""
+            self.selected_label.configure(text=f"{t['name']}{hp}{init}")
             self.sel_hide.configure(text="Show" if t.get("hidden") else "Hide")
             for b in (self.sel_edit, self.sel_hide, self.sel_delete):
                 b.configure(state="normal")
@@ -719,7 +731,8 @@ class TabletopView(ctk.CTkFrame):
         if monster is None:
             return
         token = {"name": self._unique_name(monster.name), "size": T.TOKEN_SIZES.get(monster.size, 1.0),
-                 "hp": monster.hp, "hp_max": monster.hp, "color": T.DEFAULT_COLORS[0]}
+                 "hp": monster.hp, "hp_max": monster.hp, "color": T.DEFAULT_COLORS[0],
+                 "source": f"monster:{monster.name}"}
         picture = _content_picture("monsters", monster.name)
         if picture:
             try:
@@ -741,7 +754,7 @@ class TabletopView(ctk.CTkFrame):
             return
         c = next(c for c in chars if c["name"] == dialog.result)
         token = {"name": c["name"], "kind": "pc", "hp": c.get("hp"), "hp_max": c.get("hp_max"),
-                 "color": T.DEFAULT_COLORS[1]}
+                 "color": T.DEFAULT_COLORS[1], "source": f"character:{c['name']}"}
         # the player who plays this character, if they're connected
         for name, cid in self._players():
             if name.lower() == c["name"].lower() or name.lower() == (c.get("player") or "").lower():
@@ -795,12 +808,69 @@ class TabletopView(ctk.CTkFrame):
         menu.add_command(label="Bring to front", command=lambda: self._dispatch({"op": "token_front",
                                                                                  "id": token_id}))
         menu.add_command(label="Duplicate", command=lambda: self._duplicate_token(t))
+        link = self._link()
+        if link is not None and t.get("kind") != "prop":
+            menu.add_separator()
+            if link.entry_for(t) is None:
+                menu.add_command(label="Add to initiative", command=lambda: self._add_to_initiative([token_id]))
+            else:
+                menu.add_command(label="Remove from initiative",
+                                 command=lambda: self._remove_from_initiative(token_id))
         menu.add_separator()
         menu.add_command(label="Delete", command=lambda: self._dispatch({"op": "token_delete", "id": token_id}))
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    # ---- initiative tracker
+    def _link(self):
+        if self.initiative is None or self.backend is None or self.backend.role != "dm":
+            return None
+        try:
+            return self.initiative()
+        except Exception as e:
+            print(f"Tabletop: no initiative link ({e})")
+            return None
+
+    def _add_to_initiative(self, token_ids: List[str]) -> int:
+        link = self._link()
+        if link is None:
+            return 0
+        import initiative_state as I
+        try:
+            added = link.add(self.backend.scene_id, token_ids)
+        except I.CommandError as e:
+            self._show_error(e.message)
+            return 0
+        if added:
+            self._set_status(f"Added {added} to initiative.")
+        return added
+
+    def _add_map_to_initiative(self):
+        link = self._link()
+        if link is None or self._scene_or_warn() is None:
+            return
+        tokens = link.addable(self.backend.scene_id)
+        if not tokens:
+            self._set_status("Every creature on this map is already in initiative.")
+            return
+        self._add_to_initiative([t["id"] for t in tokens])
+
+    def _remove_from_initiative(self, token_id: str):
+        link = self._link()
+        if link is not None:
+            link.unlink(self.backend.scene_id, token_id, remove_entry=True)
+
+    def _next_turn(self):
+        link = self._link()
+        if link is None:
+            return
+        import initiative_state as I
+        try:
+            link.next_turn()
+        except I.CommandError as e:
+            self._show_error(e.message)
 
     def _change_hp(self, token_id: str, delta: int):
         t = self.canvas.token(token_id)
@@ -810,7 +880,7 @@ class TabletopView(ctk.CTkFrame):
                             "fields": {"hp": max(0, min(top, t["hp"] + delta))}})
 
     def _duplicate_token(self, t: dict):
-        copy_ = {k: v for k, v in t.items() if k in T.TOKEN_FIELDS}
+        copy_ = {k: v for k, v in t.items() if k in T.TOKEN_FIELDS and k != "entry"}
         copy_["name"] = self._unique_name(_base_name(t["name"]))
         copy_["x"], copy_["y"] = T.Grid.of(self.backend.view()["scene"]).snap(
             t["x"] + T.Grid.of(self.backend.view()["scene"]).cell, t["y"], t.get("size", 1.0))

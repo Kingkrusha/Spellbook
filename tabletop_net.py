@@ -81,7 +81,7 @@ class LocalTable:
 
     # ---- the interface
     def view(self) -> dict:
-        return T.project(self.table.scene(self.scene_id), T.DM, rev=self.table.rev)
+        return T.project(self.table.scene(self.scene_id), T.DM, rev=self.table.rev, turn=self.table.turn)
 
     def select_scene(self, scene_id: str) -> None:
         if scene_id in self.table.scenes and scene_id != self.scene_id:

@@ -462,6 +462,11 @@ class MapCanvas(tk.Canvas):
         tags = ("overlay", "token", f"t:{t['id']}") + tags_extra
         hidden = t.get("hidden")
         photo = self._token_photo(t.get("image", ""), int(sr * 2)) if t.get("image") else None
+        # whose turn it is in the initiative tracker: a bright halo outside the condition ring
+        if t.get("turn"):
+            halo = sr + max(10.0, sr * 0.45)
+            self.create_oval(sx - halo, sy - halo, sx + halo, sy + halo, outline="#FFD54F",
+                             width=max(3.0, sr * 0.12), tags=tags + ("turn",))
         # body
         if photo is not None:
             self.create_oval(sx - sr, sy - sr, sx + sr, sy + sr, fill="#111111", outline="", tags=tags)

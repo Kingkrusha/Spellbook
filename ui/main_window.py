@@ -420,6 +420,7 @@ class MainWindow(ctk.CTkFrame):
         self._remote_tracker = None         # while a player: the host's view, as a backend
         self._table_link = None             # while hosting: sends each player their view of the shown map
         self._remote_table = None           # while a player: the map the DM shows
+        self._initiative_link = None        # tabletop tokens <-> initiative tracker entries (the DM's)
         self._remote_was_started = False
         from lan.service import SessionService
         from version import __version__
@@ -799,12 +800,38 @@ class MainWindow(ctk.CTkFrame):
         if page_type == "tabletop":
             from ui.tabletop_view import TabletopView
             state = self._tab_views[tab_id].setdefault('tabletop_state', {}) if tab_id in self._tab_views else {}
+            from lan.service import CLIENT
+            if self.session.role != CLIENT:
+                self._tabletop_initiative()         # catch the tokens up with the tracker
             return TabletopView(self, state, service=self.session, remote_backend=lambda: self._remote_table,
                                 on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
-                                characters=self._tabletop_characters)
+                                characters=self._tabletop_characters, initiative=self._tabletop_initiative)
         if page_type == "studio":
             return self._build_studio(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
+
+    def _tabletop_initiative(self):
+        """The link between tabletop tokens and the initiative tracker, made the first time it's needed."""
+        if self._initiative_link is None:
+            import tabletop
+            from tabletop_initiative import InitiativeLink
+            self._initiative_link = InitiativeLink(tabletop.get_tabletop(), self.tracker_hub.tracker,
+                                                   lookup=self._initiative_entry_for_token)
+        return self._initiative_link
+
+    def _initiative_entry_for_token(self, token: dict):
+        """The tracker entry (AC, initiative bonus...) for a token made from a monster or a character."""
+        import initiative_sources as S
+        kind, _, name = (token.get("source") or "").partition(":")
+        if kind == "monster":
+            from monster import get_monster_manager
+            monster = get_monster_manager().get_monster(name)
+            return S.from_monster(monster) if monster is not None else None
+        if kind == "character":
+            from ui.character_sheet_view import get_sheet_manager
+            sheet = get_sheet_manager().get_sheet(name)
+            return S.from_sheet(sheet, owner=token.get("owner", "")) if sheet is not None else None
+        return None
 
     def _tabletop_characters(self):
         """``[{name, portrait, hp, hp_max}]`` for the Tabletop's "Character…" button."""

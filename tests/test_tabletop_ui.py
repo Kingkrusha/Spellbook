@@ -205,3 +205,34 @@ def test_a_player_sees_no_dm_tools_and_no_hidden_tokens(window, tk_root, tmp_pat
     names = {view.canvas.itemcget(i, "text") for i in view.canvas.find_withtag("label")}
     assert "Me" in names and not any("Lurker" in n for n in names)
     view.destroy()
+
+
+def test_tokens_join_initiative_and_the_active_one_glows(window, tk_root, tmp_path):
+    import initiative_state as I
+    from tabletop_initiative import InitiativeLink
+    from ui.tabletop_view import TabletopView
+    table = T.Tabletop(str(tmp_path / "tabletop.json"))
+    assets = T.AssetStore(str(tmp_path / "assets"), str(tmp_path / "cache"))
+    tracker = I.Tracker()
+    link = InitiativeLink(table, tracker)
+    page = TabletopView(window, {}, table=table, assets=assets, initiative=lambda: link)
+    page.pack(fill="both", expand=True)
+    pump(tk_root, 10)
+    sid = with_map(page, tk_root)
+    orc = page._dispatch({"op": "token_add", "token": {"name": "Orc", "x": 105, "y": 105, "hp": 15,
+                                                       "hp_max": 15}})["token"]
+    page._dispatch({"op": "token_add", "token": {"name": "Crate", "x": 175, "y": 105, "kind": "prop"}})
+    page._add_map_to_initiative()
+    assert [e.name for e in tracker.state.entries] == ["Orc"]
+    assert not page.canvas.find_withtag("turn")
+    page._next_turn()
+    pump(tk_root)
+    assert page.canvas.find_withtag(f"t:{orc}") and set(page.canvas.find_withtag("turn")) & set(
+        page.canvas.find_withtag(f"t:{orc}"))
+    tracker.dispatch(I.DM, {"type": "hp_delta", "id": tracker.state.entries[0].id, "delta": -4})
+    pump(tk_root)
+    assert page.canvas.token(orc)["hp"] == 11
+    page._remove_from_initiative(orc)
+    pump(tk_root)
+    assert tracker.state.entries == [] and not page.canvas.find_withtag("turn")
+    link.close()

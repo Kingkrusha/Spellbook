@@ -273,7 +273,8 @@ def new_token(name: str, x: float, y: float, *, size: float = 1.0, color: str = 
 
 
 TOKEN_FIELDS = {"name", "size", "color", "image", "hp", "hp_max", "conditions", "owner", "owner_name", "hidden",
-                "kind", "show_name", "x", "y"}
+                "kind", "show_name", "x", "y", "entry", "source"}
+PRIVATE_TOKEN_FIELDS = ("entry", "source")    # the DM's bookkeeping, never sent to players
 SCENE_FIELDS = {"name", "bg", "players_move_all", "players_draw", "w", "h"}
 GRID_FIELDS = {"type", "cell", "ox", "oy", "color", "opacity", "feet"}
 
@@ -289,6 +290,8 @@ def _clean_token_fields(fields: dict) -> dict:
             out[k] = _text(v, 32)
         elif k == "owner":
             out[k] = _text(v, 64)
+        elif k in ("entry", "source"):
+            out[k] = _text(v, 80)
         elif k == "size":
             out[k] = _num(v, 1.0, 0.5, 4.0)
         elif k == "color":
@@ -352,12 +355,15 @@ def token_box(token: dict, grid: Grid) -> Tuple[float, float, float]:
 DM = "dm"
 
 
-def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0) -> dict:
-    """The scene as ``viewer`` (``DM``, or a player's install id) may see it."""
+def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0, turn=()) -> dict:
+    """The scene as ``viewer`` (``DM``, or a player's install id) may see it. ``turn`` holds the
+    initiative entries whose turn it is: their tokens get ``"turn": True``."""
     if scene is None:
         return {"rev": rev, "scene": None, "role": "dm" if viewer == DM else "player"}
     if viewer == DM:
         view = copy.deepcopy(scene)
+        for t in view["tokens"]:
+            t["turn"] = bool(t.get("entry")) and t["entry"] in turn
         return {"rev": rev, "scene": view, "role": "dm"}
     s = {k: copy.deepcopy(v) for k, v in scene.items() if k not in ("tokens", "drawings", "fog")}
     s["tokens"] = []
@@ -365,6 +371,9 @@ def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0) -> dict:
         if t.get("hidden"):
             continue
         t = dict(t)
+        t["turn"] = bool(t.get("entry")) and t["entry"] in turn
+        for k in PRIVATE_TOKEN_FIELDS:
+            t.pop(k, None)
         t["conditions"] = list(t.get("conditions") or [])
         if t.get("owner") != viewer:
             # other creatures' numbers stay with the DM; a player sees a rough state instead
@@ -403,6 +412,7 @@ class Tabletop:
         self.order: List[str] = []
         self.shown: str = ""              # the scene the players see ("" = none)
         self.rev = 0
+        self.turn: Tuple[str, ...] = ()   # initiative entries whose turn it is (not saved)
         self._listeners: List[Callable[[Optional[str]], None]] = []
         self._undo: List[Tuple[str, Optional[dict], List[str], str]] = []
         self._lock = threading.RLock()
@@ -477,7 +487,30 @@ class Tabletop:
 
     def view_for(self, viewer: str) -> dict:
         """A player's view of the scene they're shown."""
-        return project(self.shown_scene(), viewer, rev=self.rev)
+        return project(self.shown_scene(), viewer, rev=self.rev, turn=self.turn)
+
+    # ---- the initiative tracker's side (see tabletop_initiative): no undo, these follow the tracker
+
+    def link_tokens(self, scene_id: str, changes: Dict[str, dict]) -> None:
+        """Set fields on several tokens of one map at once, outside the undo history."""
+        with self._lock:
+            scene = self.scenes.get(scene_id)
+            if scene is None:
+                return
+            changed = False
+            for t in scene["tokens"]:
+                fields = _clean_token_fields(changes.get(t["id"]) or {})
+                if any(t.get(k) != v for k, v in fields.items()):
+                    t.update(fields)
+                    changed = True
+        if changed:
+            self._changed(scene_id)
+
+    def set_turn(self, entry_ids) -> None:
+        turn = tuple(entry_ids)
+        if turn != self.turn:
+            self.turn = turn
+            self._changed(None)
 
     # ---- undo (the DM's own changes)
 
@@ -606,6 +639,7 @@ class Tabletop:
         copy_["name"] = _text(f"{scene['name']} (copy)")
         for t in copy_["tokens"]:
             t["id"] = new_id()
+            t["entry"] = ""             # one token per initiative entry: the copy starts unlinked
         self.scenes[copy_["id"]] = copy_
         self.order.insert(self.order.index(scene["id"]) + 1, copy_["id"])
         return {"scene": copy_["id"]}
