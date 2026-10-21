@@ -53,6 +53,8 @@ class SettingsView(ctk.CTkFrame):
             value=getattr(settings_manager.settings, 'preload_equipment', True))
         self._preload_magic_items_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'preload_magic_items', True))
+        self._preload_rules_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'preload_rules', True))
         self._preload_sheets_var = ctk.BooleanVar(value=settings_manager.settings.preload_character_sheets)
 
         # Object linking - as-you-type suggestions, per content category. The
@@ -74,6 +76,8 @@ class SettingsView(ctk.CTkFrame):
             value=not getattr(settings_manager.settings, 'link_suggest_magic_items', True))
         self._link_disable_monsters_var = ctk.BooleanVar(
             value=not getattr(settings_manager.settings, 'link_suggest_monsters', True))
+        self._link_disable_rules_var = ctk.BooleanVar(
+            value=not getattr(settings_manager.settings, 'link_suggest_rules', False))
         self._link_autocomplete_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'link_autocomplete_names', True))
 
@@ -84,6 +88,16 @@ class SettingsView(ctk.CTkFrame):
         # Startup
         self._restore_tabs_var = ctk.BooleanVar(
             value=getattr(settings_manager.settings, 'restore_tabs', True))
+
+        # Homebrew
+        self._studio_for_new_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'studio_for_new_content', True))
+        self._studio_min_words_var = ctk.StringVar(
+            value=str(getattr(settings_manager.settings, 'studio_min_words', 4)))
+        _max = getattr(settings_manager.settings, 'studio_max_matches', 10)
+        self._studio_max_matches_var = ctk.StringVar(value=str(_max) if _max else "No limit")
+        self._studio_hide_exact_var = ctk.BooleanVar(
+            value=getattr(settings_manager.settings, 'studio_hide_exact', True))
 
         # Updates
         self._auto_check_updates_var = ctk.BooleanVar(
@@ -764,6 +778,57 @@ class SettingsView(ctk.CTkFrame):
             justify="left"
         ).pack(anchor="w", pady=(8, 20))
 
+        self._create_toggle_row(
+            loading_content,
+            "Add buttons open the Homebrew Studio",
+            self._studio_for_new_var,
+            self._on_setting_change
+        )
+        ctk.CTkLabel(
+            loading_content,
+            text="The buttons that add content on each collection page (+ Add Spell, + Add Monster...)\n"
+                 "open a new Homebrew Studio tab, with reference panels and similar-content checks beside\n"
+                 "the editor. When off, they open the stand-alone editor window. Editing an existing\n"
+                 "entry always uses the editor window.",
+            font=ui_font("body"),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(8, 20))
+
+        ctk.CTkLabel(
+            loading_content, text="Homebrew Studio insights: how strict is \"similar\"?",
+            font=ui_font("subheading", bold=True)
+        ).pack(anchor="w", pady=(0, 6))
+        words_row = ctk.CTkFrame(loading_content, fg_color="transparent")
+        words_row.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(words_row, text="Words in common needed to show a match:",
+                     font=ui_font("subheading")).pack(side="left")
+        ctk.CTkOptionMenu(words_row, values=[str(n) for n in range(1, 9)], variable=self._studio_min_words_var,
+                          width=90, command=lambda _v: self._on_setting_change()).pack(side="right")
+        max_row = ctk.CTkFrame(loading_content, fg_color="transparent")
+        max_row.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(max_row, text="Leave a part out when it matches more than:",
+                     font=ui_font("subheading")).pack(side="left")
+        ctk.CTkOptionMenu(max_row, values=["No limit", "3", "5", "10", "15", "20", "30", "50"],
+                          variable=self._studio_max_matches_var, width=90,
+                          command=lambda _v: self._on_setting_change()).pack(side="right")
+        self._create_toggle_row(
+            loading_content,
+            "Hide content whose text is exactly the same as the draft's",
+            self._studio_hide_exact_var,
+            self._on_setting_change
+        )
+        ctk.CTkLabel(
+            loading_content,
+            text="A match needs that many words in common (words like \"the\" and numbers do not count). A part of a\n"
+                 "draft that matches more than the limit is standard wording (\"make a Wisdom saving throw\"), so it is\n"
+                 "left out instead of flagging half the collection; Insights says when it does that. Whether\n"
+                 "unofficial content is compared too is the checkbox on the Insights panel.",
+            font=ui_font("body"),
+            text_color=text_secondary,
+            justify="left"
+        ).pack(anchor="w", pady=(8, 20))
+
         ctk.CTkLabel(
             loading_content,
             text="Preloading data in the background after startup can reduce loading times when\n"
@@ -817,6 +882,14 @@ class SettingsView(ctk.CTkFrame):
             loading_content,
             "Preload Magic Items",
             self._preload_magic_items_var,
+            self._on_setting_change,
+            pady=(10, 0)
+        )
+
+        self._create_toggle_row(
+            loading_content,
+            "Preload Rules",
+            self._preload_rules_var,
             self._on_setting_change,
             pady=(10, 0)
         )
@@ -896,6 +969,10 @@ class SettingsView(ctk.CTkFrame):
         self._create_toggle_row(
             linking_content, "Disable linking suggestions for Monsters",
             self._link_disable_monsters_var, self._on_setting_change, pady=(10, 0),
+        )
+        self._create_toggle_row(
+            linking_content, "Disable linking suggestions for Rules (on by default: rules terms are everyday words)",
+            self._link_disable_rules_var, self._on_setting_change, pady=(10, 0),
         )
 
         sep = ctk.CTkFrame(linking_content, fg_color=self.theme_manager.get_current_color('bg_tertiary'), height=1)
@@ -1087,9 +1164,15 @@ class SettingsView(ctk.CTkFrame):
             preload_backgrounds=self._preload_backgrounds_var.get(),
             preload_equipment=self._preload_equipment_var.get(),
             preload_magic_items=self._preload_magic_items_var.get(),
+            preload_rules=self._preload_rules_var.get(),
             preload_character_sheets=self._preload_sheets_var.get(),
             auto_check_updates=self._auto_check_updates_var.get(),
             restore_tabs=self._restore_tabs_var.get(),
+            studio_for_new_content=self._studio_for_new_var.get(),
+            studio_min_words=int(self._studio_min_words_var.get() or 4),
+            studio_max_matches=(0 if self._studio_max_matches_var.get() == "No limit"
+                                else int(self._studio_max_matches_var.get() or 10)),
+            studio_hide_exact=self._studio_hide_exact_var.get(),
             link_suggest_spells=not self._link_disable_spells_var.get(),
             link_suggest_feats=not self._link_disable_feats_var.get(),
             link_suggest_lineages=not self._link_disable_lineages_var.get(),
@@ -1098,6 +1181,7 @@ class SettingsView(ctk.CTkFrame):
             link_suggest_equipment=not self._link_disable_equipment_var.get(),
             link_suggest_magic_items=not self._link_disable_magic_items_var.get(),
             link_suggest_monsters=not self._link_disable_monsters_var.get(),
+            link_suggest_rules=not self._link_disable_rules_var.get(),
             link_autocomplete_names=self._link_autocomplete_var.get(),
             show_spell_only_summons=self._show_spell_only_summons_var.get(),
         )
@@ -1181,19 +1265,8 @@ class SettingsView(ctk.CTkFrame):
                     "Failed to restore spells. Please try again.",
                     parent=self.winfo_toplevel())
     
-    def _on_reset_defaults(self):
-        """Reset all settings to defaults."""
-        self.build_all_sections_now()      # the variables below live in the deferred sections
-        self.settings_manager.reset_to_defaults()
-        # Custom themes are the user's own work, so they are kept; only the
-        # selection goes back to the default theme. Fonts return to stock.
-        self.theme_manager.set_theme("default")
-        get_font_manager().reset()
-        editor = getattr(self, '_typography_editor', None)
-        if editor is not None:
-            editor.refresh()
-        
-        # Update UI variables
+    def _sync_variables_from_settings(self):
+        """Point every control's variable at the current settings (the sections must already be built)."""
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
         theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
@@ -1216,8 +1289,21 @@ class SettingsView(ctk.CTkFrame):
         self._show_carry_weight_var.set(settings.show_carry_weight_indicator)
         self._enable_encumbrance_var.set(settings.enable_encumbrance_rule)
         self._legacy_filter_var.set(settings.legacy_content_filter)
+        self._preload_classes_var.set(settings.preload_classes)
+        self._preload_feats_var.set(settings.preload_feats)
+        self._preload_lineages_var.set(settings.preload_lineages)
+        self._preload_backgrounds_var.set(settings.preload_backgrounds)
+        self._preload_equipment_var.set(getattr(settings, 'preload_equipment', True))
+        self._preload_magic_items_var.set(getattr(settings, 'preload_magic_items', True))
+        self._preload_rules_var.set(getattr(settings, 'preload_rules', True))
+        self._preload_sheets_var.set(settings.preload_character_sheets)
         self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
         self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
+        self._studio_for_new_var.set(getattr(settings, 'studio_for_new_content', True))
+        self._studio_min_words_var.set(str(getattr(settings, 'studio_min_words', 4)))
+        self._studio_max_matches_var.set(str(getattr(settings, 'studio_max_matches', 10))
+                                         if getattr(settings, 'studio_max_matches', 10) else "No limit")
+        self._studio_hide_exact_var.set(getattr(settings, 'studio_hide_exact', True))
         self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
         self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
         self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
@@ -1226,14 +1312,30 @@ class SettingsView(ctk.CTkFrame):
         self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
         self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
         self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
+        self._link_disable_rules_var.set(not getattr(settings, 'link_suggest_rules', False))
         self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
         self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
 
+    def _on_reset_defaults(self):
+        """Reset all settings to defaults."""
+        self.build_all_sections_now()      # the variables below live in the deferred sections
+        self.settings_manager.reset_to_defaults()
+        # Custom themes are the user's own work, so they are kept; only the
+        # selection goes back to the default theme. Fonts return to stock.
+        self.theme_manager.set_theme("default")
+        get_font_manager().reset()
+        editor = getattr(self, '_typography_editor', None)
+        if editor is not None:
+            editor.refresh()
+
+        self._sync_variables_from_settings()
+
         # Apply appearance
+        settings = self.settings_manager.settings
         ctk.set_appearance_mode(settings.appearance_mode)
         if self.on_appearance_changed:
             self.on_appearance_changed(settings.appearance_mode)
-    
+
     def refresh_from_settings(self):
         """Refresh UI from current settings (call when view becomes visible)."""
         if getattr(self, "_pending_sections", None):
@@ -1241,46 +1343,7 @@ class SettingsView(ctk.CTkFrame):
             # when they are, so there is nothing stale to refresh.
             self._sync_theme_menu()
             return
-        settings = self.settings_manager.settings
-        self._appearance_var.set(settings.appearance_mode)
-        theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
-        self._theme_menu.configure(values=self._theme_names())
-        self._theme_var.set(self.theme_manager.display_name(theme_key))
-        self._spell_added_var.set(settings.show_spell_added_notification)
-        self._rest_notif_var.set(settings.show_rest_notification)
-        self._warn_cantrips_var.set(settings.warn_too_many_cantrips)
-        self._warn_class_var.set(settings.warn_wrong_class)
-        self._warn_level_var.set(settings.warn_spell_too_high_level)
-        self._warn_prepared_var.set(settings.warn_too_many_prepared)
-        self._comparison_var.set(settings.show_comparison_highlights)
-        self._auto_calc_hp_var.set(settings.auto_calculate_hp)
-        self._auto_calc_ac_var.set(settings.auto_calculate_ac)
-        self._auto_fill_prof_var.set(settings.auto_fill_proficiencies)
-        self._auto_apply_saves_var.set(settings.auto_apply_saving_throws)
-        self._warn_multiclass_var.set(settings.warn_multiclass_removal)
-        self._hit_dice_rest_var.set(settings.long_rest_hit_dice)
-        self._show_carry_weight_var.set(settings.show_carry_weight_indicator)
-        self._enable_encumbrance_var.set(settings.enable_encumbrance_rule)
-        self._legacy_filter_var.set(settings.legacy_content_filter)
-        self._preload_classes_var.set(settings.preload_classes)
-        self._preload_feats_var.set(settings.preload_feats)
-        self._preload_lineages_var.set(settings.preload_lineages)
-        self._preload_backgrounds_var.set(settings.preload_backgrounds)
-        self._preload_equipment_var.set(getattr(settings, 'preload_equipment', True))
-        self._preload_magic_items_var.set(getattr(settings, 'preload_magic_items', True))
-        self._preload_sheets_var.set(settings.preload_character_sheets)
-        self._auto_check_updates_var.set(getattr(settings, 'auto_check_updates', True))
-        self._restore_tabs_var.set(getattr(settings, 'restore_tabs', True))
-        self._link_disable_spells_var.set(not getattr(settings, 'link_suggest_spells', True))
-        self._link_disable_feats_var.set(not getattr(settings, 'link_suggest_feats', True))
-        self._link_disable_lineages_var.set(not getattr(settings, 'link_suggest_lineages', True))
-        self._link_disable_backgrounds_var.set(not getattr(settings, 'link_suggest_backgrounds', True))
-        self._link_disable_classes_var.set(not getattr(settings, 'link_suggest_classes', True))
-        self._link_disable_equipment_var.set(not getattr(settings, 'link_suggest_equipment', True))
-        self._link_disable_magic_items_var.set(not getattr(settings, 'link_suggest_magic_items', True))
-        self._link_disable_monsters_var.set(not getattr(settings, 'link_suggest_monsters', True))
-        self._show_spell_only_summons_var.set(getattr(settings, 'show_spell_only_summons', False))
-        self._link_autocomplete_var.set(getattr(settings, 'link_autocomplete_names', True))
+        self._sync_variables_from_settings()
 
     def _on_theme_changed(self):
         """Update dynamic label/input colors when the appearance changes."""

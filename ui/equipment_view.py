@@ -7,22 +7,13 @@ laid out the same way as the Spells/Feats pages.
 import re
 import customtkinter as ctk
 from typography import ui_font
-from ui.label_text import LabeledLabel
-import tkinter as tk
-from tkinter import messagebox
-from typing import List, Optional, Callable
+from typing import List, Optional
 
-from equipment import (
-    Equipment, EQUIPMENT_TYPE_OPTIONS, DEFAULT_EQUIPMENT_TYPE, get_equipment_manager,
-    parse_cost_to_copper, copper_to_gp
-)
-from theme import get_theme_manager
-from settings import get_settings_manager
-from ui.tag_editor import TagEditor
-from ui.properties_editor import PropertiesEditor
-from ui.tooltip import HoverTooltip
-from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
+from equipment import Equipment, DEFAULT_EQUIPMENT_TYPE, get_equipment_manager
+from ui.item_editor_base import ItemEditorBody
+from ui.item_view_base import ItemDetailBase, ItemViewBase
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EmbeddedWindow
 
 
 class EquipmentListPanel(VirtualListPanel):
@@ -42,7 +33,7 @@ class EquipmentListPanel(VirtualListPanel):
         return self.select_by_name(name)
 
 
-class EquipmentDetailPanel(ctk.CTkFrame):
+class EquipmentDetailPanel(ItemDetailBase):
     """Panel displaying detailed information about an equipment item.
 
     Any optional field left blank on the item (source, crafting materials,
@@ -50,27 +41,8 @@ class EquipmentDetailPanel(ctk.CTkFrame):
     packed rather than being packed empty.
     """
 
-    def __init__(self, parent):
-        super().__init__(parent, corner_radius=10)
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._current_item: Optional[Equipment] = None
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
-
-    def _on_theme_changed(self):
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_colors()
-
     def _create_widgets(self):
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-
-        self.name_label = ctk.CTkLabel(
-            self.scroll_frame, text="Select an item",
-            font=ui_font("title", bold=True), wraplength=400
-        )
-        self.name_label.pack(anchor="w", pady=(0, 5))
+        self._add_scroll_and_name()
 
         self.type_badge = ctk.CTkLabel(
             self.scroll_frame, text="",
@@ -79,18 +51,8 @@ class EquipmentDetailPanel(ctk.CTkFrame):
             corner_radius=5, padx=8, pady=2
         )
 
-        self.stats_label = LabeledLabel(
-            self.scroll_frame, text="",
-            font=ui_font("body", 13),
-            text_color=self.theme.get_text_secondary(),
-            anchor="w", justify="left"
-        )
-
-        self.source_label = LabeledLabel(
-            self.scroll_frame, text="",
-            font=ui_font("small"),
-            text_color=self.theme.get_text_secondary()
-        )
+        self._add_stats_label()
+        self._add_source_label()
 
         self.crafting_frame = ctk.CTkFrame(
             self.scroll_frame, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=8
@@ -101,81 +63,13 @@ class EquipmentDetailPanel(ctk.CTkFrame):
         self.crafting_text = DynamicText(self.crafting_frame, self.theme, bg_color='bg_secondary')
         self.crafting_text.pack(fill="x", padx=10, pady=8)
 
-        self.tags_label = ctk.CTkLabel(
-            self.scroll_frame, text="",
-            font=ui_font("body"),
-            text_color=self.theme.get_current_color('accent_primary'),
-            wraplength=400, justify="left"
-        )
-
-        # Named properties: each keyword renders as a chip; hovering it shows
-        # the property's description in a tooltip.
-        self.properties_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        self._properties_header = ctk.CTkLabel(
-            self.properties_frame, text="Properties",
-            font=ui_font("body", bold=True),
-            text_color=self.theme.get_text_secondary(), anchor="w",
-        )
-        self._properties_header.pack(anchor="w", pady=(0, 4))
-        self._properties_chip_area = ctk.CTkFrame(self.properties_frame, fg_color="transparent")
-        self._properties_chip_area.pack(fill="x", anchor="w")
-        self._property_tooltips = []
-
-        self.desc_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        self._desc_widgets = []
+        self._add_tags_label()
+        self._add_properties_and_description()
 
     def _update_colors(self):
         self.type_badge.configure(fg_color=self.theme.get_current_color('accent_primary'))
         self.crafting_frame.configure(fg_color=self.theme.get_current_color('bg_secondary'))
         self.tags_label.configure(text_color=self.theme.get_current_color('accent_primary'))
-
-    def _clear_description(self):
-        for widget in self._desc_widgets:
-            widget.destroy()
-        self._desc_widgets = []
-
-    def _render_properties(self, properties):
-        """Lay out property keywords as hover-for-description chips."""
-        for widget in self._properties_chip_area.winfo_children():
-            widget.destroy()
-        self._property_tooltips = []
-
-        clean = [p for p in (properties or []) if p.get("name")]
-        if not clean:
-            self.properties_frame.pack_forget()
-            return
-
-        theme = self.theme
-        row = ctk.CTkFrame(self._properties_chip_area, fg_color="transparent")
-        row.pack(fill="x", anchor="w")
-        used = 0
-        for prop in clean:
-            def _make_chip(parent):
-                c = ctk.CTkLabel(
-                    parent, text=prop["name"], font=ui_font("body"),
-                    fg_color=theme.get_current_color('bg_secondary'),
-                    text_color=theme.get_current_color('text_primary'),
-                    corner_radius=10, padx=10, pady=3,
-                )
-                c.pack(side="left", padx=(0, 5), pady=2)
-                c.update_idletasks()
-                return c
-
-            chip = _make_chip(row)
-            width = chip.winfo_reqwidth() + 5
-            if used and used + width > 380:
-                chip.destroy()
-                row = ctk.CTkFrame(self._properties_chip_area, fg_color="transparent")
-                row.pack(fill="x", anchor="w")
-                chip = _make_chip(row)
-                used = width
-            else:
-                used += width
-
-            desc = prop.get("description") or "(no description)"
-            self._property_tooltips.append(HoverTooltip(chip, desc))
-
-        self.properties_frame.pack(fill="x", anchor="w", pady=(0, 10))
 
     @staticmethod
     def _crafting_tool_markup(text: str) -> str:
@@ -200,17 +94,6 @@ class EquipmentDetailPanel(ctk.CTkFrame):
             return link(text)
         # Preserve the author's separators: re-join with " or ".
         return " or ".join(link(p) for p in parts)
-
-    def _render_description(self, text: str):
-        from ui.rich_text_utils import render_description_blocks
-
-        self._clear_description()
-        if not text:
-            self.desc_frame.pack_forget()
-            return
-
-        self.desc_frame.pack(fill="x", anchor="w", pady=(10, 0))
-        self._desc_widgets.extend(render_description_blocks(self.desc_frame, text, self.theme))
 
     def show_item(self, item: Optional[Equipment]):
         self._current_item = item
@@ -259,141 +142,20 @@ class EquipmentDetailPanel(ctk.CTkFrame):
 
         self._render_description(item.description)
 
-        # Source is shown last, as a footer under everything else.
-        if item.source:
-            source_text = f"Source: {item.source}"
-            if not item.is_official:
-                source_text += " (Unofficial)"
-            self.source_label.configure(text=source_text)
-            self.source_label.pack(anchor="w", pady=(14, 0))
+        self._show_source_footer(item)
 
 
-class EquipmentEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating or editing an equipment item."""
+class EquipmentEditorBody(ItemEditorBody):
+    """Dialog for creating or editing an equipment item. (the form; see ui/editor_host.py)"""
 
-    def __init__(self, parent, title: str, item: Optional[Equipment] = None,
-                 prefill_item: Optional[Equipment] = None, review_fields: Optional[List[str]] = None,
-                 batch_progress: str = ""):
-        super().__init__(parent)
-        self.title(title)
-        self.geometry("600x820")
-        self.minsize(550, 650)
-        self.transient(parent)
-        self.grab_set()
+    MANAGER_GETTER = staticmethod(get_equipment_manager)
+    DEFAULT_TYPE = DEFAULT_EQUIPMENT_TYPE
+    GEOMETRY = "600x820"
+    MINSIZE = (550, 650)
+    REVIEW_NOTE = ("Auto-detection is rule-based, not perfect - accuracy drops for "
+                   "irregularly formatted text. Nothing is saved until you click Save.")
 
-        self.theme = get_theme_manager()
-        self.equipment_manager = get_equipment_manager()
-        self.result: Optional[Equipment] = None
-        self._editing_item = item
-        # Auto-detect pre-fill: populate the form from parsed text but keep
-        # this a brand-new item, and mark fields for the reviewer to check.
-        self._review_fields = set(review_fields or [])
-        self._batch_progress = batch_progress
-
-        self._create_widgets()
-        if item:
-            self._populate_from_item(item)
-        elif prefill_item:
-            self._populate_from_item(prefill_item)
-            self._apply_review_highlights()
-
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-
-    def _create_widgets(self):
-        from ui.rich_text_utils import RichTextEditor
-
-        scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        scroll.pack(fill="both", expand=True, padx=20, pady=20)
-        self._scroll = scroll
-
-        ctk.CTkLabel(scroll, text="Name *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.name_entry = ctk.CTkEntry(scroll, width=400)
-        self.name_entry.pack(fill="x", pady=(0, 10))
-
-        row1 = ctk.CTkFrame(scroll, fg_color="transparent")
-        row1.pack(fill="x", pady=(0, 10))
-
-        type_col = ctk.CTkFrame(row1, fg_color="transparent")
-        type_col.pack(side="left", padx=(0, 15))
-        ctk.CTkLabel(type_col, text="Type", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        type_options = sorted(set(EQUIPMENT_TYPE_OPTIONS) | set(self.equipment_manager.get_all_types()))
-        self.type_var = ctk.StringVar(value=DEFAULT_EQUIPMENT_TYPE)
-        self.type_combo = ctk.CTkComboBox(type_col, width=200, values=type_options, variable=self.type_var)
-        self.type_combo.pack()
-
-        cost_col = ctk.CTkFrame(row1, fg_color="transparent")
-        cost_col.pack(side="left", padx=(0, 15))
-        ctk.CTkLabel(cost_col, text="Cost", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.cost_entry = ctk.CTkEntry(cost_col, width=100, placeholder_text="e.g. 5 gp")
-        self.cost_entry.pack()
-
-        weight_col = ctk.CTkFrame(row1, fg_color="transparent")
-        weight_col.pack(side="left")
-        ctk.CTkLabel(weight_col, text="Weight (lb)", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.weight_entry = ctk.CTkEntry(weight_col, width=80, placeholder_text="0")
-        self.weight_entry.pack()
-
-        ctk.CTkLabel(scroll, text="Source", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.source_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="e.g., Homebrew, Custom Campaign")
-        self.source_entry.pack(fill="x", pady=(0, 10))
-
-        ctk.CTkLabel(scroll, text="Crafting Materials (comma-separated)",
-                     font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.crafting_materials_entry = ctk.CTkEntry(
-            scroll, width=400, placeholder_text="e.g., Iron, Leather Strips")
-        self.crafting_materials_entry.pack(fill="x", pady=(0, 10))
-
-        ctk.CTkLabel(scroll, text="Crafting Tool", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.crafting_tool_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="e.g., Smith's Tools")
-        self.crafting_tool_entry.pack(fill="x", pady=(0, 10))
-
-        self.tag_editor = TagEditor(scroll, get_available_tags=self.equipment_manager.get_all_tags)
-        self.tag_editor.pack(fill="x", pady=(0, 10))
-
-        self.properties_editor = PropertiesEditor(
-            scroll, get_suggestions=self.equipment_manager.get_all_properties)
-        self.properties_editor.pack(fill="x", pady=(0, 10))
-
-        ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(anchor="w", pady=(10, 0))
-        self.desc_text = ctk.CTkTextbox(scroll, height=200)
-        self._rich_editor = RichTextEditor(self, self.desc_text, self.theme)
-        toolbar = self._rich_editor.create_toolbar(scroll)
-        toolbar.pack(fill="x", pady=(5, 5))
-        self.desc_text.pack(fill="x", pady=(0, 10))
-
-        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(10, 0))
-
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color="transparent", border_width=1,
-            command=self.destroy
-        ).pack(side="right", padx=(5, 0))
-
-        ctk.CTkButton(
-            btn_frame, text="Save", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            command=self._save
-        ).pack(side="right")
-
-    def _populate_from_item(self, item: Equipment):
-        self.name_entry.insert(0, item.name)
-        self.type_var.set(item.type or DEFAULT_EQUIPMENT_TYPE)
-        if item.cost:
-            self.cost_entry.insert(0, item.cost)
-        self.weight_entry.insert(0, str(item.weight) if item.weight else "0")
-        if item.source:
-            self.source_entry.insert(0, item.source)
-        if item.crafting_materials:
-            self.crafting_materials_entry.insert(0, ", ".join(item.crafting_materials))
-        if item.crafting_tool:
-            self.crafting_tool_entry.insert(0, item.crafting_tool)
-        self.tag_editor.set_tags(item.tags)
-        self.properties_editor.set_properties(item.properties)
-        self.desc_text.insert("1.0", item.description)
+    equipment_manager = property(lambda self: self.item_manager)
 
     _REVIEW_FIELD_LABELS = {
         "name": "Name", "type": "Type", "cost": "Cost", "weight": "Weight",
@@ -402,675 +164,114 @@ class EquipmentEditorDialog(ctk.CTkToplevel):
         "properties": "Properties",
     }
 
-    def _apply_review_highlights(self):
-        """Add the auto-detect disclaimer banner and outline uncertain fields."""
-        try:
-            warn = self.theme.get_current_color('button_warning')
-        except Exception:
-            warn = "#d4a017"
+    def _build_fields(self, scroll):
+        row1 = ctk.CTkFrame(scroll, fg_color="transparent")
+        row1.pack(fill="x", pady=(0, 10))
+        self._add_type_column(row1)
+        self._add_cost_and_weight(row1)
 
-        banner = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_secondary'),
-                              corner_radius=8)
-        try:
-            banner.pack(fill="x", padx=20, pady=(12, 0), before=self._scroll)
-        except Exception:
-            banner.pack(fill="x", padx=20, pady=(12, 0))
+        self._add_source_entry(scroll)
+        self.crafting_materials_entry = self._add_text_field(
+            scroll, "Crafting Materials (comma-separated)", "e.g., Iron, Leather Strips")
+        self.crafting_tool_entry = self._add_text_field(scroll, "Crafting Tool", "e.g., Smith's Tools")
 
-        heading = "Auto-detected from text - please review before saving"
-        if self._batch_progress:
-            heading = f"{heading}   ({self._batch_progress})"
-        ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ui_font("subheading", 13, bold=True),
-                     text_color=warn, anchor="w",
-                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
+    def _populate_from_item(self, item: Equipment):
+        self._populate_common(item)
+        if item.crafting_materials:
+            self.crafting_materials_entry.insert(0, ", ".join(item.crafting_materials))
+        if item.crafting_tool:
+            self.crafting_tool_entry.insert(0, item.crafting_tool)
 
-        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
-        if review:
-            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
-            msg = f"Fields to double-check (outlined below): {names}"
-        else:
-            msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
-                     text_color=self.theme.get_text_secondary(), anchor="w",
-                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
+    def _review_widgets(self) -> dict:
+        return {**super()._review_widgets(),
+                "crafting_materials": self.crafting_materials_entry,
+                "crafting_tool": self.crafting_tool_entry}
 
-        ctk.CTkLabel(
-            banner,
-            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
-                  "irregularly formatted text. Nothing is saved until you click Save."),
-            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
-            anchor="w", justify="left", wraplength=520,
-        ).pack(fill="x", padx=12, pady=(0, 8))
-
-        widget_map = {
-            "name": self.name_entry,
-            "type": self.type_combo,
-            "cost": self.cost_entry,
-            "weight": self.weight_entry,
-            "source": self.source_entry,
-            "crafting_materials": self.crafting_materials_entry,
-            "crafting_tool": self.crafting_tool_entry,
-        }
-        for field_name in self._review_fields:
-            w = widget_map.get(field_name)
-            if w is None:
-                continue
-            try:
-                w.configure(border_color=warn, border_width=2)
-            except Exception:
-                pass
-
-    def _save(self):
-        name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
-
-        weight_text = self.weight_entry.get().strip() or "0"
-        try:
-            weight = float(weight_text)
-            if weight < 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Error", "Weight must be a non-negative number.", parent=self)
-            return
-
-        crafting_materials_text = self.crafting_materials_entry.get().strip()
-        crafting_materials = [m.strip() for m in crafting_materials_text.split(",") if m.strip()]
-
-        self.result = Equipment(
-            name=name,
-            type=self.type_var.get().strip() or DEFAULT_EQUIPMENT_TYPE,
-            cost=self.cost_entry.get().strip(),
-            weight=weight,
-            source=self.source_entry.get().strip(),
-            crafting_materials=crafting_materials,
+    def build_result(self, strict: bool = True) -> Equipment:
+        """The item the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
+        fields = self._common_fields(strict)
+        return Equipment(
+            **fields,
+            crafting_materials=self._comma_list(self.crafting_materials_entry.get()),
             crafting_tool=self.crafting_tool_entry.get().strip(),
-            description=self.desc_text.get("1.0", "end-1c").strip(),
-            tags=self.tag_editor.get_tags(),
-            properties=self.properties_editor.get_properties(),
-            is_official=False,
-            is_custom=True,
         )
-        self.destroy()
+
+class EquipmentEditorDialog(EquipmentEditorBody, DialogWindow):
+    """Dialog for creating or editing an equipment item."""
 
 
-class EquipmentView(ctk.CTkFrame):
+class EquipmentEditorPanel(EquipmentEditorBody, EmbeddedWindow):
+    """The EquipmentEditorDialog form inside the Homebrew Studio."""
+
+
+class EquipmentView(ItemViewBase):
     """Main view for browsing and managing equipment."""
 
-    def __init__(self, parent, character_manager=None, on_back=None):
-        self.theme = get_theme_manager()
-        super().__init__(parent, fg_color=self.theme.get_current_color('bg_primary'))
+    MANAGER_GETTER = staticmethod(get_equipment_manager)
+    LIST_PANEL = EquipmentListPanel
+    DETAIL_PANEL = EquipmentDetailPanel
+    EDITOR_DIALOG = EquipmentEditorDialog
+    ADD_TITLE = "Add Equipment"
+    EDIT_TITLE = "Edit Equipment"
+    STUDIO_KIND = "equipment"
+    MATERIAL_NOUN = "crafting"
+    PLURAL = "equipment"
 
-        self.equipment_manager = get_equipment_manager()
-        self.settings_manager = get_settings_manager()
-        self.character_manager = character_manager
-        self.on_back = on_back
-        self._all_items: List[Equipment] = []
-        self._context_item: Optional[Equipment] = None
-        self._filter_debounce_id: Optional[str] = None
-        self._filter_debounce_delay = 150
+    equipment_manager = property(lambda self: self.item_manager)
 
-        # Source, tag, and crafting-material filter state
-        self._selected_sources: List[str] = []
-        self._source_filter_mode: SourceFilterMode = SourceFilterMode.INCLUDE
-        self._selected_tags: List[str] = []
-        self._tag_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
-        self._selected_materials: List[str] = []
-        self._material_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
+    def _item_materials(self, item) -> List[str]:
+        return item.crafting_materials
 
-        self._create_widgets()
-        self._create_context_menu()
-        self._load_items()
-        self.theme.add_listener(self._on_theme_changed)
+    def _all_materials(self) -> List[str]:
+        return self.item_manager.get_all_crafting_materials()
 
-    def set_character_manager(self, character_manager):
-        """Set the character manager for the "Add to Character" context menu action."""
-        self.character_manager = character_manager
-
-    def _on_theme_changed(self):
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_context_menu_colors()
-        if hasattr(self, 'paned'):
-            self._update_paned_colors()
-
-    def _update_context_menu_colors(self):
-        if not hasattr(self, 'context_menu'):
-            return
-        bg_color = self.theme.get_current_color('bg_secondary')
-        fg_color = self.theme.get_current_color('text_primary')
-        self.context_menu.configure(
-            bg=bg_color, fg=fg_color,
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=fg_color
-        )
-
-    def _create_context_menu(self):
-        """Create the right-click context menu for equipment."""
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self._update_context_menu_colors()
-        self.context_menu.add_command(
-            label="Add to Character",
-            command=self._context_add_to_character
-        )
-
-    def _on_item_right_click(self, item: Equipment, x: int, y: int):
-        """Handle right-click on an equipment item - show context menu."""
-        self._context_item = item
-        try:
-            self.context_menu.tk_popup(x, y)
-        finally:
-            self.context_menu.grab_release()
-
-    def _context_add_to_character(self):
-        """Context menu: add this equipment item to a character's inventory."""
-        if not self._context_item:
-            return
-        if not self.character_manager:
-            messagebox.showwarning("No Characters", "No character manager available.")
-            return
-
-        characters = self.character_manager.characters
-        if not characters:
-            messagebox.showwarning("No Characters", "No characters available. Create a character first.")
-            return
-
-        from ui.item_picker import PickCharacterDialog
-        dialog = PickCharacterDialog(
-            self.winfo_toplevel(), f"Add '{self._context_item.name}' to:", characters
-        )
-        self.wait_window(dialog)
-        if not dialog.result:
-            return
-
-        from ui.character_sheet_view import get_sheet_manager
-        character = self.character_manager.get_character(dialog.result)
-        if not character:
-            return
-        sheet_manager = get_sheet_manager()
-        sheet = sheet_manager.get_or_create_sheet(character.name, character)
+    def _add_to_sheet(self, sheet, item):
         sheet.equipment_items.append({
-            "name": self._context_item.name,
+            "name": item.name,
             "quantity": 1,
-            "weight": self._context_item.weight,
+            "weight": item.weight,
         })
-        sheet_manager.update_sheet(character.name, sheet)
-        messagebox.showinfo(
-            "Added", f"Added '{self._context_item.name}' to {character.name}'s inventory."
-        )
 
-    def _create_widgets(self):
-        self._create_filter_bar()
+    def _text_import(self):
+        from ui.equipment_text_import import AddEquipmentSourceDialog, EquipmentTextImportDialog
 
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-        self.paned = tk.PanedWindow(
-            self.content, orient=tk.HORIZONTAL, sashwidth=8, sashrelief=tk.RAISED,
-            handlesize=0, opaqueresize=False, sashcursor="sb_h_double_arrow"
-        )
-        self.paned.pack(fill="both", expand=True)
-        self._update_paned_colors()
-
-        self.list_panel = EquipmentListPanel(
-            self.paned, on_select=self._on_item_selected, on_right_click=self._on_item_right_click
-        )
-        self.detail_panel = EquipmentDetailPanel(self.paned)
-
-        self.paned.add(self.list_panel, minsize=280, stretch="always")
-        self.paned.add(self.detail_panel, minsize=400, stretch="always")
-
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
-
-    def _update_paned_colors(self):
-        self.paned.configure(bg=self.theme.get_current_color("pane_sash"))
+        def to_draft():
+            from text_import.equipment_parser import to_equipment
+            return to_equipment
+        return AddEquipmentSourceDialog, EquipmentTextImportDialog, to_draft
 
     def _create_filter_bar(self):
         filter_bar = ctk.CTkFrame(self, fg_color="transparent")
         filter_bar.pack(fill="x", padx=10, pady=10)
 
-        if self.on_back:
-            ctk.CTkButton(
-                filter_bar, text="← Collections", width=110,
-                fg_color=self.theme.get_current_color('button_normal'),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary'),
-                command=self.on_back
-            ).pack(side="left", padx=(0, 15))
-
-        self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(
-            filter_bar, width=220, height=35,
-            placeholder_text="Search equipment...", textvariable=self.search_var
-        ).pack(side="left", padx=(0, 15))
-
-        ctk.CTkLabel(filter_bar, text="Type:").pack(side="left", padx=(0, 5))
-        self.type_var = ctk.StringVar(value="All Types")
-        self.type_combo = ctk.CTkComboBox(
-            filter_bar, width=170, height=35, values=["All Types"],
-            variable=self.type_var, command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.type_combo.pack(side="left", padx=(0, 15))
-
-        ctk.CTkButton(
-            filter_bar, text="+ Add Equipment", width=130, height=35,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_add_item
-        ).pack(side="right")
-
-        self.delete_btn = ctk.CTkButton(
-            filter_bar, text="Delete", width=80, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=self._on_delete_item
-        )
-        self.delete_btn.pack(side="right", padx=(0, 5))
-
-        self.edit_btn = ctk.CTkButton(
-            filter_bar, text="Edit", width=80, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_edit_item
-        )
-        self.edit_btn.pack(side="right", padx=(0, 5))
-
-        self.edit_btn.configure(state="disabled")
-        self.delete_btn.configure(state="disabled")
+        self._add_back_button(filter_bar)
+        self._add_search_and_type(filter_bar, "Search equipment...", 170, (0, 15), 170, (0, 15))
+        self._add_action_buttons(filter_bar, "+ Add Equipment", 130, self._on_add_item,
+                                 self._on_edit_item, self._on_delete_item, start_disabled=True)
 
         # Second row: source, official content, crafting tool
-        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar2.pack(fill="x", padx=10, pady=(0, 5))
-
-        ctk.CTkLabel(filter_bar2, text="Source:").pack(side="left", padx=(0, 5))
-        self.source_btn = ctk.CTkButton(
-            filter_bar2, text="Select Sources...", width=130, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._open_source_filter
-        )
-        self.source_btn.pack(side="left", padx=(0, 8))
-        self.source_label = ctk.CTkLabel(
-            filter_bar2, text="None selected",
-            font=ui_font("small"), text_color=self.theme.get_text_secondary()
-        )
-        self.source_label.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
-        self.official_var = ctk.StringVar(value="Any Content")
-        self.official_combo = ctk.CTkComboBox(
-            filter_bar2, width=140, height=35,
-            values=["Any Content", "Official Only", "Homebrew Only"],
-            variable=self.official_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.official_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Crafting Tool:").pack(side="left", padx=(0, 5))
-        self.crafting_tool_var = ctk.StringVar(value="Any Tool")
-        self.crafting_tool_combo = ctk.CTkComboBox(
-            filter_bar2, width=160, height=35, values=["Any Tool"],
-            variable=self.crafting_tool_var, command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.crafting_tool_combo.pack(side="left")
+        filter_bar2 = self._filter_row(pady=(0, 5))
+        self._add_source_filter(filter_bar2)
+        self._add_content_filter(filter_bar2)
+        self._add_filter_combo(filter_bar2, "crafting_tool", "Crafting Tool:", "Any Tool", ["Any Tool"],
+                               160, padx=0)
 
         # Third row: tags, crafting materials, price range, clear
-        filter_bar3 = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar3.pack(fill="x", padx=10, pady=(0, 10))
+        filter_bar3 = self._filter_row()
+        self._add_tags_filter(filter_bar3, end_padx=(0, 20))
+        self._add_price_filter(filter_bar3)
 
-        ctk.CTkLabel(filter_bar3, text="Tags:").pack(side="left", padx=(0, 5))
-        self.tags_btn = ctk.CTkButton(
-            filter_bar3, text="Select Tags...", width=120, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._open_tag_filter
-        )
-        self.tags_btn.pack(side="left", padx=(0, 8))
-        self.tags_label = ctk.CTkLabel(
-            filter_bar3, text="None selected",
-            font=ui_font("small"), text_color=self.theme.get_text_secondary()
-        )
-        self.tags_label.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar3, text="Crafting Materials:").pack(side="left", padx=(0, 5))
-        self.materials_btn = ctk.CTkButton(
-            filter_bar3, text="Select Materials...", width=140, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._open_material_filter
-        )
-        self.materials_btn.pack(side="left", padx=(0, 8))
-        self.materials_label = ctk.CTkLabel(
-            filter_bar3, text="None selected",
-            font=ui_font("small"), text_color=self.theme.get_text_secondary()
-        )
-        self.materials_label.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar3, text="Price (gp):").pack(side="left", padx=(0, 5))
-        self.min_price_var = ctk.StringVar()
-        self.min_price_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(
-            filter_bar3, width=70, height=35, placeholder_text="Min", textvariable=self.min_price_var
-        ).pack(side="left", padx=(0, 5))
-        ctk.CTkLabel(filter_bar3, text="-").pack(side="left", padx=(0, 5))
-        self.max_price_var = ctk.StringVar()
-        self.max_price_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(
-            filter_bar3, width=70, height=35, placeholder_text="Max", textvariable=self.max_price_var
-        ).pack(side="left", padx=(0, 20))
-
-        ctk.CTkButton(
-            filter_bar3, text="Clear Filters", width=110, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            command=self._clear_filters
-        ).pack(side="right")
-
-    def _load_items(self):
-        self._all_items = sorted(self.equipment_manager.items, key=lambda i: i.name.lower())
-
-        type_options = ["All Types"] + self.equipment_manager.get_all_types()
-        self.type_combo.configure(values=type_options)
-
-        tool_options = ["Any Tool"] + self.equipment_manager.get_all_crafting_tools()
+    def _load_extra_options(self):
+        tool_options = ["Any Tool"] + self.item_manager.get_all_crafting_tools()
         self.crafting_tool_combo.configure(values=tool_options)
         if self.crafting_tool_var.get() not in tool_options:
             self.crafting_tool_var.set("Any Tool")
 
-        self._on_filter_changed(immediate=True)
-
-    def _open_source_filter(self):
-        available_sources = self.equipment_manager.get_all_sources()
-        dialog = SourceFilterDialog(
-            self.winfo_toplevel(), available_sources,
-            self._selected_sources, self._source_filter_mode,
-            empty_message="No sources found in your equipment."
-        )
-        self.wait_window(dialog)
-        self._selected_sources = dialog.result
-        self._source_filter_mode = dialog.result_mode
-        self._update_source_label()
-        self._on_filter_changed(immediate=True)
-
-    def _update_source_label(self):
-        count = len(self._selected_sources)
-        if count == 0:
-            self.source_label.configure(text="None selected")
-        else:
-            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
-            if count == 1:
-                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
-            else:
-                self.source_label.configure(text=f"{count} sources ({mode_str})")
-
-    def _open_tag_filter(self):
-        available_tags = self.equipment_manager.get_all_tags()
-        dialog = TagFilterDialog(
-            self.winfo_toplevel(), available_tags, self._selected_tags, self._tag_filter_mode,
-            noun="tags", empty_message="No tags found in your equipment."
-        )
-        self.wait_window(dialog)
-        self._selected_tags = dialog.result
-        self._tag_filter_mode = dialog.result_mode
-        self._update_tags_label()
-        self._on_filter_changed(immediate=True)
-
-    def _update_tags_label(self):
-        count = len(self._selected_tags)
-        if count == 0:
-            self.tags_label.configure(text="None selected")
-        else:
-            mode_str = {"has_all": "all", "has_any": "any", "has_none": "none"}[self._tag_filter_mode.value]
-            if count == 1:
-                self.tags_label.configure(text=f"1 tag ({mode_str}): {self._selected_tags[0]}")
-            else:
-                self.tags_label.configure(text=f"{count} tags ({mode_str})")
-
-    def _open_material_filter(self):
-        available_materials = self.equipment_manager.get_all_crafting_materials()
-        dialog = TagFilterDialog(
-            self.winfo_toplevel(), available_materials, self._selected_materials, self._material_filter_mode,
-            window_title="Select Crafting Materials", prompt="Select crafting materials to filter by:",
-            noun="materials", empty_message="No crafting materials found in your equipment."
-        )
-        self.wait_window(dialog)
-        self._selected_materials = dialog.result
-        self._material_filter_mode = dialog.result_mode
-        self._update_materials_label()
-        self._on_filter_changed(immediate=True)
-
-    def _update_materials_label(self):
-        count = len(self._selected_materials)
-        if count == 0:
-            self.materials_label.configure(text="None selected")
-        else:
-            mode_str = {"has_all": "all", "has_any": "any", "has_none": "none"}[self._material_filter_mode.value]
-            if count == 1:
-                self.materials_label.configure(text=f"1 material ({mode_str}): {self._selected_materials[0]}")
-            else:
-                self.materials_label.configure(text=f"{count} materials ({mode_str})")
-
-    def _clear_filters(self):
-        self.search_var.set("")
-        self.type_var.set("All Types")
-        self.official_var.set("Any Content")
+    def _clear_extra_filters(self):
         self.crafting_tool_var.set("Any Tool")
-        self.min_price_var.set("")
-        self.max_price_var.set("")
-        self._selected_sources = []
-        self._source_filter_mode = SourceFilterMode.INCLUDE
-        self._selected_tags = []
-        self._tag_filter_mode = TagFilterMode.HAS_ALL
-        self._selected_materials = []
-        self._material_filter_mode = TagFilterMode.HAS_ALL
-        self._update_source_label()
-        self._update_tags_label()
-        self._update_materials_label()
-        self._on_filter_changed(immediate=True)
 
-    def _on_filter_changed(self, immediate: bool = False):
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-
-        delay = 10 if immediate else self._filter_debounce_delay
-        self._filter_debounce_id = self.after(delay, self._apply_filters)
-
-    def _matches_tag_filter(self, item_values: List[str], selected: List[str], mode: TagFilterMode) -> bool:
-        """Check an item's tags/materials list against a multi-select filter."""
-        if not selected:
-            return True
-        values_lower = [v.lower() for v in item_values]
-        selected_lower = [s.lower() for s in selected]
-        if mode == TagFilterMode.HAS_ALL:
-            return all(s in values_lower for s in selected_lower)
-        if mode == TagFilterMode.HAS_ANY:
-            return any(s in values_lower for s in selected_lower)
-        # HAS_NONE
-        return not any(s in values_lower for s in selected_lower)
-
-    def _apply_filters(self):
-        search_text = self.search_var.get().lower()
-        type_filter = self.type_var.get()
-        official_filter = self.official_var.get()
-        crafting_tool_filter = self.crafting_tool_var.get()
-
-        min_price_cp = self._price_field_to_copper(self.min_price_var.get())
-        max_price_cp = self._price_field_to_copper(self.max_price_var.get())
-
-        filtered = []
-        for item in self._all_items:
-            if search_text:
-                if (search_text not in item.name.lower()
-                        and search_text not in item.plain_description().lower()
-                        and not any(search_text in t.lower() for t in item.tags)):
-                    continue
-
-            if type_filter != "All Types" and item.type != type_filter:
-                continue
-
-            if not self._matches_tag_filter(item.tags, self._selected_tags, self._tag_filter_mode):
-                continue
-
-            if not self._matches_tag_filter(item.crafting_materials, self._selected_materials, self._material_filter_mode):
-                continue
-
-            if self._selected_sources:
-                source_selected = item.source in self._selected_sources
-                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
-                    continue
-                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
-                    continue
-
-            if official_filter == "Official Only" and not item.is_official:
-                continue
-            if official_filter == "Homebrew Only" and item.is_official:
-                continue
-
-            if crafting_tool_filter != "Any Tool" and item.crafting_tool != crafting_tool_filter:
-                continue
-
-            if min_price_cp is not None or max_price_cp is not None:
-                item_cp = parse_cost_to_copper(item.cost)
-                if item_cp is None:
-                    continue  # Unknown/"Varies" price can't satisfy a numeric bound
-                if min_price_cp is not None and item_cp < min_price_cp:
-                    continue
-                if max_price_cp is not None and item_cp > max_price_cp:
-                    continue
-
-            filtered.append(item)
-
-        self.list_panel.set_items(filtered)
-
-    @staticmethod
-    def _price_field_to_copper(text: str) -> Optional[int]:
-        """Parse a min/max price entry (gp, possibly fractional) into copper."""
-        text = text.strip()
-        if not text:
+    def _extra_filter(self):
+        tool = self.crafting_tool_var.get()
+        if tool == "Any Tool":
             return None
-        try:
-            return round(float(text) * 100)  # 1 gp = 100 cp
-        except ValueError:
-            return None
-
-    def _on_item_selected(self, item: Optional[Equipment]):
-        self.detail_panel.show_item(item)
-        if item:
-            self.edit_btn.configure(state="normal" if item.is_custom else "disabled")
-            self.delete_btn.configure(state="normal" if item.is_custom else "disabled")
-        else:
-            self.edit_btn.configure(state="disabled")
-            self.delete_btn.configure(state="disabled")
-
-    def _on_add_item(self):
-        """Open dialog to add a new item (manual entry or auto-detect from text)."""
-        from ui.equipment_text_import import AddEquipmentSourceDialog
-
-        source_dialog = AddEquipmentSourceDialog(self.winfo_toplevel())
-        self.wait_window(source_dialog)
-        if source_dialog.result is None:
-            return
-        if source_dialog.result == "auto":
-            self._on_add_item_from_text()
-            return
-
-        dialog = EquipmentEditorDialog(self.winfo_toplevel(), "Add Equipment")
-        self.wait_window(dialog)
-
-        if dialog.result:
-            if self.equipment_manager.add_item(dialog.result):
-                self._load_items()
-                self.list_panel.select_item(dialog.result.name)
-
-    def _on_add_item_from_text(self):
-        """Paste a block of text, auto-detect item fields, and review each draft."""
-        from ui.equipment_text_import import EquipmentTextImportDialog
-
-        import_dialog = EquipmentTextImportDialog(self.winfo_toplevel())
-        self.wait_window(import_dialog)
-        parsed_list = import_dialog.result
-        if not parsed_list:
-            return
-
-        try:
-            from text_import.equipment_parser import to_equipment
-        except Exception as exc:
-            messagebox.showerror("Auto-Detect Unavailable",
-                                 f"Could not load the text importer:\n{exc}")
-            return
-
-        added = []
-        total = len(parsed_list)
-        for idx, parsed in enumerate(parsed_list, 1):
-            try:
-                draft = to_equipment(parsed)
-            except Exception as exc:
-                messagebox.showerror("Parse Error",
-                                     f"Could not build item {idx} of {total}:\n{exc}")
-                continue
-
-            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
-            progress = f"{idx} of {total}" if total > 1 else ""
-
-            editor = EquipmentEditorDialog(
-                self.winfo_toplevel(), f"Review Item: {draft.name or 'Untitled'}",
-                prefill_item=draft, review_fields=review, batch_progress=progress,
-            )
-            self.wait_window(editor)
-
-            if editor.result:
-                if self.equipment_manager.add_item(editor.result):
-                    added.append(editor.result.name)
-                else:
-                    messagebox.showerror(
-                        "Error",
-                        f"An item named '{editor.result.name}' already exists. "
-                        "It was not added.")
-            elif idx < total:
-                if not messagebox.askyesno(
-                        "Continue?",
-                        "Skip this item and continue reviewing the remaining "
-                        f"{total - idx} item(s)?"):
-                    break
-
-        if added:
-            self._load_items()
-            self.list_panel.select_item(added[-1])
-            if len(added) > 1:
-                messagebox.showinfo("Items Added",
-                                    f"Added {len(added)} items:\n" + "\n".join(added))
-
-    def _on_edit_item(self):
-        item = self.list_panel.get_selected_item()
-        if not item or not item.is_custom:
-            return
-
-        dialog = EquipmentEditorDialog(self.winfo_toplevel(), "Edit Equipment", item)
-        self.wait_window(dialog)
-
-        if dialog.result:
-            if self.equipment_manager.update_item(item.name, dialog.result):
-                self._load_items()
-                self.list_panel.select_item(dialog.result.name)
-
-    def _on_delete_item(self):
-        item = self.list_panel.get_selected_item()
-        if not item or not item.is_custom:
-            return
-
-        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{item.name}'?"):
-            if self.equipment_manager.delete_item(item.name):
-                self._load_items()
-                self.detail_panel.show_item(None)
-
-    def refresh(self):
-        self._load_items()
-
-    def select_item(self, name: str) -> bool:
-        return self.list_panel.select_item(name)
+        return lambda item: item.crafting_tool == tool

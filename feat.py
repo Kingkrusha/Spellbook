@@ -3,10 +3,10 @@ Feat data structures and manager for D&D 5e Spellbook Application.
 """
 
 import json
-import os
-import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
+
+from collection_manager import DbBackedManager
 
 
 # Feat type constants
@@ -128,111 +128,24 @@ class Feat:
         return ""
 
 
-def get_data_path(filename: str) -> str:
-    """Get the path to a data file, handling PyInstaller bundling."""
-    if getattr(sys, 'frozen', False):
-        # Running as compiled exe
-        base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-    else:
-        # Running as script
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, filename)
-
-
-class FeatManager:
+class FeatManager(DbBackedManager):
     """Manages the feat database using SQLite."""
     
     _instance: Optional['FeatManager'] = None
     
-    def __init__(self):
-        self._db = None
-        self._feats_cache: Optional[List[Feat]] = None
-    
-    @classmethod
-    def get_instance(cls) -> 'FeatManager':
-        """Get singleton instance."""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-    
-    @property
-    def db(self):
-        """Get database instance, initializing if needed."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
+    def _load_all(self) -> List[Feat]:
+        return [Feat.from_dict(d) for d in self.db.get_all_feats()]
     
     @property
     def feats(self) -> List[Feat]:
         """Get all feats, using cache if available."""
-        if self._feats_cache is None:
-            self._reload_cache()
-        return self._feats_cache or []
-    
-    def _reload_cache(self):
-        """Reload feats from database into cache."""
-        self._feats_cache = []
-        for feat_dict in self.db.get_all_feats():
-            self._feats_cache.append(self._dict_to_feat(feat_dict))
-    
-    def _invalidate_cache(self):
-        """Invalidate the cache to force reload on next access."""
-        self._feats_cache = None
-    
-    def _dict_to_feat(self, data: dict) -> Feat:
-        """Convert database dict to Feat object."""
-        return Feat(
-            name=data.get('name', ''),
-            type=data.get('type', ''),
-            is_spellcasting=data.get('is_spellcasting', False),
-            spell_lists=data.get('spell_lists', []),
-            spells_num=data.get('spells_num', {}),
-            has_prereq=data.get('has_prereq', False),
-            prereq=data.get('prereq', ''),
-            set_spells=data.get('set_spells', []),
-            description=data.get('description', ''),
-            source=data.get('source', ''),
-            is_official=data.get('is_official', True),
-            is_custom=data.get('is_custom', False),
-            is_legacy=data.get('is_legacy', False),
-            roll_effects=data.get('roll_effects', []) or []
-        )
-    
-    def _feat_to_dict(self, feat: Feat) -> dict:
-        """Convert Feat object to dict for database."""
-        return {
-            'name': feat.name,
-            'type': feat.type,
-            'is_spellcasting': feat.is_spellcasting,
-            'spell_lists': feat.spell_lists,
-            'spells_num': {str(k): v for k, v in feat.spells_num.items()},
-            'has_prereq': feat.has_prereq,
-            'prereq': feat.prereq,
-            'set_spells': feat.set_spells,
-            'description': feat.description,
-            'source': feat.source,
-            'is_official': feat.is_official,
-            'is_custom': feat.is_custom,
-            'is_legacy': feat.is_legacy,
-            'roll_effects': feat.roll_effects
-        }
-    
-    def load(self) -> bool:
-        """Reload feats from database (for compatibility)."""
-        self._invalidate_cache()
-        return True
-    
-    def save(self) -> bool:
-        """No-op for database backend (saves happen immediately)."""
-        return True
+        return self._cached()
     
     def get_feat(self, name: str) -> Optional[Feat]:
         """Get a feat by name."""
         data = self.db.get_feat_by_name(name)
         if data:
-            return self._dict_to_feat(data)
+            return Feat.from_dict(data)
         return None
     
     def get_feats_by_type(self, feat_type: str) -> List[Feat]:
@@ -246,7 +159,7 @@ class FeatManager:
     def add_feat(self, feat: Feat) -> bool:
         """Add a new feat or update existing."""
         existing = self.db.get_feat_by_name(feat.name)
-        feat_dict = self._feat_to_dict(feat)
+        feat_dict = feat.to_dict()
         
         if existing:
             self.db.update_feat(existing['id'], feat_dict)
@@ -262,7 +175,7 @@ class FeatManager:
         if not existing:
             return False
         
-        feat_dict = self._feat_to_dict(updated_feat)
+        feat_dict = updated_feat.to_dict()
         result = self.db.update_feat(existing['id'], feat_dict)
         self._invalidate_cache()
         return result

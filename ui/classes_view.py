@@ -434,7 +434,11 @@ class ClassesCollectionView(ctk.CTkFrame):
                 pass
     
     def _open_class_editor(self, class_def: Optional[CharacterClassDefinition] = None):
-        """Open the class editor dialog."""
+        """Open the class editor dialog (a new class goes to the Homebrew Studio when that setting is on)."""
+        if class_def is None:
+            from ui.studio_launch import open_in_studio
+            if open_in_studio(self, "classes"):
+                return
         dialog = ClassEditorDialog(self, class_def, on_save=self._on_class_saved)
         self.wait_window(dialog)
     
@@ -444,7 +448,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         self._select_class(class_def.name)
     
     def _open_subclass_editor(self, parent_class: CharacterClassDefinition, subclass: Optional[SubclassDefinition] = None):
-        """Open the subclass editor dialog."""
+        """Open the subclass editor dialog (a new subclass goes to the Homebrew Studio when that setting is on)."""
+        if subclass is None:
+            from ui.studio_launch import open_in_studio
+            if open_in_studio(self, "subclasses", parent=parent_class.name):
+                return
         dialog = SubclassEditorDialog(self, parent_class, subclass, on_save=self._on_subclass_saved)
         self.wait_window(dialog)
     
@@ -551,16 +559,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         # Description  
         if class_def.description:
-            from ui.rich_text_utils import DynamicText
+            from ui.rich_text_utils import render_description_blocks
             desc_frame = ctk.CTkFrame(self.content, fg_color="transparent")
             desc_frame.pack(fill="x", expand=True, pady=(0, 20))
-            
-            dt = DynamicText(
-                desc_frame, self.theme,
-                bg_color='bg_primary'
-            )
-            dt.set_text(class_def.description)
-            dt.pack(fill="x", expand=True)
+
+            render_description_blocks(desc_frame, class_def.description, self.theme, pady=(0, 0))
         
         # Feature table header
         table_header = ctk.CTkFrame(self.content, fg_color="transparent")
@@ -1021,10 +1024,18 @@ class ClassesCollectionView(ctk.CTkFrame):
         """
         import re
         
-        # Split by double newlines to get paragraphs
-        paragraphs = text.split('\n\n')
-        
+        from ui.rich_text_utils import RichTextRenderer, description_blocks
+
+        # Paragraphs; a table (lines starting with |) is its own block and is drawn as a table
+        paragraphs = [block for _kind, block in description_blocks(text)]
+
         for para_idx, paragraph in enumerate(paragraphs):
+            if paragraph.lstrip().startswith('|'):
+                renderer = RichTextRenderer(self.theme)
+                headers, rows, _consumed = renderer.parse_markdown_table(paragraph.split('\n'))
+                if headers and rows:
+                    renderer.render_table(parent, headers, rows)
+                    continue
             lines = paragraph.strip().split('\n')
             
             # Combine lines that should flow together
@@ -1108,11 +1119,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         for subclass in other_subclasses:
             self._create_collapsible_subclass(subclass)
     
-    def _create_land_circle_subclass(self, variants):
-        """Create a collapsible Circle of the Land card showing variants."""
-        # Use first variant as template for common info
-        template = variants[0]
-        
+    def _expandable_card(self, title: str, populate, source: str = "", header_extras=None):
+        """A card whose header (a ▶ and the title, clickable) opens its content, built on the first open.
+
+        ``populate(content_frame)`` fills the content; ``header_extras(header_frame)`` adds anything to the header
+        (buttons); ``source`` shows at its right edge. Returns ``(card, toggle_expand, expanded_state)``."""
         # Main container
         card = ctk.CTkFrame(
             self.content,
@@ -1120,11 +1131,11 @@ class ClassesCollectionView(ctk.CTkFrame):
             corner_radius=8
         )
         card.pack(fill="x", pady=5)
-        
+
         # Header (clickable to expand/collapse)
         header_frame = ctk.CTkFrame(card, fg_color="transparent")
         header_frame.pack(fill="x", padx=15, pady=10)
-        
+
         # Expand/collapse indicator and name
         expand_indicator = ctk.CTkLabel(
             header_frame, text="▶",
@@ -1132,28 +1143,27 @@ class ClassesCollectionView(ctk.CTkFrame):
             width=20
         )
         expand_indicator.pack(side="left")
-        
-        # Extract land types from variant names
-        land_types = [v.name.replace("Circle of the Land (", "").replace(")", "") for v in variants]
-        variant_text = f"Circle of the Land ({', '.join(land_types)})"
-        
+
         name_label = ctk.CTkLabel(
-            header_frame, text=variant_text,
+            header_frame, text=title,
             font=ui_font("subheading", bold=True),
             text_color=self.theme.get_current_color('accent_primary')
         )
         name_label.pack(side="left", padx=5)
-        
-        if template.source:
+
+        if header_extras:
+            header_extras(header_frame)
+
+        if source:
             ctk.CTkLabel(
-                header_frame, text=f"Source: {template.source}",
+                header_frame, text=f"Source: {source}",
                 font=ui_font("small", 10),
                 text_color=self.theme.get_current_color('text_secondary')
             ).pack(side="right")
-        
+
         # Lazy loading: content_frame and content created on first expand
         expanded_state = {"is_expanded": False, "content_created": False, "content_frame": None}
-        
+
         def toggle_expand():
             if expanded_state["is_expanded"]:
                 # Collapse
@@ -1166,21 +1176,36 @@ class ClassesCollectionView(ctk.CTkFrame):
                 if not expanded_state["content_created"]:
                     content_frame = ctk.CTkFrame(card, fg_color="transparent")
                     expanded_state["content_frame"] = content_frame
-                    self._populate_land_circle_content(content_frame, variants, template)
+                    populate(content_frame)
                     expanded_state["content_created"] = True
                 expanded_state["content_frame"].pack(fill="x", padx=15, pady=(0, 15))
                 expand_indicator.configure(text="▼")
                 expanded_state["is_expanded"] = True
-        
+
         # Make header clickable
         header_frame.bind("<Button-1>", lambda e: toggle_expand())
         expand_indicator.bind("<Button-1>", lambda e: toggle_expand())
         name_label.bind("<Button-1>", lambda e: toggle_expand())
-        
+
+        return card, toggle_expand, expanded_state
+
+    def _create_land_circle_subclass(self, variants):
+        """Create a collapsible Circle of the Land card showing variants."""
+        # Use first variant as template for common info
+        template = variants[0]
+
+        # Extract land types from variant names
+        land_types = [v.name.replace("Circle of the Land (", "").replace(")", "") for v in variants]
+        variant_text = f"Circle of the Land ({', '.join(land_types)})"
+
+        card, toggle_expand, expanded_state = self._expandable_card(
+            variant_text, lambda content_frame: self._populate_land_circle_content(content_frame, variants, template),
+            template.source)
+
         # Register all Circle of the Land variants for navigation
         for variant in variants:
             self._subclass_cards[variant.name] = (card, toggle_expand, expanded_state)
-    
+
     def _populate_land_circle_content(self, content_frame, variants, template):
         """Populate Circle of the Land content frame."""
         # Shared description for Circle of the Land
@@ -1241,23 +1266,7 @@ class ClassesCollectionView(ctk.CTkFrame):
     
     def _create_land_natures_ward_feature(self, parent, variants):
         """Create Nature's Ward feature showing all land type resistances."""
-        feature_frame = ctk.CTkFrame(parent, fg_color="transparent")
-        feature_frame.pack(fill="x", pady=(0, 12))
-        
-        # Feature title with level
-        title_frame = ctk.CTkFrame(
-            feature_frame,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            corner_radius=5
-        )
-        title_frame.pack(anchor="w")
-        
-        ctk.CTkLabel(
-            title_frame,
-            text="Level 10: Nature's Ward",
-            font=ui_font("body", bold=True),
-            text_color="white"
-        ).pack(anchor="w", padx=8, pady=4)
+        feature_frame = self._feature_heading(parent, "Level 10: Nature's Ward")
         
         # Common description
         desc_frame = ctk.CTkFrame(feature_frame, fg_color="transparent")
@@ -1305,101 +1314,42 @@ class ClassesCollectionView(ctk.CTkFrame):
     
     def _create_collapsible_subclass(self, subclass):
         """Create a collapsible subclass card with full feature details."""
-        # Main container
-        card = ctk.CTkFrame(
-            self.content,
-            fg_color=self.theme.get_current_color('bg_secondary'),
-            corner_radius=8
-        )
-        card.pack(fill="x", pady=5)
-        
-        # Header (clickable to expand/collapse)
-        header_frame = ctk.CTkFrame(card, fg_color="transparent")
-        header_frame.pack(fill="x", padx=15, pady=10)
-        
-        # Expand/collapse indicator and name
-        expand_indicator = ctk.CTkLabel(
-            header_frame, text="▶",
-            font=ui_font("body"),
-            width=20
-        )
-        expand_indicator.pack(side="left")
-        
-        name_label = ctk.CTkLabel(
-            header_frame, text=subclass.name,
-            font=ui_font("subheading", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
-        )
-        name_label.pack(side="left", padx=5)
-        
-        # Edit and Delete buttons for custom subclasses only
-        if self.current_class and subclass.is_custom:
-            ctk.CTkButton(
-                header_frame, text="Delete",
-                fg_color=self.theme.get_current_color('button_danger'),
-                hover_color=self.theme.get_current_color('button_danger_hover'),
-                text_color=self.theme.get_current_color('text_primary'),
-                height=24, width=60,
-                command=lambda s=subclass, c=self.current_class: self._delete_subclass(c, s)
-            ).pack(side="right", padx=(5, 0))
-            
-            ctk.CTkButton(
-                header_frame, text="Edit",
-                fg_color=self.theme.get_current_color('button_normal'),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary'),
-                height=24, width=60,
-                command=lambda s=subclass, c=self.current_class: self._open_subclass_editor(c, s)
-            ).pack(side="right", padx=(10, 0))
-        
-        if subclass.source:
-            ctk.CTkLabel(
-                header_frame, text=f"Source: {subclass.source}",
-                font=ui_font("small", 10),
-                text_color=self.theme.get_current_color('text_secondary')
-            ).pack(side="right")
-        
-        # Lazy loading: content_frame and content created on first expand
-        expanded_state = {"is_expanded": False, "content_created": False, "content_frame": None}
-        
-        def toggle_expand():
-            if expanded_state["is_expanded"]:
-                # Collapse
-                if expanded_state["content_frame"]:
-                    expanded_state["content_frame"].pack_forget()
-                expand_indicator.configure(text="▶")
-                expanded_state["is_expanded"] = False
-            else:
-                # Expand - create content on first expand
-                if not expanded_state["content_created"]:
-                    content_frame = ctk.CTkFrame(card, fg_color="transparent")
-                    expanded_state["content_frame"] = content_frame
-                    self._populate_subclass_content(content_frame, subclass)
-                    expanded_state["content_created"] = True
-                expanded_state["content_frame"].pack(fill="x", padx=15, pady=(0, 15))
-                expand_indicator.configure(text="▼")
-                expanded_state["is_expanded"] = True
-        
-        # Make header clickable
-        header_frame.bind("<Button-1>", lambda e: toggle_expand())
-        expand_indicator.bind("<Button-1>", lambda e: toggle_expand())
-        name_label.bind("<Button-1>", lambda e: toggle_expand())
-        
+        def edit_and_delete(header_frame):
+            # Edit and Delete buttons for custom subclasses only
+            if self.current_class and subclass.is_custom:
+                ctk.CTkButton(
+                    header_frame, text="Delete",
+                    fg_color=self.theme.get_current_color('button_danger'),
+                    hover_color=self.theme.get_current_color('button_danger_hover'),
+                    text_color=self.theme.get_current_color('text_primary'),
+                    height=24, width=60,
+                    command=lambda s=subclass, c=self.current_class: self._delete_subclass(c, s)
+                ).pack(side="right", padx=(5, 0))
+
+                ctk.CTkButton(
+                    header_frame, text="Edit",
+                    fg_color=self.theme.get_current_color('button_normal'),
+                    hover_color=self.theme.get_current_color('button_hover'),
+                    text_color=self.theme.get_current_color('text_primary'),
+                    height=24, width=60,
+                    command=lambda s=subclass, c=self.current_class: self._open_subclass_editor(c, s)
+                ).pack(side="right", padx=(10, 0))
+
+        card, toggle_expand, expanded_state = self._expandable_card(
+            subclass.name, lambda content_frame: self._populate_subclass_content(content_frame, subclass),
+            subclass.source, edit_and_delete)
+
         # Register the subclass card for navigation
         self._subclass_cards[subclass.name] = (card, toggle_expand, expanded_state)
-    
+
     def _populate_subclass_content(self, content_frame, subclass):
         """Populate a subclass content frame with description and features."""
         # Description with dynamic resizing
         if subclass.description:
-            from ui.rich_text_utils import DynamicText
-            dt = DynamicText(
-                content_frame, self.theme,
-                font_size=11,
-                bg_color='bg_primary'
-            )
-            dt.set_text(subclass.description)
-            dt.pack(fill="x", expand=True, pady=(0, 15))
+            from ui.rich_text_utils import render_description_blocks
+            holder = ctk.CTkFrame(content_frame, fg_color="transparent")
+            holder.pack(fill="x", expand=True, pady=(0, 15))
+            render_description_blocks(holder, subclass.description, self.theme, font_size=11)
         
         # Features with full details
         for feature in subclass.features:
@@ -1491,34 +1441,13 @@ class ClassesCollectionView(ctk.CTkFrame):
             for idx, spell_name in enumerate(spell_names):
                 # Create clickable label for each spell
                 display_text = spell_name + ("," if idx < len(spell_names) - 1 else "")
-                spell_label = ctk.CTkLabel(
-                    spells_container,
-                    text=display_text,
-                    font=ui_font("small"),
-                    text_color=self.theme.get_current_color('spell_link'),
-                    cursor="hand2"
-                )
-                spell_label.pack(side="left", padx=(0, 3))
-                
-                # Bind click to show spell popup
-                clean_name = spell_name.strip()
-                def make_click_handler(name):
-                    return lambda e: self._show_spell_popup(name)
-                spell_label.bind("<Button-1>", make_click_handler(clean_name))
-                
-                # Hover effect
-                def make_enter_handler(lbl):
-                    return lambda e: lbl.configure(font=ui_font("small", underline=True))
-                def make_leave_handler(lbl):
-                    return lambda e: lbl.configure(font=ui_font("small"))
-                spell_label.bind("<Enter>", make_enter_handler(spell_label))
-                spell_label.bind("<Leave>", make_leave_handler(spell_label))
+                self._spell_link_label(spells_container, display_text, spell_name.strip(), "small")
     
-    def _create_subclass_feature_detail(self, parent, feature):
-        """Create a detailed subclass feature entry."""
+    def _feature_heading(self, parent, text: str):
+        """A feature's entry: a frame with its title in an accent-coloured heading (the body goes in the frame)."""
         feature_frame = ctk.CTkFrame(parent, fg_color="transparent")
         feature_frame.pack(fill="x", pady=(0, 12))
-        
+
         # Feature title with level - styled heading with background
         title_frame = ctk.CTkFrame(
             feature_frame,
@@ -1526,13 +1455,34 @@ class ClassesCollectionView(ctk.CTkFrame):
             corner_radius=5
         )
         title_frame.pack(anchor="w")
-        
+
         ctk.CTkLabel(
             title_frame,
-            text=f"Level {feature.level}: {feature.title}",
+            text=text,
             font=ui_font("body", bold=True),
             text_color="white"
         ).pack(anchor="w", padx=8, pady=4)
+        return feature_frame
+
+    def _spell_link_label(self, parent, display_text: str, spell_name: str, *font):
+        """A clickable spell name (opens the spell's popup; underlined on hover). ``font`` is for ``ui_font``."""
+        spell_label = ctk.CTkLabel(
+            parent,
+            text=display_text,
+            font=ui_font(*font),
+            text_color=self.theme.get_current_color('spell_link'),
+            cursor="hand2"
+        )
+        spell_label.pack(side="left", padx=(0, 3))
+
+        spell_label.bind("<Button-1>", lambda e: self._show_spell_popup(spell_name))
+        spell_label.bind("<Enter>", lambda e: spell_label.configure(font=ui_font(*font, underline=True)))
+        spell_label.bind("<Leave>", lambda e: spell_label.configure(font=ui_font(*font)))
+        return spell_label
+
+    def _create_subclass_feature_detail(self, parent, feature):
+        """Create a detailed subclass feature entry."""
+        feature_frame = self._feature_heading(parent, f"Level {feature.level}: {feature.title}")
         
         # Feature description
         if feature.description.strip():
@@ -1714,30 +1664,7 @@ class ClassesCollectionView(ctk.CTkFrame):
             
             # Create clickable label for each spell
             display_text = spell_name + ("," if idx < len(spell_names) - 1 else "")
-            spell_label = ctk.CTkLabel(
-                inner_frame,
-                text=display_text,
-                font=ui_font("body", font_size),
-                text_color=self.theme.get_current_color('spell_link'),
-                cursor="hand2"
-            )
-            spell_label.pack(side="left", padx=(0, 3))
-            
-            # Store the spell name for the click handler
-            clean_name = spell_name.strip()
-            
-            # Bind click to show spell popup - use a proper closure
-            def make_click_handler(name):
-                return lambda e: self._show_spell_popup(name)
-            spell_label.bind("<Button-1>", make_click_handler(clean_name))
-            
-            # Hover effect - use proper closures
-            def make_enter_handler(lbl, fs):
-                return lambda e: lbl.configure(font=ui_font("body", fs, underline=True))
-            def make_leave_handler(lbl, fs):
-                return lambda e: lbl.configure(font=ui_font("body", fs))
-            spell_label.bind("<Enter>", make_enter_handler(spell_label, font_size))
-            spell_label.bind("<Leave>", make_leave_handler(spell_label, font_size))
+            self._spell_link_label(inner_frame, display_text, spell_name.strip(), "body", font_size)
     
     def _show_spell_popup(self, spell_name: str):
         """Show a popup with spell details."""

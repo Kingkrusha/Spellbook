@@ -11,8 +11,10 @@ from tkinter import messagebox, filedialog
 from typing import Optional, Callable
 from theme import get_theme_manager
 from ui.global_search import GlobalSearchBar
+from ui.splash_screen import ProgressWindowMixin
+from ui.window_utils import add_export_cancel
 
-class ImportProgressSplash(ctk.CTkToplevel):
+class ImportProgressSplash(ProgressWindowMixin, ctk.CTkToplevel):
     """Progress splash screen shown during content import."""
     
     def __init__(self, parent):
@@ -96,16 +98,6 @@ class ImportProgressSplash(ctk.CTkToplevel):
         )
         self.count_label.pack(pady=(0, 10))
     
-    def set_status(self, message: str):
-        """Update the status message."""
-        self.status_label.configure(text=message)
-        self.update()
-    
-    def set_progress(self, value: float):
-        """Set progress bar value (0.0 to 1.0)."""
-        self.progress.set(value)
-        self.update()
-    
     def set_count(self, current: int, total: int, item_type: str = "items"):
         """Update the item counter."""
         self.count_label.configure(text=f"{current} / {total} {item_type}")
@@ -188,8 +180,9 @@ class CollectionsView(ctk.CTkFrame):
     """Main collections hub with buttons for different content types."""
     
     def __init__(self, parent, spell_manager=None, on_navigate: Optional[Callable[..., None]] = None,
-                 on_home: Optional[Callable[[], None]] = None):
+                 on_home: Optional[Callable[[], None]] = None, on_open_studio: Optional[Callable[[], None]] = None):
         super().__init__(parent, fg_color="transparent")
+        self.on_open_studio = on_open_studio
 
         self.spell_manager = spell_manager
         self.on_navigate = on_navigate  # Callback for navigation to sub-pages
@@ -227,6 +220,15 @@ class CollectionsView(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         btn_frame.pack(side="right")
         
+        if self.on_open_studio:
+            ctk.CTkButton(
+                btn_frame, text="🛠 Homebrew Studio",
+                width=150,
+                fg_color=self.theme.get_current_color('accent_primary'),
+                hover_color=self.theme.get_current_color('accent_secondary'),
+                command=self.on_open_studio
+            ).pack(side="left", padx=5)
+
         # Content import/export
         ctk.CTkButton(
             btn_frame, text="📥 Import",
@@ -277,7 +279,7 @@ class CollectionsView(ctk.CTkFrame):
             ("📖 Backgrounds", "backgrounds", True, "Character background options"),
             ("🛡️ Equipment", "equipment", True, "Mundane items and gear"),
             ("👹 Monsters", "monsters", True, "Creature stat blocks"),
-            ("📚 Rules", "rules", False, "Game rules and references"),
+            ("📚 Rules", "rules", True, "Game rules and references, searchable by their text"),
         ]
         
         row = 0
@@ -373,7 +375,8 @@ class CollectionsView(ctk.CTkFrame):
             'Lineages': 'lineages',
             'Classes': 'classes',
             'Subclasses': 'classes',  # Subclasses navigate to classes
-            'Backgrounds': 'backgrounds'
+            'Backgrounds': 'backgrounds',
+            'Rules': 'rules'
         }
         
         nav_key = section_map.get(section, section.lower())
@@ -424,6 +427,8 @@ class CollectionsView(ctk.CTkFrame):
         get_magic_item_manager().load()
         from monster import get_monster_manager
         get_monster_manager().load()
+        from rules import get_rules_manager
+        get_rules_manager().load()
 
         # Reload spell manager if available
         if self.spell_manager:
@@ -530,7 +535,7 @@ class ImportDialog(ctk.CTkToplevel):
             info_frame,
             text="ℹ️ JSON files can contain any of these content types:\n"
                  "   • Spells (with summon stat blocks), Feats, Classes, Subclasses\n"
-                 "   • Lineages, Backgrounds, Equipment, Magic Items, Monsters\n"
+                 "   • Lineages, Backgrounds, Equipment, Magic Items, Monsters, Rules\n"
                  "   • Imported content is marked as custom (unofficial)\n"
                  "   • Official content is never overwritten: an entry with the\n"
                  "     same name as an official one is skipped and reported\n"
@@ -800,21 +805,7 @@ class ExportDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(25, 0))
 
-        ctk.CTkButton(
-            btn_frame, text="📤 Export to JSON",
-            width=150, height=40,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_secondary'),
-            command=self._export
-        ).pack(side="left")
-
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
-            width=100, height=40,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
-        ).pack(side="right")
+        add_export_cancel(btn_frame, self.theme, "📤 Export to JSON", self._export, self.destroy)
 
     def _selected_kinds(self):
         """content_io kinds chosen in the dropdown (None = all of them)."""

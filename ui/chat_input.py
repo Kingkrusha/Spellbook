@@ -82,13 +82,13 @@ class LinkPicker(ctk.CTkToplevel):
         for t in search_links(query, self._targets, limit=10):
             ctk.CTkButton(
                 self.results, anchor="w", height=28, font=ui_font("body"),
-                text=f"{t.name}   ({t.category_label}{' · ' + t.subtitle if t.subtitle else ''})",
+                text=f"{t.label}   ({t.category_label}{' · ' + t.subtitle if t.subtitle else ''})",
                 fg_color="transparent", hover_color=self.theme.get_current_color('accent_primary'),
                 text_color=self.theme.get_current_color('text_primary'),
                 command=lambda t=t: self._pick(t)).pack(fill="x", pady=1)
 
     def _pick(self, target):
-        self._on_pick(f"[[{format_link_markup(target.category, target.name, target.name)}]]")
+        self._on_pick(f"[[{format_link_markup(target.category, target.name, target.label)}]]")
         self.destroy()
 
 

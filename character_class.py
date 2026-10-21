@@ -3,6 +3,7 @@ Character Class data model for D&D 5e Spellbook Application.
 Defines class features, abilities, trackable resources, and subclasses.
 """
 
+from collection_manager import DbBackedManager
 from dataclasses import dataclass, field, replace
 from typing import List, Dict, Optional, Tuple
 import json
@@ -63,6 +64,14 @@ class TrackableFeature:
             recharge=data.get("recharge", "long_rest"),
             level_scaling=level_scaling
         )
+
+
+# What nearly every class gets at certain levels. The editors fill these in for a new class, and the Homebrew Studio
+# does not count them as "your own" text when it looks for similar content.
+ASI_FEATURE = ("Ability Score Improvement",
+               "You gain the Ability Score Improvement feat or another feat of your choice for which you qualify.")
+EPIC_BOON_FEATURE = ("Epic Boon", "You gain an Epic Boon feat or another feat of your choice for which you qualify.")
+STANDARD_FEATURES = (ASI_FEATURE, EPIC_BOON_FEATURE)
 
 
 @dataclass
@@ -545,33 +554,20 @@ class CharacterClassDefinition:
         return instance
 
 
-class ClassManager:
+class ClassManager(DbBackedManager):
     """Manages character class definitions using SQLite database."""
     
     DEFAULT_FILE = "classes.json"
     
     def __init__(self, file_path: Optional[str] = None):
+        super().__init__()
         self.file_path = file_path or user_data_path(self.DEFAULT_FILE)  # For compatibility
-        self._db = None
-        self._classes_cache: Optional[Dict[str, CharacterClassDefinition]] = None
+        self._cache: Optional[Dict[str, CharacterClassDefinition]] = None
         self._listeners = []
-    
-    @property
-    def db(self):
-        """Get database instance, initializing if needed."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
-    
-    def _invalidate_cache(self):
-        """Invalidate the cache to force reload on next access."""
-        self._classes_cache = None
     
     def _reload_cache(self):
         """Reload classes from database into cache."""
-        self._classes_cache = {}
+        self._cache = {}
         
         # Clear and re-register custom classes with CharacterClass enum
         from spell import CharacterClass
@@ -580,7 +576,7 @@ class ClassManager:
         # Load all classes
         for class_data in self.db.get_all_character_classes():
             class_def = self._dict_to_class(class_data)
-            self._classes_cache[class_def.name] = class_def
+            self._cache[class_def.name] = class_def
             
             # Register custom classes with the CharacterClass enum
             if class_def.is_custom:
@@ -590,8 +586,8 @@ class ClassManager:
         for subclass_data in self.db.get_all_subclasses():
             subclass_def = self._dict_to_subclass(subclass_data)
             parent_class_name = subclass_data.get('parent_class', '')
-            if parent_class_name and parent_class_name in self._classes_cache:
-                self._classes_cache[parent_class_name].subclasses.append(subclass_def)
+            if parent_class_name and parent_class_name in self._cache:
+                self._cache[parent_class_name].subclasses.append(subclass_def)
 
         self._attach_compatible_subclasses()
 
@@ -603,8 +599,8 @@ class ClassManager:
         only with a non-legacy class of the same name. The level handling is in
         CharacterClassDefinition.subclass_grant_level.
         """
-        by_name = {c.name.lower(): c for c in self._classes_cache.values()}
-        for legacy_class in self._classes_cache.values():
+        by_name = {c.name.lower(): c for c in self._cache.values()}
+        for legacy_class in self._cache.values():
             if not legacy_class.is_legacy:
                 continue
             current = by_name.get(strip_legacy_suffix(legacy_class.name).lower())
@@ -775,15 +771,15 @@ class ClassManager:
     @property
     def classes(self) -> List[CharacterClassDefinition]:
         """Get all class definitions."""
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
-        return list(self._classes_cache.values()) if self._classes_cache else []
+        return list(self._cache.values()) if self._cache else []
     
     def get_class(self, name: str) -> Optional[CharacterClassDefinition]:
         """Get a class definition by name."""
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
-        return self._classes_cache.get(name) if self._classes_cache else None
+        return self._cache.get(name) if self._cache else None
 
     def get_all_sources(self) -> List[str]:
         """Get all unique sources from classes and their subclasses."""
@@ -818,10 +814,10 @@ class ClassManager:
         self._invalidate_cache()
         
         # If cache is empty after reload, check if we need to initialize
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
         
-        if not self._classes_cache:
+        if not self._cache:
             # Check for JSON file to migrate
             if os.path.exists(self.file_path):
                 try:
@@ -2377,20 +2373,20 @@ While carrying the map, a target gains the following benefits.
     
     def get_unofficial_classes(self) -> List[CharacterClassDefinition]:
         """Get all classes that are custom (not official)."""
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
-        if not self._classes_cache:
+        if not self._cache:
             return []
-        return [c for c in self._classes_cache.values() if c.is_custom]
+        return [c for c in self._cache.values() if c.is_custom]
     
     def get_unofficial_subclasses(self) -> List[SubclassDefinition]:
         """Get all subclasses that are custom (not official)."""
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
-        if not self._classes_cache:
+        if not self._cache:
             return []
         subclasses = []
-        for cls in self._classes_cache.values():
+        for cls in self._cache.values():
             for sub in cls.subclasses:
                 if sub.is_custom:
                     subclasses.append(sub)
@@ -2398,24 +2394,24 @@ While carrying the map, a target gains the following benefits.
     
     def get_unofficial_class_sources(self) -> List[str]:
         """Get list of sources that have unofficial (custom) classes."""
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
-        if not self._classes_cache:
+        if not self._cache:
             return []
         sources = set()
-        for cls in self._classes_cache.values():
+        for cls in self._cache.values():
             if cls.is_custom and cls.source:
                 sources.add(cls.source)
         return sorted(sources)
     
     def get_unofficial_subclass_sources(self) -> List[str]:
         """Get list of sources that have unofficial (custom) subclasses."""
-        if self._classes_cache is None:
+        if self._cache is None:
             self._reload_cache()
-        if not self._classes_cache:
+        if not self._cache:
             return []
         sources = set()
-        for cls in self._classes_cache.values():
+        for cls in self._cache.values():
             for sub in cls.subclasses:
                 if sub.is_custom and sub.source:
                     sources.add(sub.source)

@@ -5,13 +5,13 @@ Handles persistence of character spell lists to JSON file.
 
 import os
 import json
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
 from character import CharacterSpellList
-from atomic_io import atomic_write_json
+from atomic_io import SaveErrorListeners, atomic_write_json
 from paths import user_data_path
 
 
-class CharacterManager:
+class CharacterManager(SaveErrorListeners):
     """Manages character spell lists with file persistence."""
     
     DEFAULT_FILE = "characters.json"
@@ -42,21 +42,6 @@ class CharacterManager:
         for listener in self._listeners:
             listener()
 
-    def add_error_listener(self, callback: Callable[[str], None]):
-        """Add a listener to be notified when a load/save fails.
-
-        Without this, a failed save was only ever ``print()``-ed - invisible
-        in a windowed build with no console - so edits could silently vanish.
-        """
-        self._error_listeners.append(callback)
-
-    def _notify_error(self, message: str):
-        for listener in self._error_listeners:
-            try:
-                listener(message)
-            except Exception:
-                pass
-    
     def load_characters(self) -> bool:
         """Load characters from the JSON file. Returns True if successful."""
         if not os.path.exists(self.file_path):
@@ -145,6 +130,17 @@ class CharacterManager:
             return True
         return False
     
+    def add_spells_to_character(self, character_name: str, spell_names: List[str]) -> Tuple[int, int]:
+        """Add several spells to a character's known spells, saving once. Returns ``(added, already there)``."""
+        char = self.get_character(character_name)
+        if not char:
+            return 0, 0
+        added = sum(1 for name in spell_names if char.add_spell(name))
+        if added:
+            self.save_characters()
+            self._notify_listeners()
+        return added, len(spell_names) - added
+
     def remove_spell_from_character(self, character_name: str, spell_name: str) -> bool:
         """Remove a spell from a character's known spells."""
         char = self.get_character(character_name)

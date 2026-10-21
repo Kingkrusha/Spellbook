@@ -35,7 +35,10 @@
         "Alert"
       ],
       "lineage": "Elf",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "Barbarian",
@@ -57,7 +60,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "Goliath",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "barbarian 2",
@@ -79,7 +85,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "Bard",
@@ -101,7 +110,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "Cleric",
@@ -138,7 +150,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "druid",
@@ -174,7 +189,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "monk",
@@ -202,7 +220,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "Rimekin",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "monk 2",
@@ -224,7 +245,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "Paladin",
@@ -265,7 +289,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "Ranger",
@@ -298,7 +325,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "Rogue",
@@ -320,7 +350,115 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
+    },
+    {
+      "name": "Sorcerer",
+      "classes": [
+        {
+          "class": "Sorcerer",
+          "level": 10,
+          "subclass": "Shadow Sorcery"
+        }
+      ],
+      "known_spells": [
+        "Bane",
+        "Darkness",
+        "Inflict Wounds",
+        "Pass Without Trace",
+        "Hunger of Hadar",
+        "Nondetection",
+        "Greater Invisibility",
+        "Phantasmal Killer",
+        "Contagion",
+        "Creation",
+        "Sorcerous Burst",
+        "Mind Sliver",
+        "Fire Bolt",
+        "Light",
+        "Minor Illusion",
+        "Prestidigitation",
+        "Blink",
+        "Laeral's Silver Lance",
+        "Melf's Minute Meteors",
+        "Hypnotic Pattern",
+        "Charm Monster",
+        "Spirit Of Death",
+        "Blight",
+        "Synaptic Static",
+        "Waves of Exhaustion",
+        "Druidcraft",
+        "Faerie Fire",
+        "Enlarge/Reduce",
+        "Summon Beast",
+        "Banishment"
+      ],
+      "prepared_spells": [
+        "Bane",
+        "Darkness",
+        "Inflict Wounds",
+        "Pass Without Trace",
+        "Hunger of Hadar",
+        "Nondetection",
+        "Greater Invisibility",
+        "Phantasmal Killer",
+        "Contagion",
+        "Creation",
+        "Druidcraft",
+        "Faerie Fire",
+        "Enlarge/Reduce",
+        "Summon Beast"
+      ],
+      "subclass_spells": [
+        "Bane",
+        "Darkness",
+        "Inflict Wounds",
+        "Pass Without Trace",
+        "Hunger of Hadar",
+        "Nondetection",
+        "Greater Invisibility",
+        "Phantasmal Killer",
+        "Contagion",
+        "Creation",
+        "Druidcraft",
+        "Faerie Fire",
+        "Enlarge/Reduce",
+        "Summon Beast"
+      ],
+      "class_feature_spells": [
+        "Druidcraft",
+        "Faerie Fire",
+        "Enlarge/Reduce",
+        "Summon Beast"
+      ],
+      "current_slots": {
+        "1": 4,
+        "2": 3,
+        "3": 3,
+        "4": 3,
+        "5": 2
+      },
+      "warlock_slots_current": 0,
+      "mystic_arcanum_used": [],
+      "custom_max_slots": {},
+      "custom_max_cantrips": 0,
+      "feats": [
+        "Alert",
+        "Actor"
+      ],
+      "lineage": "Faerie",
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {
+        "Druidcraft": "Species: Faerie",
+        "Faerie Fire": "Species: Faerie",
+        "Enlarge/Reduce": "Species: Faerie",
+        "Summon Beast": "Subclass: Shadow Sorcery"
+      }
     },
     {
       "name": "Test",
@@ -353,7 +491,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "test 2",
@@ -381,7 +522,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     },
     {
       "name": "test 3",
@@ -424,7 +568,10 @@
       "custom_max_cantrips": 0,
       "feats": [],
       "lineage": "",
-      "hidden_features": []
+      "hidden_features": [],
+      "grant_options": {},
+      "grant_choices": {},
+      "spell_sources": {}
     }
   ]
 }

@@ -10,8 +10,8 @@ import tkinter as tk
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
-from theme import get_theme_manager
 from typography import ui_font
+from ui.chart_canvas import ChartCanvas
 from ui.distribution_chart import nice_step
 
 ROW_H = 26
@@ -30,22 +30,15 @@ class BarRow:
     hint: str = ""           # shown on hover, e.g. "median 14 • range 3 to 23"
 
 
-class BarListChart(tk.Canvas):
+class BarListChart(ChartCanvas):
     def __init__(self, parent, on_click: Optional[Callable[[str], None]] = None, **kw):
-        self.theme = get_theme_manager()
-        super().__init__(parent, highlightthickness=0, bd=0, bg=self._c("bg_secondary"), **kw)
+        super().__init__(parent, **kw)
         self.on_click = on_click
         self.sections: List[Tuple[str, List[BarRow]]] = []
         self.unit = "average"
         self._hover: Optional[str] = None
         self._hit: List[Tuple[float, float, str]] = []         # (top, bottom, key)
-        self._job = None
-        self.bind("<Configure>", lambda e: self._schedule())
-        self.bind("<Motion>", self._on_motion)
-        self.bind("<Leave>", lambda e: self._set_hover(None))
         self.bind("<Button-1>", self._on_press)
-        self.theme.add_listener(self._on_theme)
-        self.bind("<Destroy>", self._on_destroy, add="+")
 
     # ---- public
     def set_rows(self, sections: List[Tuple[str, List[BarRow]]], unit: str = "average"):
@@ -56,32 +49,6 @@ class BarListChart(tk.Canvas):
         self._schedule()
 
     # ---- plumbing
-    def _c(self, role: str) -> str:
-        return str(self.theme.get_current_color(role))
-
-    def _on_theme(self):
-        try:
-            self.configure(bg=self._c("bg_secondary"))
-            self._schedule()
-        except tk.TclError:
-            pass
-
-    def _on_destroy(self, event):
-        if event.widget is self:
-            self.theme.remove_listener(self._on_theme)
-            if self._job is not None:
-                try:
-                    self.after_cancel(self._job)
-                except tk.TclError:
-                    pass
-
-    def _schedule(self):
-        if self._job is None:
-            try:
-                self._job = self.after(30, self._draw)
-            except tk.TclError:
-                pass
-
     # ---- drawing
     def _draw(self):
         self._job = None

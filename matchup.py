@@ -318,6 +318,14 @@ def parse_multiattack(text: str, strikes: Dict[str, Strike]) -> List[List[Tuple[
         if real and all(real != c[0] for c in counted):
             counted.append((real, 1))
     first = re.search(r"\b(one|two|three|four|five|six|seven|eight|nine|ten)\b", clean, re.IGNORECASE)
+    other = re.search(r"\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+other\s+attacks?", clean, re.IGNORECASE)
+    if other and counted:                                   # "one Bite and three other attacks, using Claw or Tail"
+        word = other.group(1).lower()
+        extra = NUMBER_WORDS.get(word) or (int(word) if word.isdigit() else 1)
+        taken = {c[0] for c in counted}
+        alts = [n for n in strikes if n not in taken and re.search(rf"\b{re.escape(n)}\b", clean)]
+        if alts:
+            return [counted + [(a, extra)] for a in alts]
     if "in any combination" in clean.lower() or re.search(r"\b\w+ or \w+", clean) and " attacks" in clean.lower() \
             and not counted:
         total = NUMBER_WORDS.get(first.group(1).lower(), 1) if first else 1

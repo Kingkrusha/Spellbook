@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import math
 import tkinter as tk
-from typing import Callable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from dice_analyzer import Dist
-from theme import get_theme_manager
+from ui.chart_canvas import ChartCanvas
 from typography import ui_font
 
 PAD_L, PAD_R, PAD_T, PAD_B = 52, 16, 26, 34
@@ -40,24 +40,15 @@ def percent_text(p: float) -> str:
     return "0%"
 
 
-class DistributionChart(tk.Canvas):
+class DistributionChart(ChartCanvas):
     def __init__(self, parent, height: int = 300, **kw):
-        self.theme = get_theme_manager()
-        super().__init__(parent, height=height, highlightthickness=0, bd=0,
-                         bg=self._c("bg_secondary"), **kw)
+        super().__init__(parent, height=height, **kw)
         self.dist: Optional[Dist] = None
         self.cumulative = False              # False: chance of each total; True: chance of this total or more
         self.target: Optional[int] = None    # totals at or above it are drawn in the accent colour
         self.unit = ""
         self._bars: List[Tuple[int, int, float]] = []
         self._geom: Tuple[float, float, float, float, float] = (0, 0, 0, 0, 0)
-        self._hover: Optional[int] = None
-        self._redraw_job = None
-        self.bind("<Configure>", lambda e: self._schedule())
-        self.bind("<Motion>", self._on_motion)
-        self.bind("<Leave>", lambda e: self._set_hover(None))
-        self.theme.add_listener(self._on_theme)
-        self.bind("<Destroy>", self._on_destroy, add="+")
 
     # ---- public
     def set_dist(self, dist: Optional[Dist], cumulative: Optional[bool] = None, target: Optional[int] = None,
@@ -72,32 +63,6 @@ class DistributionChart(tk.Canvas):
         self._schedule()
 
     # ---- plumbing
-    def _c(self, role: str) -> str:
-        return str(self.theme.get_current_color(role))
-
-    def _on_theme(self):
-        try:
-            self.configure(bg=self._c("bg_secondary"))
-            self._schedule()
-        except tk.TclError:
-            pass
-
-    def _on_destroy(self, event):
-        if event.widget is self:
-            self.theme.remove_listener(self._on_theme)
-            if self._redraw_job is not None:
-                try:
-                    self.after_cancel(self._redraw_job)
-                except tk.TclError:
-                    pass
-
-    def _schedule(self):
-        if self._redraw_job is None:
-            try:
-                self._redraw_job = self.after(30, self._draw)
-            except tk.TclError:
-                pass
-
     # ---- drawing
     def _bar_value(self, i: int) -> float:
         lo, hi, p = self._bars[i]
@@ -106,7 +71,7 @@ class DistributionChart(tk.Canvas):
         return self.dist.at_least(lo)
 
     def _draw(self):
-        self._redraw_job = None
+        self._job = None
         try:
             self.delete("all")
             w, h = self.winfo_width(), self.winfo_height()

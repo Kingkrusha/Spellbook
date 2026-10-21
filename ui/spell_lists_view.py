@@ -3,6 +3,7 @@ Spell Lists View for D&D Spellbook.
 Displays and manages character spell lists.
 """
 
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
 from typography import ui_font
 import tkinter as tk
@@ -18,6 +19,7 @@ from spell_slots import (
 )
 from settings import SettingsManager, get_settings_manager
 from theme import get_theme_manager
+from ui.tooltip import HoverTooltip
 
 
 def get_effective_max_slots(character: CharacterSpellList) -> Dict[int, int]:
@@ -157,7 +159,7 @@ class CharacterCard(ctk.CTkFrame):
             pass
 
 
-class CharacterSpellsPanel(ctk.CTkFrame):
+class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
     """Panel showing the spells known by a selected character."""
     
     def __init__(self, parent, spell_manager: SpellManager,
@@ -310,15 +312,6 @@ class CharacterSpellsPanel(ctk.CTkFrame):
             font=ui_font("subheading"),
             text_color=text_secondary
         )
-
-    def destroy(self):
-        """Clean up listeners when panel is destroyed."""
-        try:
-            if hasattr(self, '_theme') and self._theme:
-                self._theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
 
     def _on_theme_changed(self):
         """Reconfigure color-sensitive widgets when theme changes."""
@@ -727,17 +720,52 @@ class CharacterSpellsPanel(ctk.CTkFrame):
                          text_color=c("text_label"), anchor="w").pack(fill="x")
             boxes = ctk.CTkFrame(group, fg_color="transparent")
             boxes.pack(fill="x")
-            for title, value in (("Spell attack", f"{stat.attack:+d}"), ("Spell save DC", str(stat.dc))):
+            for title, kind, value, manual, tip in (
+                    ("Spell attack", "spell_attack", f"{stat.attack:+d}", stat.attack_manual, stat.attack_tip()),
+                    ("Spell save DC", "spell_dc", str(stat.dc), stat.dc_manual, stat.dc_tip())):
                 box = ctk.CTkFrame(boxes, fg_color=c("bg_secondary"), corner_radius=8, width=118, height=62)
                 box.pack(side="left", padx=(0, 8))
                 box.pack_propagate(False)
-                ctk.CTkLabel(box, text=value, font=ui_font("heading", 22, bold=True)).pack(pady=(6, 0))
+                # a box you can type in: hover it to see how it was worked out; a number you set shows in colour
+                entry = ctk.CTkEntry(box, width=90, height=34, justify="center", border_width=0,
+                                     fg_color="transparent", font=ui_font("heading", 22, bold=True),
+                                     text_color=self.theme.get_text_warning() if manual else c("text_primary"))
+                entry.insert(0, value)
+                entry.pack(pady=(4, 0))
+                HoverTooltip(entry, tip)
+                for event in ("<FocusOut>", "<Return>"):
+                    entry.bind(event, lambda _e, s=stat, k=kind, en=entry: self._commit_stat(s, k, en))
                 ctk.CTkLabel(box, text=title, font=ui_font("small", 11), text_color=self.theme.get_text_secondary()
                              ).pack()
             if stat.notes:
                 ctk.CTkLabel(group, text="; ".join(stat.notes), font=ui_font("small", 10),
                              text_color=self.theme.get_text_secondary(), anchor="w", justify="left",
                              wraplength=260).pack(fill="x", pady=(2, 0))
+
+    def _commit_stat(self, stat, kind: str, entry):
+        """A spell attack / save DC box was typed in: remember it (or forget it, if emptied or back to automatic)."""
+        character = self._current_character
+        if character is None or not entry.winfo_exists():
+            return
+        import sheet_stats
+        from ui.character_sheet_view import get_sheet_manager
+        auto = stat.auto_attack if kind == "spell_attack" else stat.auto_dc
+        shown = stat.attack if kind == "spell_attack" else stat.dc
+        text = entry.get().strip()
+        if text.replace("+", "") == str(shown) and text.replace("+", "") != "":
+            return                                                  # nothing was changed
+        manager = get_sheet_manager()
+        sheet = manager.get_or_create_sheet(character.name, character)
+        try:
+            sheet_stats.set_override(sheet, sheet_stats.spell_key(kind, stat.ability), text, auto)
+        except ValueError as e:
+            messagebox.showwarning("Not a number", str(e), parent=self.winfo_toplevel())
+            self._update_stats()
+            return
+        manager.update_sheet(character.name, sheet)
+        self._update_stats()
+        if self.on_character_updated:
+            self.on_character_updated()
 
     def _update_grants_button(self):
         """Show the Granted Spells button when a species, feat or feature gives this character spells."""

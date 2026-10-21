@@ -11,8 +11,6 @@ keeps, so leaving the page and coming back finds it as it was.
 
 from __future__ import annotations
 
-import queue
-import threading
 import tkinter as tk
 from typing import Callable, Dict, List, Optional
 
@@ -23,6 +21,7 @@ from character_rolls import (BONUS_DIE_SIDES, BONUS_PRESETS, MODES, Analysis, Ch
 from dice_analyzer import DiceError, DiceTerm, Expression, parse_expression, summarize
 from theme import get_theme_manager
 from typography import ui_font
+from ui.background_work import BackgroundWorkMixin
 from ui.bar_list_chart import BarListChart, BarRow
 from ui.distribution_chart import DistributionChart, percent_text
 from ui.lazy_destroy import destroy_later
@@ -218,7 +217,9 @@ class _BonusDice:
         return out
 
 
-class DiceAnalyzerView(ctk.CTkFrame):
+class DiceAnalyzerView(BackgroundWorkMixin, ctk.CTkFrame):
+    POLL_MS = 40
+
     def __init__(self, parent, state: dict, character_names: Callable[[], List[str]],
                  load_character: Callable[[str], Optional[tuple]], lookups: Lookups,
                  on_back: Optional[Callable[[], None]] = None):
@@ -240,10 +241,7 @@ class DiceAnalyzerView(ctk.CTkFrame):
 
         self._rows: List[_Row] = []
         self._syncing = False
-        self._job = None
-        self._poll_job = None
-        self._token = 0
-        self._done: "queue.Queue" = queue.Queue()
+        self._init_background_work()
         self._analysis: Optional[Analysis] = None
         self._view_key: Optional[str] = None
         self._analyzer: Optional[CharacterAnalyzer] = None
@@ -261,7 +259,6 @@ class DiceAnalyzerView(ctk.CTkFrame):
 
         self._build()
         self._set_mode(state["mode"], first=True)
-        self.bind("<Destroy>", self._on_destroy, add="+")
 
     # ------------------------------------------------------------------ layout
     def _build(self):
@@ -1068,15 +1065,23 @@ class DiceAnalyzerView(ctk.CTkFrame):
         self._show()
 
     def _changed(self, now: bool = False):
-        if self._job is not None:
-            try:
-                self.after_cancel(self._job)
-            except tk.TclError:
-                pass
-        try:
-            self._job = self.after(1 if now else DEBOUNCE_MS, self._compute)
-        except tk.TclError:
-            self._job = None
+        self._debounce(self._compute, DEBOUNCE_MS, now)
+
+    def _work_error_text(self, exc: Exception) -> str:
+        if isinstance(exc, DiceError):
+            return str(exc)
+        # a bug must not leave the page stuck on "Calculating"
+        return f"Something went wrong working that out ({type(exc).__name__}: {exc})."
+
+    def _on_work_done(self, analysis: Analysis):
+        self._analysis = analysis
+        keys = [v.key for v in analysis.views]
+        if self._view_key not in keys:
+            self._view_key = keys[0]
+        self._show()
+
+    def _on_work_failed(self, message: str):
+        self._show_error(message)
 
     def _compute(self):
         self._job = None
@@ -1090,21 +1095,8 @@ class DiceAnalyzerView(ctk.CTkFrame):
             return
         if job is None:
             return
-        self._token += 1
-        token = self._token
         self.result_title.configure(text="Calculating...")
-
-        def work():
-            try:
-                result = ("ok", job())
-            except DiceError as e:
-                result = ("err", str(e))
-            except Exception as e:                      # a bug must not leave the page stuck on "Calculating"
-                result = ("err", f"Something went wrong working that out ({type(e).__name__}: {e}).")
-            self._done.put((token, result))
-
-        threading.Thread(target=work, daemon=True).start()
-        self._poll()
+        self._run_in_thread(job)
 
     def _make_job(self) -> Optional[Callable[[], Analysis]]:
         if self.state["mode"] == "Custom":
@@ -1128,33 +1120,6 @@ class DiceAnalyzerView(ctk.CTkFrame):
             state["target"] = self.state["target"]
         roll = self._roll
         return lambda: roll.analyze(state)
-
-    def _poll(self):
-        if self._poll_job is not None:
-            return
-        self._poll_job = self.after(40, self._poll_tick)
-
-    def _poll_tick(self):
-        self._poll_job = None
-        latest = None
-        try:
-            while True:
-                latest = self._done.get_nowait()
-        except queue.Empty:
-            pass
-        if latest is not None and latest[0] == self._token:
-            kind, payload = latest[1]
-            if kind == "ok":
-                self._analysis = payload
-                keys = [v.key for v in payload.views]
-                if self._view_key not in keys:
-                    self._view_key = keys[0]
-                self._show()
-            else:
-                self._show_error(payload)
-            return
-        if self._token and (latest is None or latest[0] != self._token):
-            self._poll()
 
     def _show_error(self, message: str):
         self._analysis = None
@@ -1232,13 +1197,3 @@ class DiceAnalyzerView(ctk.CTkFrame):
         self.error_label.pack_forget()
 
     # ------------------------------------------------------------------ lifecycle
-    def _on_destroy(self, event):
-        if event.widget is not self:
-            return
-        self._token += 1
-        for job in (self._job, self._poll_job):
-            if job is not None:
-                try:
-                    self.after_cancel(job)
-                except (tk.TclError, ValueError):
-                    pass

@@ -5,18 +5,22 @@ Displays a searchable/filterable list of lineages with details panel.
 
 import customtkinter as ctk
 from typography import ui_font
+from ui.text_import_flow import announce_added, import_from_pasted_text
+from ui.versioned_detail import VersionedDetailBase
 from ui.label_text import LabeledLabel
-import tkinter as tk
 from tkinter import messagebox
-from typing import List, Optional, Callable
+from typing import List, Optional
 from lineage import Lineage, LineageTrait, LineageManager, get_lineage_manager
 from theme import get_theme_manager
 from settings import get_settings_manager
 from legacy_content import legacy_pair_key
 from content_versions import VersionCatalog, display_name
-from ui.version_bar import VersionBar
-from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.filter_widgets import SourceFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
+from ui.bulk_actions import BulkActionsMixin
+from ui.collection_page import CollectionPageMixin
+from ui.review_banner import add_review_banner, outline_fields
 
 
 def _list_name(name: str) -> str:
@@ -49,46 +53,17 @@ class LineageListPanel(VirtualListPanel):
         return self.select_by_name(name, version)
 
 
-class LineageDetailPanel(ctk.CTkFrame):
+class LineageDetailPanel(VersionedDetailBase):
     """Panel displaying detailed information about a lineage."""
-    
-    def __init__(self, parent):
-        super().__init__(parent, corner_radius=10)
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._current_lineage: Optional[Lineage] = None
-        self._versions: List[Lineage] = []
-        self.on_version_change: Optional[Callable[[Lineage], None]] = None
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
 
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_colors()
+    CURRENT_ATTR = "_current_lineage"
     
     def _create_widgets(self):
         """Create the detail view widgets."""
-        # Scrollable content
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Lineage name
-        self.name_label = ctk.CTkLabel(
-            self.scroll_frame, text="Select a lineage",
-            font=ui_font("title", bold=True),
-            wraplength=800
-        )
-        self.name_label.pack(anchor="w", pady=(0, 5))
-        
-        # Source info (a drop-down when the lineage has several versions)
-        self.source_label = VersionBar(
-            self.scroll_frame, text="",
-            font=ui_font("small"),
-            text_color=self.theme.get_text_secondary(),
-            on_select=self._version_selected
-        )
-        self.source_label.pack(anchor="w", pady=(0, 10))
+        self._add_scroll_and_title("Select a lineage", 800)
+
+        # Source info (a drop-down when there are several versions)
+        self._add_version_bar()
         
         # Stats frame (creature type, size, speed)
         self.stats_frame = ctk.CTkFrame(
@@ -152,13 +127,6 @@ class LineageDetailPanel(ctk.CTkFrame):
             widget.destroy()
         self._trait_widgets = []
     
-    def _get_renderer(self):
-        """Get or create the rich text renderer."""
-        if not hasattr(self, '_renderer'):
-            from ui.rich_text_utils import RichTextRenderer
-            self._renderer = RichTextRenderer(self.theme)
-        return self._renderer
-    
     def _render_trait(self, trait: LineageTrait):
         """Render a single trait with support for markdown tables and spell links."""
         # Trait frame
@@ -183,19 +151,8 @@ class LineageDetailPanel(ctk.CTkFrame):
         
         # Trait description with dynamic resizing
         if trait.description:
-            from ui.rich_text_utils import DynamicText
-            dt = DynamicText(
-                inner, self.theme,
-                bg_color='bg_secondary'  # Use theme color key
-            )
-            dt.set_text(trait.description)
-            dt.pack(fill="x", expand=True)
-    
-    def _clear_description(self):
-        """Clear all description widgets."""
-        for widget in self._desc_widgets:
-            widget.destroy()
-        self._desc_widgets = []
+            from ui.rich_text_utils import render_description_blocks
+            render_description_blocks(inner, trait.description, self.theme, bg_color='bg_secondary')
     
     def _render_description(self, text: str):
         """Render description with bold text and dynamic resizing."""
@@ -206,19 +163,11 @@ class LineageDetailPanel(ctk.CTkFrame):
         if not text:
             return
         
-        dt = DynamicText(
-            self.description_container, self.theme,
-            bg_color='bg_primary'  # Use theme color key
-        )
-        dt.set_text(text)
-        dt.pack(fill="x", expand=True)
-        self._desc_widgets.append(dt)
+        from ui.rich_text_utils import render_description_blocks
+        self._desc_widgets.extend(render_description_blocks(self.description_container, text, self.theme))
     
-    def _version_selected(self, lineage: Lineage):
-        """The user picked another version in the Source drop-down."""
-        self.show_lineage(lineage, self._versions)
-        if self.on_version_change:
-            self.on_version_change(lineage)
+    def _show_item(self, item, versions=None):
+        self.show_lineage(item, versions)
 
     def show_lineage(self, lineage: Optional[Lineage], versions: Optional[List[Lineage]] = None):
         """Display details for a lineage (``versions``: every version offered in the Source drop-down)."""
@@ -282,8 +231,11 @@ class LineageDetailPanel(ctk.CTkFrame):
             self.traits_container.pack_forget()
 
 
-class LineagesView(ctk.CTkFrame):
+class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     """Main view for browsing and managing lineages."""
+
+    MANAGER_ATTR = "lineage_manager"
+    PLURAL = "lineages"
     
     def __init__(self, parent, character_manager=None, on_back=None):
         self.theme = get_theme_manager()
@@ -309,268 +261,68 @@ class LineagesView(ctk.CTkFrame):
         self._filter_debounce_delay = 150  # ms for text input
         
         self._create_widgets()
+        self._setup_bulk_actions()
         self._create_context_menu()
         self._create_compare_panel()
         self._load_lineages()
         self.theme.add_listener(self._on_theme_changed)
     
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_context_menu_colors()
-        if hasattr(self, 'paned'):
-            self._update_paned_colors()
-        if hasattr(self, 'compare_container'):
-            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
-    
-    def _update_context_menu_colors(self):
-        """Update context menu colors for theme."""
-        if not hasattr(self, 'context_menu'):
-            return
-        bg_color = self.theme.get_current_color('bg_secondary')
-        fg_color = self.theme.get_current_color('text_primary')
-        self.context_menu.configure(
-            bg=bg_color,
-            fg=fg_color,
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=fg_color
-        )
-    
-    def _create_widgets(self):
-        """Create the main layout."""
-        # Top bar with search and filters
-        self._create_filter_bar()
-        
-        # Main content area with list and detail panels
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        
-        # Create a PanedWindow for resizable panels
-        self.paned = tk.PanedWindow(
-            self.content,
-            orient=tk.HORIZONTAL,
-            sashwidth=8,
-            sashrelief=tk.RAISED,
-            handlesize=0,
-            opaqueresize=False,
-            sashcursor="sb_h_double_arrow"
-        )
-        self.paned.pack(fill="both", expand=True)
-        self._update_paned_colors()
-        
-        # Left container to hold list or compare panel
-        self.left_container = ctk.CTkFrame(self.paned, fg_color="transparent")
-        
-        # Lineage list panel (left)
-        self.list_panel = LineageListPanel(
-            self.left_container, 
-            on_select=self._on_lineage_selected,
-            on_right_click=self._on_lineage_right_click
-        )
-        self.list_panel.pack(fill="both", expand=True)
-        
-        # Lineage detail panel (right)
-        self.detail_panel = LineageDetailPanel(self.paned)
-        self.detail_panel.on_version_change = self.list_panel.replace_selected
-        
-        # Add panes with minimum sizes
-        self.paned.add(self.left_container, minsize=280, stretch="always")
-        self.paned.add(self.detail_panel, minsize=400, stretch="always")
-        
-        # Set initial sash position (roughly 1:2 ratio)
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
-    
-    def _update_paned_colors(self):
-        """Update PanedWindow sash colors based on current theme."""
-        sash_color = self.theme.get_current_color("pane_sash")
-        self.paned.configure(bg=sash_color)
-    
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
         filter_bar = ctk.CTkFrame(self, fg_color="transparent")
         filter_bar.pack(fill="x", padx=10, pady=10)
-        
-        # Back button to return to collections
-        if self.on_back:
-            back_btn = ctk.CTkButton(
-                filter_bar, text="← Collections", width=110,
-                fg_color=self.theme.get_current_color('button_normal'),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary'),
-                command=self.on_back
-            )
-            back_btn.pack(side="left", padx=(0, 15))
-        
-        # Search box
-        self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        
-        search_entry = ctk.CTkEntry(
-            filter_bar, width=250, height=35,
-            placeholder_text="Search lineages...",
-            textvariable=self.search_var
-        )
-        search_entry.pack(side="left", padx=(0, 15))
-        
-        # Size filter dropdown
-        ctk.CTkLabel(filter_bar, text="Size:").pack(side="left", padx=(0, 5))
-        
-        self.size_var = ctk.StringVar(value="All Sizes")
-        self.size_combo = ctk.CTkComboBox(
-            filter_bar, width=150, height=35,
-            values=["All Sizes"],
-            variable=self.size_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.size_combo.pack(side="left", padx=(0, 15))
-        
-        # Creature type filter
-        ctk.CTkLabel(filter_bar, text="Type:").pack(side="left", padx=(0, 5))
-        
-        self.type_var = ctk.StringVar(value="All Types")
-        self.type_combo = ctk.CTkComboBox(
-            filter_bar, width=150, height=35,
-            values=["All Types"],
-            variable=self.type_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.type_combo.pack(side="left", padx=(0, 15))
 
-        # Add lineage button (right side)
-        add_btn = ctk.CTkButton(
-            filter_bar, text="+ Add Lineage",
-            width=120, height=35,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_add_lineage
-        )
-        add_btn.pack(side="right")
+        self._add_back_button(filter_bar)
+        self._add_search_entry(filter_bar, "Search lineages...", 200)
+        self._add_filter_combo(filter_bar, "size", "Size:", "All Sizes", ["All Sizes"], 150)
+        self._add_filter_combo(filter_bar, "type", "Type:", "All Types", ["All Types"], 150)
+        self._add_action_buttons(filter_bar, "+ Add Lineage", 120, self._on_add_lineage,
+                                 self._on_edit_lineage, self._on_delete_lineage)
 
         # Second row: source, official content, min speed, clear
-        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar2.pack(fill="x", padx=10, pady=(0, 10))
+        filter_bar2 = self._filter_row()
+        self._add_source_filter(filter_bar2)
+        self._add_content_filter(filter_bar2)
+        self._add_filter_combo(filter_bar2, "min_speed", "Min Speed:", "Any", ["Any"], 90, (0, 20))
+        self._add_clear_button(filter_bar2)
 
-        ctk.CTkLabel(filter_bar2, text="Source:").pack(side="left", padx=(0, 5))
-        self.source_btn = ctk.CTkButton(
-            filter_bar2, text="Select Sources...", width=130, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._open_source_filter
-        )
-        self.source_btn.pack(side="left", padx=(0, 8))
-        self.source_label = ctk.CTkLabel(
-            filter_bar2, text="None selected",
-            font=ui_font("small"), text_color=self.theme.get_text_secondary()
-        )
-        self.source_label.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
-        self.official_var = ctk.StringVar(value="Any Content")
-        self.official_combo = ctk.CTkComboBox(
-            filter_bar2, width=140, height=35,
-            values=["Any Content", "Official Only", "Homebrew Only"],
-            variable=self.official_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.official_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Min Speed:").pack(side="left", padx=(0, 5))
-        self.min_speed_var = ctk.StringVar(value="Any")
-        self.min_speed_combo = ctk.CTkComboBox(
-            filter_bar2, width=90, height=35,
-            values=["Any"],
-            variable=self.min_speed_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.min_speed_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkButton(
-            filter_bar2, text="Clear Filters", width=110, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            command=self._clear_filters
-        ).pack(side="right")
-
-        # Edit/Delete buttons
-        self.delete_btn = ctk.CTkButton(
-            filter_bar, text="Delete",
-            width=80, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=self._on_delete_lineage
-        )
-        self.delete_btn.pack(side="right", padx=(0, 5))
-        
-        self.edit_btn = ctk.CTkButton(
-            filter_bar, text="Edit",
-            width=80, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_edit_lineage
-        )
-        self.edit_btn.pack(side="right", padx=(0, 5))
-    
     def _create_context_menu(self):
         """Create the right-click context menu for lineages."""
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self._update_context_menu_colors()
-        self.context_menu.add_command(
-            label="Set as Character Lineage",
-            command=self._context_set_lineage
-        )
-        self.context_menu.add_command(
-            label="Compare",
-            command=self._context_compare
-        )
-    
+        self._build_context_menu([
+            ("Set as Character Lineage", self._context_set_lineage),
+            ("Compare", self._context_compare),
+        ])
+
+    def _create_panes(self):
+        self._create_panes_with_container(
+            LineageListPanel, LineageDetailPanel, self._on_lineage_selected, self._on_lineage_right_click)
+
     def _create_compare_panel(self):
         """Create the compare lineage panel (hidden initially)."""
-        self.compare_container = ctk.CTkFrame(
-            self.left_container, corner_radius=10,
-            fg_color=self.theme.get_current_color('bg_secondary'))
-        
-        # Header with close button
-        header = ctk.CTkFrame(self.compare_container, fg_color="transparent")
-        header.pack(fill="x", padx=10, pady=(10, 0))
-        
-        ctk.CTkLabel(
-            header, text="Compare Lineages",
-            font=ui_font("subheading", bold=True)
-        ).pack(side="left")
-        
-        ctk.CTkButton(
-            header, text="✕", width=30, height=30,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._close_compare
-        ).pack(side="right")
-        
-        # Compare detail panel
-        self.compare_detail = LineageDetailPanel(self.compare_container)
-        self.compare_detail.pack(fill="both", expand=True, padx=5, pady=5)
-    
+        self._build_compare_panel("Compare Lineages", LineageDetailPanel, self._close_compare)
+
+    BULK_ACTIONS = ("source",)
+    BULK_NOUN, BULK_PLURAL = "lineage", "lineages"
+
+    def _bulk_fetch(self, name: str):
+        return self.lineage_manager.get_lineage(name)
+
+    def _bulk_store(self, entries: list) -> int:
+        with self.lineage_manager.batch():
+            return sum(bool(self.lineage_manager.add_lineage(e)) for e in entries)
+
+    def _bulk_reload(self):
+        self._load_lineages()
+
+    def _bulk_all_sources(self) -> List[str]:
+        return self.lineage_manager.get_all_sources()
+
     def _load_lineages(self):
         """Load all lineages from manager."""
         self._all_lineages = self.lineage_manager.lineages.copy()
         self._catalog = VersionCatalog(self._all_lineages)
         self._update_filter_options()
         self._on_filter_changed(immediate=True)
-    
-    def _on_filter_changed(self, immediate: bool = False):
-        """Called when any filter value changes with debouncing."""
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-        
-        if immediate:
-            self._filter_debounce_id = self.after(10, self._apply_filters)
-        else:
-            self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
     
     def _update_filter_options(self):
         """Update filter dropdown options based on loaded lineages."""
@@ -590,35 +342,10 @@ class LineagesView(ctk.CTkFrame):
         self.min_speed_combo.configure(values=speed_options)
         self.min_speed_var.set(current_speed if current_speed in speed_options else "Any")
 
-    def _open_source_filter(self):
-        """Open the source filter dialog."""
-        available_sources = self.lineage_manager.get_all_sources()
-        dialog = SourceFilterDialog(
-            self.winfo_toplevel(), available_sources,
-            self._selected_sources, self._source_filter_mode,
-            empty_message="No sources found in your lineages."
-        )
-        self.wait_window(dialog)
-        self._selected_sources = dialog.result
-        self._source_filter_mode = dialog.result_mode
-        self._update_source_label()
-        self._on_filter_changed(immediate=True)
-
-    def _update_source_label(self):
-        """Update the source label with selected source count and mode."""
-        count = len(self._selected_sources)
-        if count == 0:
-            self.source_label.configure(text="None selected")
-        else:
-            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
-            if count == 1:
-                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
-            else:
-                self.source_label.configure(text=f"{count} sources ({mode_str})")
-
     def _clear_filters(self):
         """Reset every filter (search, size, type, source, content, speed) to defaults."""
         self.search_var.set("")
+        self.titles_var.set(False)
         self.size_var.set("All Sizes")
         self.type_var.set("All Types")
         self.official_var.set("Any Content")
@@ -639,9 +366,8 @@ class LineagesView(ctk.CTkFrame):
         filtered = []
         for lineage in self._all_lineages:
             # Search filter
-            if search and search not in lineage.name.lower():
-                if not any(search in t.name.lower() for t in lineage.traits):
-                    continue
+            if not self._passes_search(search, lineage.name, [t.name for t in lineage.traits]):
+                continue
 
             # Size filter
             if size_filter != "All Sizes" and lineage.size != size_filter:
@@ -654,17 +380,11 @@ class LineagesView(ctk.CTkFrame):
                 continue
 
             # Source filter
-            if self._selected_sources:
-                source_selected = lineage.source in self._selected_sources
-                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
-                    continue
-                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
-                    continue
+            if not self._passes_source_filter(lineage.source):
+                continue
 
             # Official content filter
-            if official_filter == "Official Only" and not lineage.is_official:
-                continue
-            if official_filter == "Homebrew Only" and lineage.is_official:
+            if not self._passes_official_filter(lineage.is_official, official_filter):
                 continue
 
             # Min speed filter
@@ -698,7 +418,7 @@ class LineagesView(ctk.CTkFrame):
     def _context_set_lineage(self):
         """Set lineage for current character from context menu."""
         if self._context_lineage and self.character_manager:
-            char = self.character_manager.get_active_character()
+            char = self._active_character()
             if char:
                 char.lineage = self._context_lineage.name
                 try:
@@ -710,12 +430,6 @@ class LineagesView(ctk.CTkFrame):
                 messagebox.showinfo(
                     "Lineage Set",
                     f"Set {char.name}'s lineage to {self._context_lineage.name}.",
-                    parent=self
-                )
-            else:
-                messagebox.showwarning(
-                    "No Character",
-                    "No active character selected.",
                     parent=self
                 )
     
@@ -754,68 +468,43 @@ class LineagesView(ctk.CTkFrame):
             self._on_add_lineage_from_text()
             return
 
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "lineages"):
+            return
+
         dialog = LineageEditorDialog(self.winfo_toplevel(), self.lineage_manager)
         dialog.grab_set()
         self.wait_window(dialog)
 
         if dialog.result:
             self._load_lineages()
-            self.list_panel.select_lineage(dialog.result.name)
+            self.list_panel.select_when_listed(dialog.result.name)
 
     def _on_add_lineage_from_text(self):
         """Paste a block of text, auto-detect lineage fields, and review each draft."""
         from ui.lineage_text_import import LineageTextImportDialog
 
-        import_dialog = LineageTextImportDialog(self.winfo_toplevel())
-        self.wait_window(import_dialog)
-        parsed_list = import_dialog.result
-        if not parsed_list:
-            return
-
-        try:
+        def load_converter():
             from text_import.lineage_parser import to_lineage
-        except Exception as exc:
-            messagebox.showerror("Auto-Detect Unavailable",
-                                 f"Could not load the text importer:\n{exc}")
-            return
+            return to_lineage
 
-        added = []
-        total = len(parsed_list)
-        for idx, parsed in enumerate(parsed_list, 1):
-            try:
-                draft = to_lineage(parsed)
-            except Exception as exc:
-                messagebox.showerror("Parse Error",
-                                     f"Could not build lineage {idx} of {total}:\n{exc}")
-                continue
-
-            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
-            progress = f"{idx} of {total}" if total > 1 else ""
-
+        def make_editor(draft, review, progress):
             editor = LineageEditorDialog(
                 self.winfo_toplevel(), self.lineage_manager,
                 prefill_lineage=draft, review_fields=review, batch_progress=progress,
             )
             editor.grab_set()
-            self.wait_window(editor)
+            return editor
 
-            if editor.result:
-                # LineageEditorDialog._save() already persists via the manager.
-                added.append(editor.result.name)
-            elif idx < total:
-                if not messagebox.askyesno(
-                        "Continue?",
-                        "Skip this lineage and continue reviewing the remaining "
-                        f"{total - idx} lineage(s)?"):
-                    break
+        # LineageEditorDialog._save() already persists via the manager, so there is nothing more to add.
+        added = import_from_pasted_text(
+            self, import_cls=LineageTextImportDialog, load_converter=load_converter, noun="lineage",
+            noun_phrase="a lineage", make_editor=make_editor, add=lambda lineage: True)
 
         if added:
             self._load_lineages()
-            self.list_panel.select_lineage(added[-1])
-            if len(added) > 1:
-                messagebox.showinfo("Lineages Added",
-                                    f"Added {len(added)} lineages:\n" + "\n".join(added))
-
+            self.list_panel.select_when_listed(added[-1])
+            announce_added(added, "lineages")
 
     def _on_edit_lineage(self):
         """Edit the selected lineage."""
@@ -840,7 +529,7 @@ class LineagesView(ctk.CTkFrame):
         
         if dialog.result:
             self._load_lineages()
-            self.list_panel.select_lineage(dialog.result.name)
+            self.list_panel.select_when_listed(dialog.result.name)
     
     def _on_delete_lineage(self):
         """Delete the selected lineage."""
@@ -874,8 +563,8 @@ class LineagesView(ctk.CTkFrame):
         return self.list_panel.select_lineage(name, self._catalog.find(name))
 
 
-class LineageEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating/editing lineages."""
+class LineageEditorBody(EditorBody):
+    """Dialog for creating/editing lineages. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, lineage_manager: LineageManager, lineage: Optional[Lineage] = None,
                  prefill_lineage: Optional[Lineage] = None, review_fields: Optional[List[str]] = None,
@@ -915,28 +604,26 @@ class LineageEditorDialog(ctk.CTkToplevel):
         # Main scrollable container
         self.scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
-        
+
         # Name
-        ctk.CTkLabel(self.scroll, text="Name:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.name_entry = ctk.CTkEntry(self.scroll, width=400, height=35)
-        self.name_entry.pack(fill="x", pady=(5, 15))
-        
+        self.name_entry = self._add_entry_field(self.scroll, "Name:")
+
         # Row for creature type, size, speed
         stats_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
         stats_frame.pack(fill="x", pady=(0, 15))
-        
+
         # Creature Type
         type_frame = ctk.CTkFrame(stats_frame, fg_color="transparent")
         type_frame.pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(type_frame, text="Creature Type:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(type_frame, "Creature Type:")
         self.creature_type_entry = ctk.CTkEntry(type_frame, width=150, height=35)
         self.creature_type_entry.pack()
         self.creature_type_entry.insert(0, "Humanoid")
-        
+
         # Size
         size_frame = ctk.CTkFrame(stats_frame, fg_color="transparent")
         size_frame.pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(size_frame, text="Size:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(size_frame, "Size:")
         self.size_combo = ctk.CTkComboBox(
             size_frame, width=150, height=35,
             values=["Small", "Medium", "Large", "Small or Medium"],
@@ -944,113 +631,46 @@ class LineageEditorDialog(ctk.CTkToplevel):
         )
         self.size_combo.pack()
         self.size_combo.set("Medium")
-        
+
         # Speed
         speed_frame = ctk.CTkFrame(stats_frame, fg_color="transparent")
         speed_frame.pack(side="left")
-        ctk.CTkLabel(speed_frame, text="Speed (feet):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(speed_frame, "Speed (feet):")
         self.speed_entry = ctk.CTkEntry(speed_frame, width=80, height=35)
         self.speed_entry.pack()
         self.speed_entry.insert(0, "30")
-        
+
         # Source
-        ctk.CTkLabel(self.scroll, text="Source:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(self.scroll, "Source:")
         self.source_entry = ctk.CTkEntry(self.scroll, width=300, height=35)
         self.source_entry.pack(anchor="w", pady=(5, 15))
-        
+
         # Description
-        ctk.CTkLabel(self.scroll, text="Description:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        
+        self._field_label(self.scroll, "Description:")
+
         self.desc_text = ctk.CTkTextbox(self.scroll, height=100)
-        
+
         # Add rich text toolbar for description
         from ui.rich_text_utils import RichTextEditor
         self._desc_rich_editor = RichTextEditor(self, self.desc_text, self.theme)
         desc_toolbar = self._desc_rich_editor.create_toolbar(self.scroll)
         desc_toolbar.pack(fill="x", pady=(5, 5))
-        
+
         self.desc_text.pack(fill="x", pady=(0, 15))
-        
+
         # Traits section
-        traits_header = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        traits_header.pack(fill="x", pady=(10, 5))
-        
-        ctk.CTkLabel(traits_header, text="Traits:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
-        
-        ctk.CTkButton(
-            traits_header, text="+ Add Trait", width=100,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            command=self._add_trait
-        ).pack(side="right")
-        
+        self._add_section_header(self.scroll, "Traits:", "+ Add Trait", self._add_trait)
+
         # Container for trait entries
         self.traits_container = ctk.CTkFrame(self.scroll, fg_color="transparent")
         self.traits_container.pack(fill="x", pady=(5, 15))
-        
-        # Buttons
-        btn_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(20, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save",
-            width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_secondary'),
-            command=self._save
-        ).pack(side="left", padx=(0, 10))
-        
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
-            width=100,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
-        ).pack(side="left")
-    
+
+        self._add_save_buttons_left(self.scroll)
+
     def _add_trait(self, name: str = "", description: str = "", roll_effects=None, spells=None):
         """Add a trait entry."""
-        from ui.rich_text_utils import RichTextEditor
-        
-        frame = ctk.CTkFrame(
-            self.traits_container,
-            fg_color=self.theme.get_current_color('bg_secondary'),
-            corner_radius=8
-        )
-        frame.pack(fill="x", pady=5)
-        
-        inner = ctk.CTkFrame(frame, fg_color="transparent")
-        inner.pack(fill="x", padx=10, pady=10)
-        
-        # Header with remove button
-        header = ctk.CTkFrame(inner, fg_color="transparent")
-        header.pack(fill="x")
-        
-        ctk.CTkLabel(header, text="Trait Name:", font=ui_font("body")).pack(side="left")
-        
-        remove_btn = ctk.CTkButton(
-            header, text="✕", width=25, height=25,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=lambda f=frame: self._remove_trait(f)
-        )
-        remove_btn.pack(side="right")
-        
-        name_entry = ctk.CTkEntry(inner, height=30)
-        name_entry.pack(fill="x", pady=(5, 10))
-        name_entry.insert(0, name)
-        
-        ctk.CTkLabel(inner, text="Description:", font=ui_font("body")).pack(anchor="w")
-        
-        desc_entry = ctk.CTkTextbox(inner, height=80)
-        
-        # Add rich text toolbar
-        rich_editor = RichTextEditor(self, desc_entry, self.theme)
-        toolbar = rich_editor.create_toolbar(inner)
-        toolbar.pack(fill="x", pady=(5, 5))
-        
-        desc_entry.pack(fill="x", pady=(0, 0))
-        desc_entry.insert("1.0", description)
+        frame, inner, name_entry, desc_entry = self._add_card(
+            self.traits_container, "Trait Name:", self._remove_trait, name, description)
 
         from spell_grants import format_trait_spells
         ctk.CTkLabel(inner, text="Spells this trait gives (optional):", font=ui_font("body")).pack(anchor="w", pady=(10, 0))
@@ -1068,7 +688,7 @@ class LineageEditorDialog(ctk.CTkToplevel):
         frame._roll_editor.pack(fill="x", pady=(10, 0))
 
         self._trait_entries.append((name_entry, desc_entry, frame))
-    
+
     def _remove_trait(self, frame):
         """Remove a trait entry."""
         for i, (name_e, desc_e, f) in enumerate(self._trait_entries):
@@ -1099,60 +719,20 @@ class LineageEditorDialog(ctk.CTkToplevel):
 
     def _apply_review_highlights(self):
         """Add the auto-detect disclaimer banner and outline uncertain fields."""
-        try:
-            warn = self.theme.get_current_color('button_warning')
-        except Exception:
-            warn = "#d4a017"
-
-        banner = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_secondary'),
-                              corner_radius=8)
-        try:
-            banner.pack(fill="x", padx=20, pady=(12, 0), before=self.scroll)
-        except Exception:
-            banner.pack(fill="x", padx=20, pady=(12, 0))
-
-        heading = "Auto-detected from text - please review before saving"
-        if self._batch_progress:
-            heading = f"{heading}   ({self._batch_progress})"
-        ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ui_font("subheading", 13, bold=True),
-                     text_color=warn, anchor="w",
-                     justify="left", wraplength=620).pack(fill="x", padx=12, pady=(8, 2))
-
-        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
-        if review:
-            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
-            msg = f"Fields to double-check (outlined below): {names}"
-        else:
-            msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
-                     text_color=self.theme.get_text_secondary(), anchor="w",
-                     justify="left", wraplength=620).pack(fill="x", padx=12, pady=(0, 2))
-
-        ctk.CTkLabel(
-            banner,
-            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
-                  "irregularly formatted text. Splitting the description from its "
-                  "traits is a best guess. Nothing is saved until you click Save."),
-            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
-            anchor="w", justify="left", wraplength=620,
-        ).pack(fill="x", padx=12, pady=(0, 8))
-
-        widget_map = {
+        banner, warn = add_review_banner(
+            self, self.scroll, self._review_fields, self._REVIEW_FIELD_LABELS, self._batch_progress,
+            ("Auto-detection is rule-based, not perfect - accuracy drops for "
+            "irregularly formatted text. Splitting the description from its "
+            "traits is a best guess. Nothing is saved until you click Save."),
+            padx=20, wraplength=620)
+        widgets = {
             "name": self.name_entry,
             "creature_type": self.creature_type_entry,
             "size": self.size_combo,
             "speed": self.speed_entry,
             "source": self.source_entry,
         }
-        for field_name in self._review_fields:
-            w = widget_map.get(field_name)
-            if w is None:
-                continue
-            try:
-                w.configure(border_color=warn, border_width=2)
-            except Exception:
-                pass
+        outline_fields(widgets, self._review_fields, warn)
 
         if "traits" in self._review_fields:
             for _name_e, _desc_e, frame in self._trait_entries:
@@ -1161,18 +741,18 @@ class LineageEditorDialog(ctk.CTkToplevel):
                 except Exception:
                     pass
 
-    def _save(self):
-        """Save the lineage."""
+    def build_result(self, strict: bool = True) -> Lineage:
+        """The lineage the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
-        
+        if not name and strict:
+            raise ValueError("Name is required.")
+
         try:
             speed = int(self.speed_entry.get())
         except ValueError:
-            messagebox.showerror("Error", "Speed must be a number.", parent=self)
-            return
+            if strict:
+                raise ValueError("Speed must be a number.")
+            speed = 30
         
         # Gather traits
         from spell_grants import default_lookup, parse_trait_spells
@@ -1185,15 +765,13 @@ class LineageEditorDialog(ctk.CTkToplevel):
             trait_spells = []
             if spells_box is not None:
                 trait_spells, problems = parse_trait_spells(spells_box.get("1.0", "end-1c"), default_lookup())
-                if problems:
-                    messagebox.showerror("Trait spells", f"{trait_name or 'A trait'}:\n" + "\n".join(problems),
-                                         parent=self)
-                    return
+                if problems and strict:
+                    raise ValueError(f"Trait spells - {trait_name or 'A trait'}:\n" + "\n".join(problems))
             if trait_name:
                 traits.append(LineageTrait(name=trait_name, description=trait_desc,
                                            roll_effects=editor.get() if editor else [], spells=trait_spells))
         
-        lineage = Lineage(
+        return Lineage(
             name=name,
             description=self.desc_text.get("1.0", "end-1c").strip(),
             creature_type=self.creature_type_entry.get().strip() or "Humanoid",
@@ -1205,7 +783,15 @@ class LineageEditorDialog(ctk.CTkToplevel):
             is_custom=True,
             is_legacy=False
         )
-        
-        self.lineage_manager.add_lineage(lineage)
-        self.result = lineage
-        self.destroy()
+
+    def _accept(self, lineage):
+        if not self.EMBEDDED:
+            self.lineage_manager.add_lineage(lineage)
+        super()._accept(lineage)
+
+class LineageEditorDialog(LineageEditorBody, DialogWindow):
+    """Dialog for creating/editing lineages."""
+
+
+class LineageEditorPanel(LineageEditorBody, EmbeddedWindow):
+    """The LineageEditorDialog form inside the Homebrew Studio."""

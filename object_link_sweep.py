@@ -446,6 +446,8 @@ def strip_links(text: str) -> str:
                 "spell", "feat", "lineage", "background", "class", "subclass",
                 "equipment", "magic_item", "monster"):
             return rest.strip()
+        if sep and head.strip().lower() == "rule":
+            return rest.rsplit("#", 1)[-1].strip()      # [[rule:Conditions#Stunned]] reads "Stunned"
         return body.strip()
     return _LINK_RE.sub(sub, text)
 

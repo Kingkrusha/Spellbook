@@ -4,6 +4,7 @@ Displays a searchable/filterable list of monsters with a stat block panel,
 laid out the same way as the Spells/Feats/Magic Items pages.
 """
 
+from ui.window_utils import center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 import tkinter as tk
@@ -14,14 +15,22 @@ from typing import Callable, Dict, List, Optional
 from character_sheet import AbilityScore, AbilityScores, SavingThrows, Skill, SkillProficiencies
 from monster import (
     Monster, CR_OPTIONS, SPEED_TYPES, cr_to_number, get_monster_manager, normalize_cr,
-    sense_kind,
+    proficiency_bonus_for_cr, sense_kind,
 )
 from settings import get_settings_manager
 from stat_block import StatBlockFeature
 from theme import get_theme_manager
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode, TagFilterDialog, TagFilterMode
 from ui.monster_stat_block import MonsterStatBlock, signed as _signed
+from ui.bulk_actions import BulkActionsMixin
+from ui.collection_page import CollectionPageMixin
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
+from ui.collapsible import CollapsibleSection
+from ui.menu_button import MenuButton
+from ui.monster_features import StatFeatureList
+from ui.tooltip import HoverTooltip
+import monster_rules as MR
 
 ALIGNMENT_OPTIONS = [
     "Unaligned", "Any Alignment", "Lawful Good", "Neutral Good", "Chaotic Good",
@@ -117,112 +126,11 @@ class MonsterDetailPanel(ctk.CTkFrame):
             self._stat_block.pack(fill="x")
 
 
-class FeatureListEditor(ctk.CTkFrame):
-    """An ordered list of named features (traits, actions, ...) edited in place."""
-
-    def __init__(self, parent, label: str, hint: str = ""):
-        theme = get_theme_manager()
-        super().__init__(parent, fg_color="transparent")
-        self.theme = theme
-        self._rows: List[dict] = []
-
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 3))
-        ctk.CTkLabel(header, text=label, font=ui_font("subheading", 13, bold=True)).pack(side="left")
-        ctk.CTkButton(
-            header, text="+ Add", width=70,
-            fg_color=theme.get_current_color('button_success'),
-            hover_color=theme.get_current_color('button_success_hover'),
-            text_color=theme.get_current_color('text_primary'),
-            command=lambda: self.add_feature(focus=True),
-        ).pack(side="right")
-        if hint:
-            ctk.CTkLabel(self, text=hint, font=ui_font("small"), anchor="w", justify="left",
-                         text_color=theme.get_text_secondary(), wraplength=560).pack(fill="x")
-
-        self._card = ctk.CTkFrame(self, fg_color=theme.get_current_color('bg_secondary'),
-                                  corner_radius=8)
-        self._card.pack(fill="x")
-        self._empty_label = ctk.CTkLabel(self._card, text="None added.", font=ui_font("body"),
-                                         text_color=theme.get_text_secondary())
-        self._sync_empty_label()
-
-    def _sync_empty_label(self):
-        if self._rows:
-            self._empty_label.pack_forget()
-        else:
-            self._empty_label.pack(anchor="w", padx=10, pady=8)
-
-    def _repack(self):
-        for row in self._rows:
-            row["frame"].pack_forget()
-        for row in self._rows:
-            row["frame"].pack(fill="x", padx=8, pady=4)
-        self._sync_empty_label()
-
-    def add_feature(self, name: str = "", description: str = "", focus: bool = False):
-        theme = self.theme
-        frame = ctk.CTkFrame(self._card, fg_color=theme.get_current_color('bg_tertiary'),
-                             corner_radius=8)
-        top = ctk.CTkFrame(frame, fg_color="transparent")
-        top.pack(fill="x", padx=8, pady=(6, 2))
-        name_entry = ctk.CTkEntry(top, placeholder_text="Name (e.g. Multiattack)")
-        name_entry.pack(side="left", fill="x", expand=True)
-        row = {"frame": frame, "name": name_entry}
-
-        for text, command, hover in (
-                ("×", lambda: self._remove(row), theme.get_current_color('button_danger')),
-                ("▼", lambda: self._move(row, 1), theme.get_current_color('button_hover')),
-                ("▲", lambda: self._move(row, -1), theme.get_current_color('button_hover'))):
-            ctk.CTkButton(top, text=text, width=26, height=26, fg_color="transparent",
-                          hover_color=hover, text_color=theme.get_current_color('text_primary'),
-                          command=command).pack(side="right", padx=(2, 0))
-
-        desc_box = ctk.CTkTextbox(frame, height=70, wrap="word")
-        desc_box.pack(fill="x", padx=8, pady=(0, 8))
-        row["desc"] = desc_box
-        name_entry.insert(0, name)
-        desc_box.insert("1.0", description)
-
-        self._rows.append(row)
-        self._repack()
-        if focus:
-            name_entry.focus_set()
-
-    def _remove(self, row: dict):
-        if row in self._rows:
-            self._rows.remove(row)
-            row["frame"].destroy()
-            self._sync_empty_label()
-
-    def _move(self, row: dict, delta: int):
-        index = self._rows.index(row)
-        target = index + delta
-        if 0 <= target < len(self._rows):
-            self._rows[index], self._rows[target] = self._rows[target], self._rows[index]
-            self._repack()
-
-    def set_features(self, features: List[StatBlockFeature]):
-        for row in self._rows:
-            row["frame"].destroy()
-        self._rows = []
-        for feature in features:
-            self.add_feature(feature.name, feature.description)
-        self._sync_empty_label()
-
-    def _read(self):
-        for row in self._rows:
-            yield row["name"].get().strip(), row["desc"].get("1.0", "end-1c").strip()
-
-    def get_features(self) -> List[StatBlockFeature]:
-        return [StatBlockFeature(n, d) for n, d in self._read() if n or d]
-
-    def has_unnamed(self) -> bool:
-        return any(d and not n for n, d in self._read())
-
-
-class MonsterEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating or editing a monster."""
+class MonsterEditorBody(EditorBody):
+    """The monster form (see ui/editor_host.py). It works like a character sheet: the numbers that follow from other
+    numbers are worked out for you and say where they come from when you hover them - proficiency bonus from the CR,
+    hit die from the size, hit points from the hit dice and Constitution, saves, skills and initiative from the scores,
+    and attacks and saving throw effects from a core stat plus the proficiency bonus."""
 
     def __init__(self, parent, title: str, monster: Optional[Monster] = None,
                  prefill: Optional[Monster] = None):
@@ -237,30 +145,31 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         self.manager = get_monster_manager()
         self.result: Optional[Monster] = None
         self._editing = monster
+        self._chips: Dict[str, tuple] = {}            # key -> (label, tooltip) for the derived numbers
+        self._tips: Dict[str, HoverTooltip] = {}
+        self._sections: List[CollapsibleSection] = []
+        self._ready = False
 
         self._create_widgets()
         source = monster or prefill
         if source:
             self._populate(source)
+        self._ready = True
         self._update_preview()
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{max(y, 0)}")
+        center_on_parent(self, parent, clamp=True)
 
     # ----- layout -----
 
-    def _section(self, title: str):
-        ctk.CTkLabel(self._scroll, text=title, anchor="w",
-                     font=ui_font("subheading", 15, bold=True),
-                     text_color=self.theme.get_current_color('accent_primary')
-                     ).pack(fill="x", pady=(16, 0))
-        ctk.CTkFrame(self._scroll, height=2, fg_color=self.theme.get_current_color('border')
-                     ).pack(fill="x", pady=(0, 6))
+    def _section(self, title: str, open: bool = True, note: str = "") -> CollapsibleSection:
+        section = CollapsibleSection(self._scroll, title, open=open, note=note)
+        section.pack(fill="x")
+        self._cur = section.body
+        self._sections.append(section)
+        return section
 
     def _row(self) -> ctk.CTkFrame:
-        row = ctk.CTkFrame(self._scroll, fg_color="transparent")
+        row = ctk.CTkFrame(self._cur, fg_color="transparent")
         row.pack(fill="x", pady=(0, 8))
         return row
 
@@ -287,20 +196,45 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         return var
 
     def _wide_entry(self, text: str, placeholder: str = "") -> ctk.CTkEntry:
-        ctk.CTkLabel(self._scroll, text=text, font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        entry = ctk.CTkEntry(self._scroll, placeholder_text=placeholder)
+        ctk.CTkLabel(self._cur, text=text, font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        entry = ctk.CTkEntry(self._cur, placeholder_text=placeholder)
         entry.pack(fill="x", pady=(0, 8))
         return entry
+
+    def _chip(self, parent, key: str, side: str = "left", padx=(0, 0), anchor=None) -> tk.Label:
+        """A small label for a worked-out number; hover it to see where the number comes from. (A plain tk.Label:
+        there are dozens of these and a rounded CTkLabel costs several times as much to create.)"""
+        label = tk.Label(parent, text="", font=ui_font("body", 12, bold=True), padx=8, pady=2, bd=0)
+        self._paint_chip(label)
+        tip = HoverTooltip(label, "")
+        self._chips[key] = (label, tip)
+        if anchor:
+            label.pack(side=side, padx=padx, anchor=anchor)
+        else:
+            label.pack(side=side, padx=padx)
+        return label
+
+    def _paint_chip(self, label: tk.Label):
+        c = self.theme.get_current_color
+        label.configure(bg=c("bg_secondary"), fg=c("text_primary"))
+
+    def _set_chip(self, key: str, text: str, tip: str):
+        label, tooltip = self._chips[key]
+        label.configure(text=text)
+        self._paint_chip(label)                      # follows a theme change at the next update
+        tooltip.update_text(tip)
 
     def _create_widgets(self):
         from ui.rich_text_utils import RichTextEditor
 
         scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        scroll.pack(fill="both", expand=True, padx=20, pady=(20, 0))
+        scroll.pack(fill="both", expand=True, padx=20, pady=(12, 0))
         self._scroll = scroll
         mgr = self.manager
+        stats = self._stats
 
-        # Identity
+        # ---- Identity
+        self._section("Identity")
         self.name_entry = self._wide_entry("Name *")
         self.epithet_entry = self._wide_entry("Epithet", "A short tagline shown under the name")
         row = self._row()
@@ -312,19 +246,138 @@ class MonsterEditorDialog(ctk.CTkToplevel):
                                          command=lambda _v: None)
         self.source_entry = self._entry(row, "Source", 250, "e.g. Homebrew")
 
-        # Combat
+        # ---- Combat
         self._section("Combat")
         row = self._row()
         self.ac_entry = self._entry(row, "AC", 60)
-        self.hp_entry = self._entry(row, "HP", 70)
-        self.hit_dice_entry = self._entry(row, "Hit Dice", 130, "e.g. 18d12 + 90")
         self.cr_var = self._combo(row, "CR", CR_OPTIONS, 80, "0", readonly=True)
         self.init_var = self._combo(row, "Initiative", PROFICIENCY_LABELS, 120, PROFICIENCY_LABELS[0],
                                     readonly=True)
+        col = ctk.CTkFrame(row, fg_color="transparent")
+        col.pack(side="left", anchor="n", padx=(4, 0))
+        ctk.CTkLabel(col, text="Worked out", font=ui_font("small"), text_color=self.theme.get_text_secondary()
+                     ).pack(anchor="w")
+        chips = ctk.CTkFrame(col, fg_color="transparent")
+        chips.pack(anchor="w", pady=(2, 0))
+        self._chip(chips, "prof", padx=(0, 6))
+        self._chip(chips, "init")
+        row = self._row()
+        self.hit_count_entry = self._entry(row, "Hit dice", 64, "e.g. 6")
+        col = ctk.CTkFrame(row, fg_color="transparent")
+        col.pack(side="left", anchor="n", padx=(0, 12))
+        ctk.CTkLabel(col, text="Hit die", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._chip(col, "hitdie", anchor="w")
+        self.hp_entry = self._entry(row, "HP", 70)
+        self.hit_dice_entry = self._entry(row, "Hit dice formula", 150, "e.g. 18d12 + 90")
+        self.hp_manual_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(row, text="Set HP by hand", variable=self.hp_manual_var,
+                        command=self._update_preview).pack(side="left", pady=(22, 0))
+        self._tips["hp"] = HoverTooltip(self.hp_entry, "")
+        self._tips["hp_count"] = HoverTooltip(self.hit_count_entry, "")
+        ctk.CTkLabel(self._cur, anchor="w", justify="left", text_color=self.theme.get_text_secondary(),
+                     font=ui_font("small"), wraplength=620,
+                     text="Hit points are the number of hit dice times (half the die + a half + Constitution modifier); "
+                          "the die comes from the size. Tick \"Set HP by hand\" to type hit points and a formula yourself."
+                     ).pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(self._cur, text="Speed (feet; leave blank for none)",
+                     font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        row = self._row()
+        self.speed_entries: Dict[str, ctk.CTkEntry] = {
+            kind: self._entry(row, kind.capitalize(), 64) for kind in SPEED_TYPES}
+        self.hover_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(row, text="Hover", variable=self.hover_var,
+                        command=self._update_preview).pack(side="left", pady=(22, 0))
+
+        # ---- Ability scores, saves
+        self._section("Ability Scores and Saving Throws")
+        row = self._row()
+        self.ability_entries: Dict[AbilityScore, ctk.CTkEntry] = {}
+        self.save_vars: Dict[AbilityScore, ctk.BooleanVar] = {}
+        for ability in AbilityScore:
+            short = AbilityScore.short_name(ability)
+            col = ctk.CTkFrame(row, fg_color="transparent")
+            col.pack(side="left", padx=(0, 12), anchor="n")
+            ctk.CTkLabel(col, text=short, font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+            entry = ctk.CTkEntry(col, width=64)
+            entry.insert(0, "10")
+            entry.pack(anchor="w")
+            entry.bind("<KeyRelease>", lambda _e: self._update_preview())
+            self._chip(col, f"mod_{short}", anchor="w")
+            var = ctk.BooleanVar(value=False)
+            ctk.CTkCheckBox(col, text="Save", variable=var, width=60,
+                            command=self._update_preview).pack(anchor="w", pady=(4, 0))
+            self._chip(col, f"save_{short}", anchor="w")
+            self.ability_entries[ability] = entry
+            self.save_vars[ability] = var
+
+        # ---- Skills
+        self._section("Skill Proficiencies", open=False)
+        grid = ctk.CTkFrame(self._cur, fg_color="transparent")
+        grid.pack(fill="x", pady=(0, 8))
+        self.skill_vars: Dict[Skill, ctk.StringVar] = {}
+        for index, skill in enumerate(Skill):
+            r, c = divmod(index, 2)
+            ctk.CTkLabel(grid, text=skill.display_name, anchor="w", width=110
+                         ).grid(row=r, column=c * 3, sticky="w", padx=(0, 6), pady=2)
+            var = ctk.StringVar(value=PROFICIENCY_LABELS[0])
+            MenuButton(grid, PROFICIENCY_LABELS, var, width=110, height=26,
+                       command=lambda _v: self._update_preview()
+                       ).grid(row=r, column=c * 3 + 1, sticky="w", padx=(0, 6), pady=2)
+            holder = ctk.CTkFrame(grid, fg_color="transparent")
+            holder.grid(row=r, column=c * 3 + 2, sticky="w", padx=(0, 18), pady=2)
+            self._chip(holder, f"skill_{skill.name}")
+            self.skill_vars[skill] = var
+
+        # ---- Defenses, senses, languages
+        self._section("Defenses, Senses and Languages (comma-separated)")
+        self.vulnerabilities_entry = self._wide_entry("Damage Vulnerabilities", "e.g. Fire")
+        self.resistances_entry = self._wide_entry("Damage Resistances", "e.g. Cold, Necrotic")
+        self.damage_immunities_entry = self._wide_entry("Damage Immunities", "e.g. Poison")
+        self.condition_immunities_entry = self._wide_entry("Condition Immunities", "e.g. Poisoned")
+        self.senses_entry = self._wide_entry(
+            "Senses (passive Perception is added automatically)", "e.g. Darkvision 60 ft., Blindsight 30 ft.")
+        row = ctk.CTkFrame(self._cur, fg_color="transparent")
+        row.pack(fill="x", pady=(0, 8))
+        self._chip(row, "passive")
+        self.languages_entry = self._wide_entry("Languages", "e.g. Common, Draconic")
+        self.gear_entry = self._wide_entry("Gear", "e.g. Chain Mail, Longsword")
+
+        # ---- Traits, actions
+        self._section("Traits, Actions and Reactions")
+        attack_hint = ("Choose Attack or Saving throw to work an entry out from the stats: the hit bonus is a core stat "
+                       "plus the proficiency bonus, the damage adds the stat's modifier, the DC is 8 + proficiency + a stat.")
+        self.traits_editor = StatFeatureList(self._cur, "Traits", stats=stats, on_change=self._update_preview)
+        self.actions_editor = StatFeatureList(self._cur, "Actions", attack_hint, stats=stats, builder=True,
+                                              on_change=self._update_preview)
+        self.bonus_editor = StatFeatureList(self._cur, "Bonus Actions", stats=stats, builder=True,
+                                            on_change=self._update_preview)
+        self.reactions_editor = StatFeatureList(self._cur, "Reactions", stats=stats, builder=True,
+                                                on_change=self._update_preview)
+        for editor in (self.traits_editor, self.actions_editor, self.bonus_editor, self.reactions_editor):
+            editor.pack(fill="x", pady=(0, 10))
+
+        self.sec_legendary = self._section("Legendary and Lair Actions", open=False)
+        self.legendary_editor = StatFeatureList(self._cur, "Legendary Actions", stats=stats, builder=True,
+                                                on_change=self._update_preview)
+        self.legendary_editor.pack(fill="x", pady=(0, 10))
+        row = self._row()
+        self.legendary_uses_entry = self._entry(row, "Legendary Action Uses", 150)
+        self.legendary_uses_entry.insert(0, "3")
+        self.legendary_uses_lair_entry = self._entry(row, "Uses in Lair", 110, "blank = same")
+        self.legendary_intro_entry = self._wide_entry(
+            "Legendary Actions Intro (blank = standard text)")
+        self.lair_editor = StatFeatureList(self._cur, "Lair Actions", stats=stats, on_change=self._update_preview)
+        self.lair_editor.pack(fill="x", pady=(0, 10))
+        self.lair_intro_entry = self._wide_entry("Lair Actions Intro (optional)")
+        self.lair_xp_entry = self._wide_entry(
+            "XP in Lair (blank = the next CR's XP)", "e.g. 15000")
+
+        # ---- Text overrides
+        self.sec_overrides = self._section("Text overrides", open=False)
         ctk.CTkLabel(
-            self._scroll, anchor="w", justify="left", text_color=self.theme.get_text_secondary(),
-            text="Text overrides - shown instead of the number above, for values that scale "
-                 "(e.g. a summoned creature's \"11 + the level of the spell\"). Leave blank normally.",
+            self._cur, anchor="w", justify="left", text_color=self.theme.get_text_secondary(),
+            text="Shown instead of the number, for values that scale (e.g. a summoned creature's \"11 + the level of "
+                 "the spell\"). Leave blank normally.",
             wraplength=620).pack(fill="x", pady=(0, 4))
         row = self._row()
         self.ac_text_entry = self._entry(row, "AC text", 170, "e.g. 11 + the spell's level")
@@ -336,100 +389,24 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         self.show_initiative_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(row, text="Show initiative", variable=self.show_initiative_var,
                         command=self._update_preview).pack(side="left", pady=(22, 0))
-        ctk.CTkLabel(self._scroll, text="Speed (feet; leave blank for none)",
-                     font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        row = self._row()
-        self.speed_entries: Dict[str, ctk.CTkEntry] = {
-            kind: self._entry(row, kind.capitalize(), 64) for kind in SPEED_TYPES}
-        self.hover_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(row, text="Hover", variable=self.hover_var,
-                        command=self._update_preview).pack(side="left", pady=(22, 0))
 
-        # Ability scores
-        self._section("Ability Scores")
-        row = self._row()
-        self.ability_entries: Dict[AbilityScore, ctk.CTkEntry] = {}
-        self.save_vars: Dict[AbilityScore, ctk.BooleanVar] = {}
-        for ability in AbilityScore:
-            col = ctk.CTkFrame(row, fg_color="transparent")
-            col.pack(side="left", padx=(0, 12), anchor="n")
-            ctk.CTkLabel(col, text=AbilityScore.short_name(ability),
-                         font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-            entry = ctk.CTkEntry(col, width=64)
-            entry.insert(0, "10")
-            entry.pack(anchor="w")
-            entry.bind("<KeyRelease>", lambda _e: self._update_preview())
-            var = ctk.BooleanVar(value=False)
-            ctk.CTkCheckBox(col, text="Save", variable=var, width=60,
-                            command=self._update_preview).pack(anchor="w", pady=(4, 0))
-            self.ability_entries[ability] = entry
-            self.save_vars[ability] = var
-
-        # Skills
-        self._section("Skill Proficiencies")
-        grid = ctk.CTkFrame(self._scroll, fg_color="transparent")
-        grid.pack(fill="x", pady=(0, 8))
-        self.skill_vars: Dict[Skill, ctk.StringVar] = {}
-        for index, skill in enumerate(Skill):
-            r, c = divmod(index, 2)
-            ctk.CTkLabel(grid, text=skill.display_name, anchor="w", width=110
-                         ).grid(row=r, column=c * 2, sticky="w", padx=(0, 6), pady=2)
-            var = ctk.StringVar(value=PROFICIENCY_LABELS[0])
-            ctk.CTkOptionMenu(grid, values=PROFICIENCY_LABELS, variable=var, width=120,
-                              command=lambda _v: self._update_preview()
-                              ).grid(row=r, column=c * 2 + 1, sticky="w", padx=(0, 24), pady=2)
-            self.skill_vars[skill] = var
-
-        # Defenses, senses, languages
-        self._section("Defenses, Senses and Languages (comma-separated)")
-        self.vulnerabilities_entry = self._wide_entry("Damage Vulnerabilities", "e.g. Fire")
-        self.resistances_entry = self._wide_entry("Damage Resistances", "e.g. Cold, Necrotic")
-        self.damage_immunities_entry = self._wide_entry("Damage Immunities", "e.g. Poison")
-        self.condition_immunities_entry = self._wide_entry("Condition Immunities", "e.g. Poisoned")
-        self.senses_entry = self._wide_entry(
-            "Senses (passive Perception is added automatically)", "e.g. Darkvision 60 ft., Blindsight 30 ft.")
-        self.languages_entry = self._wide_entry("Languages", "e.g. Common, Draconic")
-        self.gear_entry = self._wide_entry("Gear", "e.g. Chain Mail, Longsword")
-
-        # Features
-        self._section("Features")
-        self.traits_editor = FeatureListEditor(scroll, "Traits")
-        self.actions_editor = FeatureListEditor(scroll, "Actions")
-        self.bonus_editor = FeatureListEditor(scroll, "Bonus Actions")
-        self.reactions_editor = FeatureListEditor(scroll, "Reactions")
-        self.legendary_editor = FeatureListEditor(scroll, "Legendary Actions")
-        for editor in (self.traits_editor, self.actions_editor, self.bonus_editor,
-                       self.reactions_editor, self.legendary_editor):
-            editor.pack(fill="x", pady=(0, 10))
-        row = self._row()
-        self.legendary_uses_entry = self._entry(row, "Legendary Action Uses", 150)
-        self.legendary_uses_entry.insert(0, "3")
-        self.legendary_uses_lair_entry = self._entry(row, "Uses in Lair", 110, "blank = same")
-        self.legendary_intro_entry = self._wide_entry(
-            "Legendary Actions Intro (blank = standard text)")
-        self.lair_editor = FeatureListEditor(scroll, "Lair Actions")
-        self.lair_editor.pack(fill="x", pady=(0, 10))
-        self.lair_intro_entry = self._wide_entry("Lair Actions Intro (optional)")
-        self.lair_xp_entry = self._wide_entry(
-            "XP in Lair (blank = the next CR's XP)", "e.g. 15000")
-
-        # Summoned creature
-        self._section("Spell Summon")
+        # ---- Summoned creature
+        self.sec_summon = self._section("Spell Summon", open=False)
         self.spell_only_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
-            scroll, variable=self.spell_only_var,
+            self._cur, variable=self.spell_only_var,
             text="Spell-only summon (hidden from the Monsters collection unless enabled in Settings)"
         ).pack(anchor="w", pady=(0, 8))
         self.spell_entry = self._wide_entry("Summoned by spell", "Spell name (optional)")
 
-        # Lore
-        self._section("Habitat, Treasure and Description")
+        # ---- Lore
+        self.sec_lore = self._section("Habitat, Treasure and Description", open=False)
         self.habitat_entry = self._wide_entry("Habitat", "e.g. Forest, Swamp")
         self.treasure_entry = self._wide_entry("Treasure", "e.g. Arcana, Individual")
-        ctk.CTkLabel(scroll, text="Description", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.desc_text = ctk.CTkTextbox(scroll, height=200)
+        ctk.CTkLabel(self._cur, text="Description", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self.desc_text = ctk.CTkTextbox(self._cur, height=200)
         self._rich_editor = RichTextEditor(self, self.desc_text, self.theme)
-        self._rich_editor.create_toolbar(scroll).pack(fill="x", pady=(5, 5))
+        self._rich_editor.create_toolbar(self._cur).pack(fill="x", pady=(5, 5))
         self.desc_text.pack(fill="x", pady=(0, 10))
 
         # Footer: derived values + buttons (outside the scroll area, always visible)
@@ -440,15 +417,118 @@ class MonsterEditorDialog(ctk.CTkToplevel):
                                           anchor="w", justify="left")
         self.preview_label.pack(side="left")
         ctk.CTkButton(footer, text="Cancel", width=100, fg_color="transparent", border_width=1,
-                      command=self.destroy).pack(side="right", padx=(5, 0))
+                      command=self._finish).pack(side="right", padx=(5, 0))
         ctk.CTkButton(footer, text="Save", width=100,
                       fg_color=self.theme.get_current_color('accent_primary'),
                       command=self._save).pack(side="right")
+
+    # ----- what follows from what -----
+
+    def _scores(self) -> Dict[str, int]:
+        scores = {}
+        for ability, entry in self.ability_entries.items():
+            try:
+                value = int(entry.get().strip())
+            except ValueError:
+                value = 10
+            scores[AbilityScore.short_name(ability)] = max(1, min(30, value))
+        return scores
+
+    def _stats(self) -> MR.Stats:
+        """Proficiency bonus (from the CR) and the six modifiers: what an attack is worked out from."""
+        cr = normalize_cr(self.cr_var.get()) if hasattr(self, "cr_var") else "0"
+        mods = {a: MR.modifier(s) for a, s in self._scores().items()} if hasattr(self, "ability_entries") \
+            else {a: 0 for a in MR.ABILITIES}
+        return MR.Stats(prof=proficiency_bonus_for_cr(cr), mods=mods, cr=cr)
+
+    @staticmethod
+    def _set_entry(entry: ctk.CTkEntry, text: str):
+        entry.configure(state="normal")
+        entry.delete(0, "end")
+        if text:
+            entry.insert(0, text)
+
+    def _hit_count(self) -> int:
+        try:
+            return max(0, int(self.hit_count_entry.get().strip() or 0))
+        except ValueError:
+            return 0
+
+    def _sync_hp(self):
+        """Hit points and the hit dice formula follow the hit dice, size and Constitution unless set by hand."""
+        manual = self.hp_manual_var.get()
+        stats = self._stats()
+        die = MR.hit_die_for_size(self.size_var.get())
+        if not manual:
+            count = self._hit_count()
+            self._set_entry(self.hp_entry, str(MR.hit_points(count, die, stats.mods["CON"])) if count else "")
+            self._set_entry(self.hit_dice_entry, MR.hit_dice_text(count, die, stats.mods["CON"]))
+        self.hp_entry.configure(state="normal" if manual else "disabled")
+        self.hit_dice_entry.configure(state="normal" if manual else "disabled")
+        self.hit_count_entry.configure(state="disabled" if manual else "normal")
+
+    def _update_derived(self):
+        stats = self._stats()
+        mods, prof, cr = stats.mods, stats.prof, stats.cr
+        scores = self._scores()
+        size = self.size_var.get() or "Medium"
+        die = MR.hit_die_for_size(size)
+        sg = MR.signed
+        self._set_chip("prof", f"Proficiency {sg(prof)}",
+                       f"Proficiency bonus is based off of CR (CR {cr} gives {sg(prof)}).")
+        level = max(0, min(2, PROFICIENCY_LABELS.index(self.init_var.get()) if self.init_var.get() in
+                           PROFICIENCY_LABELS else 0))
+        init = mods["DEX"] + prof * level
+        self._set_chip("init", f"Initiative {sg(init)} ({10 + init})",
+                       f"{sg(mods['DEX'])} from Dexterity" + (f", {sg(prof * level)} from proficiency"
+                                                               + (" (expertise: twice the bonus)" if level == 2 else "")
+                                                               if level else "") + f". The fixed score is 10 + {sg(init)}.")
+        self._set_chip("hitdie", f"d{die}", f"Hit die is based off of size ({size} gives a d{die}).")
+        con, count = mods["CON"], self._hit_count()
+        manual = self.hp_manual_var.get()
+        auto_hp = MR.hit_points(count, die, con) if count else 0
+        if manual:
+            hp_tip = (f"Set by hand. Worked out from the hit dice it would be {auto_hp}." if count
+                      else "Set by hand.")
+        elif count:
+            hp_tip = (f"{count} hit dice (a d{die} for a {size} creature), each averaging {die / 2 + 0.5:g} "
+                      f"plus {sg(con)} from Constitution = {auto_hp} hit points.")
+        else:
+            hp_tip = "Enter the number of hit dice: hit points follow from them, the size and Constitution."
+        self._tips["hp"].update_text(hp_tip)
+        self._tips["hp_count"].update_text(hp_tip)
+        for ability in AbilityScore:
+            short = AbilityScore.short_name(ability)
+            name = MR.ABILITY_NAMES[short]
+            self._set_chip(f"mod_{short}", sg(mods[short]),
+                           f"Modifier is (score - 10) / 2, rounded down: ({scores[short]} - 10) / 2 = {sg(mods[short])}.")
+            proficient = self.save_vars[ability].get()
+            total = mods[short] + (prof if proficient else 0)
+            self._set_chip(f"save_{short}", f"Save {sg(total)}",
+                           f"{sg(mods[short])} from {name}" + (f", {sg(prof)} from proficiency" if proficient
+                                                              else " (not proficient)"))
+        for skill in Skill:
+            lvl = PROFICIENCY_LABELS.index(self.skill_vars[skill].get())
+            short = AbilityScore.short_name(skill.ability)
+            total = mods[short] + prof * lvl
+            note = ("" if not lvl else f", {sg(prof * lvl)} from proficiency" +
+                    (" (expertise: twice the bonus)" if lvl == 2 else ""))
+            self._set_chip(f"skill_{skill.name}", sg(total), f"{sg(mods[short])} from {MR.ABILITY_NAMES[short]}{note}")
+        perception = Skill.PERCEPTION
+        plvl = PROFICIENCY_LABELS.index(self.skill_vars[perception].get())
+        pp = 10 + mods["WIS"] + prof * plvl
+        self._set_chip("passive", f"Passive Perception {pp}",
+                       f"10 {sg(mods['WIS'])} from Wisdom" + (f" {sg(prof * plvl)} from proficiency" if plvl else "")
+                       + " in Perception. It is added to the senses on its own.")
+        for editor in (self.traits_editor, self.actions_editor, self.bonus_editor, self.reactions_editor,
+                       self.legendary_editor, self.lair_editor):
+            editor.refresh()
 
     # ----- data in / out -----
 
     @staticmethod
     def _fill(entry: ctk.CTkEntry, value):
+        entry.configure(state="normal")
         entry.delete(0, "end")
         if value not in (None, ""):
             entry.insert(0, str(value))
@@ -462,8 +542,6 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         self.alignment_var.set(m.alignment)
         self._fill(self.source_entry, m.source)
         self._fill(self.ac_entry, m.ac)
-        self._fill(self.hp_entry, m.hp)
-        self._fill(self.hit_dice_entry, m.hit_dice)
         self.cr_var.set(normalize_cr(m.challenge_rating))
         self.init_var.set(PROFICIENCY_LABELS[max(0, min(2, m.initiative_proficiency))])
         for kind, entry in self.speed_entries.items():
@@ -491,6 +569,15 @@ class MonsterEditorDialog(ctk.CTkToplevel):
                 (self.gear_entry, m.gear),
                 (self.habitat_entry, m.habitat), (self.treasure_entry, m.treasure)):
             self._fill(entry, ", ".join(values))
+        # hit points follow the hit dice when the stored ones do; otherwise they are the author's own
+        con = MR.modifier(m.ability_scores.get(AbilityScore.CONSTITUTION))
+        parsed = MR.parse_hit_dice(m.hit_dice)
+        follows = bool(parsed and not m.hp_text and parsed[1] == MR.hit_die_for_size(m.size)
+                       and parsed[2] == parsed[0] * con and m.hp == MR.hit_points(parsed[0], parsed[1], con))
+        self.hp_manual_var.set(not follows)
+        self._fill(self.hit_count_entry, parsed[0] if parsed else "")
+        self._fill(self.hp_entry, m.hp)
+        self._fill(self.hit_dice_entry, m.hit_dice)
         for editor, features in (
                 (self.traits_editor, m.traits), (self.actions_editor, m.actions),
                 (self.bonus_editor, m.bonus_actions), (self.reactions_editor, m.reactions),
@@ -503,6 +590,15 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         self._fill(self.lair_xp_entry, m.lair_xp)
         self.desc_text.delete("1.0", "end")
         self.desc_text.insert("1.0", m.description)
+        # sections with something in them start open
+        self.sec_legendary.set_open(bool(m.legendary_actions or m.lair_actions))
+        self.sec_overrides.set_open(bool(m.ac_text or m.hp_text or m.speed_text or m.cr_text or m.skills_text))
+        self.sec_summon.set_open(bool(m.spell_only or m.spell_name))
+        self.sec_lore.set_open(bool(m.description or m.habitat or m.treasure))
+        self.skill_section_open = any(m.skills.get(s) for s in Skill)
+        for section in self._sections:
+            if section.title == "Skill Proficiencies":
+                section.set_open(self.skill_section_open)
 
     @staticmethod
     def _int(entry: ctk.CTkEntry, label: str, low: int, high: Optional[int] = None,
@@ -524,6 +620,7 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         name = self.name_entry.get().strip()
         if require_name and not name:
             raise ValueError("Name is required.")
+        self._sync_hp()
 
         speeds = {}
         for kind, entry in self.speed_entries.items():
@@ -600,7 +697,11 @@ class MonsterEditorDialog(ctk.CTkToplevel):
         )
 
     def _update_preview(self):
-        """Show the values that follow from CR and the ability scores."""
+        """Work out every derived number, and show the ones that follow from CR and the ability scores."""
+        if not getattr(self, "_ready", False):
+            return
+        self._sync_hp()
+        self._update_derived()
         try:
             m = self._collect(require_name=False)
         except ValueError:
@@ -610,17 +711,20 @@ class MonsterEditorDialog(ctk.CTkToplevel):
             text=(f"Proficiency {_signed(m.proficiency_bonus)}  •  Initiative {m.display_initiative()}"
                   f"  •  Passive Perception {m.get_passive_perception()}  •  XP {m.xp:,}"))
 
-    def _save(self):
-        try:
-            monster = self._collect()
-        except ValueError as e:
-            messagebox.showerror("Error", str(e), parent=self)
-            return
-        if monster.spell_name and self.manager.db.get_spell_id_by_name(monster.spell_name) is None:
-            messagebox.showerror("Error", f"There is no spell named '{monster.spell_name}'.", parent=self)
-            return
-        self.result = monster
-        self.destroy()
+    def build_result(self, strict: bool = True) -> Monster:
+        """The monster the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
+        monster = self._collect(require_name=strict)
+        if strict and not self.EMBEDDED and monster.spell_name \
+                and self.manager.db.get_spell_id_by_name(monster.spell_name) is None:
+            raise ValueError(f"There is no spell named '{monster.spell_name}'.")
+        return monster
+
+class MonsterEditorDialog(MonsterEditorBody, DialogWindow):
+    """Dialog for creating or editing a monster."""
+
+
+class MonsterEditorPanel(MonsterEditorBody, EmbeddedWindow):
+    """The MonsterEditorDialog form inside the Homebrew Studio."""
 
 
 class _MultiFilter:
@@ -692,7 +796,7 @@ class _MultiFilter:
         return not any(s in have for s in wanted)
 
 
-class MonsterView(ctk.CTkFrame):
+class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     """Main view for browsing and managing monsters."""
 
     def __init__(self, parent, character_manager=None, on_back=None):
@@ -711,6 +815,7 @@ class MonsterView(ctk.CTkFrame):
         self._listed_spell_only = False
 
         self._create_widgets()
+        self._setup_bulk_actions()
         self._load_monsters()
         self.theme.add_listener(self._on_theme_changed)
         self.settings_manager.add_listener(self._on_settings_changed)
@@ -731,24 +836,12 @@ class MonsterView(ctk.CTkFrame):
 
     # ----- layout -----
 
-    def _create_widgets(self):
-        self._create_filter_bar()
-
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-        self.paned = tk.PanedWindow(
-            self.content, orient=tk.HORIZONTAL, sashwidth=8, sashrelief=tk.RAISED,
-            handlesize=0, opaqueresize=False, sashcursor="sb_h_double_arrow")
-        self.paned.pack(fill="both", expand=True)
-        self.paned.configure(bg=self.theme.get_current_color("pane_sash"))
-
+    def _create_panes(self):
         self.list_panel = MonsterListPanel(self.paned, on_select=self._on_monster_selected)
         self.detail_panel = MonsterDetailPanel(self.paned)
 
         self.paned.add(self.list_panel, minsize=280, stretch="always")
         self.paned.add(self.detail_panel, minsize=400, stretch="always")
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
 
     def _bar(self, pady=(0, 5)) -> ctk.CTkFrame:
         bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -851,7 +944,8 @@ class MonsterView(ctk.CTkFrame):
                         command=lambda: self._on_filter_changed(immediate=True)).pack(side="left", padx=(0, 10))
         self.lair_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(bar, text="Has Lair", variable=self.lair_var, width=80,
-                        command=lambda: self._on_filter_changed(immediate=True)).pack(side="left")
+                        command=lambda: self._on_filter_changed(immediate=True)).pack(side="left", padx=(0, 10))
+        self._add_titles_only(bar, (0, 0))
 
         # Row 3: where it comes from, where it lives, what it carries
         bar = self._bar()
@@ -887,6 +981,22 @@ class MonsterView(ctk.CTkFrame):
 
     # ----- data -----
 
+    BULK_ACTIONS = ("source",)
+    BULK_NOUN, BULK_PLURAL = "monster", "monsters"
+
+    def _bulk_fetch(self, name: str):
+        return self.monster_manager.get_monster(name)
+
+    def _bulk_store(self, entries: list) -> int:
+        with self.monster_manager.batch():
+            return sum(bool(self.monster_manager.update_monster(e.name, e)) for e in entries)
+
+    def _bulk_reload(self):
+        self._load_monsters()
+
+    def _bulk_all_sources(self) -> List[str]:
+        return self.monster_manager.get_all_sources()
+
     def _load_monsters(self):
         from object_link_sweep import strip_links
         self._listed_spell_only = bool(self.settings_manager.settings.show_spell_only_summons)
@@ -919,6 +1029,7 @@ class MonsterView(ctk.CTkFrame):
 
     def _clear_filters(self):
         self.search_var.set("")
+        self.titles_var.set(False)
         self.type_var.set("All Types")
         self.size_var.set("All Sizes")
         self.alignment_var.set("All Alignments")
@@ -933,13 +1044,6 @@ class MonsterView(ctk.CTkFrame):
         for f in self._filters:
             f.clear()
         self._on_filter_changed(immediate=True)
-
-    def _on_filter_changed(self, immediate: bool = False):
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-        delay = 10 if immediate else self._filter_debounce_delay
-        self._filter_debounce_id = self.after(delay, self._apply_filters)
 
     @staticmethod
     def _bound(var: ctk.StringVar) -> Optional[int]:
@@ -966,7 +1070,8 @@ class MonsterView(ctk.CTkFrame):
 
         filtered = []
         for m in self._all_monsters:
-            if search and search not in self._search_index.get(m.name, ""):
+            if search and search not in (m.name.lower() if self._titles_only()
+                                         else self._search_index.get(m.name, "")):
                 continue
             if type_filter != "All Types" and m.creature_type != type_filter:
                 continue
@@ -1020,6 +1125,9 @@ class MonsterView(ctk.CTkFrame):
         return dialog.result
 
     def _on_add_monster(self):
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "monsters"):
+            return
         result = self._open_editor("Add Monster")
         if result:
             self._save_new(result)
@@ -1030,6 +1138,9 @@ class MonsterView(ctk.CTkFrame):
             return
         copy = replace(monster, name=f"{monster.name} (Copy)", is_official=False, is_custom=True,
                        spell_only=False, spell_name="")
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "monsters", name=copy.name, record=copy.to_dict()):
+            return
         result = self._open_editor("Duplicate Monster", prefill=copy)
         if result:
             self._save_new(result)
@@ -1041,7 +1152,7 @@ class MonsterView(ctk.CTkFrame):
             return
         if self.monster_manager.add_monster(monster):
             self._load_monsters()
-            self.list_panel.select_monster(monster.name)
+            self.list_panel.select_when_listed(monster.name)
 
     def _on_edit_monster(self):
         monster = self.list_panel.get_selected_monster()
@@ -1056,7 +1167,7 @@ class MonsterView(ctk.CTkFrame):
             return
         if self.monster_manager.update_monster(monster.name, result):
             self._load_monsters()
-            self.list_panel.select_monster(result.name)
+            self.list_panel.select_when_listed(result.name)
             self.detail_panel.show_monster(result)
 
     def _on_delete_monster(self):

@@ -21,7 +21,7 @@ from ui.lazy_view import LazyView
 
 # Collections a tab can be showing (also what a restored tab may reopen on)
 COLLECTION_KEYS = ("spells", "classes", "feats", "lineages", "backgrounds",
-                   "equipment", "magic_items", "monsters")
+                   "equipment", "magic_items", "monsters", "rules")
 
 # Pause between startup preload steps, so the window stays responsive
 PRELOAD_STEP_GAP_MS = 350
@@ -121,6 +121,10 @@ class MainWindow(ctk.CTkFrame):
         handle_budget.set_reclaimer(self._make_headroom)
         self.after(2500, self._budget_tick)
 
+        # Rule links in popups ("Open in Rules") open a Rules tab
+        from ui.object_link_widgets import set_rule_opener
+        set_rule_opener(self.open_rule)
+
         # Check GitHub for a newer release (silent, background, best-effort;
         # only opens a browser link - never downloads or installs anything).
         self.after(4000, self._maybe_check_for_updates)
@@ -175,6 +179,8 @@ class MainWindow(ctk.CTkFrame):
             steps.append(("equipment", lambda: self._preload_sub_view("equipment")))
         if getattr(settings, 'preload_magic_items', True):
             steps.append(("magic items", lambda: self._preload_sub_view("magic_items")))
+        if getattr(settings, 'preload_rules', True):
+            steps.append(("rules", lambda: self._preload_sub_view("rules")))
         if settings.preload_character_sheets:
             steps.append(("character sheets", self._preload_character_sheets))
         self._run_preload_steps(steps)
@@ -521,6 +527,7 @@ class MainWindow(ctk.CTkFrame):
             "initiative": "Initiative",
             "dice_analyzer": "Dice Analyzer",
             "matchup": "Matchup",
+            "studio": "Homebrew Studio",
         }.get(page_type, "Spellbook")
 
     def _open_page_in_new_tab(self, page_type: str, index: Optional[int] = None,
@@ -572,6 +579,8 @@ class MainWindow(ctk.CTkFrame):
         """Open one saved tab (not selected). Returns its id, or None if it cannot be reopened."""
         page = entry.get('page')
         character = entry.get('character')
+        if page == "studio":
+            page = "game_tools"       # the Studio is heavy to build: a restored tab opens on the tool list instead
         if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
                     "initiative", "dice_analyzer", "matchup"):
             return None
@@ -672,7 +681,8 @@ class MainWindow(ctk.CTkFrame):
                 self,
                 spell_manager=self.spell_manager,
                 on_navigate=lambda key, name=None, tid=tab_id: self._navigate_to_collection_in_tab(tid, key, name),
-                on_home=lambda tid=tab_id: self._navigate_tab(tid, "home")
+                on_home=lambda tid=tab_id: self._navigate_tab(tid, "home"),
+                on_open_studio=lambda tid=tab_id: self._navigate_tab(tid, "studio")
             )
         if page_type == "characters":
             from ui.characters_view import CharactersView
@@ -713,6 +723,8 @@ class MainWindow(ctk.CTkFrame):
             return self._build_dice_analyzer(tab_id)
         if page_type == "matchup":
             return self._build_matchup(tab_id)
+        if page_type == "studio":
+            return self._build_studio(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
 
     def _analysis_tools(self):
@@ -773,6 +785,34 @@ class MainWindow(ctk.CTkFrame):
             monster_names=lambda: sorted(m.name for m in monsters.browsable),
             get_monster=lambda n: monsters.get_monster(n),
             on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
+
+    def _build_studio(self, tab_id: str):
+        """The Homebrew Studio: write content with the rest of the collection beside it. Which drafts and
+        reference panels are open is kept per tab here (the drafts themselves are in studio.json)."""
+        from ui.studio_view import StudioView
+        state = self._tab_views[tab_id].setdefault('studio_state', {}) if tab_id in self._tab_views else {}
+        if not hasattr(self, '_studio_service'):
+            from studio_service import StudioService
+            self._studio_service = StudioService(self.spell_manager)
+        return StudioView(
+            self, state, spell_manager=self.spell_manager, service=self._studio_service,
+            on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
+            on_published=self._after_studio_publish)
+
+    def open_studio_new(self, kind: str, name: str = "", record: Optional[dict] = None, parent: str = ""):
+        """Open a new Homebrew Studio tab with a new draft of ``kind`` (the Add buttons of the collection pages)."""
+        tab_id = self._open_page_in_new_tab("studio")
+        view = self._tab_views[tab_id].get('view')
+        if view is not None:
+            view.new_draft(kind, name=name, record=record, parent=parent)
+        return view
+
+    def _after_studio_publish(self):
+        """Something was published from the Studio: the open collection lists should show it."""
+        try:
+            self.refresh_all_collection_views()
+        except Exception as e:
+            print(f"Could not refresh the collections: {e}")
 
     # Pages a tab has left are kept (hidden) for a while, so going back to Home, the Characters
     # list, a character sheet or a collection is instant. Building and - especially - destroying
@@ -930,6 +970,8 @@ class MainWindow(ctk.CTkFrame):
             self._navigate_tab(tab_id, "dice_analyzer")
         elif key == "matchup":
             self._navigate_tab(tab_id, "matchup")
+        elif key == "studio":
+            self._navigate_tab(tab_id, "studio")
 
     def _open_character(self, tab_id: str, name: str, new_tab: bool = False):
         """Open a character's sheet in this tab (or a new one)."""
@@ -1250,6 +1292,8 @@ class MainWindow(ctk.CTkFrame):
             from ui.magic_item_view import MagicItemView as view_class
         elif key == "monsters":
             from ui.monster_view import MonsterView as view_class
+        elif key == "rules":
+            from ui.rules_view import RulesView as view_class
         else:
             raise KeyError(key)
         return view_class
@@ -1259,6 +1303,7 @@ class MainWindow(ctk.CTkFrame):
         "spells": "select_spell", "classes": "select_class", "feats": "select_feat",
         "lineages": "select_lineage", "backgrounds": "select_background",
         "equipment": "select_item", "magic_items": "select_item", "monsters": "select_monster",
+        "rules": "select_rule",
     }
     # How long each page needs to finish rendering before an item can be selected in it
     SUB_VIEW_SELECT_DELAY_MS = {"spells": 100, "classes": 300}
@@ -1392,7 +1437,8 @@ class MainWindow(ctk.CTkFrame):
             'classes': 'Classes',
             'equipment': 'Equipment',
             'magic_items': 'Magic Items',
-            'monsters': 'Monsters'
+            'monsters': 'Monsters',
+            'rules': 'Rules'
         }
 
         if item_name and collection_key == 'classes':
@@ -1402,6 +1448,12 @@ class MainWindow(ctk.CTkFrame):
             tab_name = name_map.get(collection_key, 'Collections')
 
         self.tab_bar.update_tab_text(tab_id, tab_name)
+
+    def open_rule(self, name: str):
+        """Open a rules page (``Page`` or ``Page#Section``) in a new tab, next to the current one."""
+        index = self.tab_bar.get_tab_index(self._current_tab_id) + 1 if self._current_tab_id else None
+        tab_id = self._open_page_in_new_tab("collections", index=index)
+        self._navigate_to_collection_in_tab(tab_id, "rules", name)
 
     def _navigate_to_spell(self, spell_name: str):
         """Open a spell in a new Spells tab (so the sheet it was clicked from stays put)."""
@@ -1452,9 +1504,9 @@ class MainWindow(ctk.CTkFrame):
         # Light/dark switched: re-resolve every role-tagged colour on screen
         restyle_app()
 
-        # Update theme-dependent widgets that use tk (not ctk) on the spell pages
+        # Update theme-dependent widgets that use tk (not ctk) on the spell pages and the rules text
         for key, view in self._all_sub_views():
-            if key == "spells":
+            if key in ("spells", "rules"):
                 view.apply_theme()
 
     def _on_theme_changed(self):
@@ -1464,9 +1516,9 @@ class MainWindow(ctk.CTkFrame):
         # widgets that never passed an explicit colour)
         restyle_app()
 
-        # Update widgets that rely on TK colors or CTkFrame backgrounds (spell pages)
+        # Update widgets that rely on TK colors or CTkFrame backgrounds (spell pages, rules text)
         for key, view in self._all_sub_views():
-            if key == "spells":
+            if key in ("spells", "rules"):
                 view.apply_theme()
 
         # Update root and main frame backgrounds so transparent widgets reflect the theme
