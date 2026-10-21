@@ -40,6 +40,7 @@ class EquipmentDetailPanel(ItemDetailBase):
     crafting tool, tags) is simply not shown - its row's frame is never
     packed rather than being packed empty.
     """
+    IMAGE_KIND = "equipment"
 
     def _create_widgets(self):
         self._add_scroll_and_name()
@@ -109,11 +110,13 @@ class EquipmentDetailPanel(ItemDetailBase):
 
         if item is None:
             self.name_label.configure(text="Select an item")
+            self._show_picture(None)
             self._render_properties(None)
             return
 
         name_text = f"* {item.name}" if item.is_custom else item.name
         self.name_label.configure(text=name_text)
+        self._show_picture(item.name)
 
         self.type_badge.configure(text=item.type or DEFAULT_EQUIPMENT_TYPE)
         self.type_badge.pack(anchor="w", pady=(0, 5))

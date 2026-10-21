@@ -122,6 +122,13 @@ class AppSettings:
     lan_overlay_translucent: bool = True  # Use the translucent overlay where the OS allows it
 
     # Internal flags (not user-configurable)
+    # Keyboard shortcuts the user changed: action id -> key ("" = none). See hotkeys.py.
+    hotkeys: dict = field(default_factory=dict)
+    # Pictures beside spells, monsters, items ... (see content_images.py)
+    show_content_images: bool = True
+    # Extra folders the PDF library reads (its own PDFs folder is always read; see pdf_library.py)
+    pdf_folders: list = field(default_factory=list)
+
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
     
     def to_dict(self) -> dict:
@@ -158,8 +165,11 @@ class AppSettings:
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
             'lan_overlay_opacity', 'lan_overlay_translucent',
             'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
+            'hotkeys', 'show_content_images', 'pdf_folders',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
+        if not isinstance(filtered_data.get('hotkeys', {}), dict):
+            filtered_data.pop('hotkeys')
         return cls(**filtered_data)
 
 

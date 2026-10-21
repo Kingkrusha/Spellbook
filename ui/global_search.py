@@ -14,6 +14,8 @@ from content_versions import collapse_search_results
 
 class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
     """Search bar with overlaying dropdown results."""
+
+    SEARCH_DELAY_MS = 150
     
     def __init__(self, parent, on_result_selected: Optional[Callable[[str, str, int], None]] = None):
         """
@@ -30,6 +32,7 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
         self.theme = get_theme_manager()
         self._db = None
         self._results: List[Dict] = []
+        self._pending_search = None  # after() id of a search waiting for typing to pause
         self._dropdown_visible = False
         self._result_widgets = []
         
@@ -74,7 +77,7 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
         # Search entry
         self.search_entry = ctk.CTkEntry(
             self.search_frame,
-            placeholder_text="Search all collections...",
+            placeholder_text="Search names and text in all collections...",
             placeholder_text_color=self._search_placeholder_color,
             border_width=0,
             fg_color="transparent",
@@ -116,11 +119,21 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
         else:
             self.clear_btn.pack_forget()
         
-        # Perform search
+        # Search once typing pauses, so a fast typist doesn't rebuild the
+        # result list on every key (the slow part on older machines)
+        if self._pending_search is not None:
+            self.after_cancel(self._pending_search)
+            self._pending_search = None
         if len(query) >= 1:
-            self._perform_search(query)
+            self._pending_search = self.after(self.SEARCH_DELAY_MS, self._run_pending_search)
         else:
             self._hide_dropdown()
+
+    def _run_pending_search(self):
+        self._pending_search = None
+        query = self.search_entry.get().strip()
+        if query:
+            self._perform_search(query)
     
     def _perform_search(self, query: str):
         """Search the database and show results."""
@@ -222,7 +235,8 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
             name = result.get('name', '')
             section = result.get('section', '')
             display_text = result.get('label', name)
-            section_text = f"in {section}"
+            # An item found through its text rather than its name says so
+            section_text = f"in {section}" if result.get('in_name', True) else f"mentioned in {section}"
             
             # Name label
             name_label = ctk.CTkLabel(
@@ -318,12 +332,18 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
     
     def cleanup(self):
         """Clean up the search bar - hide dropdown and clear search."""
+        if self._pending_search is not None:
+            self.after_cancel(self._pending_search)
+            self._pending_search = None
         self._hide_dropdown()
         self.search_entry.delete(0, 'end')
         self.clear_btn.pack_forget()
     
     def _on_enter(self, event=None):
         """Handle Enter key - select first result."""
+        if self._pending_search is not None:  # Enter pressed before the pause: search now
+            self.after_cancel(self._pending_search)
+            self._run_pending_search()
         if self._results:
             self._select_result(self._results[0])
     

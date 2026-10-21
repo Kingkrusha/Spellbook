@@ -249,6 +249,18 @@ RULES = Collection('rules', (
     flag('is_custom'),
 ), order_by="(sort_order = 0), sort_order, name COLLATE NOCASE")
 
+RANDOM_TABLES = Collection('random_tables', (
+    NAME,
+    text('category'),
+    text('dice', 'd100'),
+    text('description'),
+    json_col('entries', safe=True),
+    json_col('tags', safe=True),
+    text('source'),
+    flag('is_official'),
+    flag('is_custom', True),
+), order_by="name COLLATE NOCASE")
+
 
 def _written(key: str, column: str, to_db, insert_only: bool = False) -> Column:
     return Column(key, column, to_db, None, insert_only)

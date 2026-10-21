@@ -61,6 +61,7 @@ class FeatListPanel(VirtualListPanel):
 
 class FeatDetailPanel(VersionedDetailBase):
     """Panel displaying detailed information about a feat."""
+    IMAGE_KIND = "feats"
 
     CURRENT_ATTR = "_current_feat"
     
@@ -171,6 +172,7 @@ class FeatDetailPanel(VersionedDetailBase):
         
         if feat is None:
             self.name_label.configure(text="Select a feat")
+            self._show_picture(None)
             self.type_badge.pack_forget()
             self.source_label.configure(text="")
             self.prereq_label.pack_forget()
@@ -181,6 +183,7 @@ class FeatDetailPanel(VersionedDetailBase):
         # Name (with custom indicator)
         name_text = f"* {display_name(feat.name)}" if feat.is_custom else display_name(feat.name)
         self.name_label.configure(text=name_text)
+        self._show_picture(display_name(feat.name))
         
         # Type badge
         if feat.type:

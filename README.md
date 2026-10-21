@@ -19,7 +19,7 @@ Look things up, search them, and add your own.
 - **Monsters**: The 2024 Monster Manual with full stat blocks, filters for type, size, CR, defenses and more
 - **Rules**: The Free Basic Rules (2024) as searchable pages. The search reads the text of the rules, not just the titles, and puts the best match first (try searching *Stunned*)
 - **2014 (Legacy) content** is included too and can be shown, hidden or limited to what 2024 didn't update (Settings)
-- **Search everywhere**: Every collection has a search box with a **Titles only** option. A global search covers all of them at once, and descriptions link to each other (click a spell name inside a feat to open it)
+- **Search everywhere**: Every collection has a search box with a **Titles only** option. The global search on the Collections page covers all of them at once and reads their text as well as their names (name matches come first, and words can be in any order, so *ball fire* finds Fireball), and descriptions link to each other (click a spell name inside a feat to open it)
 - **Select several at once**: Press **Select** above a list to tick many entries, then add them all to a character, or change their tags, classes (spells) or source in one go
 - **Your own content**: Add spells, feats, items, monsters, classes and more by hand, or paste text from a book and let the app fill in the form. Homebrew is marked with a `*`
 - **Import and export**: Share homebrew as a file. Importing never overwrites official content, and mentions of other content are linked automatically, even across several files imported together
@@ -38,6 +38,8 @@ Look things up, search them, and add your own.
 - **Homebrew Studio**: Write homebrew with reference panels beside you. As you write, it points out existing content that already does the same thing, and checks a monster's numbers against its challenge rating
 - **Dice Analyzer**: The odds of any roll, from `2d6+4` to advantage, disadvantage, rerolls and keeping the best dice: average, spread, the chance of reaching a number, and a chart of every result. It can use your character's own features
 - **Matchup**: Pit two characters or monsters against each other and see who wins most often, how long the fight lasts and what turns it
+- **Random Tables**: Keep d100 tables (or d20, 2d6 and so on), search them by name or by what's in them, and roll: the result comes up at once and is lit up in the table. Paste a table from a book or a website as it is. A result can roll its own dice (`{2d6} wolves`) or roll on another table (`{table: Weather}`), and in a session you can share it in the chat
+- **Calendar**: A calendar and clock for each campaign, with your own months (any length, with leap days), days outside the months, weeks, holidays and events. Move time on by minutes, hours, days or weeks, and keep progress bars for crafting, travel or training that fill as time passes; switch a bar to manual while the work is paused
 - **Initiative Tracker**: Run combat with monsters, characters and events, groups that take turns together, conditions, and a round counter
 - **Game sessions**: Host or join a game over your network. Chat, roll with `/roll`, link spells and items in messages, and send characters and homebrew to each other. Sessions are encrypted
 
@@ -46,6 +48,7 @@ Look things up, search them, and add your own.
 - **Themes**: Dark and light modes, 23 colour themes, and a Theme Studio to make your own
 - **Fonts**: Pick the font for titles, headings and text across the whole app
 - **Settings**: Choose what loads at start-up, which warnings to see, how legacy content is shown and more
+- **Keyboard shortcuts**: Ctrl+T / Ctrl+W open and close tabs, Ctrl+Tab and Ctrl+1 to 9 switch tabs, Ctrl+K searches everything, Ctrl+F searches the page you're on, F5 refreshes it, Ctrl+B and Ctrl+I make text bold or italic in description editors, Ctrl+Shift+D switches light and dark mode, and more. Change any of them, or give a key to actions such as opening a collection, in Settings > Keyboard Shortcuts. On a Mac, Ctrl is the Command key
 
 ## Getting started
 

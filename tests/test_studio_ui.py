@@ -383,3 +383,37 @@ def test_the_cancel_button_closes_the_draft_tab_but_keeps_the_draft(studio, tk_r
     studio.editor._finish()
     assert studio.draft is None
     assert studio.store.get(draft.id).name == "Kept Feat"
+
+
+def test_a_draft_shows_its_picture_slot_and_follows_its_name(studio, tk_root):
+    studio.new_draft("magic_items")
+    pump(tk_root, 0.3)
+    type_into(studio, tk_root, "Lantern of Echoes", "It glows.")
+    assert studio.picture.kind == "magic_items" and studio.picture.name == "Lantern of Echoes"
+    studio.new_draft("rules")                        # rules pages have no pictures
+    pump(tk_root, 0.3)
+    assert studio.picture.name is None
+
+
+@pytest.mark.parametrize("kind", ["magic_items", "classes", "subclasses", "rules"])
+def test_a_draft_exports_as_a_pdf(studio, tk_root, monkeypatch, tmp_path, kind):
+    pytest.importorskip("reportlab")
+    from tkinter import filedialog
+    import pdf_export
+    import ui.bulk_actions as bulk
+    from types import SimpleNamespace
+    if kind == "subclasses":
+        studio.new_draft(kind, parent="Fighter")
+    else:
+        studio.new_draft(kind)
+    pump(tk_root, 0.3)
+    studio.editor.name_entry.delete(0, "end")
+    studio.editor.name_entry.insert(0, "Printed Draft")
+    monkeypatch.setattr(bulk, "ExportPdfDialog",
+                        lambda *a, **k: SimpleNamespace(result=pdf_export.ExportOptions(title="")))
+    studio.wait_window = lambda w: None
+    target = tmp_path / "draft.pdf"
+    monkeypatch.setattr(filedialog, "asksaveasfilename", lambda **k: str(target))
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: False)
+    studio.export_draft_pdf()
+    assert target.exists() and target.stat().st_size > 500

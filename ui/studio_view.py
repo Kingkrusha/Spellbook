@@ -265,6 +265,10 @@ class StudioView(ctk.CTkFrame):
         bar.pack(fill="x", padx=10, pady=(8, 0))
         self.kind_label = ctk.CTkLabel(bar, text="", font=ui_font("subheading", 14, bold=True), anchor="w")
         self.kind_label.pack(side="left")
+        from ui.content_image import ContentImage
+        self.picture = ContentImage(bar, "spells", side=48)
+        self.picture.pack(side="left", padx=(10, 0))
+        self._picture_key = None
         self.menu_button = ctk.CTkButton(bar, text="⋯", width=34, height=28, fg_color=c("button_normal"),
                                          hover_color=c("button_hover"), text_color=c("text_primary"),
                                          command=self._show_draft_menu)
@@ -390,6 +394,7 @@ class StudioView(ctk.CTkFrame):
         self.editor = None
         self._last_record = self._last_obj = None
         self.kind_label.configure(text="")
+        self._show_picture()
         self.publish_button.configure(state="disabled")
         self.menu_button.configure(state="disabled")
         self.welcome.pack(fill="both", expand=True)
@@ -646,6 +651,7 @@ class StudioView(ctk.CTkFrame):
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(label="Duplicate draft", command=self.duplicate_draft)
         menu.add_command(label="Export draft as JSON...", command=self.export_draft)
+        menu.add_command(label="Export draft as PDF...", command=self.export_draft_pdf)
         menu.add_separator()
         menu.add_command(label="Close draft", command=lambda: self.close_draft(self.draft.id if self.draft else ""))
         menu.add_command(label="Delete draft...", command=self.delete_draft)
@@ -664,6 +670,7 @@ class StudioView(ctk.CTkFrame):
         except Exception:
             return False                       # half-typed numbers and the like: keep the last good copy
         self._last_obj = obj
+        self._show_picture()
         if baseline:
             self._last_record = record
             return True
@@ -929,6 +936,56 @@ class StudioView(ctk.CTkFrame):
         from ui.collections_view import ImportReportDialog
         ImportReportDialog(parent, report, [], [])
         self._schedule_analysis(200)
+
+    def _show_picture(self):
+        """The draft's picture beside its kind (kept by name, so it carries over to the published entry)."""
+        from content_images import KINDS
+        draft = self.draft
+        kind = draft.kind if draft is not None and draft.kind in KINDS else None
+        name = ((getattr(self._last_obj, "name", "") or (draft.name if draft else "")) or "").strip() if kind else ""
+        key = (kind, name)
+        if key == self._picture_key:
+            return
+        self._picture_key = key
+        if kind:
+            self.picture.kind = kind
+        self.picture.show(name or None)
+
+    def export_draft_pdf(self):
+        """The draft as a printable page, laid out like the collection's Export PDF."""
+        draft = self.draft
+        if draft is None or self.editor is None:
+            return
+        parent = self.winfo_toplevel()
+        import pdf_export
+        if not pdf_export.available():
+            messagebox.showerror("Export PDF", "Exporting needs the 'reportlab' package, which isn't installed.",
+                                 parent=parent)
+            return
+        self._snapshot()
+        obj = self._last_obj
+        if obj is None or not (getattr(obj, "name", "") or "").strip():
+            messagebox.showinfo("Export PDF", "Give the draft a name first.", parent=parent)
+            return
+        from ui.bulk_actions import ExportPdfDialog
+        dialog = ExportPdfDialog(parent, f"Export '{obj.name}' as a PDF", obj.name)
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return
+        safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in obj.name).strip() or "draft"
+        path = filedialog.asksaveasfilename(parent=parent, title="Save PDF", defaultextension=".pdf",
+                                            initialfile=f"{safe}.pdf", filetypes=[("PDF", "*.pdf")])
+        if not path:
+            return
+        try:
+            pdf_export.export_pdf(path, [obj], dialog.result)
+        except Exception as e:
+            messagebox.showerror("Export PDF", f"The PDF couldn't be written.\n\n{e}", parent=parent)
+            return
+        self._say("Draft exported as PDF.")
+        if messagebox.askyesno("Export PDF", f"Saved to\n{path}\n\nOpen it now?", parent=parent):
+            from ui.pdf_library_view import open_externally
+            open_externally(path)
 
     def export_draft(self):
         draft = self.draft

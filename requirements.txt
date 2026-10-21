@@ -7,3 +7,7 @@ pillow>=10.0.0
 certifi>=2024.2.2
 # LAN sessions: the host makes a throwaway TLS certificate for each session (lan/security.py).
 cryptography>=42.0.0
+# PDF library (Game Tools > PDF Library): reads and draws PDF pages with PDFium.
+pypdfium2>=4.30
+# PDF export (styled PDFs of collection entries).
+reportlab>=4.0

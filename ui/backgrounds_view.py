@@ -52,6 +52,7 @@ class BackgroundListPanel(VirtualListPanel):
 
 class BackgroundDetailPanel(VersionedDetailBase):
     """Panel displaying detailed information about a background."""
+    IMAGE_KIND = "backgrounds"
 
     CURRENT_ATTR = "_current_background"
     
@@ -331,6 +332,7 @@ class BackgroundDetailPanel(VersionedDetailBase):
         
         if background is None:
             self.name_label.configure(text="Select a background")
+            self._show_picture(None)
             self.source_label.configure(text="")
             self.stats_frame.pack_forget()
             self.feat_frame.pack_forget()
@@ -348,6 +350,7 @@ class BackgroundDetailPanel(VersionedDetailBase):
         # Name (with custom indicator)
         name_text = f"* {display_name(background.name)}" if background.is_custom else display_name(background.name)
         self.name_label.configure(text=name_text)
+        self._show_picture(display_name(background.name))
         
         # Source
         if background.source:

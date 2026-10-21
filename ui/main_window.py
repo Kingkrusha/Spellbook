@@ -510,6 +510,28 @@ class MainWindow(ctk.CTkFrame):
         # Reopen the tabs from last time (if wanted); otherwise the app opens on a Home tab
         self._restore_tabs()
 
+        self._install_hotkeys()
+
+    def _install_hotkeys(self):
+        """Bind the keyboard shortcuts (Settings > Keyboard Shortcuts changes them)."""
+        import hotkeys
+        from ui.hotkey_actions import build_handlers
+        overrides = dict(getattr(self.settings_manager.settings, 'hotkeys', {}) or {})
+        try:
+            manager = hotkeys.install(self.winfo_toplevel(), build_handlers(self), overrides)
+        except Exception as e:
+            print(f"Keyboard shortcuts are off: {e}")
+            return
+        last = {'value': overrides}
+
+        def on_settings(settings):
+            # Reset to defaults (or an edit elsewhere) changed the shortcuts: bind them again
+            current = dict(getattr(settings, 'hotkeys', {}) or {})
+            if current != last['value']:
+                last['value'] = current
+                manager.apply(current)
+        self.settings_manager.add_listener(on_settings)
+
     def _on_new_tab_requested(self, index: Optional[int] = None):
         """The tab bar's "+" (or its context menu) asked for a new tab: it opens on Home."""
         self._open_page_in_new_tab("home", index=index)
@@ -527,6 +549,9 @@ class MainWindow(ctk.CTkFrame):
             "initiative": "Initiative",
             "dice_analyzer": "Dice Analyzer",
             "matchup": "Matchup",
+            "random_tables": "Random Tables",
+            "calendar": "Calendar",
+            "pdf_library": "PDF Library",
             "studio": "Homebrew Studio",
         }.get(page_type, "Spellbook")
 
@@ -582,7 +607,7 @@ class MainWindow(ctk.CTkFrame):
         if page == "studio":
             page = "game_tools"       # the Studio is heavy to build: a restored tab opens on the tool list instead
         if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
-                    "initiative", "dice_analyzer", "matchup"):
+                    "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -723,6 +748,21 @@ class MainWindow(ctk.CTkFrame):
             return self._build_dice_analyzer(tab_id)
         if page_type == "matchup":
             return self._build_matchup(tab_id)
+        if page_type == "random_tables":
+            from ui.random_tables_view import RandomTablesView
+            state = self._tab_views[tab_id].setdefault('random_tables_state', {}) \
+                if tab_id in self._tab_views else {}
+            return RandomTablesView(self, state, service=self.session,
+                                    on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
+        if page_type == "calendar":
+            from ui.calendar_view import CalendarView
+            state = self._tab_views[tab_id].setdefault('calendar_state', {}) if tab_id in self._tab_views else {}
+            return CalendarView(self, state, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
+        if page_type == "pdf_library":
+            from ui.pdf_library_view import PdfLibraryView
+            state = self._tab_views[tab_id].setdefault('pdf_state', {}) if tab_id in self._tab_views else {}
+            return PdfLibraryView(self, state, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
+                                  on_import_text=self.import_text_into)
         if page_type == "studio":
             return self._build_studio(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
@@ -968,8 +1008,8 @@ class MainWindow(ctk.CTkFrame):
                 self._navigate_tab(tab_id, "initiative")
         elif key == "dice_analyzer":
             self._navigate_tab(tab_id, "dice_analyzer")
-        elif key == "matchup":
-            self._navigate_tab(tab_id, "matchup")
+        elif key in ("matchup", "random_tables", "calendar", "pdf_library"):
+            self._navigate_tab(tab_id, key)
         elif key == "studio":
             self._navigate_tab(tab_id, "studio")
 
@@ -1409,6 +1449,9 @@ class MainWindow(ctk.CTkFrame):
         """Navigate to a collection within a specific tab."""
         if tab_id not in self._tab_views:
             return
+        if collection_key == "random_tables":
+            self._open_random_table(tab_id, item_name)
+            return
 
         view_info = self._tab_views[tab_id]
         view_info['current_collection'] = collection_key
@@ -1426,6 +1469,45 @@ class MainWindow(ctk.CTkFrame):
         # Show the appropriate sub-view
         self._show_collection_sub_view(tab_id, collection_key, item_name)
         self._schedule_tab_save()
+
+    # collection -> the page method that runs its "add from pasted text" flow
+    _TEXT_IMPORTERS = {"spells": "_on_new_spell_from_text", "feats": "_on_add_feat_from_text",
+                       "lineages": "_on_add_lineage_from_text", "equipment": "_on_add_item_from_text",
+                       "magic_items": "_on_add_item_from_text"}
+
+    def import_text_into(self, collection_key: str, text: str):
+        """Open a collection in a new tab and run its text importer on ``text`` (the PDF library's Import)."""
+        method = self._TEXT_IMPORTERS.get(collection_key)
+        if method is None:
+            return
+        tab_id = self._open_page_in_new_tab("collections")
+        self._navigate_to_collection_in_tab(tab_id, collection_key)
+        page = (self._tab_views.get(tab_id) or {}).get('sub_view')
+        run = getattr(page, method, None)
+        if run is None:
+            return
+        from ui.text_import_dialogs import TextImportDialog
+
+        def go():
+            TextImportDialog.PREFILL = text
+            try:
+                run()
+            finally:
+                TextImportDialog.PREFILL = None
+        self.after(100, go)
+
+    def _open_random_table(self, tab_id: str, name: Optional[str] = None):
+        """Show the Random Tables page in this tab (a random table picked in the global search)."""
+        info = self._tab_views.get(tab_id) or {}
+        if info.get('type') == 'collections' and hasattr(info.get('view'), 'search_bar'):
+            info['view'].search_bar.cleanup()
+        if name:
+            state = info.setdefault('random_tables_state', {})
+            state['selected'], state['query'] = name, ""
+        self._navigate_tab(tab_id, "random_tables")
+        view = (self._tab_views.get(tab_id) or {}).get('view')
+        if name and hasattr(view, 'select_table'):
+            view.select_table(name)
 
     def _update_tab_name_for_collection(self, tab_id: str, collection_key: str, item_name: Optional[str] = None):
         """Update the tab name based on the collection being viewed."""

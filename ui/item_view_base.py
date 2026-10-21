@@ -30,6 +30,8 @@ class ItemDetailBase(ctk.CTkFrame):
     ``properties_frame``, ``_properties_chip_area``, ``desc_frame``, ``source_label`` ...) and lay a
     shown item out in ``show_item``."""
 
+    IMAGE_KIND: Optional[str] = None      # the collection's key in content_images (a picture beside the name)
+
     def __init__(self, parent):
         super().__init__(parent, corner_radius=10)
         self.theme = get_theme_manager()
@@ -47,11 +49,14 @@ class ItemDetailBase(ctk.CTkFrame):
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
 
-        self.name_label = ctk.CTkLabel(
-            self.scroll_frame, text="Select an item",
-            font=ui_font("title", bold=True), wraplength=400
-        )
-        self.name_label.pack(anchor="w", pady=(0, 5))
+        from ui.content_image import title_row
+        self.name_label, self.content_image = title_row(
+            self.scroll_frame, self.IMAGE_KIND, text="Select an item",
+            font=ui_font("title", bold=True), wraplength=400, justify="left")
+
+    def _show_picture(self, name):
+        if self.content_image is not None:
+            self.content_image.show(name)
 
     def _add_stats_label(self):
         self.stats_label = LabeledLabel(

@@ -1,6 +1,7 @@
 """
 Bulk actions on the entries ticked in a collection page's list ("Select" mode, see ``ui/virtual_list.py``):
-add them all to a character, edit their tags, edit their classes (spells) and set their source.
+add them all to a character, edit their tags, edit their classes (spells), set their source, and export them as a
+printable PDF (every page offers that one).
 
 :class:`BulkActionsMixin` is the flow, written once; a page names which actions it offers and says how to read,
 store and hand out its entries::
@@ -18,7 +19,7 @@ manager before they are edited, so an edit never writes back a stale copy.
 """
 
 import copy
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import customtkinter as ctk
@@ -39,6 +40,8 @@ def count_text(n: int, noun: str, plural: str) -> str:
 class _BulkDialog(ctk.CTkToplevel):
     """A modal dialog over a page, with a heading and a body to fill in; ``result`` stays None unless accepted."""
 
+    CONFIRM = "Apply"
+
     def __init__(self, parent, title: str, heading: str, size: str):
         super().__init__(parent)
         self.theme = get_theme_manager()
@@ -58,7 +61,7 @@ class _BulkDialog(ctk.CTkToplevel):
 
         buttons = ctk.CTkFrame(self.container, fg_color="transparent")
         buttons.pack(side="bottom", fill="x", pady=(12, 0))
-        add_cancel_save(buttons, self.theme, self.destroy, self._accept, confirm_text="Apply", outlined=True)
+        add_cancel_save(buttons, self.theme, self.destroy, self._accept, confirm_text=self.CONFIRM, outlined=True)
         center_on_parent(self, parent, clamp=True)
 
     def _build(self, container):
@@ -69,6 +72,40 @@ class _BulkDialog(ctk.CTkToplevel):
 
     def _warn(self, text: str):
         messagebox.showwarning("Bulk edit", text, parent=self)
+
+
+class ExportPdfDialog(_BulkDialog):
+    """How the PDF should look. ``result`` is a ``pdf_export.ExportOptions``."""
+
+    CONFIRM = "Export…"
+
+    def __init__(self, parent, heading: str, default_title: str):
+        self._default_title = default_title
+        super().__init__(parent, "Export PDF", heading, "440x380")
+
+    def _build(self, container):
+        ctk.CTkLabel(container, text="Title", font=ui_font("body"), anchor="w").pack(fill="x")
+        self.title_var = ctk.StringVar(value=self._default_title)
+        ctk.CTkEntry(container, textvariable=self.title_var).pack(fill="x", pady=(2, 10))
+        self.columns_var = ctk.StringVar(value="Two columns")
+        ctk.CTkSegmentedButton(container, values=["Two columns", "One column"],
+                               variable=self.columns_var).pack(anchor="w", pady=(0, 8))
+        self.size_var = ctk.StringVar(value="Letter")
+        ctk.CTkSegmentedButton(container, values=["Letter", "A4"], variable=self.size_var).pack(anchor="w",
+                                                                                              pady=(0, 8))
+        self.parchment_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(container, text="Parchment background (turn off to save ink)",
+                        variable=self.parchment_var).pack(anchor="w", pady=4)
+        self.numbers_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(container, text="Page numbers", variable=self.numbers_var).pack(anchor="w", pady=4)
+
+    def _accept(self):
+        from pdf_export import ExportOptions
+        self.result = ExportOptions(title=self.title_var.get().strip(),
+                                    columns=2 if self.columns_var.get().startswith("Two") else 1,
+                                    parchment=bool(self.parchment_var.get()), page_size=self.size_var.get(),
+                                    page_numbers=bool(self.numbers_var.get()))
+        self.destroy()
 
 
 class BulkTagsDialog(_BulkDialog):
@@ -263,7 +300,9 @@ class BulkActionsMixin(CharacterPickMixin):
             "classes": ("Edit Classes", self._bulk_edit_classes),
             "source": ("Set Source", self._bulk_set_source),
         }
-        self._bulk_panel.enable_bulk_actions([actions[key] for key in self.BULK_ACTIONS])
+        chosen = [actions[key] for key in self.BULK_ACTIONS]
+        chosen.append(("Export PDF", self._bulk_export_pdf))
+        self._bulk_panel.enable_bulk_actions(chosen)
 
     # ---- helpers ---------------------------------------------------------------------------------
 
@@ -318,6 +357,38 @@ class BulkActionsMixin(CharacterPickMixin):
         message = self._bulk_give(character, self._bulk_fresh(entries))
         if message:
             messagebox.showinfo("Added", message, parent=self)
+
+    # ---- export PDF ------------------------------------------------------------------------------
+
+    def _bulk_export_pdf(self, entries: list):
+        if not entries:
+            return
+        import pdf_export
+        if not pdf_export.available():
+            messagebox.showerror("Export PDF", "Exporting needs the 'reportlab' package, which isn't installed.",
+                                 parent=self)
+            return
+        fresh = sorted(self._bulk_fresh(entries), key=lambda e: e.name.lower())
+        dialog = ExportPdfDialog(self.winfo_toplevel(), f"Export {self._bulk_count_text(len(fresh))} as a PDF",
+                                 self.BULK_PLURAL.title())
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return
+        options = dialog.result
+        safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in options.title).strip() or "export"
+        path = filedialog.asksaveasfilename(parent=self, title="Save PDF", defaultextension=".pdf",
+                                            initialfile=f"{safe}.pdf", filetypes=[("PDF", "*.pdf")])
+        if not path:
+            return
+        try:
+            pdf_export.export_pdf(path, fresh, options)
+        except Exception as e:                 # a locked file, a full disk, or text reportlab can't lay out
+            messagebox.showerror("Export PDF", f"The PDF couldn't be written.\n\n{e}", parent=self)
+            return
+        if messagebox.askyesno("Export PDF", f"Saved {self._bulk_count_text(len(fresh))} to\n{path}\n\n"
+                               "Open it now?", parent=self):
+            from ui.pdf_library_view import open_externally
+            open_externally(path)
 
     # ---- tags ------------------------------------------------------------------------------------
 

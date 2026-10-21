@@ -514,6 +514,11 @@ class ClassesCollectionView(ctk.CTkFrame):
         header_frame = ctk.CTkFrame(self.content, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 15))
         
+        from ui.content_image import ContentImage
+        picture = ContentImage(header_frame, "classes")
+        picture.pack(side="right", anchor="n", padx=(15, 0))
+        picture.show(display_name(class_def.name))
+
         ctk.CTkLabel(
             header_frame, text=display_name(class_def.name),
             font=ui_font("title", 28, bold=True),

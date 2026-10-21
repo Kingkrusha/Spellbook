@@ -242,7 +242,8 @@ def tick(view, *names):
 
 
 def test_the_item_pages_offer_add_tags_and_source(item_page):
-    assert [b.cget("text") for b in item_page.list_panel._bulk_buttons] == ["Add to Character", "Edit Tags", "Set Source"]
+    assert [b.cget("text") for b in item_page.list_panel._bulk_buttons] == ["Add to Character", "Edit Tags", "Set Source",
+                                                                         "Export PDF"]
 
 
 def test_setting_the_source_of_several_items(item_page, monkeypatch, tk_root):
@@ -288,6 +289,24 @@ def test_tags_that_already_match_are_not_rewritten(item_page, monkeypatch):
     item_page.item_manager.update_item = lambda *a: stored.append(a) or original(*a)
     item_page.list_panel._bulk_buttons[1].invoke()
     assert stored == [] and "Updated 0 of 1" in told[-1][1]
+
+
+def test_export_pdf_writes_the_ticked_items(item_page, monkeypatch, tmp_path):
+    pytest.importorskip("reportlab")
+    import pdf_export
+    from tkinter import filedialog
+    bulk = importlib.import_module("ui.bulk_actions")
+    dialogs = fake_dialog(monkeypatch, bulk, "ExportPdfDialog", pdf_export.ExportOptions(title="Loot"))
+    target = tmp_path / "loot.pdf"
+    monkeypatch.setattr(filedialog, "asksaveasfilename", lambda **k: str(target))
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: False)
+    written = []
+    monkeypatch.setattr(pdf_export, "export_pdf", lambda path, entries, options: written.append(
+        (path, [e.name for e in entries], options.title)))
+    tick(item_page, f"{TAG} B", f"{TAG} A")
+    item_page.list_panel._bulk_buttons[-1].invoke()
+    assert len(dialogs) == 1 and "2 items" in dialogs[0][0]
+    assert written == [(str(target), [f"{TAG} A", f"{TAG} B"], "Loot")]          # official or not, sorted by name
 
 
 def test_only_official_items_ticked_says_so_and_changes_nothing(item_page, monkeypatch):
@@ -374,7 +393,7 @@ def feats_page(tk_root, monkeypatch):
 
 
 def test_the_feats_page_offers_add_and_source(feats_page):
-    assert [b.cget("text") for b in feats_page.list_panel._bulk_buttons] == ["Add to Character", "Set Source"]
+    assert [b.cget("text") for b in feats_page.list_panel._bulk_buttons] == ["Add to Character", "Set Source", "Export PDF"]
 
 
 def test_feats_go_on_the_character_once(feats_page, monkeypatch):
@@ -407,7 +426,7 @@ def test_lineages_backgrounds_and_monsters_offer_the_source(tk_root):
                         ("ui.monster_view", "MonsterView")):
         view = getattr(importlib.import_module(module), cls)(tk_root)
         try:
-            assert [b.cget("text") for b in view.list_panel._bulk_buttons] == ["Set Source"], cls
+            assert [b.cget("text") for b in view.list_panel._bulk_buttons] == ["Set Source", "Export PDF"], cls
         finally:
             view.destroy()
 
@@ -485,9 +504,9 @@ def stored_spell(view, letter):
     return view.spell_manager.get_spell(f"{TAG} Spell {letter}")
 
 
-def test_the_spells_page_offers_all_four_actions(spells_page):
+def test_the_spells_page_offers_all_its_actions(spells_page):
     assert [b.cget("text") for b in spells_page.spell_list._bulk_buttons] == [
-        "Add to Character", "Edit Tags", "Edit Classes", "Set Source"]
+        "Add to Character", "Edit Tags", "Edit Classes", "Set Source", "Export PDF"]
 
 
 def test_spell_tags_in_bulk_keep_the_protected_ones(spells_page, monkeypatch):

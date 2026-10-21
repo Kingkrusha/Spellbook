@@ -1320,6 +1320,10 @@ class RichTextEditor:
         # description field.
         from ui.object_link_widgets import attach_object_linking
         self.linker = attach_object_linking(text_widget, self.theme, get_popup_parent=lambda: self.parent)
+
+        # Formatting shortcuts (Ctrl+B, ...) act on whichever editor has focus
+        from ui.hotkey_actions import register_rich_editor
+        register_rich_editor(text_widget, self)
     
     def create_toolbar(self, toolbar_parent) -> ctk.CTkFrame:
         """

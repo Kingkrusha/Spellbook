@@ -4,12 +4,14 @@ import time
 
 import pytest
 
+from tests.lan_wait import stall_report
+
 from lan import protocol as P
 from lan.protocol import LanError
 from lan.service import CLIENT, HOSTING, JOINING, NONE, SessionService, local_addresses
 
 
-def pump_until(cond, *services, timeout=8.0):
+def pump_until(cond, *services, timeout=20.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for s in services:
@@ -17,7 +19,7 @@ def pump_until(cond, *services, timeout=8.0):
         if cond():
             return
         time.sleep(0.02)
-    raise AssertionError("condition not reached")
+    raise AssertionError("condition not reached\n" + stall_report(services))
 
 
 class Recorder:

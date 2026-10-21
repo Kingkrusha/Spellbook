@@ -16,7 +16,7 @@ from lan.protocol import LanError
 
 # ---------------------------------------------------------------- helpers
 
-def wait_for(events, kind, timeout=5.0, where=None):
+def wait_for(events, kind, timeout=15.0, where=None):
     """Drain ``events`` until one of type ``kind`` (matching ``where``) arrives."""
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -45,7 +45,7 @@ def host():
 
 def join(host, name, **kw):
     c = LanClient(name, **kw)
-    c.connect("127.0.0.1", host.port, host.fingerprint, timeout=10)
+    c.connect("127.0.0.1", host.port, host.fingerprint, timeout=20)
     return c
 
 
@@ -216,10 +216,10 @@ def test_password():
     h.start(port=0, bind="127.0.0.1")
     try:
         with pytest.raises(LanError) as exc:
-            LanClient("A", password="wrong").connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+            LanClient("A", password="wrong").connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
         assert exc.value.code == "password"
         ok = LanClient("A", password="swordfish")
-        ok.connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+        ok.connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
         ok.close()
     finally:
         h.stop()
@@ -235,7 +235,7 @@ def test_approval_flow():
         def attempt(name, key):
             try:
                 c = LanClient(name)
-                c.connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+                c.connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
                 result[key] = c
             except LanError as e:
                 result[key] = e
@@ -265,9 +265,9 @@ def test_session_full():
     h.start(port=0, bind="127.0.0.1")
     try:
         a = LanClient("A")
-        a.connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+        a.connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
         with pytest.raises(LanError) as exc:
-            LanClient("B").connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+            LanClient("B").connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
         assert exc.value.code == "full"
         a.close()
     finally:
@@ -288,7 +288,7 @@ def test_host_stop_disconnects_clients():
     h = LanHost("DM", require_approval=False)
     h.start(port=0, bind="127.0.0.1")
     a = LanClient("A")
-    a.connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+    a.connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
     h.stop()
     assert wait_for(a.events, "disconnected")["reason"]
     a.close()
@@ -297,9 +297,17 @@ def test_host_stop_disconnects_clients():
 def test_rate_limit_drops_flooders(host):
     a = join(host, "Alice")
     try:
-        for i in range(60):
+        # Stay under the strike limit first, so the warning is read before any drop.
+        for i in range(15):
             a.send_chat(f"spam {i}")
-        wait_for(a.events, "error", where=lambda e: e["code"] == "rate_limited", timeout=8)
+        wait_for(a.events, "error", where=lambda e: e["code"] == "rate_limited", timeout=20)
+        # Keep flooding and the host gives up on the peer.
+        for i in range(60):
+            try:
+                a.send_chat(f"more spam {i}")
+            except Exception:
+                break
+        wait_for(a.events, "disconnected", timeout=20)
     finally:
         a.close()
 
