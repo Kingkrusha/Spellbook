@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 
 class Confidence(str, Enum):
@@ -107,6 +107,16 @@ def clean_lines(text: str) -> List[str]:
     return out
 
 
+def begin_block(kind: str, text: str):
+    """How every block parser starts: ``(the empty ParsedObject, the block's cleaned lines without leading blanks)``.
+
+    An empty ``lines`` means there is nothing to parse and the object is returned as it is."""
+    lines = clean_lines(text)
+    while lines and not lines[0]:
+        lines.pop(0)
+    return ParsedObject(kind=kind, raw_text=text), lines
+
+
 def strip_markdown(s: str) -> str:
     s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
     s = re.sub(r"\*(.+?)\*", r"\1", s)
@@ -194,6 +204,76 @@ DAMAGE_TYPES = [
 AOE_SHAPES = ["sphere", "cube", "cone", "line", "cylinder", "emanation", "wall", "radius"]
 
 DICE_RE = re.compile(r"\b\d+d\d+\b", re.IGNORECASE)
+
+
+# --------------------------------------------------------------------------- #
+# Splitting a pasted batch into one block per object
+# --------------------------------------------------------------------------- #
+
+def split_on_blank_gaps(text: str) -> List[str]:
+    """The fallback when nothing anchors a block: chunks separated by blank-line gaps, else the whole text."""
+    chunks = re.split(r"\n\s*\n\s*\n*", text.strip())
+    return [c.strip() for c in chunks if c.strip()] or [text.strip()]
+
+
+def cluster_anchors(anchors: List[int], gap: int = 3) -> List[int]:
+    """Anchor lines within ``gap`` lines of the previous one belong to the same header (a feat has both a
+    category line and a Prerequisite line); returns the first line of each cluster."""
+    clusters: List[int] = [anchors[0]]
+    for idx in anchors[1:]:
+        if idx - clusters[-1] > gap:
+            clusters.append(idx)
+    return clusters
+
+
+def blocks_from_anchors(lines: List[str], anchors: List[int],
+                        skip_line: Optional[Callable[[str], bool]] = None) -> List[str]:
+    """One block per anchor: an object's name is the nearest line above its anchor that is not blank (nor
+    matched by ``skip_line``, e.g. a "Source:" line sitting between name and header), and its block runs to
+    the line before the next object's name."""
+    starts: List[int] = []
+    for anchor in anchors:
+        j = anchor - 1
+        while j >= 0 and (not lines[j] or (skip_line is not None and skip_line(lines[j]))):
+            j -= 1
+        starts.append(j if j >= 0 else anchor)
+
+    starts = sorted(set(starts))
+    blocks: List[str] = []
+    for k, start in enumerate(starts):
+        end = starts[k + 1] if k + 1 < len(starts) else len(lines)
+        chunk = "\n".join(lines[start:end]).strip()
+        if chunk:
+            blocks.append(chunk)
+    return blocks
+
+
+def join_paragraphs(lines: List[str], separator: str) -> str:
+    """Description lines -> text: runs of lines are one paragraph; blank lines end it; paragraphs are joined by
+    ``separator`` (spells use a backslash, everything else a blank line)."""
+    paras: List[str] = []
+    buf: List[str] = []
+    for ln in lines:
+        if ln:
+            buf.append(ln)
+        elif buf:
+            paras.append(" ".join(buf))
+            buf = []
+    if buf:
+        paras.append(" ".join(buf))
+    return separator.join(paras).strip()
+
+
+_FALLBACK_CLASSES = ["artificer", "bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard"]
+
+
+def known_class_names() -> List[str]:
+    """Lower-case class names (including custom ones) when run inside the app, else the standard list."""
+    try:
+        from spell import CharacterClass
+        return [c.lower() for c in CharacterClass.all_class_names_with_custom()]
+    except Exception:  # pragma: no cover - importable in isolation
+        return list(_FALLBACK_CLASSES)
 
 
 def guess_description_tags(description: str, school: Optional[str]) -> List[str]:

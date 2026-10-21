@@ -44,6 +44,7 @@ SOURCES: Dict[str, tuple] = {
     "Subclasses": ("subclasses", ("description", "features_json"), None),
     "Equipment": ("equipment", ("type", "description", "properties_json"), None),
     "Magic Items": ("magic_items", ("type", "rarity", "description", "properties_json"), None),
+    "Rules": ("rules", ("category", "description"), None),
     # Summoned creatures (spell_only) only exist inside their spell, so they are not searchable.
     "Monsters": ("monsters", ("creature_type", "description", "traits_json", "actions_json",
                               "bonus_actions_json", "reactions_json", "legendary_actions_json"),

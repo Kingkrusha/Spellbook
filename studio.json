@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "drafts": [
+    {
+      "id": "f94d70b764",
+      "kind": "spells",
+      "name": "Thingamajig",
+      "record": {
+        "name": "Thingamajig",
+        "level": 0,
+        "casting_time": "1 action",
+        "ritual": false,
+        "range_value": 0,
+        "components": "V, S",
+        "duration": "10 minuites",
+        "concentration": true,
+        "description": "",
+        "source": "KingKrusha",
+        "classes": [
+          "Artificer",
+          "Sorcerer",
+          "Wizard"
+        ],
+        "tags": [],
+        "is_modified": false,
+        "original_name": "",
+        "is_legacy": false
+      },
+      "created": 1792377748.0623796,
+      "updated": 1792377957.5968797,
+      "published_as": "",
+      "parent": ""
+    },
+    {
+      "id": "4836bf586c",
+      "kind": "subclasses",
+      "name": "",
+      "record": {},
+      "created": 1792378075.912359,
+      "updated": 1792378075.912359,
+      "published_as": "",
+      "parent": "Monk"
+    },
+    {
+      "id": "1186c0ddb5",
+      "kind": "monsters",
+      "name": "Groobus",
+      "record": {
+        "name": "Groobus",
+        "epithet": "",
+        "size": "Large",
+        "creature_type": "Dragon",
+        "creature_subtype": "",
+        "alignment": "Chaotic Evil",
+        "ac": 20,
+        "initiative_proficiency": 0,
+        "hp": 310,
+        "hit_dice": "20d10 + 200",
+        "speeds": {},
+        "can_hover": false,
+        "ac_text": "",
+        "hp_text": "",
+        "speed_text": "",
+        "cr_text": "",
+        "skills_text": "",
+        "show_initiative": true,
+        "ability_scores": {
+          "strength": 10,
+          "dexterity": 10,
+          "constitution": 30,
+          "intelligence": 10,
+          "wisdom": 10,
+          "charisma": 10
+        },
+        "saving_throws": {
+          "strength": false,
+          "dexterity": false,
+          "constitution": false,
+          "intelligence": false,
+          "wisdom": false,
+          "charisma": false
+        },
+        "skills": {
+          "acrobatics": 0,
+          "animal_handling": 0,
+          "arcana": 0,
+          "athletics": 0,
+          "deception": 0,
+          "history": 0,
+          "insight": 0,
+          "intimidation": 0,
+          "investigation": 0,
+          "medicine": 0,
+          "nature": 0,
+          "perception": 0,
+          "performance": 0,
+          "persuasion": 0,
+          "religion": 0,
+          "sleight_of_hand": 0,
+          "stealth": 0,
+          "survival": 0
+        },
+        "damage_vulnerabilities": [],
+        "damage_resistances": [],
+        "damage_immunities": [],
+        "condition_immunities": [],
+        "senses": [],
+        "languages": [],
+        "gear": [],
+        "challenge_rating": "11",
+        "lair_xp": null,
+        "traits": [],
+        "actions": [
+          {
+            "name": "Claw",
+            "description": "Melee Attack Roll: +14, reach 5 ft. Hit: 45 (10d6 + 10) Slashing damage.",
+            "build": {
+              "mode": "attack",
+              "kind": "melee",
+              "ability": "CON",
+              "proficient": true,
+              "reach": "5",
+              "range": "",
+              "dice": "10d6",
+              "type": "Slashing",
+              "extra_dice": "",
+              "extra_type": "Fire",
+              "effect": ""
+            }
+          },
+          {
+            "name": "Multiattack",
+            "description": "uses 2 claw attacks"
+          }
+        ],
+        "bonus_actions": [],
+        "reactions": [],
+        "legendary_actions": [],
+        "legendary_action_uses": 3,
+        "legendary_action_uses_in_lair": null,
+        "legendary_actions_intro": "",
+        "lair_actions": [],
+        "lair_actions_intro": "",
+        "habitat": [],
+        "treasure": [],
+        "description": "",
+        "source": "",
+        "is_official": false,
+        "is_custom": true,
+        "spell_only": false,
+        "spell_name": ""
+      },
+      "created": 1792380749.9851584,
+      "updated": 1792383669.58218,
+      "published_as": "",
+      "parent": ""
+    },
+    {
+      "id": "369a734075",
+      "kind": "monsters",
+      "name": "",
+      "record": {},
+      "created": 1792383483.4762282,
+      "updated": 1792383483.4762282,
+      "published_as": "",
+      "parent": ""
+    },
+    {
+      "id": "f083ff630f",
+      "kind": "spells",
+      "name": "",
+      "record": {},
+      "created": 1792386968.7350419,
+      "updated": 1792386968.7350419,
+      "published_as": "",
+      "parent": ""
+    },
+    {
+      "id": "178c044040",
+      "kind": "rules",
+      "name": "",
+      "record": {},
+      "created": 1792387690.6539736,
+      "updated": 1792387690.6539736,
+      "published_as": "",
+      "parent": ""
+    },
+    {
+      "id": "f0adbd7d98",
+      "kind": "subclasses",
+      "name": "",
+      "record": {},
+      "created": 1792450725.5567389,
+      "updated": 1792450725.5567389,
+      "published_as": "",
+      "parent": "Bard"
+    }
+  ],
+  "panels": [],
+  "last_draft": "f0adbd7d98"
+}

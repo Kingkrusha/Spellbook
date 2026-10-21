@@ -3,20 +3,25 @@ Feats View for D&D 5e Spellbook Application.
 Displays a searchable/filterable list of feats with details panel.
 """
 
+from ui.text_import_flow import announce_added, import_from_pasted_text
+from ui.versioned_detail import VersionedDetailBase
+from ui.window_utils import add_cancel_save, center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 from ui.label_text import LabeledLabel
-import tkinter as tk
 from tkinter import messagebox
-from typing import List, Optional, Callable
-from feat import Feat, FeatManager, get_feat_manager
+from typing import List, Optional
+from feat import Feat, get_feat_manager
 from legacy_content import legacy_pair_key
 from content_versions import VersionCatalog, display_name
-from ui.version_bar import VersionBar
 from theme import get_theme_manager
 from settings import get_settings_manager
-from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.filter_widgets import SourceFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
+from ui.bulk_actions import BulkActionsMixin
+from ui.collection_page import CollectionPageMixin
+from ui.review_banner import add_review_banner, outline_fields
 
 
 def _list_name(name: str) -> str:
@@ -54,37 +59,14 @@ class FeatListPanel(VirtualListPanel):
         return self.select_by_name(name, version)
 
 
-class FeatDetailPanel(ctk.CTkFrame):
+class FeatDetailPanel(VersionedDetailBase):
     """Panel displaying detailed information about a feat."""
-    
-    def __init__(self, parent):
-        super().__init__(parent, corner_radius=10)
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._current_feat: Optional[Feat] = None
-        self._versions: List[Feat] = []
-        self.on_version_change: Optional[Callable[[Feat], None]] = None
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
 
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_colors()
+    CURRENT_ATTR = "_current_feat"
     
     def _create_widgets(self):
         """Create the detail view widgets."""
-        # Scrollable content
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Feat name
-        self.name_label = ctk.CTkLabel(
-            self.scroll_frame, text="Select a feat",
-            font=ui_font("title", bold=True),
-            wraplength=400
-        )
-        self.name_label.pack(anchor="w", pady=(0, 5))
+        self._add_scroll_and_title("Select a feat", 400)
         
         # Type badge
         self.type_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
@@ -98,14 +80,8 @@ class FeatDetailPanel(ctk.CTkFrame):
             padx=8, pady=2
         )
         
-        # Source info (a drop-down when the feat has several versions)
-        self.source_label = VersionBar(
-            self.scroll_frame, text="",
-            font=ui_font("small"),
-            text_color=self.theme.get_text_secondary(),
-            on_select=self._version_selected
-        )
-        self.source_label.pack(anchor="w", pady=(0, 10))
+        # Source info (a drop-down when there are several versions)
+        self._add_version_bar()
         
         # Prerequisites
         self.prereq_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
@@ -146,12 +122,6 @@ class FeatDetailPanel(ctk.CTkFrame):
         self.type_badge.configure(fg_color=self.theme.get_current_color('accent_primary'))
         self.spell_frame.configure(fg_color=self.theme.get_current_color('bg_secondary'))
     
-    def _clear_description(self):
-        """Clear all description widgets."""
-        for widget in self._desc_widgets:
-            widget.destroy()
-        self._desc_widgets = []
-    
     def _render_description(self, text: str):
         """Render description with bold text support and dynamic resizing."""
         from ui.rich_text_utils import DynamicText
@@ -191,11 +161,8 @@ class FeatDetailPanel(ctk.CTkFrame):
                 spacer.pack()
                 self._desc_widgets.append(spacer)
     
-    def _version_selected(self, feat: Feat):
-        """The user picked another version in the Source drop-down."""
-        self.show_feat(feat, self._versions)
-        if self.on_version_change:
-            self.on_version_change(feat)
+    def _show_item(self, item, versions=None):
+        self.show_feat(item, versions)
 
     def show_feat(self, feat: Optional[Feat], versions: Optional[List[Feat]] = None):
         """Display details for a feat (``versions``: every version offered in the Source drop-down)."""
@@ -258,8 +225,11 @@ class FeatDetailPanel(ctk.CTkFrame):
         self._render_description(feat.description)
 
 
-class FeatsView(ctk.CTkFrame):
+class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     """Main view for browsing and managing feats."""
+
+    MANAGER_ATTR = "feat_manager"
+    PLURAL = "feats"
     
     def __init__(self, parent, character_manager=None, on_back=None):
         self.theme = get_theme_manager()
@@ -285,129 +255,24 @@ class FeatsView(ctk.CTkFrame):
         self._filter_debounce_delay = 150  # ms for text input
         
         self._create_widgets()
+        self._setup_bulk_actions()
         self._create_context_menu()
         self._create_compare_panel()
         self._load_feats()
         self.theme.add_listener(self._on_theme_changed)
     
-    def set_character_manager(self, character_manager):
-        """Set the character manager for add-to-character functionality."""
-        self.character_manager = character_manager
-    
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_context_menu_colors()
-        if hasattr(self, 'paned'):
-            self._update_paned_colors()
-        if hasattr(self, 'compare_container'):
-            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
-    
-    def _update_context_menu_colors(self):
-        """Update context menu colors for theme."""
-        if not hasattr(self, 'context_menu'):
-            return
-        bg_color = self.theme.get_current_color('bg_secondary')
-        fg_color = self.theme.get_current_color('text_primary')
-        self.context_menu.configure(
-            bg=bg_color,
-            fg=fg_color,
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=fg_color
-        )
-    
-    def _create_widgets(self):
-        """Create the main layout."""
-        # Top bar with search and filters
-        self._create_filter_bar()
-        
-        # Main content area with list and detail panels
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        
-        # Create a PanedWindow for resizable panels
-        self.paned = tk.PanedWindow(
-            self.content,
-            orient=tk.HORIZONTAL,
-            sashwidth=8,
-            sashrelief=tk.RAISED,
-            handlesize=0,
-            opaqueresize=False,
-            sashcursor="sb_h_double_arrow"
-        )
-        self.paned.pack(fill="both", expand=True)
-        self._update_paned_colors()
-        
-        # Left container to hold list or compare panel
-        self.left_container = ctk.CTkFrame(self.paned, fg_color="transparent")
-        
-        # Feat list panel (left)
-        self.list_panel = FeatListPanel(
-            self.left_container, 
-            on_select=self._on_feat_selected,
-            on_right_click=self._on_feat_right_click
-        )
-        self.list_panel.pack(fill="both", expand=True)
-        
-        # Feat detail panel (right)
-        self.detail_panel = FeatDetailPanel(self.paned)
-        self.detail_panel.on_version_change = self.list_panel.replace_selected
-        
-        # Add panes with minimum sizes
-        self.paned.add(self.left_container, minsize=280, stretch="always")
-        self.paned.add(self.detail_panel, minsize=400, stretch="always")
-        
-        # Set initial sash position (roughly 1:2 ratio)
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
-    
-    def _update_paned_colors(self):
-        """Update PanedWindow sash colors based on current theme."""
-        sash_color = self.theme.get_current_color("pane_sash")
-        self.paned.configure(bg=sash_color)
-    
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
         filter_bar = ctk.CTkFrame(self, fg_color="transparent")
         filter_bar.pack(fill="x", padx=10, pady=10)
-        
-        # Back button to return to collections
-        if self.on_back:
-            back_btn = ctk.CTkButton(
-                filter_bar, text="← Collections", width=110,
-                fg_color=self.theme.get_current_color('button_normal'),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary'),
-                command=self.on_back
-            )
-            back_btn.pack(side="left", padx=(0, 15))
-        
-        # Search box
-        self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        
-        search_entry = ctk.CTkEntry(
-            filter_bar, width=250, height=35,
-            placeholder_text="Search feats...",
-            textvariable=self.search_var
-        )
-        search_entry.pack(side="left", padx=(0, 15))
-        
-        # Type filter dropdown
-        ctk.CTkLabel(filter_bar, text="Type:").pack(side="left", padx=(0, 5))
-        
-        # Get all types from feat manager (auto-populated)
-        all_types = self.feat_manager.get_all_types()
-        type_options = ["All Types"] + [t if t else "General" for t in all_types]
-        self.type_var = ctk.StringVar(value="All Types")
-        self.type_combo = ctk.CTkComboBox(
-            filter_bar, width=180, height=35,
-            values=type_options,
-            variable=self.type_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.type_combo.pack(side="left", padx=(0, 15))
-        
+
+        self._add_back_button(filter_bar)
+        self._add_search_entry(filter_bar, "Search feats...", 200)
+
+        # Type filter, from the feat manager (auto-populated)
+        type_options = ["All Types"] + [t if t else "General" for t in self.feat_manager.get_all_types()]
+        self._add_filter_combo(filter_bar, "type", "Type:", "All Types", type_options, 180)
+
         # Spellcasting filter
         self.spellcasting_var = ctk.BooleanVar(value=False)
         self.spellcasting_check = ctk.CTkCheckBox(
@@ -416,97 +281,29 @@ class FeatsView(ctk.CTkFrame):
             command=lambda: self._on_filter_changed(immediate=True)
         )
         self.spellcasting_check.pack(side="left", padx=(0, 15))
-        
-        # Add feat button (right side)
-        add_btn = ctk.CTkButton(
-            filter_bar, text="+ Add Feat",
-            width=100, height=35,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_add_feat
-        )
-        add_btn.pack(side="right")
+
+        self._add_action_buttons(filter_bar, "+ Add Feat", 100, self._on_add_feat,
+                                 self._on_edit_feat, self._on_delete_feat)
 
         # Second row: source, official content, prerequisite, clear
-        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar2.pack(fill="x", padx=10, pady=(0, 10))
+        filter_bar2 = self._filter_row()
+        self._add_source_filter(filter_bar2)
+        self._add_content_filter(filter_bar2)
+        self._add_filter_combo(filter_bar2, "prereq", "Prerequisite:", "Any",
+                               ["Any", "Has Prerequisite", "No Prerequisite"], 110, (0, 20))
+        self._add_clear_button(filter_bar2)
 
-        ctk.CTkLabel(filter_bar2, text="Source:").pack(side="left", padx=(0, 5))
-        self.source_btn = ctk.CTkButton(
-            filter_bar2, text="Select Sources...", width=130, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._open_source_filter
-        )
-        self.source_btn.pack(side="left", padx=(0, 8))
-        self.source_label = ctk.CTkLabel(
-            filter_bar2, text="None selected",
-            font=ui_font("small"), text_color=self.theme.get_text_secondary()
-        )
-        self.source_label.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
-        self.official_var = ctk.StringVar(value="Any Content")
-        self.official_combo = ctk.CTkComboBox(
-            filter_bar2, width=140, height=35,
-            values=["Any Content", "Official Only", "Homebrew Only"],
-            variable=self.official_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.official_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Prerequisite:").pack(side="left", padx=(0, 5))
-        self.prereq_var = ctk.StringVar(value="Any")
-        self.prereq_combo = ctk.CTkComboBox(
-            filter_bar2, width=110, height=35,
-            values=["Any", "Has Prerequisite", "No Prerequisite"],
-            variable=self.prereq_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.prereq_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkButton(
-            filter_bar2, text="Clear Filters", width=110, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            command=self._clear_filters
-        ).pack(side="right")
-
-        # Edit/Delete buttons
-        self.delete_btn = ctk.CTkButton(
-            filter_bar, text="Delete",
-            width=80, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=self._on_delete_feat
-        )
-        self.delete_btn.pack(side="right", padx=(0, 5))
-        
-        self.edit_btn = ctk.CTkButton(
-            filter_bar, text="Edit",
-            width=80, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_edit_feat
-        )
-        self.edit_btn.pack(side="right", padx=(0, 5))
-    
     def _create_context_menu(self):
         """Create the right-click context menu for feats."""
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self._update_context_menu_colors()
-        self.context_menu.add_command(
-            label="Add to Character",
-            command=self._context_add_to_character
-        )
-        self.context_menu.add_command(
-            label="View and Compare",
-            command=self._context_view_compare
-        )
-    
+        self._build_context_menu([
+            ("Add to Character", self._context_add_to_character),
+            ("View and Compare", self._context_view_compare),
+        ])
+
+    def _create_panes(self):
+        self._create_panes_with_container(
+            FeatListPanel, FeatDetailPanel, self._on_feat_selected, self._on_feat_right_click)
+
     def _create_compare_panel(self):
         """Create the compare feat panel (hidden initially)."""
         # Container frame that will replace the feat list when comparing
@@ -547,38 +344,20 @@ class FeatsView(ctk.CTkFrame):
         """Context menu: Add feat to a character."""
         if not self._context_feat:
             return
-        
-        if not self.character_manager:
-            messagebox.showwarning("No Characters", "No character manager available.")
+        character = self._pick_character(f"Add '{self._context_feat.name}' to:")
+        if not character:
             return
-        
-        characters = self.character_manager.characters
-        if not characters:
-            messagebox.showwarning("No Characters", "No characters available. Create a character first.")
+
+        # Check if feat is already on character
+        if self._context_feat.name in character.feats:
+            messagebox.showinfo("Already Added",
+                                f"'{self._context_feat.name}' is already on {character.name}'s feat list.")
             return
-        
-        # Show dialog to select character
-        dialog = AddFeatToCharacterDialog(
-            self.winfo_toplevel(),
-            self._context_feat.name,
-            characters
-        )
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            character = self.character_manager.get_character(dialog.result)
-            if character:
-                # Check if feat is already on character
-                if self._context_feat.name in character.feats:
-                    messagebox.showinfo("Already Added", 
-                                       f"'{self._context_feat.name}' is already on {character.name}'s feat list.")
-                    return
-                
-                # Add the feat
-                character.feats.append(self._context_feat.name)
-                self.character_manager.save_characters()
-                messagebox.showinfo("Success", 
-                                   f"Added '{self._context_feat.name}' to {character.name}'s feats!")
+
+        # Add the feat
+        character.feats.append(self._context_feat.name)
+        self.character_manager.save_characters()
+        messagebox.showinfo("Success", f"Added '{self._context_feat.name}' to {character.name}'s feats!")
     
     def _context_view_compare(self):
         """Context menu: View and compare feat."""
@@ -616,6 +395,31 @@ class FeatsView(ctk.CTkFrame):
         self.compare_container.pack_forget()
         self.list_panel.pack(fill="both", expand=True)
     
+    BULK_ACTIONS = ("add", "source")
+    BULK_NOUN, BULK_PLURAL = "feat", "feats"
+
+    def _bulk_fetch(self, name: str):
+        return self.feat_manager.get_feat(name)
+
+    def _bulk_store(self, entries: list) -> int:
+        with self.feat_manager.batch():
+            return sum(bool(self.feat_manager.update_feat(e.name, e)) for e in entries)
+
+    def _bulk_reload(self):
+        self._load_feats()
+
+    def _bulk_all_sources(self) -> List[str]:
+        return self.feat_manager.get_all_sources()
+
+    def _bulk_give(self, character, entries: list) -> str:
+        new = [f.name for f in entries if f.name not in character.feats]
+        character.feats.extend(new)
+        if new:
+            self.character_manager.save_characters()
+        already = len(entries) - len(new)
+        return (f"Added {self._bulk_count_text(len(new))} to {character.name}'s feats."
+                + (f"\n{already} {'was' if already == 1 else 'were'} already there." if already else ""))
+
     def _load_feats(self):
         """Load feats from the manager."""
         self._all_feats = sorted(self.feat_manager.feats, key=lambda f: f.name.lower())
@@ -626,46 +430,10 @@ class FeatsView(ctk.CTkFrame):
         self.type_combo.configure(values=type_options)
         self._on_filter_changed(immediate=True)
     
-    def _on_filter_changed(self, immediate: bool = False):
-        """Called when any filter value changes with debouncing."""
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-        
-        if immediate:
-            self._filter_debounce_id = self.after(10, self._apply_filters)
-        else:
-            self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
-    
-    def _open_source_filter(self):
-        """Open the source filter dialog."""
-        available_sources = self.feat_manager.get_all_sources()
-        dialog = SourceFilterDialog(
-            self.winfo_toplevel(), available_sources,
-            self._selected_sources, self._source_filter_mode,
-            empty_message="No sources found in your feats."
-        )
-        self.wait_window(dialog)
-        self._selected_sources = dialog.result
-        self._source_filter_mode = dialog.result_mode
-        self._update_source_label()
-        self._on_filter_changed(immediate=True)
-
-    def _update_source_label(self):
-        """Update the source label with selected source count and mode."""
-        count = len(self._selected_sources)
-        if count == 0:
-            self.source_label.configure(text="None selected")
-        else:
-            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
-            if count == 1:
-                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
-            else:
-                self.source_label.configure(text=f"{count} sources ({mode_str})")
-
     def _clear_filters(self):
         """Reset every filter to its default value."""
         self.search_var.set("")
+        self.titles_var.set(False)
         self.type_var.set("All Types")
         self.spellcasting_var.set(False)
         self.official_var.set("Any Content")
@@ -687,10 +455,8 @@ class FeatsView(ctk.CTkFrame):
         filtered = []
         for feat in self._all_feats:
             # Search filter
-            if search_text:
-                if (search_text not in feat.name.lower() and
-                    search_text not in feat.plain_description().lower()):
-                    continue
+            if not self._passes_search(search_text, feat.name, lambda: [feat.plain_description()]):
+                continue
 
             # Type filter
             if type_filter != "All Types":
@@ -703,17 +469,11 @@ class FeatsView(ctk.CTkFrame):
                 continue
 
             # Source filter
-            if self._selected_sources:
-                source_selected = feat.source in self._selected_sources
-                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
-                    continue
-                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
-                    continue
+            if not self._passes_source_filter(feat.source):
+                continue
 
             # Official content filter
-            if official_filter == "Official Only" and not feat.is_official:
-                continue
-            if official_filter == "Homebrew Only" and feat.is_official:
+            if not self._passes_official_filter(feat.is_official, official_filter):
                 continue
 
             # Prerequisite filter
@@ -756,6 +516,10 @@ class FeatsView(ctk.CTkFrame):
             self._on_add_feat_from_text()
             return
 
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "feats"):
+            return
+
         dialog = FeatEditorDialog(self, "Add Feat")
         self.wait_window(dialog)
 
@@ -771,62 +535,27 @@ class FeatsView(ctk.CTkFrame):
         """Paste a block of text, auto-detect feat fields, and review each draft."""
         from ui.feat_text_import import FeatTextImportDialog
 
-        import_dialog = FeatTextImportDialog(self)
-        self.wait_window(import_dialog)
-        parsed_list = import_dialog.result
-        if not parsed_list:
-            return
-
-        try:
+        def load_converter():
             from text_import.feat_parser import to_feat
-        except Exception as exc:
-            messagebox.showerror("Auto-Detect Unavailable",
-                                 f"Could not load the text importer:\n{exc}")
-            return
+            return to_feat
 
-        added = []
-        total = len(parsed_list)
-        for idx, parsed in enumerate(parsed_list, 1):
-            try:
-                draft = to_feat(parsed)
-            except Exception as exc:
-                messagebox.showerror("Parse Error",
-                                     f"Could not build feat {idx} of {total}:\n{exc}")
-                continue
+        def mark_custom(feat):
+            feat.is_custom = True
 
-            review = sorted(set(parsed.needs_review()) | set(parsed.uncertain_fields()))
-            progress = f"{idx} of {total}" if total > 1 else ""
-
-            editor = FeatEditorDialog(
+        added = import_from_pasted_text(
+            self, import_cls=FeatTextImportDialog, load_converter=load_converter, noun="feat",
+            noun_phrase="a feat", dialog_parent=self,
+            make_editor=lambda draft, review, progress: FeatEditorDialog(
                 self, f"Review Feat: {draft.name or 'Untitled'}",
-                prefill_feat=draft, review_fields=review, batch_progress=progress,
-            )
-            self.wait_window(editor)
-
-            if editor.result:
-                editor.result.is_custom = True
-                if self.feat_manager.add_feat(editor.result):
-                    added.append(editor.result.name)
-                else:
-                    messagebox.showerror(
-                        "Error",
-                        f"A feat named '{editor.result.name}' already exists. "
-                        "It was not added.")
-            elif idx < total:
-                if not messagebox.askyesno(
-                        "Continue?",
-                        "Skip this feat and continue reviewing the remaining "
-                        f"{total - idx} feat(s)?"):
-                    break
+                prefill_feat=draft, review_fields=review, batch_progress=progress),
+            add=self.feat_manager.add_feat, prepare=mark_custom)
 
         if added:
             self._load_feats()
             if len(added) > 1:
-                messagebox.showinfo("Feats Added",
-                                    f"Added {len(added)} feats:\n" + "\n".join(added))
+                announce_added(added, "feats")
             else:
                 messagebox.showinfo("Success", f"Feat '{added[0]}' added!")
-
 
     def _on_edit_feat(self):
         """Edit the selected feat."""
@@ -865,8 +594,8 @@ class FeatsView(ctk.CTkFrame):
         return self.list_panel.select_feat(name, self._catalog.find(name))
 
 
-class FeatEditorDialog(ctk.CTkToplevel):
-    """Dialog for adding/editing a feat."""
+class FeatEditorBody(EditorBody):
+    """Dialog for adding/editing a feat. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, title: str, feat: Optional[Feat] = None,
                  prefill_feat: Optional[Feat] = None, review_fields: Optional[List[str]] = None,
@@ -894,10 +623,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
             self._apply_review_highlights()
 
         # Center dialog
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent)
     
     def _create_widgets(self):
         """Create the editor widgets."""
@@ -991,17 +717,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(10, 0))
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color="transparent", border_width=1,
-            command=self.destroy
-        ).pack(side="right", padx=(5, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            command=self._save
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self._finish, self._save, outlined=True)
     
     def _toggle_prereq(self):
         """Toggle prerequisite entry state."""
@@ -1052,47 +768,14 @@ class FeatEditorDialog(ctk.CTkToplevel):
 
     def _apply_review_highlights(self):
         """Add the auto-detect disclaimer banner and outline uncertain fields."""
-        try:
-            warn = self.theme.get_current_color('button_warning')
-        except Exception:
-            warn = "#d4a017"
-
-        banner = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_secondary'),
-                              corner_radius=8)
-        try:
-            banner.pack(fill="x", padx=20, pady=(12, 0), before=self._scroll)
-        except Exception:
-            banner.pack(fill="x", padx=20, pady=(12, 0))
-
-        heading = "Auto-detected from text - please review before saving"
-        if self._batch_progress:
-            heading = f"{heading}   ({self._batch_progress})"
-        ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ui_font("subheading", 13, bold=True),
-                     text_color=warn, anchor="w",
-                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
-
-        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
-        if review:
-            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
-            msg = f"Fields to double-check (outlined below): {names}"
-        else:
-            msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
-                     text_color=self.theme.get_text_secondary(), anchor="w",
-                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
-
-        ctk.CTkLabel(
-            banner,
-            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
-                  "irregularly formatted text, and feats vary a lot. Spellcasting "
-                  "fields especially are a best guess. Nothing is saved until you "
-                  "click Save."),
-            font=ui_font("small"), text_color=self.theme.get_text_secondary(),
-            anchor="w", justify="left", wraplength=520,
-        ).pack(fill="x", padx=12, pady=(0, 8))
-
-        widget_map = {
+        banner, warn = add_review_banner(
+            self, self._scroll, self._review_fields, self._REVIEW_FIELD_LABELS, self._batch_progress,
+            ("Auto-detection is rule-based, not perfect - accuracy drops for "
+            "irregularly formatted text, and feats vary a lot. Spellcasting "
+            "fields especially are a best guess. Nothing is saved until you "
+            "click Save."),
+            padx=20, wraplength=520)
+        widgets = {
             "name": self.name_entry,
             "type": self.type_combo,
             "prereq": self.prereq_entry,
@@ -1101,21 +784,13 @@ class FeatEditorDialog(ctk.CTkToplevel):
             "spells_num": self.spells_num_entry,
             "set_spells": self.set_spells_entry,
         }
-        for field_name in self._review_fields:
-            w = widget_map.get(field_name)
-            if w is None:
-                continue
-            try:
-                w.configure(border_color=warn, border_width=2)
-            except Exception:
-                pass
+        outline_fields(widgets, self._review_fields, warn)
 
-    def _save(self):
-        """Save the feat."""
+    def build_result(self, strict: bool = True) -> Feat:
+        """The feat the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Feat name is required.")
-            return
+        if not name and strict:
+            raise ValueError("Feat name is required.")
         
         feat_type = self.type_var.get()
         if feat_type == "General":
@@ -1156,7 +831,7 @@ class FeatEditorDialog(ctk.CTkToplevel):
         # Get source (custom feats are always unofficial and non-legacy)
         source = self.source_entry.get().strip()
         
-        self.result = Feat(
+        return Feat(
             name=name,
             type=feat_type,
             is_spellcasting=is_spellcasting,
@@ -1173,67 +848,11 @@ class FeatEditorDialog(ctk.CTkToplevel):
             roll_effects=self.roll_editor.get()
         )
 
-        self.destroy()
+class FeatEditorDialog(FeatEditorBody, DialogWindow):
+    """Dialog for adding/editing a feat."""
 
 
-class AddFeatToCharacterDialog(ctk.CTkToplevel):
-    """Dialog for selecting which character to add a feat to."""
-    
-    def __init__(self, parent, feat_name: str, characters: list):
-        super().__init__(parent)
-        self.title("Add Feat to Character")
-        self.geometry("350x200")
-        self.transient(parent)
-        self.grab_set()
-        
-        self.result: Optional[str] = None
-        self.theme = get_theme_manager()
-        
-        # Content
-        content = ctk.CTkFrame(self, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        ctk.CTkLabel(
-            content, 
-            text=f"Add '{feat_name}' to:",
-            font=ui_font("subheading", bold=True)
-        ).pack(anchor="w", pady=(0, 15))
-        
-        # Character dropdown
-        character_names = [c.name for c in characters]
-        self.char_var = ctk.StringVar(value=character_names[0] if character_names else "")
-        
-        self.char_combo = ctk.CTkComboBox(
-            content, width=280, height=35,
-            values=character_names,
-            variable=self.char_var,
-            state="readonly"
-        )
-        self.char_combo.pack(fill="x", pady=(0, 20))
-        
-        # Buttons
-        btn_frame = ctk.CTkFrame(content, fg_color="transparent")
-        btn_frame.pack(fill="x")
-        
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color="transparent", border_width=1,
-            command=self.destroy
-        ).pack(side="right", padx=(5, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Add", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            command=self._on_add
-        ).pack(side="right")
-        
-        # Center dialog
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-    
-    def _on_add(self):
-        """Handle add button click."""
-        self.result = self.char_var.get()
-        self.destroy()
+class FeatEditorPanel(FeatEditorBody, EmbeddedWindow):
+    """The FeatEditorDialog form inside the Homebrew Studio."""
+
+

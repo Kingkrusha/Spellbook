@@ -279,48 +279,74 @@ class SpellManager:
             print(f"Error in bulk_add_spells: {e}")
             return 0
     
+    def _store_updated_spell(self, old_name: str, updated_spell: Spell) -> bool:
+        """Write one edited spell to the database and the in-memory list (no re-sort, no notification)."""
+        # Get the spell ID
+        spell_id = self._db.get_spell_id_by_name(old_name)
+        if spell_id is None:
+            return False
+
+        # Check for name conflict if name changed
+        if old_name.lower() != updated_spell.name.lower():
+            if self._db.spell_exists(updated_spell.name):
+                return False
+
+        # Find the original spell to check for modifications
+        original_spell = None
+        for spell in self._spells:
+            if spell.name.lower() == old_name.lower():
+                original_spell = spell
+                break
+
+        # Check if this is an official spell being modified
+        if original_spell and original_spell.is_official:
+            # Check if any gameplay-relevant fields changed (not tags or source)
+            if self._has_gameplay_changes(original_spell, updated_spell):
+                updated_spell.is_modified = True
+
+        # Update in database
+        self._db.update_spell(spell_id, self._spell_to_dict(updated_spell))
+
+        # Update in-memory list
+        for i, spell in enumerate(self._spells):
+            if spell.name.lower() == old_name.lower():
+                self._spells[i] = updated_spell
+                break
+        return True
+
     def update_spell(self, old_name: str, updated_spell: Spell) -> bool:
         """Update an existing spell. Returns True if successful."""
         try:
-            # Get the spell ID
-            spell_id = self._db.get_spell_id_by_name(old_name)
-            if spell_id is None:
+            if not self._store_updated_spell(old_name, updated_spell):
                 return False
-            
-            # Check for name conflict if name changed
-            if old_name.lower() != updated_spell.name.lower():
-                if self._db.spell_exists(updated_spell.name):
-                    return False
-            
-            # Find the original spell to check for modifications
-            original_spell = None
-            for spell in self._spells:
-                if spell.name.lower() == old_name.lower():
-                    original_spell = spell
-                    break
-            
-            # Check if this is an official spell being modified
-            if original_spell and original_spell.is_official:
-                # Check if any gameplay-relevant fields changed (not tags or source)
-                if self._has_gameplay_changes(original_spell, updated_spell):
-                    updated_spell.is_modified = True
-            
-            # Update in database
-            self._db.update_spell(spell_id, self._spell_to_dict(updated_spell))
-            
-            # Update in-memory list
-            for i, spell in enumerate(self._spells):
-                if spell.name.lower() == old_name.lower():
-                    self._spells[i] = updated_spell
-                    break
-            
             self._spells.sort(key=lambda s: (s.level, s.name.lower()))
             self._notify_listeners()
             return True
-            
+
         except Exception as e:
             print(f"Error updating spell: {e}")
             return False
+
+    def update_spells(self, updates: List[tuple]) -> int:
+        """Update many spells (``[(old_name, edited_spell), ...]``) in one transaction, telling the listeners once.
+
+        Returns how many were saved; one that can't be (gone, or a name clash) is skipped."""
+        saved = 0
+        try:
+            with self._db.batch():
+                for old_name, spell in updates:
+                    try:
+                        saved += bool(self._store_updated_spell(old_name, spell))
+                    except Exception as e:
+                        print(f"Error updating spell {old_name}: {e}")
+        except Exception as e:                      # the transaction itself failed: nothing was written
+            print(f"Error updating spells: {e}")
+            self.load_spells()
+            return 0
+        if saved:
+            self._spells.sort(key=lambda s: (s.level, s.name.lower()))
+            self._notify_listeners()
+        return saved
     
     def restore_spell_to_default(self, spell_name: str) -> bool:
         """
@@ -362,21 +388,7 @@ class SpellManager:
                 return False
             
             # Restore with is_modified=False (keep original_name for future restoration)
-            restore_data = {
-                'name': original_data['name'],
-                'level': original_data['level'],
-                'casting_time': original_data['casting_time'],
-                'ritual': original_data['ritual'],
-                'range_value': original_data['range_value'],
-                'components': original_data['components'],
-                'duration': original_data['duration'],
-                'concentration': original_data['concentration'],
-                'description': original_data['description'],
-                'source': original_data['source'],
-                'classes': original_data['classes'],
-                'tags': original_data['tags'],
-                'is_modified': False
-            }
+            restore_data = self._restore_data(original_data)
             
             # Update in database
             self._db.update_spell(spell_id, restore_data)
@@ -396,6 +408,15 @@ class SpellManager:
             print(f"Error restoring spell: {e}")
             return False
     
+    @staticmethod
+    def _restore_data(original_data: dict) -> dict:
+        """The fields that put an official spell back to its default values (unmodified)."""
+        keys = ('name', 'level', 'casting_time', 'ritual', 'range_value', 'components',
+                'duration', 'concentration', 'description', 'source', 'classes', 'tags')
+        restore_data = {key: original_data[key] for key in keys}
+        restore_data['is_modified'] = False
+        return restore_data
+
     def restore_all_official_spells(self) -> int:
         """
         Restore all modified official spells to their default values.
@@ -417,21 +438,7 @@ class SpellManager:
                     if original_data:
                         spell_id = self._db.get_spell_id_by_name(spell.name)
                         if spell_id:
-                            restore_data = {
-                                'name': original_data['name'],
-                                'level': original_data['level'],
-                                'casting_time': original_data['casting_time'],
-                                'ritual': original_data['ritual'],
-                                'range_value': original_data['range_value'],
-                                'components': original_data['components'],
-                                'duration': original_data['duration'],
-                                'concentration': original_data['concentration'],
-                                'description': original_data['description'],
-                                'source': original_data['source'],
-                                'classes': original_data['classes'],
-                                'tags': original_data['tags'],
-                                'is_modified': False
-                            }
+                            restore_data = self._restore_data(original_data)
                             self._db.update_spell(spell_id, restore_data)
                             count += 1
             
@@ -538,7 +545,8 @@ class SpellManager:
                             class_name_filter: str = "",
                             advanced: Optional[AdvancedFilters] = None,
                             legacy_filter: str = "show_all",
-                            collapse_versions: bool = False) -> List[Spell]:
+                            collapse_versions: bool = False,
+                            titles_only: bool = False) -> List[Spell]:
         """Return spells matching the given filter criteria.
         
         Uses SQL for most filtering (much faster for large spell collections),
@@ -551,6 +559,8 @@ class SpellManager:
             first version the legacy setting allows stands for it and the others are reached through
             ``version_catalog`` (the detail panel's Source drop-down). Without it the legacy
             setting just filters the versions, each of which is its own entry.
+
+        titles_only: the search text is looked for in the spell names only (not in descriptions and tags).
 
         legacy_filter options:
             - "show_all": No legacy filtering
@@ -602,6 +612,7 @@ class SpellManager:
         # Normalize None -> empty values for database call to satisfy typed signatures
         spell_dicts = self._db.search_spells(
             search_text=search_text,
+            titles_only=titles_only,
             level=level_filter,
             class_name=strip_legacy_suffix(class_name_filter),  # "Wizard (Legacy)" casts the Wizard spells
             ritual=ritual,

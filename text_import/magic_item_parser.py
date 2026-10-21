@@ -24,9 +24,13 @@ from typing import Dict, List, Optional, Tuple
 from text_import.base import (
     Confidence,
     ParsedObject,
+    begin_block,
+    blocks_from_anchors,
     clean_lines,
+    join_paragraphs,
     match_label,
     split_labelled_fragments,
+    split_on_blank_gaps,
     strip_markdown,
 )
 from text_import.equipment_parser import _WEIGHT_RE, _guess_tags, _scan_cost_weight
@@ -108,8 +112,7 @@ def split_blocks(text: str) -> List[str]:
     all_anchors = sorted(header_idx | label_idx)
 
     if not all_anchors:
-        chunks = re.split(r"\n\s*\n\s*\n*", text.strip())
-        return [c.strip() for c in chunks if c.strip()] or [text.strip()]
+        return split_on_blank_gaps(text)
 
     # A header line is a complete anchor on its own and always starts a new
     # item. A label anchor ("Rarity:"/"Attunement:") only merges into the
@@ -127,25 +130,10 @@ def split_blocks(text: str) -> List[str]:
             clusters.append(idx)
             cluster_is_label.append(idx in label_idx)
 
-    starts: List[int] = []
-    for hi in clusters:
-        # Walk up past blank lines AND labelled lines (e.g. a "Source:" line
-        # that sits between the item name and its "<Type>, <rarity>" header) so
-        # the block starts at the real name, not the label.
-        j = hi - 1
-        while j >= 0 and (not lines[j]
-                          or split_labelled_fragments(lines[j], _LABEL_ALIASES)):
-            j -= 1
-        starts.append(j if j >= 0 else hi)
-
-    starts = sorted(set(starts))
-    blocks: List[str] = []
-    for k, start in enumerate(starts):
-        end = starts[k + 1] if k + 1 < len(starts) else len(lines)
-        chunk = "\n".join(lines[start:end]).strip()
-        if chunk:
-            blocks.append(chunk)
-    return blocks
+    # The block starts at the real name, not at a labelled line (e.g. a "Source:" line that sits between the
+    # item name and its "<Type>, <rarity>" header).
+    return blocks_from_anchors(
+        lines, clusters, skip_line=lambda ln: bool(split_labelled_fragments(ln, _LABEL_ALIASES)))
 
 
 def _parse_attunement(paren: Optional[str]) -> Tuple[bool, str, bool]:
@@ -168,10 +156,7 @@ def _parse_attunement(paren: Optional[str]) -> Tuple[bool, str, bool]:
 
 
 def parse_magic_item_block(text: str) -> ParsedObject:
-    obj = ParsedObject(kind="magic_item", raw_text=text)
-    lines = clean_lines(text)
-    while lines and not lines[0]:
-        lines.pop(0)
+    obj, lines = begin_block("magic_item", text)
     if not lines:
         return obj
 
@@ -296,17 +281,7 @@ def parse_magic_item_block(text: str) -> ParsedObject:
     obj.set("enchanting_materials", enchanting_materials,
             Confidence.HIGH if enchanting_materials else Confidence.MISSING)
 
-    paras: List[str] = []
-    buf: List[str] = []
-    for ln in desc_lines:
-        if ln:
-            buf.append(ln)
-        elif buf:
-            paras.append(" ".join(buf))
-            buf = []
-    if buf:
-        paras.append(" ".join(buf))
-    description = "\n\n".join(paras).strip()
+    description = join_paragraphs(desc_lines, "\n\n")
     obj.set("description", description,
             Confidence.HIGH if len(description) > 10 else Confidence.LOW)
 

@@ -4,6 +4,7 @@ Provides a search bar with overlay dropdown showing results from all collections
 """
 
 import customtkinter as ctk
+from collection_manager import LazyDatabase
 from typography import ui_font
 from tkinter import ttk
 from typing import Optional, Callable, List, Dict
@@ -11,7 +12,7 @@ from theme import get_theme_manager
 from content_versions import collapse_search_results
 
 
-class GlobalSearchBar(ctk.CTkFrame):
+class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
     """Search bar with overlaying dropdown results."""
 
     SEARCH_DELAY_MS = 150
@@ -37,15 +38,6 @@ class GlobalSearchBar(ctk.CTkFrame):
         
         self._create_widgets()
         self._bind_events()
-    
-    @property
-    def db(self):
-        """Get database instance."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
     
     def _load_search_colors(self):
         """The bar follows the theme's input-field colours."""
@@ -146,13 +138,31 @@ class GlobalSearchBar(ctk.CTkFrame):
     def _perform_search(self, query: str):
         """Search the database and show results."""
         # one hit per thing, however many versions it has (the page you land on has the version drop-down)
-        self._results = collapse_search_results(self.db.global_search(query, limit=50))
+        self._results = self._with_rules(
+            collapse_search_results(self.db.global_search(query, limit=50)), query)
         
         if self._results:
             self._show_dropdown()
         else:
             self._hide_dropdown()
     
+    @staticmethod
+    def _with_rules(results: List[Dict], query: str) -> List[Dict]:
+        """Add the rules pages whose text matches, best first: a strong match (the term is a
+        heading, "Stunned" in Conditions) leads the list, the rest follow the name matches."""
+        try:
+            from rules import get_rules_manager
+            hits = get_rules_manager().search(query, limit=8)
+        except Exception:
+            return results
+        if len(query.strip()) < 3:                    # "ac" is a heading ("AC"), "a" is every page: titles only
+            hits = [h for h in hits if h.score >= 200]
+        rows = [{'id': 0, 'name': h.target, 'section': 'Rules', 'label': h.label().replace("  ›  ", " › ")}
+                for h in hits]
+        strong = [r for r, h in zip(rows, hits) if h.score >= 200][:4]
+        rest = [r for r in rows if r not in strong]
+        return strong + results + rest
+
     def _show_dropdown(self):
         """Show the dropdown with search results."""
         if self._dropdown_visible:

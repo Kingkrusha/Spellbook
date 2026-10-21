@@ -10,19 +10,26 @@ This mirrors the tag UI in ui/spell_editor.py, minus the "protected tag"
 concept (Official/Unofficial) which is specific to spells.
 """
 
+from ui.window_utils import center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 from tkinter import messagebox
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 from theme import get_theme_manager
 
 
 class TagPickerDialog(ctk.CTkToplevel):
-    """Dialog for selecting a tag from existing/suggested tags or adding a new one."""
+    """Dialog for selecting a tag from existing/suggested tags or adding a new one.
 
-    def __init__(self, parent, available_tags: List[str], selected_tags: List[str]):
+    ``is_protected`` (optional) names tags the user may not add by hand; those are left out
+    of the list and refused when typed.
+    """
+
+    def __init__(self, parent, available_tags: List[str], selected_tags: List[str],
+                 is_protected: Optional[Callable[[str], bool]] = None):
         super().__init__(parent)
+        self._is_protected = is_protected or (lambda tag: False)
 
         self.result = None  # Tag to add
         self.theme = get_theme_manager()
@@ -37,10 +44,7 @@ class TagPickerDialog(ctk.CTkToplevel):
 
         self._create_widgets(available_tags, selected_tags)
 
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
 
     def _create_widgets(self, available_tags: List[str], selected_tags: List[str]):
         theme = self.theme
@@ -81,7 +85,8 @@ class TagPickerDialog(ctk.CTkToplevel):
 
         selected_lower = {t.lower() for t in selected_tags}
         self._available = sorted(
-            {t for t in available_tags if t.lower() not in selected_lower}, key=str.lower)
+            {t for t in available_tags
+             if t.lower() not in selected_lower and not self._is_protected(t)}, key=str.lower)
 
         self._list_scroll = ctk.CTkScrollableFrame(container)
         self._list_scroll.pack(fill="both", expand=True, pady=(0, 15))
@@ -132,6 +137,10 @@ class TagPickerDialog(ctk.CTkToplevel):
         if not tag:
             messagebox.showwarning("Warning", "Please enter a tag name.", parent=self)
             return
+        if self._is_protected(tag):
+            messagebox.showwarning("Warning", f"'{tag}' is a protected tag and cannot be added manually.",
+                                   parent=self)
+            return
         self.result = tag
         self.destroy()
 
@@ -146,11 +155,13 @@ class TagPickerDialog(ctk.CTkToplevel):
 class TagEditor(ctk.CTkFrame):
     """A labelled '+ Add Tag' button plus a wrapping row of removable tag chips."""
 
-    def __init__(self, parent, get_available_tags: Callable[[], List[str]], label: str = "Tags"):
+    def __init__(self, parent, get_available_tags: Callable[[], List[str]], label: str = "Tags",
+                 is_protected: Optional[Callable[[str], bool]] = None):
         theme = get_theme_manager()
         super().__init__(parent, fg_color="transparent")
         self.theme = theme
         self._get_available_tags = get_available_tags
+        self._is_protected = is_protected          # tags the user may not add by hand (see TagPickerDialog)
         self._tags: List[str] = []
 
         header = ctk.CTkFrame(self, fg_color="transparent")
@@ -186,7 +197,7 @@ class TagEditor(ctk.CTkFrame):
 
     def _on_add_tag(self):
         available = self._get_available_tags() if self._get_available_tags else []
-        dialog = TagPickerDialog(self.winfo_toplevel(), available, self._tags)
+        dialog = TagPickerDialog(self.winfo_toplevel(), available, self._tags, is_protected=self._is_protected)
         self.wait_window(dialog)
         if dialog.result and dialog.result not in self._tags:
             self._tags.append(dialog.result)
@@ -215,44 +226,35 @@ class TagEditor(ctk.CTkFrame):
         current_row.pack(fill="x", anchor="w")
 
         for tag in sorted(self._tags, key=str.lower):
-            tag_frame = ctk.CTkFrame(
-                current_row, fg_color=theme.get_current_color('accent_primary'), corner_radius=12
-            )
-            tag_frame.pack(side="left", padx=(0, 5), pady=2)
-
-            ctk.CTkLabel(
-                tag_frame, text=tag, font=ui_font("body"),
-                text_color=theme.get_current_color('text_primary')
-            ).pack(side="left", padx=(10, 5), pady=4)
-
-            ctk.CTkButton(
-                tag_frame, text="×", width=20, height=20,
-                fg_color="transparent",
-                hover_color=theme.get_current_color('button_danger'),
-                text_color=theme.get_current_color('text_primary'),
-                font=ui_font("subheading", bold=True),
-                command=lambda t=tag: self._remove_tag(t)
-            ).pack(side="left", padx=(0, 5), pady=2)
+            tag_frame = self._make_chip(current_row, tag)
 
             tag_frame.update_idletasks()
             current_row.update_idletasks()
             if current_row.winfo_reqwidth() > 450:
-                tag_frame.pack_forget()
+                tag_frame.destroy()
                 current_row = ctk.CTkFrame(self._content_frame, fg_color="transparent")
                 current_row.pack(fill="x", anchor="w")
-                tag_frame = ctk.CTkFrame(
-                    current_row, fg_color=theme.get_current_color('accent_primary'), corner_radius=12
-                )
-                tag_frame.pack(side="left", padx=(0, 5), pady=2)
-                ctk.CTkLabel(
-                    tag_frame, text=tag, font=ui_font("body"),
-                    text_color=theme.get_current_color('text_primary')
-                ).pack(side="left", padx=(10, 5), pady=4)
-                ctk.CTkButton(
-                    tag_frame, text="×", width=20, height=20,
-                    fg_color="transparent",
-                    hover_color=theme.get_current_color('button_danger'),
-                    text_color=theme.get_current_color('text_primary'),
-                    font=ui_font("subheading", bold=True),
-                    command=lambda t=tag: self._remove_tag(t)
-                ).pack(side="left", padx=(0, 5), pady=2)
+                self._make_chip(current_row, tag)
+
+    def _make_chip(self, row, tag: str):
+        """A removable tag chip packed into ``row``."""
+        theme = self.theme
+        tag_frame = ctk.CTkFrame(
+            row, fg_color=theme.get_current_color('accent_primary'), corner_radius=12
+        )
+        tag_frame.pack(side="left", padx=(0, 5), pady=2)
+
+        ctk.CTkLabel(
+            tag_frame, text=tag, font=ui_font("body"),
+            text_color=theme.get_current_color('text_primary')
+        ).pack(side="left", padx=(10, 5), pady=4)
+
+        ctk.CTkButton(
+            tag_frame, text="×", width=20, height=20,
+            fg_color="transparent",
+            hover_color=theme.get_current_color('button_danger'),
+            text_color=theme.get_current_color('text_primary'),
+            font=ui_font("subheading", bold=True),
+            command=lambda t=tag: self._remove_tag(t)
+        ).pack(side="left", padx=(0, 5), pady=2)
+        return tag_frame

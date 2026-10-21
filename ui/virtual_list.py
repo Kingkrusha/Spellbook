@@ -21,10 +21,15 @@ visible rows in the wrong place.
 Subclasses set ``TITLE`` / ``NOUN`` and override ``row_text`` (and optionally ``row_text_color``,
 ``KEY``, the function that decides whether two names are the same entry, and the row look).
 Items need a ``name`` attribute.
+
+A page can switch on *bulk actions* (``enable_bulk_actions``): a "Select" button in the header turns the rows into
+tick-boxes and shows a bar of buttons, each of which gets the ticked entries. The ticks are remembered by entry
+name, so they survive a refilter, and an entry that a filter hides stays ticked.
 """
 
+from ui.theme_listener import ThemeListenerMixin
 import tkinter as tk
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import customtkinter as ctk
 
@@ -33,7 +38,7 @@ from typography import ui_font
 from ui.platform_compat import bind_right_click
 
 
-class VirtualListPanel(ctk.CTkFrame):
+class VirtualListPanel(ThemeListenerMixin, ctk.CTkFrame):
     """A scrollable, selectable list that stays fast and correct with any number of entries."""
 
     TITLE = "Items"
@@ -45,6 +50,8 @@ class VirtualListPanel(ctk.CTkFrame):
     WHEEL_STEP = 90          # logical pixels per mouse-wheel notch
     SCROLL_UNIT = 30         # logical pixels per scrollbar "unit"
     REBASE_ROWS = 8          # the rows' frame is re-based every this many rows of scrolling
+    TICKED = "\u2611  "       # a row's tick-box in "Select" mode
+    UNTICKED = "\u2610  "
 
     # Decides whether a name from outside refers to the same entry as an item. Versioned
     # collections (2024 / Legacy) match with legacy_pair_key so one row stands for all versions.
@@ -59,6 +66,14 @@ class VirtualListPanel(ctk.CTkFrame):
         self.theme = get_theme_manager()
         self._items: List[object] = []
         self._selected_index: Optional[int] = None
+        self._select_when_listed: Optional[tuple] = None   # (name, version) for the next set_items
+        self._multi = False                                 # "Select" mode: rows are tick-boxes
+        self._checked: Dict[str, object] = {}               # KEY(name) -> the ticked entry
+        self._bulk_actions: List[Tuple[str, Callable[[list], None]]] = []
+        self._select_btn: Optional[ctk.CTkButton] = None
+        self._bulk_bar: Optional[ctk.CTkFrame] = None
+        self._bulk_buttons: List[ctk.CTkButton] = []
+        self._bulk_count: Optional[ctk.CTkLabel] = None
         self._pool: List[ctk.CTkButton] = []
         self._render_job: Optional[str] = None
         self._offset: float = 0.0     # logical pixels scrolled
@@ -103,8 +118,9 @@ class VirtualListPanel(ctk.CTkFrame):
         self.count_label = ctk.CTkLabel(header, text=self._count_text(0), font=ui_font("body"),
                                         text_color=self.theme.get_text_secondary())
         self.count_label.pack(side="right")
+        self._header = header
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        body = self._body = ctk.CTkFrame(self, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
         self.scrollbar = ctk.CTkScrollbar(body, orientation="vertical", command=self._on_scrollbar)
@@ -309,17 +325,21 @@ class VirtualListPanel(ctk.CTkFrame):
         """Point a pooled row at item ``index`` (touching the widget only if something changed)."""
         item = self._items[index]
         selected = index == self._selected_index
-        state = (self.row_text(item), self.row_text_color(item), selected)
+        ticked = self._multi and self.KEY(item.name) in self._checked
+        state = (self.row_text(item), self.row_text_color(item), selected, ticked if self._multi else None)
         row._vl_index = index
         if row._vl_state == state:
             return
         row._vl_state = state
-        row.configure(text=state[0], text_color=state[1], fg_color=self.row_color(selected))
+        text = state[0] if not self._multi else (self.TICKED if ticked else self.UNTICKED) + state[0]
+        row.configure(text=text, text_color=state[1], fg_color=self.row_color(selected))
 
     # ------------------------------------------------------------ interaction
 
     def _on_row_click(self, index: int):
         if 0 <= index < len(self._items):
+            if self._multi:
+                self._toggle_checked(self._items[index])
             self._select(index, scroll=False)
 
     def _on_row_right_click(self, event):
@@ -351,6 +371,114 @@ class VirtualListPanel(ctk.CTkFrame):
             self._offset = row_bottom - height
         self._clamp_offset()
 
+    # ------------------------------------------------------------- bulk actions
+
+    def enable_bulk_actions(self, actions: Sequence[Tuple[str, Callable[[list], None]]]):
+        """Add the "Select" button and the action bar. ``actions`` is ``[(button text, callback(entries)), ...]``;
+        a callback gets the ticked entries (and is only enabled while something is ticked)."""
+        self._bulk_actions = list(actions)
+        self._select_btn = ctk.CTkButton(
+            self._header, text="Select", width=64, height=26, font=ui_font("small"),
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
+            command=lambda: self.set_multi_select(not self._multi))
+        self._select_btn.pack(side="right", padx=(0, 10))
+
+        bar = self._bulk_bar = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_secondary'),
+                                            corner_radius=8)
+        top = ctk.CTkFrame(bar, fg_color="transparent")
+        top.pack(fill="x", padx=8, pady=(8, 4))
+        self._bulk_count = ctk.CTkLabel(top, text="", font=ui_font("small", bold=True))
+        self._bulk_count.pack(side="left")
+        for text, command in (("None", self.clear_checked), ("All shown", self.check_all)):
+            ctk.CTkButton(
+                top, text=text, width=64, height=24, font=ui_font("small"),
+                fg_color=self.theme.get_current_color('button_normal'),
+                hover_color=self.theme.get_current_color('button_hover'),
+                text_color=self.theme.get_current_color('text_primary'),
+                command=command).pack(side="right", padx=(4, 0))
+
+        grid = ctk.CTkFrame(bar, fg_color="transparent")
+        grid.pack(fill="x", padx=8, pady=(0, 8))
+        self._bulk_buttons = []
+        for i, (text, callback) in enumerate(self._bulk_actions):
+            button = ctk.CTkButton(
+                grid, text=text, height=28, font=ui_font("small"),
+                fg_color=self.theme.get_current_color('accent_primary'),
+                hover_color=self.theme.get_current_color('accent_hover'),
+                command=lambda cb=callback: cb(self.checked_items()))
+            button.grid(row=i // 2, column=i % 2, padx=2, pady=2, sticky="ew")
+            grid.grid_columnconfigure(i % 2, weight=1, uniform="bulk")
+            self._bulk_buttons.append(button)
+        self._update_bulk_bar()
+
+    @property
+    def multi_select(self) -> bool:
+        return self._multi
+
+    def set_multi_select(self, on: bool):
+        """Turn "Select" mode on or off (turning it off un-ticks everything)."""
+        if self._bulk_bar is None or on == self._multi:
+            return
+        self._multi = on
+        if on:
+            self._bulk_bar.pack(side="bottom", fill="x", padx=10, pady=(0, 10), before=self._body)
+        else:
+            self._bulk_bar.pack_forget()
+            self._checked.clear()
+        self._select_btn.configure(
+            text="Done" if on else "Select",
+            fg_color=self.theme.get_current_color('accent_primary' if on else 'button_normal'))
+        self._rebind_rows()
+        self._update_bulk_bar()
+
+    def checked_items(self) -> list:
+        """The ticked entries (including ones a filter is hiding right now)."""
+        return list(self._checked.values())
+
+    def checked_count(self) -> int:
+        return len(self._checked)
+
+    def is_checked(self, item) -> bool:
+        return self.KEY(item.name) in self._checked
+
+    def check_all(self):
+        """Tick every entry in the list as it is filtered now (the ones ticked earlier stay ticked)."""
+        if not self._multi:
+            return
+        for item in self._items:
+            self._checked[self.KEY(item.name)] = item
+        self._rebind_rows()
+        self._update_bulk_bar()
+
+    def clear_checked(self):
+        self._checked.clear()
+        self._rebind_rows()
+        self._update_bulk_bar()
+
+    def _toggle_checked(self, item):
+        key = self.KEY(item.name)
+        if key in self._checked:
+            del self._checked[key]
+        else:
+            self._checked[key] = item
+        self._rebind_rows()
+        self._update_bulk_bar()
+
+    def _rebind_rows(self):
+        for row in self._pool:
+            row._vl_state = None
+        self._request_render()
+
+    def _update_bulk_bar(self):
+        if self._bulk_bar is None:
+            return
+        n = len(self._checked)
+        self._bulk_count.configure(text=f"{n} selected")
+        for button in self._bulk_buttons:
+            button.configure(state="normal" if n else "disabled")
+
     # -------------------------------------------------------------- public API
 
     def _find(self, name: Optional[str]) -> Optional[int]:
@@ -377,6 +505,12 @@ class VirtualListPanel(ctk.CTkFrame):
         self._items = items
         self._selected_index = self._find(name)
         self.count_label.configure(text=self._count_text(len(items)))
+        if self._checked:                       # the ticked entries are the new objects where the list has them
+            for item in items:
+                key = self.KEY(item.name)
+                if key in self._checked:
+                    self._checked[key] = item
+            self._update_bulk_bar()
         for row in self._pool:       # every row may now show a different item
             row._vl_state = None
         if reset_scroll:
@@ -385,6 +519,9 @@ class VirtualListPanel(ctk.CTkFrame):
         self._request_render()
         if notify and self._selected_index is not None:
             self._select(self._selected_index)
+        if self._select_when_listed is not None:
+            wanted, self._select_when_listed = self._select_when_listed, None
+            self.select_by_name(*wanted)
 
     def select_by_name(self, name: str, version: Optional[object] = None) -> bool:
         """Select an entry by name and scroll it into view. Returns True if it exists.
@@ -397,6 +534,14 @@ class VirtualListPanel(ctk.CTkFrame):
             self._items[index] = version
         self._select(index)
         return True
+
+    def select_when_listed(self, name: str, version: Optional[object] = None):
+        """Select an entry once the list next changes (a no-op if it is not in the new list).
+
+        For a page that has just added or edited an entry: it reloads its list, but the refilter that puts
+        the new or changed object in it runs a moment later (filter changes are debounced). Selecting at
+        once would find nothing (a new entry) or select, and show, the old object (an edited one)."""
+        self._select_when_listed = (name, version)
 
     def get_selected(self) -> Optional[object]:
         if self._selected_index is not None and self._selected_index < len(self._items):
@@ -429,13 +574,15 @@ class VirtualListPanel(ctk.CTkFrame):
             for row in self._pool:
                 row._vl_state = None
                 row.configure(hover_color=self.theme.get_current_color('button_hover'))
+            if self._bulk_bar is not None:
+                self._bulk_bar.configure(fg_color=self.theme.get_current_color('bg_secondary'))
+                self._select_btn.configure(
+                    fg_color=self.theme.get_current_color('accent_primary' if self._multi else 'button_normal'),
+                    hover_color=self.theme.get_current_color('button_hover'),
+                    text_color=self.theme.get_current_color('text_primary'))
+                for button in self._bulk_buttons:
+                    button.configure(fg_color=self.theme.get_current_color('accent_primary'),
+                                     hover_color=self.theme.get_current_color('accent_hover'))
             self._request_render()
         except Exception:
             pass
-
-    def destroy(self):
-        try:
-            self.theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()

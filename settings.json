@@ -52,5 +52,8 @@
   "tracker_turn_beep": true,
   "tracker_auto_open": true,
   "lan_overlay_translucent": true,
-  "initial_official_tag_applied": true
+  "initial_official_tag_applied": true,
+  "show_legacy_content": true,
+  "auto_backup": true,
+  "_version": 2
 }

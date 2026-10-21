@@ -3,7 +3,7 @@ Character Sheet data model for D&D 5e Spellbook Application.
 Contains full character sheet information beyond just spell lists.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Dict, List, Tuple, Optional, Any
 from enum import Enum
 
@@ -395,6 +395,14 @@ class AbilityScore(Enum):
             cls.CHARISMA: "CHA"
         }.get(ability, "")
 
+    @classmethod
+    def from_short_name(cls, short: str) -> Optional["AbilityScore"]:
+        """Inverse of :meth:`short_name`: "STR" -> STRENGTH, or None if unrecognised."""
+        for ability in cls:
+            if cls.short_name(ability) == short:
+                return ability
+        return None
+
 
 class Skill(Enum):
     """D&D 5e skills with their associated ability."""
@@ -426,8 +434,19 @@ class Skill(Enum):
         return self.value[1]
 
 
+class _FlatRecord:
+    """to_dict/from_dict for a dataclass of flat, defaulted fields (one key per field)."""
+
+    def to_dict(self) -> dict:
+        return {f.name: getattr(self, f.name) for f in fields(self)}
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(**{f.name: data.get(f.name, f.default) for f in fields(cls)})
+
+
 @dataclass
-class AbilityScores:
+class AbilityScores(_FlatRecord):
     """Container for all six ability scores."""
     strength: int = 10
     dexterity: int = 10
@@ -438,59 +457,19 @@ class AbilityScores:
     
     def get(self, ability: AbilityScore) -> int:
         """Get score for an ability."""
-        return {
-            AbilityScore.STRENGTH: self.strength,
-            AbilityScore.DEXTERITY: self.dexterity,
-            AbilityScore.CONSTITUTION: self.constitution,
-            AbilityScore.INTELLIGENCE: self.intelligence,
-            AbilityScore.WISDOM: self.wisdom,
-            AbilityScore.CHARISMA: self.charisma
-        }.get(ability, 10)
+        return getattr(self, ability.name.lower())
     
     def set(self, ability: AbilityScore, value: int):
         """Set score for an ability."""
-        value = max(1, min(30, value))  # D&D scores range 1-30
-        if ability == AbilityScore.STRENGTH:
-            self.strength = value
-        elif ability == AbilityScore.DEXTERITY:
-            self.dexterity = value
-        elif ability == AbilityScore.CONSTITUTION:
-            self.constitution = value
-        elif ability == AbilityScore.INTELLIGENCE:
-            self.intelligence = value
-        elif ability == AbilityScore.WISDOM:
-            self.wisdom = value
-        elif ability == AbilityScore.CHARISMA:
-            self.charisma = value
+        setattr(self, ability.name.lower(), max(1, min(30, value)))  # D&D scores range 1-30
     
     def modifier(self, ability: AbilityScore) -> int:
         """Calculate ability modifier."""
         return (self.get(ability) - 10) // 2
-    
-    def to_dict(self) -> dict:
-        return {
-            "strength": self.strength,
-            "dexterity": self.dexterity,
-            "constitution": self.constitution,
-            "intelligence": self.intelligence,
-            "wisdom": self.wisdom,
-            "charisma": self.charisma
-        }
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> "AbilityScores":
-        return cls(
-            strength=data.get("strength", 10),
-            dexterity=data.get("dexterity", 10),
-            constitution=data.get("constitution", 10),
-            intelligence=data.get("intelligence", 10),
-            wisdom=data.get("wisdom", 10),
-            charisma=data.get("charisma", 10)
-        )
 
 
 @dataclass
-class SavingThrows:
+class SavingThrows(_FlatRecord):
     """Saving throw proficiencies."""
     strength: bool = False
     dexterity: bool = False
@@ -501,54 +480,15 @@ class SavingThrows:
     
     def is_proficient(self, ability: AbilityScore) -> bool:
         """Check if proficient in a saving throw."""
-        return {
-            AbilityScore.STRENGTH: self.strength,
-            AbilityScore.DEXTERITY: self.dexterity,
-            AbilityScore.CONSTITUTION: self.constitution,
-            AbilityScore.INTELLIGENCE: self.intelligence,
-            AbilityScore.WISDOM: self.wisdom,
-            AbilityScore.CHARISMA: self.charisma
-        }.get(ability, False)
+        return getattr(self, ability.name.lower())
     
     def set_proficiency(self, ability: AbilityScore, proficient: bool):
         """Set saving throw proficiency."""
-        if ability == AbilityScore.STRENGTH:
-            self.strength = proficient
-        elif ability == AbilityScore.DEXTERITY:
-            self.dexterity = proficient
-        elif ability == AbilityScore.CONSTITUTION:
-            self.constitution = proficient
-        elif ability == AbilityScore.INTELLIGENCE:
-            self.intelligence = proficient
-        elif ability == AbilityScore.WISDOM:
-            self.wisdom = proficient
-        elif ability == AbilityScore.CHARISMA:
-            self.charisma = proficient
-    
-    def to_dict(self) -> dict:
-        return {
-            "strength": self.strength,
-            "dexterity": self.dexterity,
-            "constitution": self.constitution,
-            "intelligence": self.intelligence,
-            "wisdom": self.wisdom,
-            "charisma": self.charisma
-        }
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> "SavingThrows":
-        return cls(
-            strength=data.get("strength", False),
-            dexterity=data.get("dexterity", False),
-            constitution=data.get("constitution", False),
-            intelligence=data.get("intelligence", False),
-            wisdom=data.get("wisdom", False),
-            charisma=data.get("charisma", False)
-        )
+        setattr(self, ability.name.lower(), proficient)
 
 
 @dataclass
-class SkillProficiencies:
+class SkillProficiencies(_FlatRecord):
     """Skill proficiencies (proficient, expertise, or neither)."""
     # 0 = not proficient, 1 = proficient, 2 = expertise
     acrobatics: int = 0
@@ -580,51 +520,6 @@ class SkillProficiencies:
         level = max(0, min(2, level))
         attr_name = skill.name.lower()
         setattr(self, attr_name, level)
-    
-    def to_dict(self) -> dict:
-        return {
-            "acrobatics": self.acrobatics,
-            "animal_handling": self.animal_handling,
-            "arcana": self.arcana,
-            "athletics": self.athletics,
-            "deception": self.deception,
-            "history": self.history,
-            "insight": self.insight,
-            "intimidation": self.intimidation,
-            "investigation": self.investigation,
-            "medicine": self.medicine,
-            "nature": self.nature,
-            "perception": self.perception,
-            "performance": self.performance,
-            "persuasion": self.persuasion,
-            "religion": self.religion,
-            "sleight_of_hand": self.sleight_of_hand,
-            "stealth": self.stealth,
-            "survival": self.survival
-        }
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> "SkillProficiencies":
-        return cls(
-            acrobatics=data.get("acrobatics", 0),
-            animal_handling=data.get("animal_handling", 0),
-            arcana=data.get("arcana", 0),
-            athletics=data.get("athletics", 0),
-            deception=data.get("deception", 0),
-            history=data.get("history", 0),
-            insight=data.get("insight", 0),
-            intimidation=data.get("intimidation", 0),
-            investigation=data.get("investigation", 0),
-            medicine=data.get("medicine", 0),
-            nature=data.get("nature", 0),
-            perception=data.get("perception", 0),
-            performance=data.get("performance", 0),
-            persuasion=data.get("persuasion", 0),
-            religion=data.get("religion", 0),
-            sleight_of_hand=data.get("sleight_of_hand", 0),
-            stealth=data.get("stealth", 0),
-            survival=data.get("survival", 0)
-        )
 
 
 @dataclass
@@ -751,6 +646,11 @@ class CharacterSheet:
     shield_bonus: int = 0  # Shield AC bonus (0 = no shield, 2 = normal shield, etc.)
     unarmored_defense: str = ""  # Formula like "10 + DEX + CON" for Barbarian
     initiative_bonus: int = 0  # Additional bonus beyond DEX
+    # What items and features add to initiative (worked out by the sheet view; see sheet_stats.py) and the numbers the
+    # player typed over the automatic ones: {"armor_class": 17, "hp_max": 60, "initiative": 3, "spell_attack:INT": 8,
+    # "spell_dc:INT": 14}. A number with an entry here is "manually set".
+    initiative_auto_bonus: int = 0
+    stat_overrides: Dict[str, int] = field(default_factory=dict)
     speed: int = 30
     base_speed: int = 30  # Base speed before bonuses (race-based)
     hit_points: HitPoints = field(default_factory=HitPoints)
@@ -827,8 +727,12 @@ class CharacterSheet:
         return self.proficiency_bonus
     
     def get_initiative(self) -> int:
-        """Calculate initiative bonus."""
-        return self.ability_scores.modifier(AbilityScore.DEXTERITY) + self.initiative_bonus
+        """Initiative bonus: the number typed over it, else Dexterity plus the sheet's bonus plus what items and
+        features add."""
+        if "initiative" in self.stat_overrides:
+            return int(self.stat_overrides["initiative"])
+        return (self.ability_scores.modifier(AbilityScore.DEXTERITY) + self.initiative_bonus
+                + self.initiative_auto_bonus)
     
     def get_passive_perception(self) -> int:
         """Calculate passive perception."""
@@ -949,6 +853,8 @@ class CharacterSheet:
             "shield_bonus": self.shield_bonus,
             "unarmored_defense": self.unarmored_defense,
             "initiative_bonus": self.initiative_bonus,
+            **({"initiative_auto_bonus": self.initiative_auto_bonus} if self.initiative_auto_bonus else {}),
+            **({"stat_overrides": dict(self.stat_overrides)} if self.stat_overrides else {}),
             "speed": self.speed,
             "base_speed": self.base_speed,
             "hit_points": self.hit_points.to_dict(),
@@ -1004,6 +910,8 @@ class CharacterSheet:
             shield_bonus=data.get("shield_bonus", 2 if data.get("has_shield", False) else 0),  # Migrate legacy
             unarmored_defense=data.get("unarmored_defense", ""),
             initiative_bonus=data.get("initiative_bonus", 0),
+            initiative_auto_bonus=int(data.get("initiative_auto_bonus", 0) or 0),
+            stat_overrides={str(k): int(v) for k, v in (data.get("stat_overrides") or {}).items()},
             speed=data.get("speed", 30),
             base_speed=data.get("base_speed", data.get("speed", 30)),  # Default to speed for migration
             hit_points=HitPoints.from_dict(data.get("hit_points", {})),

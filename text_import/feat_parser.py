@@ -21,25 +21,19 @@ from typing import Dict, List, Optional, Tuple
 from text_import.base import (
     Confidence,
     ParsedObject,
+    begin_block,
+    blocks_from_anchors,
     clean_lines,
+    cluster_anchors,
+    join_paragraphs,
+    known_class_names,
     match_label,
     split_labelled_fragments,
+    split_on_blank_gaps,
     strip_markdown,
 )
 
-try:
-    from spell import CharacterClass
-    _KNOWN_CLASSES = [c.lower() for c in CharacterClass.all_class_names_with_custom()]
-except Exception:  # pragma: no cover - importable in isolation
-    _KNOWN_CLASSES = [
-        "artificer", "bard", "cleric", "druid", "paladin",
-        "ranger", "sorcerer", "warlock", "wizard",
-    ]
-
-try:
-    from feat import DEFAULT_FEAT_TYPES  # noqa: F401  (kept for reference)
-except Exception:  # pragma: no cover
-    pass
+_KNOWN_CLASSES = known_class_names()
 
 
 # --------------------------------------------------------------------------- #
@@ -117,32 +111,11 @@ def split_blocks(text: str) -> List[str]:
     anchors = _anchor_lines(lines)
 
     if not anchors:
-        chunks = re.split(r"\n\s*\n\s*\n*", text.strip())
-        return [c.strip() for c in chunks if c.strip()] or [text.strip()]
+        return split_on_blank_gaps(text)
 
-    # Cluster anchors that are within 3 lines of each other (one feat's header
-    # commonly has both a type line AND a Prerequisite line).
-    clusters: List[int] = [anchors[0]]
-    for idx in anchors[1:]:
-        if idx - clusters[-1] > 3:
-            clusters.append(idx)
-        # else: same cluster as the previous anchor: keep the earliest index
-
-    starts: List[int] = []
-    for cluster_start in clusters:
-        j = cluster_start - 1
-        while j >= 0 and not lines[j]:
-            j -= 1
-        starts.append(j if j >= 0 else cluster_start)
-
-    starts = sorted(set(starts))
-    blocks: List[str] = []
-    for k, start in enumerate(starts):
-        end = starts[k + 1] if k + 1 < len(starts) else len(lines)
-        chunk = "\n".join(lines[start:end]).strip()
-        if chunk:
-            blocks.append(chunk)
-    return blocks
+    # Anchors within 3 lines of each other are one feat's header (it commonly has both a type line AND a
+    # Prerequisite line), so only each cluster's first line starts a block.
+    return blocks_from_anchors(lines, cluster_anchors(anchors))
 
 
 # --------------------------------------------------------------------------- #
@@ -212,10 +185,7 @@ def _guess_spellcasting(description: str) -> Tuple[bool, List[str], Dict[int, in
 # --------------------------------------------------------------------------- #
 
 def parse_feat_block(text: str) -> ParsedObject:
-    obj = ParsedObject(kind="feat", raw_text=text)
-    lines = clean_lines(text)
-    while lines and not lines[0]:
-        lines.pop(0)
+    obj, lines = begin_block("feat", text)
     if not lines:
         return obj
 
@@ -289,17 +259,7 @@ def parse_feat_block(text: str) -> ParsedObject:
 
     # description: collapse blank runs into paragraphs joined by a blank line
     # (feats store real "\n\n" between paragraphs, unlike spells' "\" marker).
-    paras: List[str] = []
-    buf: List[str] = []
-    for ln in desc_lines:
-        if ln:
-            buf.append(ln)
-        elif buf:
-            paras.append(" ".join(buf))
-            buf = []
-    if buf:
-        paras.append(" ".join(buf))
-    description = "\n\n".join(paras).strip()
+    description = join_paragraphs(desc_lines, "\n\n")
     obj.set("description", description,
             Confidence.HIGH if len(description) > 15 else Confidence.LOW)
 

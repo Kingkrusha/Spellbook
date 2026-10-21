@@ -3,160 +3,23 @@ Spell Editor Dialog for D&D Spellbook (CustomTkinter version).
 Dialog for creating and editing spells.
 """
 
+from ui.window_utils import center_on_parent
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
 from typography import ui_font
 from tkinter import messagebox
 from typing import Optional, List
 from spell import Spell, CharacterClass, PROTECTED_TAGS, is_protected_tag
 from theme import get_theme_manager
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
+from ui.review_banner import add_review_banner, outline_fields
+from ui.tag_editor import TagEditor
 
 
-class TagSelectionDialog(ctk.CTkToplevel):
-    """Dialog for selecting tags from existing tags or adding new ones."""
-    
-    def __init__(self, parent, available_tags: List[str], selected_tags: List[str]):
-        super().__init__(parent)
-        
-        self.result: Optional[str] = None  # Tag to add
-        self._tag_vars = {}
-        
-        self.title("Select Tag")
-        self.geometry("350x450")
-        self.minsize(300, 350)
-        self.resizable(True, True)
-        
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-        
-        # Create widgets
-        self._create_widgets(available_tags, selected_tags)
-        
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-    
-    def _create_widgets(self, available_tags: List[str], selected_tags: List[str]):
-        """Create dialog widgets."""
-        container = ctk.CTkFrame(self, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=20, pady=20)
+class SpellEditorBody(EditorBody, ThemeListenerMixin):
+    """A dialog for creating or editing a spell. (the form; see ui/editor_host.py)"""
 
-        theme = get_theme_manager()
-        text_secondary = theme.get_text_secondary()
-        
-        # Add New Tag section
-        ctk.CTkLabel(
-            container,
-            text="Add New Tag:",
-            font=ui_font("subheading", bold=True)
-        ).pack(fill="x", pady=(0, 5))
-        
-        new_tag_frame = ctk.CTkFrame(container, fg_color="transparent")
-        new_tag_frame.pack(fill="x", pady=(0, 10))
-
-        self._new_tag_entry = ctk.CTkEntry(
-            new_tag_frame, height=35,
-            placeholder_text="Type to search or add a new tag"
-        )
-        self._new_tag_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        self._new_tag_entry.bind("<KeyRelease>", lambda _e: self._render_list())
-
-        btn_text = theme.get_current_color('text_primary')
-        ctk.CTkButton(
-            new_tag_frame, text="Add", width=60,
-            fg_color=theme.get_current_color('button_success'),
-            hover_color=theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_add_new
-        ).pack(side="right")
-
-        # Divider
-        ctk.CTkFrame(container, height=2, fg_color=theme.get_current_color('border')).pack(fill="x", pady=8)
-
-        # Existing tags section
-        ctk.CTkLabel(
-            container,
-            text="Existing tags (click to add):",
-            font=ui_font("body"),
-            text_color=text_secondary
-        ).pack(fill="x", pady=(0, 6))
-
-        # Filter out already selected and protected tags
-        selected_lower = {t.lower() for t in selected_tags}
-        self._available = sorted(
-            t for t in available_tags
-            if t.lower() not in selected_lower and not is_protected_tag(t))
-
-        self._list_scroll = ctk.CTkScrollableFrame(container)
-        self._list_scroll.pack(fill="both", expand=True, pady=(0, 15))
-        self._render_list()
-
-        # Cancel button
-        btn_frame = ctk.CTkFrame(container, fg_color="transparent")
-        btn_frame.pack(fill="x")
-
-        ctk.CTkButton(btn_frame, text="Cancel", width=80,
-                      fg_color=theme.get_current_color('button_normal'),
-                      hover_color=theme.get_current_color('button_hover'),
-                      text_color=btn_text,
-                      command=self._on_cancel).pack(side="right")
-    
-    def _render_list(self):
-        """(Re)build the existing-tag list, filtered by what's typed so far."""
-        theme = get_theme_manager()
-        for w in self._list_scroll.winfo_children():
-            w.destroy()
-
-        q = self._new_tag_entry.get().strip().lower()
-        matches = [t for t in self._available if q in t.lower()] if q else list(self._available)
-        if q:
-            matches.sort(key=lambda t: (not t.lower().startswith(q), t.lower()))
-
-        if not matches:
-            ctk.CTkLabel(
-                self._list_scroll,
-                text="No match — click Add to create this tag." if q else "No additional tags available.",
-                font=ui_font("body"), text_color=theme.get_text_secondary()
-            ).pack(pady=20)
-            return
-
-        for tag in matches:
-            ctk.CTkButton(
-                self._list_scroll, text=tag, anchor="w",
-                fg_color="transparent",
-                hover_color=theme.get_current_color('accent_primary'),
-                text_color=theme.get_current_color('text_primary'),
-                text_color_disabled="black",
-                font=ui_font("body", 13),
-                command=lambda t=tag: self._on_select_existing(t)
-            ).pack(fill="x", pady=2)
-
-    def _on_add_new(self):
-        """Add a new tag from the entry field."""
-        tag = self._new_tag_entry.get().strip()
-        if not tag:
-            messagebox.showwarning("Warning", "Please enter a tag name.", parent=self)
-            return
-        if is_protected_tag(tag):
-            messagebox.showwarning("Warning", f"'{tag}' is a protected tag and cannot be added manually.", parent=self)
-            return
-        self.result = tag
-        self.destroy()
-    
-    def _on_select_existing(self, tag: str):
-        """Select an existing tag."""
-        self.result = tag
-        self.destroy()
-    
-    def _on_cancel(self):
-        """Cancel and close."""
-        self.destroy()
-
-
-class SpellEditorDialog(ctk.CTkToplevel):
-    """A dialog for creating or editing a spell."""
+    ERROR_TITLE = "Validation Error"
     
     def __init__(self, parent, title: str, spell: Optional[Spell] = None, spell_manager=None,
                  prefill_spell: Optional[Spell] = None, review_fields: Optional[List[str]] = None,
@@ -167,7 +30,6 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self._editing = spell is not None
         self._original_spell = spell
         self._spell_manager = spell_manager
-        self._selected_tags: List[str] = []  # User-editable tags (non-protected)
         # Auto-detect pre-fill: populate the form from parsed text but keep this
         # a brand-new spell (no _original_spell), and mark fields to double-check.
         self._prefill_spell = prefill_spell
@@ -195,10 +57,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
             self._apply_review_highlights()
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent, root_coords=False)
         
         # Focus on name entry
         self.name_entry.focus_set()
@@ -354,39 +213,10 @@ class SpellEditorDialog(ctk.CTkToplevel):
         )
         self.legacy_checkbox.pack(anchor="w", pady=(0, 15))
         
-        # Tags section with selection UI
-        tags_header_frame = ctk.CTkFrame(container, fg_color="transparent")
-        tags_header_frame.pack(fill="x", pady=(0, 5))
-        
-        ctk.CTkLabel(tags_header_frame, text="Tags",
-                     font=ui_font("subheading", 13, bold=True)).pack(side="left")
-        
-        theme = get_theme_manager()
-        btn_text = theme.get_current_color('text_primary')
-        
-        self._add_tag_btn = ctk.CTkButton(
-            tags_header_frame, text="+ Add Tag", width=90,
-            fg_color=theme.get_current_color('button_success'),
-            hover_color=theme.get_current_color('button_success_hover'),
-            text_color=btn_text,
-            command=self._on_add_tag
-        )
-        self._add_tag_btn.pack(side="right")
-        
-        # Tags display frame
-        self._tags_display_frame = ctk.CTkFrame(container, fg_color=theme.get_current_color('bg_secondary'), corner_radius=8)
-        self._tags_display_frame.pack(fill="x", pady=(0, 15))
-        
-        self._tags_content_frame = ctk.CTkFrame(self._tags_display_frame, fg_color="transparent")
-        self._tags_content_frame.pack(fill="x", padx=10, pady=10)
-        
-        self._no_tags_label = ctk.CTkLabel(
-            self._tags_content_frame,
-            text="No tags added. Click '+ Add Tag' to add tags.",
-            font=ui_font("body"),
-            text_color=theme.get_text_secondary()
-        )
-        self._no_tags_label.pack(anchor="w")
+        # Tags: the ones the user can edit (the protected Official/Unofficial tag is kept apart)
+        self.tag_editor = TagEditor(
+            container, get_available_tags=self._available_tags, is_protected=is_protected_tag)
+        self.tag_editor.pack(fill="x", pady=(0, 15))
         
         # Description
         ctk.CTkLabel(container, text="Description *",
@@ -422,7 +252,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         self.cancel_btn.pack(side="right", padx=(10, 0))
         self.save_btn = ctk.CTkButton(button_frame, text="Save Spell", width=100,
                                       text_color=btn_text,
-                                      command=self._on_save)
+                                      command=self._save)
         self.save_btn.pack(side="right")
 
         # Register for theme changes so open dialog updates live
@@ -479,126 +309,10 @@ class SpellEditorDialog(ctk.CTkToplevel):
         except Exception:
             pass
 
-    def destroy(self):
-        """Remove theme listener and destroy the dialog."""
-        try:
-            if hasattr(self, '_theme') and self._theme:
-                self._theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
-    
-    def _on_add_tag(self):
-        """Open the tag selection dialog."""
-        # Get available tags from spell_manager
-        available_tags = []
-        if self._spell_manager:
-            available_tags = self._spell_manager.get_all_tags()
-        
-        dialog = TagSelectionDialog(
-            self,
-            available_tags,
-            self._selected_tags
-        )
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            if dialog.result not in self._selected_tags:
-                self._selected_tags.append(dialog.result)
-                self._refresh_tags_display()
-    
-    def _remove_tag(self, tag: str):
-        """Remove a tag from the selected list."""
-        if tag in self._selected_tags:
-            self._selected_tags.remove(tag)
-            self._refresh_tags_display()
-    
-    def _refresh_tags_display(self):
-        """Refresh the tags display based on selected tags."""
-        # Clear current content
-        for widget in self._tags_content_frame.winfo_children():
-            widget.destroy()
-        
-        if not self._selected_tags:
-            # Show placeholder
-            theme = get_theme_manager()
-            self._no_tags_label = ctk.CTkLabel(
-                self._tags_content_frame,
-                text="No tags added. Click '+ Add Tag' to add tags.",
-                font=ui_font("body"),
-                text_color=theme.get_text_secondary()
-            )
-            self._no_tags_label.pack(anchor="w")
-        else:
-            # Show tags as removable chips with wrapping
-            theme = get_theme_manager()
-            
-            # Use a flow layout with wrapping - create rows as needed
-            current_row = ctk.CTkFrame(self._tags_content_frame, fg_color="transparent")
-            current_row.pack(fill="x", anchor="w")
-            
-            for tag in sorted(self._selected_tags):
-                tag_frame = ctk.CTkFrame(
-                    current_row,
-                    fg_color=theme.get_current_color('accent_primary'),
-                    corner_radius=12
-                )
-                tag_frame.pack(side="left", padx=(0, 5), pady=2)
-                
-                ctk.CTkLabel(
-                    tag_frame,
-                    text=tag,
-                    font=ui_font("body"),
-                    text_color=theme.get_current_color('text_primary')
-                ).pack(side="left", padx=(10, 5), pady=4)
-                
-                remove_btn = ctk.CTkButton(
-                    tag_frame,
-                    text="×",
-                    width=20,
-                    height=20,
-                    fg_color="transparent",
-                    hover_color=theme.get_current_color('button_danger'),
-                    text_color=theme.get_current_color('text_primary'),
-                    font=ui_font("subheading", bold=True),
-                    command=lambda t=tag: self._remove_tag(t)
-                )
-                remove_btn.pack(side="left", padx=(0, 5), pady=2)
-                
-                # Check if we need to wrap to a new row
-                # Update the frame to get its width
-                tag_frame.update_idletasks()
-                current_row.update_idletasks()
-                if current_row.winfo_reqwidth() > 450:  # Max width before wrapping
-                    # Move this tag to a new row
-                    tag_frame.pack_forget()
-                    current_row = ctk.CTkFrame(self._tags_content_frame, fg_color="transparent")
-                    current_row.pack(fill="x", anchor="w")
-                    tag_frame = ctk.CTkFrame(
-                        current_row,
-                        fg_color=theme.get_current_color('accent_primary'),
-                        corner_radius=12
-                    )
-                    tag_frame.pack(side="left", padx=(0, 5), pady=2)
-                    ctk.CTkLabel(
-                        tag_frame,
-                        text=tag,
-                        font=ui_font("body"),
-                        text_color=theme.get_current_color('text_primary')
-                    ).pack(side="left", padx=(10, 5), pady=4)
-                    remove_btn = ctk.CTkButton(
-                        tag_frame,
-                        text="×",
-                        width=20,
-                        height=20,
-                        fg_color="transparent",
-                        hover_color=theme.get_current_color('button_danger'),
-                        text_color=theme.get_current_color('text_primary'),
-                        font=ui_font("subheading", bold=True),
-                        command=lambda t=tag: self._remove_tag(t)
-                    )
-                    remove_btn.pack(side="left", padx=(0, 5), pady=2)
-    
+    def _available_tags(self) -> List[str]:
+        """Every tag in use, for the tag picker."""
+        return self._spell_manager.get_all_tags() if self._spell_manager else []
+
     def _populate_from_spell(self, spell: Spell):
         """Populate form fields from an existing spell."""
         self.name_entry.insert(0, spell.name)
@@ -637,8 +351,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         # Legacy content checkbox
         self.legacy_var.set(spell.is_legacy)
         # Filter out protected tags (Official/Unofficial) and populate tag list
-        self._selected_tags = [t for t in spell.tags if not is_protected_tag(t)]
-        self._refresh_tags_display()
+        self.tag_editor.set_tags([t for t in spell.tags if not is_protected_tag(t)])
         self.description_text.insert("1.0", spell.description)
 
     # Human-readable labels for the review banner / field map for highlighting.
@@ -652,49 +365,14 @@ class SpellEditorDialog(ctk.CTkToplevel):
 
     def _apply_review_highlights(self):
         """Add the auto-detect disclaimer banner and outline uncertain fields."""
-        theme = get_theme_manager()
-        try:
-            warn = theme.get_current_color('button_warning')
-        except Exception:
-            warn = "#d4a017"
-
-        # --- banner above the scrollable form ---------------------------- #
-        banner = ctk.CTkFrame(self, fg_color=theme.get_current_color('bg_secondary'),
-                              corner_radius=8)
-        try:
-            banner.pack(fill="x", padx=15, pady=(12, 0), before=self.scroll_frame)
-        except Exception:
-            banner.pack(fill="x", padx=15, pady=(12, 0))
+        banner, warn = add_review_banner(
+            self, self.scroll_frame, self._review_fields, self._REVIEW_FIELD_LABELS, self._batch_progress,
+            ("Auto-detection is rule-based, not perfect - accuracy drops for "
+             "irregularly formatted text. Nothing is saved until you click Save Spell."),
+            theme=get_theme_manager(), padx=15)
         self._review_banner = banner
 
-        heading = "Auto-detected from text - please review before saving"
-        if self._batch_progress:
-            heading = f"{heading}   ({self._batch_progress})"
-        ctk.CTkLabel(banner, text="⚠  " + heading,
-                     font=ui_font("subheading", 13, bold=True),
-                     text_color=warn, anchor="w",
-                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(8, 2))
-
-        review = [f for f in self._review_fields if f in self._REVIEW_FIELD_LABELS]
-        if review:
-            names = ", ".join(sorted(self._REVIEW_FIELD_LABELS[f] for f in review))
-            msg = f"Fields to double-check (outlined below): {names}"
-        else:
-            msg = "All fields were detected with high confidence, but a quick check is still wise."
-        ctk.CTkLabel(banner, text=msg, font=ui_font("small"),
-                     text_color=theme.get_text_secondary(), anchor="w",
-                     justify="left", wraplength=520).pack(fill="x", padx=12, pady=(0, 2))
-
-        ctk.CTkLabel(
-            banner,
-            text=("Auto-detection is rule-based, not perfect - accuracy drops for "
-                  "irregularly formatted text. Nothing is saved until you click Save Spell."),
-            font=ui_font("small"), text_color=theme.get_text_secondary(),
-            anchor="w", justify="left", wraplength=520,
-        ).pack(fill="x", padx=12, pady=(0, 8))
-
-        # --- outline the widgets for uncertain fields ------------------- #
-        widget_map = {
+        widgets = {
             "name": self.name_entry,
             "level": self.level_combo,
             "casting_time": self.casting_time_entry,
@@ -703,14 +381,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
             "duration": self.duration_entry,
             "source": self.source_entry,
         }
-        for field_name in self._review_fields:
-            w = widget_map.get(field_name)
-            if w is None:
-                continue
-            try:
-                w.configure(border_color=warn, border_width=2)
-            except Exception:
-                pass
+        outline_fields(widgets, self._review_fields, warn)
 
     def _build_components_string(self) -> str:
         """Build the components string from checkboxes."""
@@ -728,8 +399,8 @@ class SpellEditorDialog(ctk.CTkToplevel):
         
         return ", ".join(parts)
     
-    def _validate(self) -> bool:
-        """Validate form inputs. Returns True if valid."""
+    def _problems(self) -> List[str]:
+        """What is wrong with the form (empty if it can be saved)."""
         errors = []
         
         if not self.name_entry.get().strip():
@@ -762,23 +433,25 @@ class SpellEditorDialog(ctk.CTkToplevel):
         if not self.description_text.get("1.0", "end").strip():
             errors.append("Description is required")
         
-        if errors:
-            messagebox.showerror("Validation Error", "\n".join(errors))
-            return False
-        
-        return True
+        return errors
     
-    def _on_save(self):
-        """Handle save button click."""
-        if not self._validate():
-            return
-        
+    def build_result(self, strict: bool = True) -> Spell:
+        """The spell the form describes (strict: ValueError listing what is missing; otherwise gaps are filled in)."""
+        if strict:
+            errors = self._problems()
+            if errors:
+                raise ValueError("\n".join(errors))
+
         # Parse level
         level_str = self.level_var.get()
-        if level_str.startswith("0"):
+        try:
+            level = 0 if level_str.startswith("0") else int(level_str)
+        except ValueError:
             level = 0
-        else:
-            level = int(level_str)
+        try:
+            range_value = int(self.range_entry.get().strip())
+        except ValueError:
+            range_value = 0
         
         # Get selected classes
         classes = [
@@ -787,7 +460,7 @@ class SpellEditorDialog(ctk.CTkToplevel):
         ]
         
         # Use selected tags from the new tag UI (already filtered for protected tags)
-        user_tags = self._selected_tags.copy()
+        user_tags = self.tag_editor.get_tags()
         
         # Preserve protected tags from the original spell (case-insensitive check)
         if self._original_spell:
@@ -800,12 +473,12 @@ class SpellEditorDialog(ctk.CTkToplevel):
             is_modified = False
         
         # Create spell object
-        self.result = Spell(
+        return Spell(
             name=self.name_entry.get().strip(),
             level=level,
             casting_time=self.casting_time_entry.get().strip(),
             ritual=self.ritual_var.get(),
-            range_value=int(self.range_entry.get().strip()),
+            range_value=range_value,
             components=self._build_components_string(),
             duration=self.duration_entry.get().strip(),
             concentration=self.concentration_var.get(),
@@ -816,10 +489,16 @@ class SpellEditorDialog(ctk.CTkToplevel):
             is_modified=is_modified,
             is_legacy=self.legacy_var.get()
         )
-        
-        self.destroy()
-    
+
     def _on_cancel(self):
         """Handle cancel button click."""
         self.result = None
-        self.destroy()
+        self._finish()
+
+
+class SpellEditorDialog(SpellEditorBody, DialogWindow):
+    """A dialog for creating or editing a spell."""
+
+
+class SpellEditorPanel(SpellEditorBody, EmbeddedWindow):
+    """The SpellEditorDialog form inside the Homebrew Studio."""

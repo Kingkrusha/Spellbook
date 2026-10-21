@@ -3,13 +3,33 @@ Rich Text Utilities for D&D 5e Spellbook Application.
 Provides global utilities for rendering formatted text, tables, and spell popups.
 """
 
+from ui.window_utils import add_cancel_save, center_on_parent
+from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
+from rules import split_cells as split_table_cells
 from typography import ui_font
 import tkinter as tk
 from tkinter import messagebox
 import re
 from typing import Optional, List, Callable, Tuple
 from theme import get_theme_manager
+
+
+def description_text(parent, theme, bg, font) -> tk.Text:
+    """The borderless, word-wrapping Text that descriptions are drawn in (arrow cursor: it is for reading)."""
+    return tk.Text(
+        parent,
+        wrap="word",
+        font=font,
+        bg=bg,
+        fg=theme.get_current_color('text_primary'),
+        relief="flat",
+        borderwidth=0,
+        highlightthickness=0,
+        padx=0,
+        pady=2,
+        cursor="arrow"
+    )
 
 
 def logical_width(widget) -> int:
@@ -124,6 +144,38 @@ def preprocess_html_to_markdown(text: str) -> str:
     return text
 
 
+# Line-level markup, understood wherever descriptions are drawn (and offered by the editors' toolbar):
+#   "# Heading", "## Subheading", "### Small heading", "#### Smallest"   a line of its own
+#   "---"                                                                a horizontal bar, a line of its own
+#   "**bold**", "_italic_" (and "*italic*" where a lone * is not the older bold)
+_LINK_TOKEN = re.compile(r"\[\[([^\]]+)\]\]")
+HEADING_LINE_RE = re.compile(r"^(#{1,4})[ \t]+(.+?)[ \t]*$")
+BAR_LINE_RE = re.compile(r"^-{3,}[ \t]*$")
+_ITALIC_UNDERSCORE_RE = re.compile(r"(?<![\w_])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\w_])")
+_ITALIC_STAR_RE = re.compile(r"(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])")
+DEFAULT_BOLD_PATTERN = r'\*\*([^*]+)\*\*'
+
+
+def split_italics(text: str, star_italic: bool = True):
+    """[(text, is_italic)] pieces of ``text``. ``_x_`` is italic everywhere; ``*x*`` only where a lone
+    asterisk is not the older bold marker (``star_italic``)."""
+    spans = [(m.start(), m.end(), m.group(1)) for m in _ITALIC_UNDERSCORE_RE.finditer(text)]
+    if star_italic:
+        spans += [(m.start(), m.end(), m.group(1)) for m in _ITALIC_STAR_RE.finditer(text)]
+    spans.sort()
+    out, pos = [], 0
+    for start, end, inner in spans:
+        if start < pos:
+            continue
+        if start > pos:
+            out.append((text[pos:start], False))
+        out.append((inner, True))
+        pos = end
+    if pos < len(text):
+        out.append((text[pos:], False))
+    return out or [(text, False)]
+
+
 def link_display_text(inner: str) -> str:
     """The visible text for the inside of a ``[[...]]`` token.
 
@@ -175,7 +227,7 @@ class RichTextRenderer:
         
         # Parse header
         header_line = table_lines[0]
-        headers = [cell.strip() for cell in header_line.split('|')[1:-1]]
+        headers = split_table_cells(header_line)
         
         # Skip separator line (|---|---|)
         start_row = 1
@@ -185,7 +237,7 @@ class RichTextRenderer:
         # Parse rows
         rows = []
         for row_line in table_lines[start_row:]:
-            cells = [cell.strip() for cell in row_line.split('|')[1:-1]]
+            cells = split_table_cells(row_line)
             if cells:
                 rows.append(cells)
         
@@ -359,20 +411,7 @@ class RichTextRenderer:
                     btn.pack(fill="x", padx=6, pady=6, anchor="w")
                 else:
                     # Plain text cell - use Text widget for word wrapping
-                    text_widget = tk.Text(
-                        cell_frame,
-                        wrap="word",
-                        font=ui_font("small"),
-                        bg=row_bg if row_bg != "transparent" else self.theme.get_current_color('bg_tertiary'),
-                        fg=self.theme.get_current_color('text_primary'),
-                        relief="flat",
-                        borderwidth=0,
-                        highlightthickness=0,
-                        padx=6,
-                        pady=6,
-                        height=1,
-                        cursor="arrow"
-                    )
+                    text_widget = self._cell_text_widget(cell_frame, row_bg if row_bg != "transparent" else self.theme.get_current_color('bg_tertiary'))
                     text_widget.insert("1.0", cell_text)
                     # Calculate required height based on content length
                     num_lines = max(1, (len(cell_text) // 35) + 1)
@@ -404,20 +443,7 @@ class RichTextRenderer:
                                         on_spell_click: Optional[Callable], parent):
         """Render a table cell containing spell links."""
         # Use a Text widget for mixed content
-        text_widget = tk.Text(
-            cell_frame,
-            wrap="word",
-            font=ui_font("small"),
-            bg=self.theme.get_current_color('bg_tertiary'),
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=6,
-            pady=6,
-            height=1,
-            cursor="arrow"
-        )
+        text_widget = self._cell_text_widget(cell_frame)
         
         # Configure tags
         text_widget.tag_configure("normal", font=ui_font("small"))
@@ -459,20 +485,7 @@ class RichTextRenderer:
                                       bold_pattern: str, on_spell_click: Optional[Callable], parent):
         """Render a table cell with bold formatting and/or spell links."""
         # Use a Text widget for mixed content
-        text_widget = tk.Text(
-            cell_frame,
-            wrap="word",
-            font=ui_font("small"),
-            bg=self.theme.get_current_color('bg_tertiary'),
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=6,
-            pady=6,
-            height=1,
-            cursor="arrow"
-        )
+        text_widget = self._cell_text_widget(cell_frame)
         
         # Configure tags
         text_widget.tag_configure("normal", font=ui_font("small"))
@@ -570,11 +583,24 @@ class RichTextRenderer:
             
             # Regular text line
             line = line.strip()
-            
+
+            # A horizontal bar, or a heading (with the bar under it)
+            if BAR_LINE_RE.match(line):
+                self._render_bar(parent, pady=(8, 8))
+                i += 1
+                continue
+            heading = HEADING_LINE_RE.match(line)
+            if heading:
+                self._render_heading(parent, len(heading.group(1)), heading.group(2), wraplength)
+                i += 1
+                continue
+
             # Check for bold patterns
             parts = re.split(bold_pattern, line)
-            
-            if len(parts) == 1:
+
+            if len(parts) == 1 and any(italic for _t, italic in split_italics(line, False)):
+                self._render_formatted_line(parent, parts, on_spell_click, wraplength)
+            elif len(parts) == 1:
                 # No bold formatting - check for spell links
                 self._render_text_line(parent, line, on_spell_click, wraplength)
             else:
@@ -583,6 +609,33 @@ class RichTextRenderer:
             
             i += 1
     
+    def _render_bar(self, parent, pady=(2, 6)):
+        """A horizontal bar across the page."""
+        bar = ctk.CTkFrame(parent, height=2, corner_radius=0,
+                           fg_color=self.theme.get_current_color('scrollbar_thumb'))
+        bar.pack(fill="x", pady=pady)
+        return bar
+
+    def _render_heading(self, parent, level: int, title: str, wraplength: int):
+        """A heading line, with a bar under it."""
+        role, size = {1: ("heading", 18), 2: ("subheading", 15), 3: ("subheading", 13)}.get(level, ("body", 12))
+        title = re.sub(r"\*\*|(?<![\w_])_(?=\S)|(?<=\S)_(?![\w_])", "", title)
+        title = _LINK_TOKEN.sub(lambda m: link_display_text(m.group(1)), title)
+        label = ctk.CTkLabel(parent, text=title, font=ui_font(role, size, bold=True),
+                             wraplength=wraplength, justify="left", anchor="w")
+        label.pack(anchor="w", pady=(8 if level <= 2 else 4, 1))
+        follow_width(parent, label)
+        self._render_bar(parent, pady=(0, 4))
+
+    @staticmethod
+    def _insert_styled(text_widget, text: str, base_tag: str, plain: bool = True):
+        """Insert ``text``; with ``plain`` its ``_italic_`` parts are set in italics."""
+        if not plain:
+            text_widget.insert("end", text, base_tag)
+            return
+        for piece, italic in split_italics(text, False):
+            text_widget.insert("end", piece, (base_tag, "italic") if italic else base_tag)
+
     def _render_text_line(self, parent, text: str, on_spell_click: Optional[Callable], wraplength: int):
         """Render a simple text line, detecting spell links."""
         # Check for spell link patterns [[SpellName]]
@@ -605,11 +658,10 @@ class RichTextRenderer:
             # Has spell links - use text widget with clickable links
             self._render_line_with_spells(parent, parts, on_spell_click, wraplength)
     
-    def _render_formatted_line(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
-        """Render a line with bold formatting and spell links."""
+    def _line_text_widget(self, parent) -> tk.Text:
+        """A borderless, read-only-looking Text for one line of description (spell links need a Text)."""
         # Try to get the proper background color from the parent or theme
         try:
-            # Try to get color from parent frame first
             parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
             if parent_bg is None or parent_bg == 'SystemButtonFace':
                 bg_color = self.theme.get_current_color('bg_primary')
@@ -617,27 +669,37 @@ class RichTextRenderer:
                 bg_color = parent_bg
         except Exception:
             bg_color = self.theme.get_current_color('bg_primary')
-        
-        text_widget = tk.Text(
-            parent,
+
+        return description_text(parent, self.theme, bg_color, ui_font("body"))
+
+    def _cell_text_widget(self, cell_frame, bg=None) -> tk.Text:
+        """The Text a table cell is drawn in (word wrap, links); ``bg`` defaults to the tertiary background."""
+        return tk.Text(
+            cell_frame,
             wrap="word",
-            font=ui_font("body"),
-            bg=bg_color,
+            font=ui_font("small"),
+            bg=bg if bg is not None else self.theme.get_current_color('bg_tertiary'),
             fg=self.theme.get_current_color('text_primary'),
             relief="flat",
             borderwidth=0,
             highlightthickness=0,
-            padx=0,
-            pady=2,
+            padx=6,
+            pady=6,
+            height=1,
             cursor="arrow"
         )
+
+    def _render_formatted_line(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
+        """Render a line with bold formatting and spell links."""
+        text_widget = self._line_text_widget(parent)
         
         # Configure tags
         # Bold text in a description is a feature/field name ("Hit Points.", "Casting Time:")
         text_widget.tag_configure("bold", font=ui_font("body", bold=True),
                                   foreground=self.theme.get_current_color('text_label'))
         text_widget.tag_configure("normal", font=ui_font("body"))
-        text_widget.tag_configure("spell", font=ui_font("body"), 
+        text_widget.tag_configure("italic", font=ui_font("body", italic=True))
+        text_widget.tag_configure("spell", font=ui_font("body"),
                                   foreground=self.theme.get_current_color('spell_link'),
                                   underline=True)
         text_widget.tag_configure("bold_spell", font=ui_font("body", bold=True), 
@@ -658,7 +720,7 @@ class RichTextRenderer:
             spell_parts = re.split(spell_pattern, part)
             if len(spell_parts) == 1:
                 # No spell links
-                text_widget.insert("end", part, base_tag)
+                self._insert_styled(text_widget, part, base_tag, plain=not is_bold)
             else:
                 # Has spell links
                 for k, spell_part in enumerate(spell_parts):
@@ -680,8 +742,8 @@ class RichTextRenderer:
                         text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
                         text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
                     else:
-                        text_widget.insert("end", spell_part, base_tag)
-        
+                        self._insert_styled(text_widget, spell_part, base_tag, plain=not is_bold)
+
         # Calculate height
         total_chars = sum(len(p) for p in parts if p)
         estimated_lines = max(1, (total_chars // 55) + 1)
@@ -692,35 +754,14 @@ class RichTextRenderer:
 
     def _render_line_with_spells(self, parent, parts: list, on_spell_click: Optional[Callable], wraplength: int):
         """Render a line containing spell links [[SpellName]]."""
-        # Try to get the proper background color from the parent or theme
-        try:
-            parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
-            if parent_bg is None or parent_bg == 'SystemButtonFace':
-                bg_color = self.theme.get_current_color('bg_primary')
-            else:
-                bg_color = parent_bg
-        except Exception:
-            bg_color = self.theme.get_current_color('bg_primary')
-        
-        text_widget = tk.Text(
-            parent,
-            wrap="word",
-            font=ui_font("body"),
-            bg=bg_color,
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=2,
-            cursor="arrow"
-        )
+        text_widget = self._line_text_widget(parent)
         
         # Configure tags
         text_widget.tag_configure("normal", font=ui_font("body"))
-        
+        text_widget.tag_configure("italic", font=ui_font("body", italic=True))
+
         spell_counter = 0
-        
+
         # Insert parts - odd indices are spell names
         for i, part in enumerate(parts):
             if not part:
@@ -740,7 +781,7 @@ class RichTextRenderer:
                 text_widget.tag_bind(spell_tag, "<Enter>", lambda e: text_widget.config(cursor="hand2"))
                 text_widget.tag_bind(spell_tag, "<Leave>", lambda e: text_widget.config(cursor="arrow"))
             else:
-                text_widget.insert("end", part, "normal")
+                self._insert_styled(text_widget, part, "normal")
 
         # Calculate height
         total_chars = sum(len(p) for p in parts if p)
@@ -776,10 +817,7 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         self._load_spells()
         
         # Center on parent and ensure visibility
-        self.update_idletasks()
-        x = toplevel_parent.winfo_rootx() + (toplevel_parent.winfo_width() - self.winfo_width()) // 2
-        y = toplevel_parent.winfo_rooty() + (toplevel_parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, toplevel_parent)
         
         # Ensure dialog appears on top and grabs focus
         self.lift()
@@ -857,21 +895,9 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(15, 0))
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        self.select_btn = ctk.CTkButton(
-            btn_frame, text="Select", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_select,
-            state="disabled"
-        )
-        self.select_btn.pack(side="right")
+        _, self.select_btn = add_cancel_save(btn_frame, self.theme, self.destroy, self._on_select,
+                                             confirm_text="Select", accent=True)
+        self.select_btn.configure(state="disabled")
     
     def _load_spells(self):
         """Load all spells from database."""
@@ -1006,10 +1032,7 @@ class TableEditorDialog(ctk.CTkToplevel):
             self._refresh_table()
         
         # Center on parent and ensure visibility
-        self.update_idletasks()
-        x = toplevel_parent.winfo_rootx() + (toplevel_parent.winfo_width() - self.winfo_width()) // 2
-        y = toplevel_parent.winfo_rooty() + (toplevel_parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, toplevel_parent)
         
         # Ensure dialog appears on top and grabs focus
         self.lift()
@@ -1089,19 +1112,8 @@ class TableEditorDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Insert", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_insert
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_insert, confirm_text="Insert",
+                        cancel_width=100, confirm_width=100, accent=True)
     
     def _parse_existing_table(self, table_str: str):
         """Parse an existing markdown table string."""
@@ -1115,7 +1127,7 @@ class TableEditorDialog(ctk.CTkToplevel):
             # Skip separator lines
             if all(c in '-| :' for c in line):
                 continue
-            cells = [cell.strip() for cell in line.split('|')[1:-1]]
+            cells = split_table_cells(line)
             if cells:
                 self._rows_data.append(cells)
         
@@ -1324,69 +1336,128 @@ class RichTextEditor:
             The toolbar frame
         """
         toolbar = ctk.CTkFrame(toolbar_parent, fg_color="transparent")
-        
-        ctk.CTkButton(
-            toolbar, text="📊 Table", width=80,
-            font=ui_font("small"),
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.insert_table
-        ).pack(side="left", padx=(0, 5))
-        
-        ctk.CTkButton(
-            toolbar, text="✨ Spell", width=80,
-            font=ui_font("small"),
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.insert_spell
-        ).pack(side="left", padx=(0, 5))
-        
-        ctk.CTkButton(
-            toolbar, text="**Bold**", width=70,
-            font=ui_font("small"),
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.insert_bold
-        ).pack(side="left")
-        
+        c = self.theme.get_current_color
+
+        def button(text, command, width, font=None, tip=None):
+            btn = ctk.CTkButton(
+                toolbar, text=text, width=width, font=font or ui_font("small"),
+                fg_color=c('button_normal'), hover_color=c('button_hover'), command=command)
+            btn.pack(side="left", padx=(0, 5))
+            if tip:
+                from ui.tooltip import HoverTooltip
+                HoverTooltip(btn, tip)
+            return btn
+
+        button("📊 Table", self.insert_table, 76)
+        button("✨ Spell", self.insert_spell, 72)
+        button("B", self.insert_bold, 34, ui_font("small", bold=True), "Bold: **text**")
+        button("I", self.insert_italic, 34, ui_font("small", italic=True), "Italic: _text_")
+        self.style_button = button("Aa ▾", self._open_style_menu, 56, tip="Heading, subheading, list ...")
+        button("― Bar", self.insert_bar, 60, tip="A horizontal bar (a line of ---)")
+
         return toolbar
-    
+
+    # ---- text styles: line prefixes ("# ", "• ") and the bar ("---")
+
+    TEXT_STYLES = [
+        ("Heading", "# "), ("Subheading", "## "), ("Small heading", "### "),
+        ("Bullet list", "• "), ("Numbered list", "1. "), ("Plain text", ""),
+    ]
+
+    def _open_style_menu(self):
+        c = self.theme.get_current_color
+        menu = tk.Menu(self.parent, tearoff=0, bg=c('bg_secondary'), fg=c('text_primary'),
+                       activebackground=c('accent_primary'), activeforeground=c('text_on_accent'))
+        for label, prefix in self.TEXT_STYLES:
+            menu.add_command(label=label, command=lambda pre=prefix: self.apply_line_style(pre))
+        try:
+            btn = self.style_button
+            menu.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
+        finally:
+            menu.grab_release()
+
+    _LINE_PREFIX_RE = re.compile(r"^(?:#{1,4}[ \t]+|[•][ \t]+|\d+\.[ \t]+|-[ \t]+)")
+
+    def _selected_lines(self):
+        """First and last line number of the selection, or the cursor's line."""
+        try:
+            first = int(str(self.text_widget.index("sel.first")).split(".")[0])
+            last_index = str(self.text_widget.index("sel.last"))
+            last = int(last_index.split(".")[0])
+            if last_index.endswith(".0") and last > first:
+                last -= 1                              # the selection ends at the start of a line
+        except tk.TclError:
+            first = last = int(str(self.text_widget.index("insert")).split(".")[0])
+        return first, last
+
+    def apply_line_style(self, prefix: str):
+        """Make the selected lines (or the cursor's line) a heading, list item or plain text. ``prefix``
+        is "# ", "## ", "### ", "• ", "1. " or "" (plain); a numbered list counts up."""
+        first, last = self._selected_lines()
+        number = 0
+        for line in range(first, last + 1):
+            text = self.text_widget.get(f"{line}.0", f"{line}.end")
+            if not text.strip() and prefix:
+                continue                               # blank lines stay blank
+            match = self._LINE_PREFIX_RE.match(text)
+            if match:
+                self.text_widget.delete(f"{line}.0", f"{line}.{len(match.group(0))}")
+            if prefix:
+                number += 1
+                new = f"{number}. " if prefix == "1. " else prefix
+                self.text_widget.insert(f"{line}.0", new)
+        self.text_widget.focus()
+
+    def insert_bar(self):
+        """A horizontal bar: ``---`` on a line of its own."""
+        index = str(self.text_widget.index("insert"))
+        line_start = self.text_widget.get(f"{index} linestart", index)
+        before = "\n" if line_start.strip() else ""
+        self._insert_text(f"{before}---\n")
+
     def insert_table(self):
         """Open table editor and insert result."""
         dialog = TableEditorDialog(self.parent)
         self.parent.wait_window(dialog)
-        
+
         if dialog.result:
             self._insert_text("\n" + dialog.result + "\n")
-    
+
     def insert_spell(self):
         """Open spell selector and insert result."""
         dialog = SpellSelectorDialog(self.parent, "Insert Spell Reference")
         self.parent.wait_window(dialog)
-        
+
         if dialog.result:
             self._insert_text(dialog.result)
-    
+
     def insert_bold(self):
         """Insert bold markers or wrap selection."""
+        self._wrap_selection("**", "text")
+
+    def insert_italic(self):
+        """Insert italic markers or wrap the selection."""
+        self._wrap_selection("_", "text")
+
+    def _wrap_selection(self, marker: str, placeholder: str):
+        """Put ``marker`` round the selection (or round a placeholder at the cursor)."""
         try:
-            # Try to get selection
+            first = str(self.text_widget.index("sel.first"))
             selection = self.text_widget.selection_get()
-            # Replace selection with bold version, where the selection was
-            start = self.text_widget.index("sel.first")
-            self.text_widget.delete("sel.first", "sel.last")
-            self.text_widget.insert(start, f"**{selection}**")
         except tk.TclError:
-            # No selection, just insert markers
-            self._insert_text("**text**")
-    
+            self._insert_text(f"{marker}{placeholder}{marker}")
+            return
+        self.text_widget.delete("sel.first", "sel.last")
+        self.text_widget.insert(first, f"{marker}{selection}{marker}")
+        self.text_widget.focus()
+
     def _insert_text(self, text: str):
         """Insert text at cursor position."""
         self.text_widget.insert("insert", text)
         self.text_widget.focus()
 
 
-class DynamicText(ctk.CTkFrame):
+class DynamicText(ThemeListenerMixin, ctk.CTkFrame):
     """
     A text container that dynamically resizes and re-wraps text to match
     the width of its parent container. Supports bold text formatting.
@@ -1407,6 +1478,9 @@ class DynamicText(ctk.CTkFrame):
         self.min_height = min_height
         self._text_content = ""
         self._text_parts = []  # List of (text, is_bold) tuples
+        self._styled = False   # has headings or bars: lines differ in height, so the height is set in pixels
+        self._pixel_height = False
+        self._spell_counter = 0
         self._resize_job = None
         self._bold_pattern = r'\*\*([^*]+)\*\*'  # Default pattern
         
@@ -1423,19 +1497,7 @@ class DynamicText(ctk.CTkFrame):
         self._bg_color = bg_color
         
         # Create the text widget
-        self.text_widget = tk.Text(
-            self,
-            wrap="word",
-            font=ui_font("body", font_size),
-            bg=bg_color,
-            fg=self.theme.get_current_color('text_primary'),
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=2,
-            cursor="arrow"
-        )
+        self.text_widget = description_text(self, self.theme, bg_color, ui_font("body", font_size))
         self.text_widget.pack(fill="x", expand=True)
         
         # Configure tags
@@ -1449,6 +1511,10 @@ class DynamicText(ctk.CTkFrame):
             underline=True
         )
         
+        self.text_widget.tag_configure("italic", font=ui_font("body", font_size, italic=True))
+        self._bar_fonts = {}
+        self._line_tags_ready = False
+
         # Bind to resize. The text widget's own <Configure> is what matters: it fires once its
         # width has actually settled, which is when the wrapped line count can be trusted.
         self.bind("<Configure>", self._on_resize)
@@ -1471,6 +1537,9 @@ class DynamicText(ctk.CTkFrame):
         fg_color = fg[1] if isinstance(fg, tuple) else fg
         
         self.text_widget.configure(bg=bg_color, fg=fg_color)  # type: ignore
+        if self._line_tags_ready:
+            for tag in ("bar1", "bar2", "bar3"):
+                self.text_widget.tag_configure(tag, background=self.theme.get_current_color('scrollbar_thumb'))
         self.text_widget.tag_configure("normal", foreground=fg_color)
         self.text_widget.tag_configure("bold", foreground=self.theme.get_current_color('text_label'))
         self.text_widget.tag_configure("spell", foreground=accent)
@@ -1507,6 +1576,26 @@ class DynamicText(ctk.CTkFrame):
         # window, and a page with dozens of these made building it quadratically slow. The
         # text widget's <Configure> re-fits us whenever its width really changes.)
         try:
+            if self._styled and self.text_widget.winfo_width() > 20:
+                # headings and bars are not one font-line tall: ask for the pixels and convert
+                pixels = self.text_widget.count("1.0", "end", "ypixels")
+                line = max(1, ui_font("body", self.font_size).metrics("linespace"))
+                if pixels and pixels[0] > 0:
+                    needed = pixels[0] + 2 * 2                 # (the widget's pady)
+                    lines = -(-needed // line)
+                    self.text_widget.configure(height=max(self.min_height, lines))
+                    # the height comes in whole lines of the body font; the frame is cut to the exact pixels
+                    try:
+                        scale = self._get_widget_scaling() or 1.0
+                    except Exception:
+                        scale = 1.0
+                    self.pack_propagate(False)
+                    self.configure(height=max(1, round(needed / scale)))
+                    self._pixel_height = True
+                    return
+            if self._pixel_height:
+                self.pack_propagate(True)
+                self._pixel_height = False
             counted = self.text_widget.count("1.0", "end", "displaylines")
             if counted and counted[0] > 0 and self.text_widget.winfo_width() > 20:
                 self.text_widget.configure(height=max(self.min_height, counted[0]))
@@ -1527,63 +1616,149 @@ class DynamicText(ctk.CTkFrame):
     def set_text(self, text: str, bold_pattern: str = r'\*\*([^*]+)\*\*'):
         """
         Set the text content with bold text and spell link support.
-        
+
+        Lines of ``# Heading`` (up to four ``#``) and ``---`` (a horizontal bar) are drawn as such;
+        ``_text_`` is italic (and ``*text*`` too, unless ``bold_pattern`` is the older lone-asterisk bold).
+
         Args:
             text: The text to display
             bold_pattern: Regex pattern for bold text (default: **text**)
         """
         self._text_content = text
-        
+
         # Preprocess HTML tags to markdown
         text = preprocess_html_to_markdown(text)
-        
+
         # Clear existing content
         self.text_widget.configure(state="normal")
         self.text_widget.delete("1.0", "end")
-        
+        self._text_parts = []
+        self._spell_counter = 0
+        self._styled = False
+
         if not text:
             self.text_widget.configure(state="disabled", height=self.min_height)
             return
-        
-        # Parse bold patterns first
+
+        star_italic = bold_pattern == DEFAULT_BOLD_PATTERN
+        pending = []        # plain lines waiting to be drawn together
+        started = False     # something is already in the widget
+
+        def flush(more_follows: bool):
+            nonlocal started
+            if not pending:
+                return
+            self._insert_markup("\n".join(pending), bold_pattern, star_italic)
+            pending.clear()
+            started = True
+            if more_follows:
+                self.text_widget.insert("end", "\n", "normal")
+
+        lines = text.split("\n")
+        for index, line in enumerate(lines):
+            heading = HEADING_LINE_RE.match(line.strip())
+            if heading:
+                flush(True)
+                self._insert_heading(len(heading.group(1)), heading.group(2), bold_pattern)
+                started = True
+            elif BAR_LINE_RE.match(line.strip()):
+                flush(True)
+                self._insert_bar()
+                started = True
+            else:
+                pending.append(line)
+        flush(False)
+        if self._styled and self.text_widget.get("end-2c", "end-1c") == "\n":
+            self.text_widget.delete("end-2c", "end-1c")       # no empty line left over after a bar
+
+        self.text_widget.configure(state="disabled")
+
+        # Update height
+        self._on_resize()
+
+    # ---- the line-level pieces
+
+    def _prepare_line_tags(self):
+        """Fonts and colours for headings and bars, made the first time one is needed."""
+        if self._line_tags_ready:
+            return
+        import tkinter.font as tkfont
+        t = self.text_widget
+        size = self.font_size
+        for level, (role, delta) in {1: ("heading", 5), 2: ("subheading", 3), 3: ("subheading", 1),
+                                     4: ("body", 0)}.items():
+            t.tag_configure(f"h{level}", font=ui_font(role, size + delta, bold=True),
+                            foreground=self.theme.get_current_color('text_primary'))
+        # bars are lines of text only a few pixels tall; the air around one is lines of its own
+        self._bar_fonts = {px: tkfont.Font(root=t, size=-px) for px in (2, 3, 5, 8)}
+        t.tag_configure("bar1", font=self._bar_fonts[3], background=self.theme.get_current_color('scrollbar_thumb'))
+        t.tag_configure("bar2", font=self._bar_fonts[2], background=self.theme.get_current_color('scrollbar_thumb'))
+        t.tag_configure("bar3", font=self._bar_fonts[3], background=self.theme.get_current_color('scrollbar_thumb'))
+        t.tag_configure("air", font=self._bar_fonts[5])
+        t.tag_configure("air_big", font=self._bar_fonts[8])
+        self._line_tags_ready = True
+
+    def _insert_heading(self, level: int, title: str, bold_pattern: str):
+        self._prepare_line_tags()
+        self._styled = True
+        title = re.sub(r"\*\*|(?<![\w_])_(?=\S)|(?<=\S)_(?![\w_])", "", title)   # the heading is bold already
+        title = re.sub(r"(?<![\w*])\*(?=\S)|(?<=\S)\*(?![\w*])", "", title) if bold_pattern == DEFAULT_BOLD_PATTERN else title
+        if self.text_widget.index("end-1c") != "1.0" and self.text_widget.get("end-2c", "end-1c") != "\n":
+            self.text_widget.insert("end", "\n", "normal")
+        level = min(max(level, 1), 4)
+        self._insert_markup(title, bold_pattern, False, base=(f"h{level}",), bold_tag=f"h{level}")
+        self.text_widget.insert("end", "\n", f"h{level}")
+        self.text_widget.insert("end", "\n", "bar1" if level <= 2 else "bar2")
+        self.text_widget.insert("end", "\n", "air")
+
+    def _insert_bar(self):
+        self._prepare_line_tags()
+        self._styled = True
+        if self.text_widget.index("end-1c") != "1.0" and self.text_widget.get("end-2c", "end-1c") != "\n":
+            self.text_widget.insert("end", "\n", "normal")
+        self.text_widget.insert("end", "\n", "air_big")
+        self.text_widget.insert("end", "\n", "bar3")
+        self.text_widget.insert("end", "\n", "air_big")
+
+    def _insert_markup(self, text: str, bold_pattern: str, star_italic: bool, base=(), bold_tag=None):
+        """Insert ``text`` with bold, italics and [[links]] (the part of set_text that is not about lines)."""
         import re
         bold_parts = re.split(bold_pattern, text)
-        self._text_parts = []
-        
         spell_pattern = r'\[\[([^\]]+)\]\]'
-        spell_counter = 0
-        
+
         for i, part in enumerate(bold_parts):
             if not part:
                 continue
             is_bold = (i % 2 == 1)
-            
-            # Check for spell links within this part
+            base_name = bold_tag or ("bold" if is_bold else "normal")
+
             spell_parts = re.split(spell_pattern, part)
             if len(spell_parts) == 1:
-                # No spell links
+                # No spell links; italics only apply to plain text
                 self._text_parts.append((part, is_bold, False))
-                tag = "bold" if is_bold else "normal"
-                self.text_widget.insert("end", part, tag)
+                if is_bold or bold_tag:
+                    self.text_widget.insert("end", part, base + (base_name,))
+                else:
+                    for piece, italic in split_italics(part, star_italic):
+                        self.text_widget.insert("end", piece, base + (("normal", "italic") if italic else ("normal",)))
             else:
-                # Has spell links
                 for k, spell_part in enumerate(spell_parts):
                     if not spell_part:
                         continue
                     if k % 2 == 1:
                         # This is a spell name - make it clickable
-                        spell_tag = f"spell_{spell_counter}"
-                        spell_counter += 1
+                        spell_tag = f"spell_{self._spell_counter}"
+                        self._spell_counter += 1
                         self.text_widget.tag_configure(
-                            spell_tag, 
-                            font=ui_font("body", self.font_size, bold=is_bold),
+                            spell_tag,
+                            font=ui_font("body", self.font_size, bold=is_bold or bool(bold_tag)),
                             foreground=self.theme.get_current_color('spell_link'),
                             underline=True
                         )
                         display_part = link_display_text(spell_part)
-                        self.text_widget.insert("end", display_part, spell_tag)
+                        self.text_widget.insert("end", display_part, base + (spell_tag,))
                         self._text_parts.append((display_part, is_bold, True))
-                        
+
                         # Bind click handler
                         click_handler = self.on_spell_click
                         if click_handler:
@@ -1595,14 +1770,13 @@ class DynamicText(ctk.CTkFrame):
                         self.text_widget.tag_bind(spell_tag, "<Leave>", lambda e: self.text_widget.config(cursor="arrow"))
                     else:
                         self._text_parts.append((spell_part, is_bold, False))
-                        tag = "bold" if is_bold else "normal"
-                        self.text_widget.insert("end", spell_part, tag)
-        
-        self.text_widget.configure(state="disabled")
-        
-        # Update height
-        self._on_resize()
-    
+                        if is_bold or bold_tag:
+                            self.text_widget.insert("end", spell_part, base + (base_name,))
+                        else:
+                            for piece, italic in split_italics(spell_part, star_italic):
+                                self.text_widget.insert(
+                                    "end", piece, base + (("normal", "italic") if italic else ("normal",)))
+
     def _default_spell_click(self, inner: str):
         """Default handler for a clicked [[...]] token when no explicit
         on_spell_click override was supplied. Despite the name (kept for
@@ -1618,39 +1792,51 @@ class DynamicText(ctk.CTkFrame):
         else:
             open_link_popup(self, category, name)
     
-    def destroy(self):
-        """Clean up on destruction."""
-        try:
-            self.theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-        super().destroy()
+def description_blocks(text: str):
+    """A description as [("text" | "table", block)]: paragraphs (separated by blank lines), with every run
+    of lines starting with ``|`` split out as a table, whether or not a blank line sits before it."""
+    out = []
+    for block in re.split(r"\n[ \t]*\n", text or ""):
+        run, run_is_table = [], False
+
+        def flush():
+            if run:
+                out.append(("table" if run_is_table else "text", "\n".join(run)))
+                run.clear()
+
+        for line in block.strip("\n").split("\n"):
+            is_table = line.strip().startswith("|")
+            if run and is_table != run_is_table:
+                flush()
+            run_is_table = is_table
+            run.append(line.strip() if is_table else line)
+        flush()
+    return [(kind, b) for kind, b in out if b.strip()]
 
 
 def render_description_blocks(parent, text: str, theme=None,
-                              bold_pattern: str = r'\*\*([^*]+)\*\*') -> list:
+                              bold_pattern: str = r'\*\*([^*]+)\*\*', on_spell_click=None,
+                              bg_color: str = 'bg_primary', font_size: int = 12, pady=(2, 2)) -> list:
     """Render a description as blank-line-separated blocks; return the widgets.
 
-    Ordinary blocks become auto-sizing `DynamicText` (bold + [[links]]). A block
-    that is a markdown table (its first line starts with ``|``) is drawn as a
-    real table instead of raw pipe characters. The caller owns the returned
-    widgets and destroys them when the content changes.
+    Ordinary blocks become auto-sizing `DynamicText` (bold, italics, headings, bars and [[links]]). A
+    markdown table (lines starting with ``|``) is drawn as a real table instead of raw pipe characters.
+    Every place that shows a description should come through here (or ``render_formatted_text``), or
+    its tables show as pipes. ``on_spell_click`` receives the inside of a clicked ``[[link]]``. The
+    caller owns the returned widgets and destroys them when the content changes.
     """
     theme = theme or get_theme_manager()
     renderer = RichTextRenderer(theme)
     widgets: list = []
-    for block in text.split('\n\n'):
-        block = block.strip()
-        if not block:
-            continue
-        if block.startswith('|'):
+    for kind, block in description_blocks(text):
+        if kind == "table":
             headers, rows, _consumed = renderer.parse_markdown_table(block.split('\n'))
             if headers and rows:
-                widgets.append(renderer.render_table(parent, headers, rows))
+                widgets.append(renderer.render_table(parent, headers, rows, on_spell_click))
                 continue
-        dt = DynamicText(parent, theme, bg_color='bg_primary')
-        dt.set_text(block, bold_pattern=bold_pattern)
-        dt.pack(fill="x", expand=True, pady=(2, 2))
+        dt = DynamicText(parent, theme, on_spell_click=on_spell_click, font_size=font_size, bg_color=bg_color)
+        dt.set_text(block.strip(), bold_pattern=bold_pattern)
+        dt.pack(fill="x", expand=True, pady=pady)
         widgets.append(dt)
     return widgets
 

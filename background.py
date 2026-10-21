@@ -9,6 +9,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
+from collection_manager import DbBackedManager
 from legacy_content import apply_legacy_filter
 
 
@@ -119,78 +120,18 @@ class Background:
         return ", ".join(f.name for f in self.features)
 
 
-class BackgroundManager:
+class BackgroundManager(DbBackedManager):
     """Manages the collection of backgrounds using SQLite database."""
     
     _instance = None
     
-    def __init__(self):
-        self._db = None
-        self._backgrounds_cache: Optional[List[Background]] = None
-    
-    @property
-    def db(self):
-        """Get database instance, initializing if needed."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
+    def _load_all(self) -> List[Background]:
+        return [Background.from_dict(d) for d in self.db.get_all_backgrounds()]
     
     @property
     def backgrounds(self) -> List[Background]:
         """Get all backgrounds, using cache if available."""
-        if self._backgrounds_cache is None:
-            self._reload_cache()
-        return self._backgrounds_cache or []
-    
-    def _reload_cache(self):
-        """Reload backgrounds from database into cache."""
-        self._backgrounds_cache = []
-        for bg_dict in self.db.get_all_backgrounds():
-            self._backgrounds_cache.append(self._dict_to_background(bg_dict))
-    
-    def _invalidate_cache(self):
-        """Invalidate the cache to force reload on next access."""
-        self._backgrounds_cache = None
-    
-    def _dict_to_background(self, data: dict) -> Background:
-        """Convert database dict to Background object."""
-        features = []
-        for f in data.get('features', []):
-            features.append(BackgroundFeature(name=f.get('name', ''), description=f.get('description', '')))
-        
-        return Background(
-            name=data.get('name', ''),
-            source=data.get('source', ''),
-            is_legacy=data.get('is_legacy', False),
-            description=data.get('description', ''),
-            skills=data.get('skills', []),
-            other_proficiencies=data.get('other_proficiencies', []),
-            ability_scores=data.get('ability_scores', []),
-            feats=data.get('feats', []),
-            equipment=data.get('equipment', ''),
-            features=features,
-            is_official=data.get('is_official', True),
-            is_custom=data.get('is_custom', False)
-        )
-    
-    def _background_to_dict(self, background: Background) -> dict:
-        """Convert Background object to dict for database."""
-        return {
-            'name': background.name,
-            'source': background.source,
-            'is_legacy': background.is_legacy,
-            'description': background.description,
-            'skills': background.skills,
-            'other_proficiencies': background.other_proficiencies,
-            'ability_scores': background.ability_scores,
-            'feats': background.feats,
-            'equipment': background.equipment,
-            'features': [{'name': f.name, 'description': f.description} for f in background.features],
-            'is_official': background.is_official,
-            'is_custom': background.is_custom
-        }
+        return self._cached()
     
     def load_backgrounds(self):
         """Reload backgrounds from database (for compatibility)."""
@@ -203,7 +144,7 @@ class BackgroundManager:
     def add_background(self, background: Background) -> bool:
         """Add a new background or update existing one."""
         existing = self.db.get_background_by_name(background.name)
-        bg_dict = self._background_to_dict(background)
+        bg_dict = background.to_dict()
         
         if existing:
             self.db.update_background(existing['id'], bg_dict)
@@ -230,7 +171,7 @@ class BackgroundManager:
         """Get a background by name."""
         data = self.db.get_background_by_name(name)
         if data:
-            return self._dict_to_background(data)
+            return Background.from_dict(data)
         return None
     
     def get_all_sources(self) -> List[str]:

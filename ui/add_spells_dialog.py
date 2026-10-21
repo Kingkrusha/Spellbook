@@ -13,6 +13,7 @@ pass a ``spell_grants.Pick`` and it shows only the spells that pick allows and r
 from __future__ import annotations
 
 import tkinter as tk
+from ui.window_utils import center_on_parent
 from typing import Callable, List, Optional
 
 import customtkinter as ctk
@@ -73,11 +74,8 @@ class AddSpellsDialog(ctk.CTkToplevel):
         except tk.TclError:                                       # not viewable yet (headless/testing)
             pass
         self._build(title)
-        self.update_idletasks()
         try:
-            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-            self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+            center_on_parent(self, parent, clamp=True)
         except tk.TclError:
             pass
         self.bind("<Escape>", lambda _e: self._close())

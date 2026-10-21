@@ -2,7 +2,7 @@
 Universal object linking.
 
 A cross-content-type search index (spells, feats, lineages, backgrounds,
-classes, subclasses, equipment, magic items, monsters) plus the markup helpers used to
+classes, subclasses, equipment, magic items, monsters, rules pages) plus the markup helpers used to
 embed and resolve links inside any description/notes text field.
 
 Markup format stored in text: ``[[category:Name]]``, or ``[[category:Name|display]]``
@@ -31,6 +31,7 @@ LINK_CATEGORIES: Dict[str, str] = {
     "equipment": "Equipment",
     "magic_item": "Magic Items",
     "monster": "Monsters",
+    "rule": "Rules",
 }
 
 # The AppSettings boolean that gates *suggesting* a category. Subclasses ride
@@ -45,6 +46,7 @@ _SETTING_ATTR: Dict[str, str] = {
     "equipment": "link_suggest_equipment",
     "magic_item": "link_suggest_magic_items",
     "monster": "link_suggest_monsters",
+    "rule": "link_suggest_rules",
 }
 
 
@@ -56,6 +58,11 @@ class LinkTarget:
     name: str
     subtitle: str = ""
     fetch: Optional[Callable[[], object]] = None
+    shown: str = ""     # what to call it when that differs from `name` (a rules section: "Stunned" for "Conditions#Stunned")
+
+    @property
+    def label(self) -> str:
+        return self.shown or self.name
 
     @property
     def category_label(self) -> str:
@@ -147,6 +154,21 @@ def _monster_targets(include_hidden: bool = False) -> List[LinkTarget]:
             for m in monsters]
 
 
+def _rule_targets() -> List[LinkTarget]:
+    """Rules pages, and the sections inside them as ``Page#Section``."""
+    from rules import RuleRef, get_rules_manager
+    targets = []
+    for page in get_rules_manager().pages:
+        targets.append(LinkTarget("rule", page.name, page.category or "Rules",
+                                  (lambda obj=RuleRef(page): obj)))
+        for sec in page.sections:
+            if sec.level and sec.title:
+                ref = RuleRef(page, sec)
+                targets.append(LinkTarget("rule", ref.name, page.name, (lambda obj=ref: obj),
+                                          shown=sec.title))
+    return targets
+
+
 # Keyed by the Settings toggle's category (not every LINK_CATEGORIES key has
 # its own collector - "subclass" rides along inside "class").
 _COLLECTORS: Dict[str, Callable[[], List[LinkTarget]]] = {
@@ -158,6 +180,7 @@ _COLLECTORS: Dict[str, Callable[[], List[LinkTarget]]] = {
     "equipment": _equipment_targets,
     "magic_item": _magic_item_targets,
     "monster": _monster_targets,
+    "rule": _rule_targets,
 }
 
 
@@ -199,6 +222,13 @@ def find_target(category: str, name: str) -> Optional[LinkTarget]:
     for t in get_link_targets(enabled_only=False):
         if t.category == category and t.name.lower() == name_l:
             return t
+    if category == "rule":
+        # a bare section title ("Stunned") finds the first page that has such a section
+        from rules import get_rules_manager
+        ref = get_rules_manager().resolve(name)
+        if ref is not None:
+            return LinkTarget("rule", ref.name, ref.page.name if ref.section else ref.page.category,
+                              (lambda obj=ref: obj), shown=ref.title if ref.section else "")
     return None
 
 
@@ -232,9 +262,9 @@ def search_links(query: str, targets: List[LinkTarget], limit: Optional[int] = N
     shorter name first, then alphabetically, so tighter matches surface first."""
     scored = []
     for t in targets:
-        s = _score(query, t.name)
+        s = _score(query, t.label)
         if s is not None:
-            scored.append((s, len(t.name), t.name.lower(), t))
+            scored.append((s, len(t.label), t.label.lower(), t))
     scored.sort(key=lambda row: row[:3])
     results = [row[3] for row in scored]
     return results[:limit] if limit else results
@@ -265,7 +295,10 @@ def parse_link_markup(inner: str):
         if key in LINK_CATEGORIES and rest.strip():
             category, name = key, rest
     name = name.strip()
-    display = (display.strip() if display else "") or name
+    display = (display.strip() if display else "")
+    if not display:
+        # a rules link reads as its section: [[rule:Conditions#Stunned]] shows "Stunned"
+        display = name.rsplit("#", 1)[-1].strip() if category == "rule" and "#" in name else name
     return category, name, display
 
 
@@ -275,6 +308,7 @@ def format_link_markup(category: str, name: str, display: str) -> str:
     name = name.strip()
     display = display.strip()
     body = f"{category}:{name}"
-    if display and display.lower() != name.lower():
+    shown_name = name.rsplit("#", 1)[-1] if category == "rule" and "#" in name else name
+    if display and display.lower() != shown_name.lower():
         return f"[[{body}|{display}]]"
     return f"[[{body}]]"

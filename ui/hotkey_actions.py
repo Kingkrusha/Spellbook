@@ -20,7 +20,7 @@ from typography import ui_font
 _RICH_EDITORS: "weakref.WeakValueDictionary[str, object]" = weakref.WeakValueDictionary()
 
 COLLECTION_PAGES = ("spells", "feats", "lineages", "backgrounds", "classes",
-                    "equipment", "magic_items", "monsters")
+                    "equipment", "magic_items", "monsters", "rules")
 TOOL_PAGES = ("session", "initiative", "dice_analyzer", "matchup")
 LEGACY_CYCLE = [
     ("show_all", "Show All Content"),
@@ -266,6 +266,7 @@ def build_handlers(mw) -> Dict[str, Callable[[], Optional[bool]]]:
             getattr(editor, method)()
         return go
     handlers["text.bold"] = formatting("insert_bold")
+    handlers["text.italic"] = formatting("insert_italic")
     handlers["text.spell"] = formatting("insert_spell")
     handlers["text.table"] = formatting("insert_table")
 

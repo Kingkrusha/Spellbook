@@ -20,8 +20,7 @@ from item_effects import ItemInfo
 ABILITIES = ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
 ABILITY_NAMES = {"STR": "Strength", "DEX": "Dexterity", "CON": "Constitution",
                  "INT": "Intelligence", "WIS": "Wisdom", "CHA": "Charisma"}
-ENUM = {"STR": AbilityScore.STRENGTH, "DEX": AbilityScore.DEXTERITY, "CON": AbilityScore.CONSTITUTION,
-        "INT": AbilityScore.INTELLIGENCE, "WIS": AbilityScore.WISDOM, "CHA": AbilityScore.CHARISMA}
+ENUM = {AbilityScore.short_name(a): a for a in AbilityScore}
 ABBR = {v: k for k, v in ENUM.items()}
 
 _LEGACY = re.compile(r"\s*\((?:legacy[^)]*)\)", re.IGNORECASE)
@@ -135,7 +134,12 @@ class Ctx:
     def skill_level(self, skill: Skill) -> int:
         return self.sheet.skills.get(skill)
 
-    def spell_attack_bonus(self, ability: str, spell_class: str = "") -> int:
+    def spell_attack_bonus(self, ability: str, spell_class: str = "", raw: bool = False) -> int:
+        """The spell attack modifier: the number typed on the sheet if there is one, else worked out
+        (``raw=True`` ignores what was typed)."""
+        typed = getattr(self.sheet, "stat_overrides", {}).get(f"spell_attack:{ability}")
+        if typed is not None and not raw:
+            return int(typed)
         extra = 0
         for item in self.active_items:
             if item.spell_attack and (not item.spell_class or not spell_class
@@ -143,7 +147,10 @@ class Ctx:
                 extra += item.spell_attack
         return self.prof + self.mod(ability) + extra
 
-    def spell_dc(self, ability: str, spell_class: str = "") -> int:
+    def spell_dc(self, ability: str, spell_class: str = "", raw: bool = False) -> int:
+        typed = getattr(self.sheet, "stat_overrides", {}).get(f"spell_dc:{ability}")
+        if typed is not None and not raw:
+            return int(typed)
         extra = 0
         for item in self.active_items:
             if item.spell_dc and (not item.spell_class or not spell_class

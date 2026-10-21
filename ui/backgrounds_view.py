@@ -5,19 +5,20 @@ Displays a searchable/filterable list of backgrounds with details panel.
 
 import customtkinter as ctk
 from typography import ui_font
-from ui.label_text import LabeledLabel
-import tkinter as tk
+from ui.versioned_detail import VersionedDetailBase
 from tkinter import messagebox
-from typing import List, Optional, Callable
+from typing import List, Optional
 from background import Background, BackgroundFeature, BackgroundManager, get_background_manager
 from theme import get_theme_manager
 from ui.rich_text_utils import follow_width
 from settings import get_settings_manager
 from legacy_content import legacy_pair_key
 from content_versions import VersionCatalog, display_name
-from ui.version_bar import VersionBar
-from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.filter_widgets import SourceFilterMode
 from ui.virtual_list import VirtualListPanel
+from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
+from ui.bulk_actions import BulkActionsMixin
+from ui.collection_page import CollectionPageMixin
 
 
 def _list_name(name: str) -> str:
@@ -49,46 +50,17 @@ class BackgroundListPanel(VirtualListPanel):
         return self.select_by_name(name, version)
 
 
-class BackgroundDetailPanel(ctk.CTkFrame):
+class BackgroundDetailPanel(VersionedDetailBase):
     """Panel displaying detailed information about a background."""
-    
-    def __init__(self, parent):
-        super().__init__(parent, corner_radius=10)
-        self.theme = get_theme_manager()
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._current_background: Optional[Background] = None
-        self._versions: List[Background] = []
-        self.on_version_change: Optional[Callable[[Background], None]] = None
-        self._create_widgets()
-        self.theme.add_listener(self._on_theme_changed)
 
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_colors()
+    CURRENT_ATTR = "_current_background"
     
     def _create_widgets(self):
         """Create the detail view widgets."""
-        # Scrollable content
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Background name
-        self.name_label = ctk.CTkLabel(
-            self.scroll_frame, text="Select a background",
-            font=ui_font("title", bold=True),
-            wraplength=800
-        )
-        self.name_label.pack(anchor="w", pady=(0, 5))
-        
-        # Source info (a drop-down when the background has several versions)
-        self.source_label = VersionBar(
-            self.scroll_frame, text="",
-            font=ui_font("small"),
-            text_color=self.theme.get_text_secondary(),
-            on_select=self._version_selected
-        )
-        self.source_label.pack(anchor="w", pady=(0, 10))
+        self._add_scroll_and_title("Select a background", 800)
+
+        # Source info (a drop-down when there are several versions)
+        self._add_version_bar()
         
         # Stats frame (ability scores, skills, etc.)
         self.stats_frame = ctk.CTkFrame(
@@ -213,13 +185,6 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             widget.destroy()
         self._feat_widgets = []
     
-    def _get_renderer(self):
-        """Get or create the rich text renderer."""
-        if not hasattr(self, '_renderer'):
-            from ui.rich_text_utils import RichTextRenderer
-            self._renderer = RichTextRenderer(self.theme)
-        return self._renderer
-    
     def _show_feat_popup(self, feat_name: str):
         """Show a popup with the feat description."""
         from feat import get_feat_manager
@@ -330,12 +295,6 @@ class BackgroundDetailPanel(ctk.CTkFrame):
                 wraplength=500
             )
     
-    def _clear_description(self):
-        """Clear all description widgets."""
-        for widget in self._desc_widgets:
-            widget.destroy()
-        self._desc_widgets = []
-    
     def _render_equipment(self, text: str):
         """Show the equipment list, with any [[...]] links clickable."""
         from ui.rich_text_utils import DynamicText
@@ -356,34 +315,14 @@ class BackgroundDetailPanel(ctk.CTkFrame):
         if not text:
             return
         
-        # Split by paragraphs (double newlines)
-        paragraphs = text.split('\n\n')
-        
-        for para_idx, paragraph in enumerate(paragraphs):
-            if not paragraph.strip():
-                continue
-            
-            # Create a DynamicText for this paragraph with single asterisk bold pattern
-            dt = DynamicText(
-                self.description_container, self.theme,
-                bg_color='bg_primary'  # Use theme color key for proper theme switching
-            )
-            # Use single asterisk pattern for bold
-            dt.set_text(paragraph.strip(), bold_pattern=r'\*([^*]+)\*')
-            dt.pack(fill="x", expand=True, pady=(2, 2))
-            self._desc_widgets.append(dt)
-            
-            # Add spacing between paragraphs
-            if para_idx < len(paragraphs) - 1:
-                spacer = ctk.CTkLabel(self.description_container, text="", height=5)
-                spacer.pack()
-                self._desc_widgets.append(spacer)
+        from ui.rich_text_utils import render_description_blocks
+
+        # Paragraphs and tables; a lone *text* is bold in this collection's text
+        self._desc_widgets.extend(render_description_blocks(
+            self.description_container, text, self.theme, bold_pattern=r'\*([^*]+)\*', pady=(3, 3)))
     
-    def _version_selected(self, background: Background):
-        """The user picked another version in the Source drop-down."""
-        self.show_background(background, self._versions)
-        if self.on_version_change:
-            self.on_version_change(background)
+    def _show_item(self, item, versions=None):
+        self.show_background(item, versions)
 
     def show_background(self, background: Optional[Background], versions: Optional[List[Background]] = None):
         """Display details for a background (``versions``: every version offered in the Source drop-down)."""
@@ -517,8 +456,11 @@ class BackgroundDetailPanel(ctk.CTkFrame):
             self.features_container.pack_forget()
 
 
-class BackgroundsView(ctk.CTkFrame):
+class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     """Main view for browsing and managing backgrounds."""
+
+    MANAGER_ATTR = "background_manager"
+    PLURAL = "backgrounds"
     
     def __init__(self, parent, character_manager=None, on_back=None):
         self.theme = get_theme_manager()
@@ -544,243 +486,67 @@ class BackgroundsView(ctk.CTkFrame):
         self._filter_debounce_delay = 150  # ms for text input
         
         self._create_widgets()
+        self._setup_bulk_actions()
         self._create_context_menu()
         self._create_compare_panel()
         self._load_backgrounds()
         self.theme.add_listener(self._on_theme_changed)
     
-    def _on_theme_changed(self):
-        """Handle theme changes."""
-        self.configure(fg_color=self.theme.get_current_color('bg_primary'))
-        self._update_context_menu_colors()
-        if hasattr(self, 'paned'):
-            self._update_paned_colors()
-        if hasattr(self, 'compare_container'):
-            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
-    
-    def _update_context_menu_colors(self):
-        """Update context menu colors for theme."""
-        if not hasattr(self, 'context_menu'):
-            return
-        bg_color = self.theme.get_current_color('bg_secondary')
-        fg_color = self.theme.get_current_color('text_primary')
-        self.context_menu.configure(
-            bg=bg_color,
-            fg=fg_color,
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=fg_color
-        )
-    
-    def _create_widgets(self):
-        """Create the main layout."""
-        # Top bar with search and filters
-        self._create_filter_bar()
-        
-        # Main content area with list and detail panels
-        self.content = ctk.CTkFrame(self, fg_color="transparent")
-        self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        
-        # Create a PanedWindow for resizable panels
-        self.paned = tk.PanedWindow(
-            self.content,
-            orient=tk.HORIZONTAL,
-            sashwidth=8,
-            sashrelief=tk.RAISED,
-            handlesize=0,
-            opaqueresize=False,
-            sashcursor="sb_h_double_arrow"
-        )
-        self.paned.pack(fill="both", expand=True)
-        self._update_paned_colors()
-        
-        # Left container to hold list or compare panel
-        self.left_container = ctk.CTkFrame(self.paned, fg_color="transparent")
-        
-        # Background list panel (left)
-        self.list_panel = BackgroundListPanel(
-            self.left_container, 
-            on_select=self._on_background_selected,
-            on_right_click=self._on_background_right_click
-        )
-        self.list_panel.pack(fill="both", expand=True)
-        
-        # Background detail panel (right)
-        self.detail_panel = BackgroundDetailPanel(self.paned)
-        self.detail_panel.on_version_change = self.list_panel.replace_selected
-        
-        # Add panes with minimum sizes
-        self.paned.add(self.left_container, minsize=280, stretch="always")
-        self.paned.add(self.detail_panel, minsize=400, stretch="always")
-        
-        # Set initial sash position (roughly 1:2 ratio)
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
-    
-    def _update_paned_colors(self):
-        """Update PanedWindow sash colors based on current theme."""
-        sash_color = self.theme.get_current_color("pane_sash")
-        self.paned.configure(bg=sash_color)
-    
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
         filter_bar = ctk.CTkFrame(self, fg_color="transparent")
         filter_bar.pack(fill="x", padx=10, pady=10)
-        
-        # Back button to return to collections
-        if self.on_back:
-            back_btn = ctk.CTkButton(
-                filter_bar, text="← Collections", width=110,
-                fg_color=self.theme.get_current_color('button_normal'),
-                hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_current_color('text_primary'),
-                command=self.on_back
-            )
-            back_btn.pack(side="left", padx=(0, 15))
-        
-        # Search box
-        self.search_var = ctk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        
-        search_entry = ctk.CTkEntry(
-            filter_bar, width=250, height=35,
-            placeholder_text="Search backgrounds...",
-            textvariable=self.search_var
-        )
-        search_entry.pack(side="left", padx=(0, 15))
-        
-        # Source filter (multi-select)
-        ctk.CTkLabel(filter_bar, text="Source:").pack(side="left", padx=(0, 5))
-        self.source_btn = ctk.CTkButton(
-            filter_bar, text="Select Sources...", width=130, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._open_source_filter
-        )
-        self.source_btn.pack(side="left", padx=(0, 8))
-        self.source_label = ctk.CTkLabel(
-            filter_bar, text="None selected",
-            font=ui_font("small"), text_color=self.theme.get_text_secondary()
-        )
-        self.source_label.pack(side="left", padx=(0, 15))
 
-        # Add background button (right side)
-        add_btn = ctk.CTkButton(
-            filter_bar, text="+ Add Background",
-            width=140, height=35,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_add_background
-        )
-        add_btn.pack(side="right")
+        self._add_back_button(filter_bar)
+        self._add_search_entry(filter_bar, "Search backgrounds...", 200)
+        self._add_source_filter(filter_bar, end_padx=(0, 15))
+        self._add_action_buttons(filter_bar, "+ Add Background", 140, self._on_add_background,
+                                 self._on_edit_background, self._on_delete_background)
 
         # Second row: official content, skill, clear
-        filter_bar2 = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar2.pack(fill="x", padx=10, pady=(0, 10))
+        filter_bar2 = self._filter_row()
+        self._add_content_filter(filter_bar2)
+        self._add_filter_combo(filter_bar2, "skill", "Grants Skill:", "All Skills", ["All Skills"], 160, (0, 20))
+        self._add_clear_button(filter_bar2)
 
-        ctk.CTkLabel(filter_bar2, text="Content:").pack(side="left", padx=(0, 5))
-        self.official_var = ctk.StringVar(value="Any Content")
-        self.official_combo = ctk.CTkComboBox(
-            filter_bar2, width=140, height=35,
-            values=["Any Content", "Official Only", "Homebrew Only"],
-            variable=self.official_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.official_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkLabel(filter_bar2, text="Grants Skill:").pack(side="left", padx=(0, 5))
-        self.skill_var = ctk.StringVar(value="All Skills")
-        self.skill_combo = ctk.CTkComboBox(
-            filter_bar2, width=160, height=35,
-            values=["All Skills"],
-            variable=self.skill_var,
-            command=lambda _: self._on_filter_changed(immediate=True),
-            state="readonly"
-        )
-        self.skill_combo.pack(side="left", padx=(0, 20))
-
-        ctk.CTkButton(
-            filter_bar2, text="Clear Filters", width=110, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            text_color=self.theme.get_current_color('text_primary'),
-            command=self._clear_filters
-        ).pack(side="right")
-
-        # Edit/Delete buttons
-        self.delete_btn = ctk.CTkButton(
-            filter_bar, text="Delete",
-            width=80, height=35,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=self._on_delete_background
-        )
-        self.delete_btn.pack(side="right", padx=(0, 5))
-        
-        self.edit_btn = ctk.CTkButton(
-            filter_bar, text="Edit",
-            width=80, height=35,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_edit_background
-        )
-        self.edit_btn.pack(side="right", padx=(0, 5))
-    
     def _create_context_menu(self):
         """Create the right-click context menu for backgrounds."""
-        self.context_menu = tk.Menu(self, tearoff=0)
-        self._update_context_menu_colors()
-        self.context_menu.add_command(
-            label="Set as Character Background",
-            command=self._context_set_background
-        )
-        self.context_menu.add_command(
-            label="Compare",
-            command=self._context_compare
-        )
-    
+        self._build_context_menu([
+            ("Set as Character Background", self._context_set_background),
+            ("Compare", self._context_compare),
+        ])
+
+    def _create_panes(self):
+        self._create_panes_with_container(
+            BackgroundListPanel, BackgroundDetailPanel, self._on_background_selected,
+            self._on_background_right_click)
+
     def _create_compare_panel(self):
         """Create the compare background panel (hidden initially)."""
-        self.compare_container = ctk.CTkFrame(
-            self.left_container, corner_radius=10,
-            fg_color=self.theme.get_current_color('bg_secondary'))
-        
-        # Header with close button
-        header = ctk.CTkFrame(self.compare_container, fg_color="transparent")
-        header.pack(fill="x", padx=10, pady=(10, 0))
-        
-        ctk.CTkLabel(
-            header, text="Compare Backgrounds",
-            font=ui_font("subheading", bold=True)
-        ).pack(side="left")
-        
-        ctk.CTkButton(
-            header, text="✕", width=30, height=30,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._close_compare
-        ).pack(side="right")
-        
-        # Compare detail panel
-        self.compare_detail = BackgroundDetailPanel(self.compare_container)
-        self.compare_detail.pack(fill="both", expand=True, padx=5, pady=5)
-    
+        self._build_compare_panel("Compare Backgrounds", BackgroundDetailPanel, self._close_compare)
+
+    BULK_ACTIONS = ("source",)
+    BULK_NOUN, BULK_PLURAL = "background", "backgrounds"
+
+    def _bulk_fetch(self, name: str):
+        return self.background_manager.get_background(name)
+
+    def _bulk_store(self, entries: list) -> int:
+        with self.background_manager.batch():
+            return sum(bool(self.background_manager.add_background(e)) for e in entries)
+
+    def _bulk_reload(self):
+        self._load_backgrounds()
+
+    def _bulk_all_sources(self) -> List[str]:
+        return self.background_manager.get_all_sources()
+
     def _load_backgrounds(self):
         """Load all backgrounds from manager."""
         self._all_backgrounds = self.background_manager.backgrounds.copy()
         self._catalog = VersionCatalog(self._all_backgrounds)
         self._update_filter_options()
         self._on_filter_changed(immediate=True)
-    
-    def _on_filter_changed(self, immediate: bool = False):
-        """Called when any filter value changes with debouncing."""
-        if self._filter_debounce_id is not None:
-            self.after_cancel(self._filter_debounce_id)
-            self._filter_debounce_id = None
-        
-        if immediate:
-            self._filter_debounce_id = self.after(10, self._apply_filters)
-        else:
-            self._filter_debounce_id = self.after(self._filter_debounce_delay, self._apply_filters)
     
     def _update_filter_options(self):
         """Update filter dropdown options based on loaded backgrounds."""
@@ -789,35 +555,10 @@ class BackgroundsView(ctk.CTkFrame):
         skill_options = ["All Skills"] + skills
         self.skill_combo.configure(values=skill_options)
 
-    def _open_source_filter(self):
-        """Open the source filter dialog."""
-        available_sources = self.background_manager.get_all_sources()
-        dialog = SourceFilterDialog(
-            self.winfo_toplevel(), available_sources,
-            self._selected_sources, self._source_filter_mode,
-            empty_message="No sources found in your backgrounds."
-        )
-        self.wait_window(dialog)
-        self._selected_sources = dialog.result
-        self._source_filter_mode = dialog.result_mode
-        self._update_source_label()
-        self._on_filter_changed(immediate=True)
-
-    def _update_source_label(self):
-        """Update the source label with selected source count and mode."""
-        count = len(self._selected_sources)
-        if count == 0:
-            self.source_label.configure(text="None selected")
-        else:
-            mode_str = "include" if self._source_filter_mode == SourceFilterMode.INCLUDE else "exclude"
-            if count == 1:
-                self.source_label.configure(text=f"1 source ({mode_str}): {self._selected_sources[0]}")
-            else:
-                self.source_label.configure(text=f"{count} sources ({mode_str})")
-
     def _clear_filters(self):
         """Reset every filter to its default value."""
         self.search_var.set("")
+        self.titles_var.set(False)
         self.official_var.set("Any Content")
         self.skill_var.set("All Skills")
         self._selected_sources = []
@@ -837,23 +578,15 @@ class BackgroundsView(ctk.CTkFrame):
         filtered = []
         for background in self._all_backgrounds:
             # Search filter
-            if search and search not in background.name.lower():
-                if not any(search in skill.lower() for skill in background.skills):
-                    if not any(search in feat.lower() for feat in background.feats):
-                        continue
+            if not self._passes_search(search, background.name, [*background.skills, *background.feats]):
+                continue
 
             # Source filter
-            if self._selected_sources:
-                source_selected = background.source in self._selected_sources
-                if self._source_filter_mode == SourceFilterMode.INCLUDE and not source_selected:
-                    continue
-                if self._source_filter_mode == SourceFilterMode.EXCLUDE and source_selected:
-                    continue
+            if not self._passes_source_filter(background.source):
+                continue
 
             # Official content filter
-            if official_filter == "Official Only" and not background.is_official:
-                continue
-            if official_filter == "Homebrew Only" and background.is_official:
+            if not self._passes_official_filter(background.is_official, official_filter):
                 continue
 
             # Grants skill filter
@@ -888,7 +621,7 @@ class BackgroundsView(ctk.CTkFrame):
     def _context_set_background(self):
         """Set background for current character from context menu."""
         if self._context_background and self.character_manager:
-            char = self.character_manager.get_active_character()
+            char = self._active_character()
             if char:
                 # Update character sheet background
                 from ui.character_sheet_view import get_sheet_manager
@@ -900,12 +633,6 @@ class BackgroundsView(ctk.CTkFrame):
                 messagebox.showinfo(
                     "Background Set",
                     f"Set {char.name}'s background to {self._context_background.name}.",
-                    parent=self
-                )
-            else:
-                messagebox.showwarning(
-                    "No Character",
-                    "No active character selected.",
                     parent=self
                 )
     
@@ -934,13 +661,16 @@ class BackgroundsView(ctk.CTkFrame):
     
     def _on_add_background(self):
         """Open dialog to add a new background."""
+        from ui.studio_launch import open_in_studio
+        if open_in_studio(self, "backgrounds"):
+            return
         dialog = BackgroundEditorDialog(self.winfo_toplevel(), self.background_manager)
         dialog.grab_set()
         self.wait_window(dialog)
         
         if dialog.result:
             self._load_backgrounds()
-            self.list_panel.select_background(dialog.result.name)
+            self.list_panel.select_when_listed(dialog.result.name)
     
     def _on_edit_background(self):
         """Edit the selected background."""
@@ -965,7 +695,7 @@ class BackgroundsView(ctk.CTkFrame):
         
         if dialog.result:
             self._load_backgrounds()
-            self.list_panel.select_background(dialog.result.name)
+            self.list_panel.select_when_listed(dialog.result.name)
     
     def _on_delete_background(self):
         """Delete the selected background."""
@@ -999,8 +729,8 @@ class BackgroundsView(ctk.CTkFrame):
         return self.list_panel.select_background(name, self._catalog.find(name))
 
 
-class BackgroundEditorDialog(ctk.CTkToplevel):
-    """Dialog for creating/editing backgrounds."""
+class BackgroundEditorBody(EditorBody):
+    """Dialog for creating/editing backgrounds. (the form; see ui/editor_host.py)"""
     
     def __init__(self, parent, background_manager: BackgroundManager, background: Optional[Background] = None):
         super().__init__(parent)
@@ -1031,153 +761,69 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         # Main scrollable container
         self.scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll.pack(fill="both", expand=True, padx=20, pady=20)
-        
+
         # Name
-        ctk.CTkLabel(self.scroll, text="Name: *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.name_entry = ctk.CTkEntry(self.scroll, width=400, height=35)
-        self.name_entry.pack(fill="x", pady=(5, 15))
-        
+        self.name_entry = self._add_entry_field(self.scroll, "Name: *")
+
         # Row for source and legacy
         source_row = ctk.CTkFrame(self.scroll, fg_color="transparent")
         source_row.pack(fill="x", pady=(0, 15))
-        
+
         # Source
         source_frame = ctk.CTkFrame(source_row, fg_color="transparent")
         source_frame.pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(source_frame, text="Source: *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(source_frame, "Source: *")
         self.source_entry = ctk.CTkEntry(source_frame, width=250, height=35)
         self.source_entry.pack()
-        
+
         # Is Legacy
         legacy_frame = ctk.CTkFrame(source_row, fg_color="transparent")
         legacy_frame.pack(side="left")
-        ctk.CTkLabel(legacy_frame, text="Content Type:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(legacy_frame, "Content Type:")
         self.legacy_var = ctk.BooleanVar(value=False)
         self.legacy_check = ctk.CTkCheckBox(
             legacy_frame, text="Legacy (2014) Content",
             variable=self.legacy_var
         )
         self.legacy_check.pack(anchor="w", pady=5)
-        
-        # Ability Scores
-        ctk.CTkLabel(self.scroll, text="Ability Scores (comma-separated):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.ability_scores_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
-                                                  placeholder_text="e.g., Strength, Dexterity, Charisma")
-        self.ability_scores_entry.pack(fill="x", pady=(5, 15))
-        
-        # Skills
-        ctk.CTkLabel(self.scroll, text="Skill Proficiencies (comma-separated):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.skills_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
-                                          placeholder_text="e.g., Insight, Religion")
-        self.skills_entry.pack(fill="x", pady=(5, 15))
-        
-        # Other Proficiencies
-        ctk.CTkLabel(self.scroll, text="Tool Proficiencies (comma-separated):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.proficiencies_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
-                                                 placeholder_text="e.g., Calligrapher's Supplies")
-        self.proficiencies_entry.pack(fill="x", pady=(5, 15))
-        
-        # Feats
-        ctk.CTkLabel(self.scroll, text="Origin Feat(s) (comma-separated for multiple options):", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
-        self.feats_entry = ctk.CTkEntry(self.scroll, width=400, height=35,
-                                         placeholder_text="e.g., Magic Initiate (Cleric)")
-        self.feats_entry.pack(fill="x", pady=(5, 15))
-        
+
+        self.ability_scores_entry = self._add_entry_field(
+            self.scroll, "Ability Scores (comma-separated):", placeholder="e.g., Strength, Dexterity, Charisma")
+        self.skills_entry = self._add_entry_field(
+            self.scroll, "Skill Proficiencies (comma-separated):", placeholder="e.g., Insight, Religion")
+        self.proficiencies_entry = self._add_entry_field(
+            self.scroll, "Tool Proficiencies (comma-separated):", placeholder="e.g., Calligrapher's Supplies")
+        self.feats_entry = self._add_entry_field(
+            self.scroll, "Origin Feat(s) (comma-separated for multiple options):",
+            placeholder="e.g., Magic Initiate (Cleric)")
+
         # Equipment
-        ctk.CTkLabel(self.scroll, text="Equipment:", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(self.scroll, "Equipment:")
         self.equipment_text = ctk.CTkTextbox(self.scroll, height=60)
         self.equipment_text.pack(fill="x", pady=(5, 15))
         from ui.object_link_widgets import attach_object_linking
         attach_object_linking(self.equipment_text, self.theme)
-        
+
         # Description
-        ctk.CTkLabel(self.scroll, text="Description: *", font=ui_font("subheading", 13, bold=True)).pack(anchor="w")
+        self._field_label(self.scroll, "Description: *")
         self.desc_text = ctk.CTkTextbox(self.scroll, height=100)
         self.desc_text.pack(fill="x", pady=(5, 15))
-        
+
         # Features section
-        features_header = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        features_header.pack(fill="x", pady=(10, 5))
-        
-        ctk.CTkLabel(features_header, text="Features:", font=ui_font("subheading", 13, bold=True)).pack(side="left")
-        
-        ctk.CTkButton(
-            features_header, text="+ Add Feature", width=100,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            command=self._add_feature
-        ).pack(side="right")
-        
+        self._add_section_header(self.scroll, "Features:", "+ Add Feature", self._add_feature)
+
         # Container for feature entries
         self.features_container = ctk.CTkFrame(self.scroll, fg_color="transparent")
         self.features_container.pack(fill="x", pady=(5, 15))
-        
-        # Buttons
-        btn_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(20, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Save",
-            width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_secondary'),
-            command=self._save
-        ).pack(side="left", padx=(0, 10))
-        
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
-            width=100,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('bg_tertiary'),
-            command=self.destroy
-        ).pack(side="left")
-    
+
+        self._add_save_buttons_left(self.scroll)
+
     def _add_feature(self, name: str = "", description: str = ""):
         """Add a feature entry."""
-        from ui.rich_text_utils import RichTextEditor
-        
-        frame = ctk.CTkFrame(
-            self.features_container,
-            fg_color=self.theme.get_current_color('bg_secondary'),
-            corner_radius=8
-        )
-        frame.pack(fill="x", pady=5)
-        
-        inner = ctk.CTkFrame(frame, fg_color="transparent")
-        inner.pack(fill="x", padx=10, pady=10)
-        
-        # Header with remove button
-        header = ctk.CTkFrame(inner, fg_color="transparent")
-        header.pack(fill="x")
-        
-        ctk.CTkLabel(header, text="Feature Name:", font=ui_font("body")).pack(side="left")
-        
-        remove_btn = ctk.CTkButton(
-            header, text="✕", width=25, height=25,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=lambda f=frame: self._remove_feature(f)
-        )
-        remove_btn.pack(side="right")
-        
-        name_entry = ctk.CTkEntry(inner, height=30)
-        name_entry.pack(fill="x", pady=(5, 10))
-        name_entry.insert(0, name)
-        
-        ctk.CTkLabel(inner, text="Description:", font=ui_font("body")).pack(anchor="w")
-        
-        desc_entry = ctk.CTkTextbox(inner, height=80)
-        
-        # Add rich text toolbar
-        rich_editor = RichTextEditor(self, desc_entry, self.theme)
-        toolbar = rich_editor.create_toolbar(inner)
-        toolbar.pack(fill="x", pady=(5, 5))
-        
-        desc_entry.pack(fill="x", pady=(0, 0))
-        desc_entry.insert("1.0", description)
-        
+        frame, _inner, name_entry, desc_entry = self._add_card(
+            self.features_container, "Feature Name:", self._remove_feature, name, description)
         self._feature_entries.append((name_entry, desc_entry, frame))
-    
+
     def _remove_feature(self, frame):
         """Remove a feature entry."""
         for i, (name_e, desc_e, f) in enumerate(self._feature_entries):
@@ -1213,22 +859,18 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
         for feature in background.features:
             self._add_feature(feature.name, feature.description)
     
-    def _save(self):
-        """Save the background."""
+    def build_result(self, strict: bool = True) -> Background:
+        """The background the form describes (strict: ValueError if incomplete; otherwise gaps are filled in)."""
         name = self.name_entry.get().strip()
-        if not name:
-            messagebox.showerror("Error", "Name is required.", parent=self)
-            return
-        
         source = self.source_entry.get().strip()
-        if not source:
-            messagebox.showerror("Error", "Source is required.", parent=self)
-            return
-        
         description = self.desc_text.get("1.0", "end-1c").strip()
-        if not description:
-            messagebox.showerror("Error", "Description is required.", parent=self)
-            return
+        if strict:
+            if not name:
+                raise ValueError("Name is required.")
+            if not source:
+                raise ValueError("Source is required.")
+            if not description:
+                raise ValueError("Description is required.")
         
         # Parse comma-separated fields
         ability_scores = [s.strip() for s in self.ability_scores_entry.get().split(",") if s.strip()]
@@ -1245,7 +887,7 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
             if feature_name:
                 features.append(BackgroundFeature(name=feature_name, description=feature_desc))
         
-        background = Background(
+        return Background(
             name=name,
             source=source,
             is_legacy=self.legacy_var.get(),
@@ -1259,7 +901,15 @@ class BackgroundEditorDialog(ctk.CTkToplevel):
             is_official=False,
             is_custom=True
         )
-        
-        self.background_manager.add_background(background)
-        self.result = background
-        self.destroy()
+
+    def _accept(self, background):
+        if not self.EMBEDDED:
+            self.background_manager.add_background(background)
+        super()._accept(background)
+
+class BackgroundEditorDialog(BackgroundEditorBody, DialogWindow):
+    """Dialog for creating/editing backgrounds."""
+
+
+class BackgroundEditorPanel(BackgroundEditorBody, EmbeddedWindow):
+    """The BackgroundEditorDialog form inside the Homebrew Studio."""

@@ -86,6 +86,39 @@ def test_selecting_a_far_entry_scrolls_it_into_view(panel):
     assert first <= 7500 <= first + 600 // panel._stride + 1
 
 
+def test_select_when_listed_waits_for_the_entry_to_arrive(tk_root):
+    """A page that adds an entry reloads its list a moment later; the new entry is selected when it shows up."""
+    from ui.virtual_list import VirtualListPanel
+    picked = []
+    p = VirtualListPanel(tk_root, on_select=picked.append)
+    p.pack(fill="both", expand=True)
+    p._viewport_height = lambda: 600.0
+    try:
+        old = [Entry("A"), Entry("B")]
+        p.set_items(old)
+        assert p.select_by_name("C") is False and p.get_selected() is None      # not there yet: nothing happens
+
+        p.select_when_listed("C")
+        assert p.get_selected() is None and picked == []                        # still waiting
+        fresh = [Entry("A"), Entry("B"), Entry("C")]
+        p.set_items(fresh)
+        assert p.get_selected() is fresh[2] and picked == [fresh[2]]            # selected, and the owner told
+
+        # an entry that is already listed is re-selected from the NEW list, so an edited entry is shown as edited
+        edited = [Entry("A"), Entry("B"), Entry("C", is_custom=True)]
+        p.select_when_listed("C")
+        p.set_items(edited)
+        assert p.get_selected() is edited[2] and picked[-1] is edited[2]
+
+        # the wait lasts for one change only, and a name that never arrives is dropped
+        p.select_when_listed("Z")
+        p.set_items(edited)
+        p.set_items(edited + [Entry("Z")])
+        assert p.get_selected() is edited[2]
+    finally:
+        p.destroy()
+
+
 def test_rows_created_after_a_text_size_change_use_the_new_size(tk_root, panel):
     """Rows are created lazily as the window grows; they must not come out in the old size."""
     from typography import get_font_manager, ui_font

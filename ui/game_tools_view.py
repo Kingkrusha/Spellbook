@@ -24,6 +24,9 @@ class GameToolsView(ctk.CTkFrame):
         ("matchup", "🥊 Matchup",
          "Put two creatures or characters in a one-on-one fight: the odds, how long it takes, each side's damage "
          "against the other and what could swing it.", True),
+        ("studio", "🛠️ Homebrew Studio",
+         "Write your own spells, items, monsters, classes and more with the rest of the collection beside you: "
+         "it points out content that already does the same thing and checks a monster against its CR.", True),
     ]
 
     def __init__(self, parent, service=None, on_open: Optional[Callable[[str], None]] = None,

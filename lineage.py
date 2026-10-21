@@ -9,6 +9,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
+from collection_manager import DbBackedManager
 from legacy_content import apply_legacy_filter
 
 
@@ -101,72 +102,16 @@ class Lineage:
         return ", ".join(t.name for t in self.traits)
 
 
-class LineageManager:
+class LineageManager(DbBackedManager):
     """Manages the collection of lineages using SQLite database."""
 
-    def __init__(self):
-        self._db = None
-        self._lineages_cache: Optional[List[Lineage]] = None
-    
-    @property
-    def db(self):
-        """Get database instance, initializing if needed."""
-        if self._db is None:
-            from database import SpellDatabase
-            self._db = SpellDatabase()
-            self._db.initialize()
-        return self._db
+    def _load_all(self) -> List[Lineage]:
+        return [Lineage.from_dict(d) for d in self.db.get_all_lineages()]
     
     @property
     def lineages(self) -> List[Lineage]:
         """Get all lineages, using cache if available."""
-        if self._lineages_cache is None:
-            self._reload_cache()
-        return self._lineages_cache or []
-    
-    def _reload_cache(self):
-        """Reload lineages from database into cache."""
-        self._lineages_cache = []
-        for lin_dict in self.db.get_all_lineages():
-            self._lineages_cache.append(self._dict_to_lineage(lin_dict))
-    
-    def _invalidate_cache(self):
-        """Invalidate the cache to force reload on next access."""
-        self._lineages_cache = None
-    
-    def _dict_to_lineage(self, data: dict) -> Lineage:
-        """Convert database dict to Lineage object."""
-        traits = []
-        for t in data.get('traits', []):
-            traits.append(LineageTrait.from_dict(t))
-        
-        return Lineage(
-            name=data.get('name', ''),
-            description=data.get('description', ''),
-            creature_type=data.get('creature_type', 'Humanoid'),
-            size=data.get('size', 'Medium'),
-            speed=data.get('speed', 30),
-            traits=traits,
-            source=data.get('source', ''),
-            is_official=data.get('is_official', True),
-            is_custom=data.get('is_custom', False),
-            is_legacy=data.get('is_legacy', False)
-        )
-    
-    def _lineage_to_dict(self, lineage: Lineage) -> dict:
-        """Convert Lineage object to dict for database."""
-        return {
-            'name': lineage.name,
-            'description': lineage.description,
-            'creature_type': lineage.creature_type,
-            'size': lineage.size,
-            'speed': lineage.speed,
-            'traits': [t.to_dict() for t in lineage.traits],
-            'source': lineage.source,
-            'is_official': lineage.is_official,
-            'is_custom': lineage.is_custom,
-            'is_legacy': lineage.is_legacy
-        }
+        return self._cached()
     
     def load_lineages(self):
         """Reload lineages from database (for compatibility)."""
@@ -179,7 +124,7 @@ class LineageManager:
     def add_lineage(self, lineage: Lineage) -> bool:
         """Add a new lineage or update existing one."""
         existing = self.db.get_lineage_by_name(lineage.name)
-        lineage_dict = self._lineage_to_dict(lineage)
+        lineage_dict = lineage.to_dict()
         
         if existing:
             self.db.update_lineage(existing['id'], lineage_dict)
@@ -206,7 +151,7 @@ class LineageManager:
         """Get a lineage by name."""
         data = self.db.get_lineage_by_name(name)
         if data:
-            return self._dict_to_lineage(data)
+            return Lineage.from_dict(data)
         return None
     
     def get_all_creature_types(self) -> List[str]:

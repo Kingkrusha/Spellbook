@@ -96,6 +96,7 @@ ACTIONS: List[Action] = [
     Action("page.equipment", "Equipment", "Pages", ""),
     Action("page.magic_items", "Magic Items", "Pages", ""),
     Action("page.monsters", "Monsters", "Pages", ""),
+    Action("page.rules", "Rules", "Pages", ""),
     Action("page.session", "Session", "Pages", ""),
     Action("page.initiative", "Initiative", "Pages", ""),
     Action("page.dice_analyzer", "Dice Analyzer", "Pages", ""),
@@ -108,6 +109,7 @@ ACTIONS: List[Action] = [
     Action("view.global_search", "Search all collections", "This page", "Ctrl+K"),
     # Text formatting (in description editors)
     Action("text.bold", "Bold", "Text formatting", "Ctrl+B"),
+    Action("text.italic", "Italic", "Text formatting", "Ctrl+I"),
     Action("text.spell", "Insert spell link", "Text formatting", "Ctrl+Shift+L"),
     Action("text.table", "Insert table", "Text formatting", ""),
     # Settings

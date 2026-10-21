@@ -14,6 +14,7 @@ import customtkinter as ctk
 
 from typography import ui_font
 from theme import get_theme_manager
+from ui.window_utils import center_on_parent
 from updater import UpdateInfo, open_release_page
 from version import __version__
 
@@ -50,11 +51,8 @@ class UpdateDialog(ctk.CTkToplevel):
         self._build()
 
         # Centre on the parent window.
-        self.update_idletasks()
         try:
-            x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-            y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-            self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+            center_on_parent(self, parent, root_coords=False, clamp=True)
         except Exception:
             pass
 

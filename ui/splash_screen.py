@@ -17,7 +17,21 @@ from paths import resource_path
 _USE_OVERRIDEREDIRECT = sys.platform != "darwin"
 
 
-class SplashScreen(ctk.CTkToplevel):
+class ProgressWindowMixin:
+    """A window with a ``status_label`` and a ``progress`` bar, redrawn at once (nothing else is running)."""
+
+    def set_status(self, message: str):
+        """Update the status message."""
+        self.status_label.configure(text=message)
+        self.update()
+
+    def set_progress(self, value: float):
+        """Set progress bar value (0.0 to 1.0)."""
+        self.progress.set(value)
+        self.update()
+
+
+class SplashScreen(ProgressWindowMixin, ctk.CTkToplevel):
     """Splash screen shown during application startup."""
     
     def __init__(self, parent):
@@ -115,16 +129,6 @@ class SplashScreen(ctk.CTkToplevel):
                 icon_label.pack(pady=(15, 0))
         except Exception:
             pass  # Icon is optional
-    
-    def set_status(self, message: str):
-        """Update the status message."""
-        self.status_label.configure(text=message)
-        self.update()
-    
-    def set_progress(self, value: float):
-        """Set progress bar value (0.0 to 1.0)."""
-        self.progress.set(value)
-        self.update()
     
     def update_progress(self, message: str, value: float):
         """Update both status and progress."""

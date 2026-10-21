@@ -49,6 +49,14 @@ class AppSettings:
     # Startup
     restore_tabs: bool = True  # Reopen the tabs that were open when the app was last closed
 
+    # Homebrew
+    studio_for_new_content: bool = True  # The Add buttons of the collection pages open a Homebrew Studio tab
+    # How strict the Studio's Insights are about calling something similar
+    studio_min_words: int = 4           # an insight needs at least this many words in common
+    studio_max_matches: int = 10        # a part of the draft that matches more than this many things is standard wording (0 = no limit)
+    studio_hide_exact: bool = True      # leave out content whose text is exactly the draft's
+    studio_include_unofficial: bool = False   # compare with content that is not tagged official too
+
     # Updates
     auto_check_updates: bool = True  # Check GitHub for a newer release on startup
     skipped_update_version: str = ""  # Version the user chose to skip (don't nag about it)
@@ -67,6 +75,7 @@ class AppSettings:
     preload_backgrounds: bool = True  # Preload backgrounds
     preload_equipment: bool = True  # Preload equipment
     preload_magic_items: bool = True  # Preload magic items
+    preload_rules: bool = True  # Preload the rules pages
     preload_character_sheets: bool = False  # Preload character sheet data
     
     # Object linking - as-you-type link suggestions in description/notes fields.
@@ -81,6 +90,9 @@ class AppSettings:
     link_suggest_equipment: bool = True
     link_suggest_magic_items: bool = True
     link_suggest_monsters: bool = True
+    # Rules pages and their sections are common words ("Action", "Attack"), so they are only
+    # offered as suggestions when asked for; [[rule:...]] links already made always work.
+    link_suggest_rules: bool = False
     # When linking a suggested word, replace it with the object's exact name
     # (e.g. "fire" -> "Fire Bolt") instead of keeping what was typed.
     link_autocomplete_names: bool = True
@@ -132,16 +144,18 @@ class AppSettings:
             'show_rest_notification', 'warn_too_many_cantrips',
             'warn_wrong_class', 'warn_spell_too_high_level', 'warn_too_many_prepared',
             'show_comparison_highlights', 'initial_official_tag_applied',
-            'auto_check_updates', 'skipped_update_version', 'restore_tabs',
+            'auto_check_updates', 'skipped_update_version', 'restore_tabs', 'studio_for_new_content',
+            'studio_min_words', 'studio_max_matches', 'studio_hide_exact', 'studio_include_unofficial',
             'allow_delete_official_spells', 'auto_calculate_hp', 'auto_calculate_ac',
             'auto_fill_proficiencies', 'auto_apply_saving_throws',
             'warn_multiclass_removal', 'long_rest_hit_dice', 'legacy_content_filter',
             'show_carry_weight_indicator', 'enable_encumbrance_rule',
             'preload_classes', 'preload_feats', 'preload_lineages', 'preload_backgrounds',
-            'preload_equipment', 'preload_magic_items', 'preload_character_sheets',
+            'preload_equipment', 'preload_magic_items', 'preload_rules', 'preload_character_sheets',
             'link_suggest_spells', 'link_suggest_feats', 'link_suggest_lineages',
             'link_suggest_backgrounds', 'link_suggest_classes', 'link_suggest_equipment',
-            'link_suggest_magic_items', 'link_suggest_monsters', 'link_autocomplete_names',
+            'link_suggest_magic_items', 'link_suggest_monsters', 'link_suggest_rules',
+            'link_autocomplete_names',
             'show_spell_only_summons',
             'lan_player_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',

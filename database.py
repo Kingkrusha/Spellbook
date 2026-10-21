@@ -5,20 +5,52 @@ Handles database creation, migrations, and spell persistence.
 
 import sqlite3
 import os
-import sys
 import json
 from typing import List, Optional, Tuple
 from contextlib import contextmanager
 
-from paths import user_data_path
+from paths import resource_path, user_data_path
+from db_collections import (CollectionStoreMixin, LINEAGES, FEATS, EQUIPMENT, MAGIC_ITEMS,
+                            BACKGROUNDS, RULES, CLASSES, SUBCLASSES)
 import search_index
 
 
-class SpellDatabase:
+# The (historic) stat blocks table: created on a fresh database and by the version 3 migration.
+_STAT_BLOCKS_TABLE_SQL = """
+                CREATE TABLE IF NOT EXISTS stat_blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    spell_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    size TEXT NOT NULL DEFAULT 'Medium',
+                    creature_type TEXT NOT NULL DEFAULT '',
+                    creature_subtype TEXT DEFAULT '',
+                    alignment TEXT DEFAULT 'Neutral',
+                    armor_class TEXT NOT NULL DEFAULT '',
+                    hit_points TEXT NOT NULL DEFAULT '',
+                    speed TEXT NOT NULL DEFAULT '',
+                    abilities_json TEXT,
+                    damage_resistances TEXT DEFAULT '',
+                    damage_immunities TEXT DEFAULT '',
+                    condition_immunities TEXT DEFAULT '',
+                    senses TEXT DEFAULT '',
+                    languages TEXT DEFAULT '',
+                    challenge_rating TEXT DEFAULT '',
+                    traits_json TEXT DEFAULT '[]',
+                    actions_json TEXT DEFAULT '[]',
+                    bonus_actions_json TEXT DEFAULT '[]',
+                    reactions_json TEXT DEFAULT '[]',
+                    legendary_actions_json TEXT DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (spell_id) REFERENCES spells(id) ON DELETE CASCADE
+                )
+            """
+
+class SpellDatabase(CollectionStoreMixin):
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 30  # bundled legacy (2014) content
+    SCHEMA_VERSION = 31  # bundled rules pages
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -75,11 +107,10 @@ class SpellDatabase:
         """Initialize the database connection."""
         self.db_path = db_path or user_data_path(self.DEFAULT_DB_PATH)
         self._connection: Optional[sqlite3.Connection] = None
+        self._batch_connection: Optional[sqlite3.Connection] = None
         self._search_index_ready: Optional[bool] = None
         
-    @contextmanager
-    def get_connection(self):
-        """Context manager for database connections."""
+    def _open_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Enable column access by name
         conn.execute("PRAGMA foreign_keys = ON")  # Enable foreign key support
@@ -89,6 +120,15 @@ class SpellDatabase:
         conn.create_function("strip_links", 1, lambda t: strip_links(t) if t else t, deterministic=True)
         # The search index triggers call search_text() (see search_index.py).
         search_index.register_functions(conn)
+        return conn
+
+    @contextmanager
+    def get_connection(self):
+        """Context manager for database connections."""
+        if self._batch_connection is not None:       # inside batch(): the one connection, committed at the end
+            yield self._batch_connection
+            return
+        conn = self._open_connection()
         try:
             yield conn
             conn.commit()
@@ -96,6 +136,26 @@ class SpellDatabase:
             conn.rollback()
             raise
         finally:
+            conn.close()
+
+    @contextmanager
+    def batch(self):
+        """Everything written inside shares one connection and is committed once, or not at all if it raises.
+
+        A bulk edit of hundreds of rows would otherwise open a connection and commit (a disk sync) for each."""
+        if self._batch_connection is not None:
+            yield
+            return
+        conn = self._open_connection()
+        self._batch_connection = conn
+        try:
+            yield
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._batch_connection = None
             conn.close()
     
     def initialize(self):
@@ -155,35 +215,7 @@ class SpellDatabase:
             """)
             
             # Stat blocks table (for summoning spells)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS stat_blocks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    spell_id INTEGER NOT NULL,
-                    name TEXT NOT NULL,
-                    size TEXT NOT NULL DEFAULT 'Medium',
-                    creature_type TEXT NOT NULL DEFAULT '',
-                    creature_subtype TEXT DEFAULT '',
-                    alignment TEXT DEFAULT 'Neutral',
-                    armor_class TEXT NOT NULL DEFAULT '',
-                    hit_points TEXT NOT NULL DEFAULT '',
-                    speed TEXT NOT NULL DEFAULT '',
-                    abilities_json TEXT,
-                    damage_resistances TEXT DEFAULT '',
-                    damage_immunities TEXT DEFAULT '',
-                    condition_immunities TEXT DEFAULT '',
-                    senses TEXT DEFAULT '',
-                    languages TEXT DEFAULT '',
-                    challenge_rating TEXT DEFAULT '',
-                    traits_json TEXT DEFAULT '[]',
-                    actions_json TEXT DEFAULT '[]',
-                    bonus_actions_json TEXT DEFAULT '[]',
-                    reactions_json TEXT DEFAULT '[]',
-                    legendary_actions_json TEXT DEFAULT '[]',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (spell_id) REFERENCES spells(id) ON DELETE CASCADE
-                )
-            """)
+            cursor.execute(_STAT_BLOCKS_TABLE_SQL)
             
             # Create indexes for faster queries
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_spells_level ON spells(level)")
@@ -245,35 +277,7 @@ class SpellDatabase:
         
         # Migration to version 3: add stat_blocks table
         if current_version < 3:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS stat_blocks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    spell_id INTEGER NOT NULL,
-                    name TEXT NOT NULL,
-                    size TEXT NOT NULL DEFAULT 'Medium',
-                    creature_type TEXT NOT NULL DEFAULT '',
-                    creature_subtype TEXT DEFAULT '',
-                    alignment TEXT DEFAULT 'Neutral',
-                    armor_class TEXT NOT NULL DEFAULT '',
-                    hit_points TEXT NOT NULL DEFAULT '',
-                    speed TEXT NOT NULL DEFAULT '',
-                    abilities_json TEXT,
-                    damage_resistances TEXT DEFAULT '',
-                    damage_immunities TEXT DEFAULT '',
-                    condition_immunities TEXT DEFAULT '',
-                    senses TEXT DEFAULT '',
-                    languages TEXT DEFAULT '',
-                    challenge_rating TEXT DEFAULT '',
-                    traits_json TEXT DEFAULT '[]',
-                    actions_json TEXT DEFAULT '[]',
-                    bonus_actions_json TEXT DEFAULT '[]',
-                    reactions_json TEXT DEFAULT '[]',
-                    legendary_actions_json TEXT DEFAULT '[]',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (spell_id) REFERENCES spells(id) ON DELETE CASCADE
-                )
-            """)
+            cursor.execute(_STAT_BLOCKS_TABLE_SQL)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_stat_blocks_spell_id ON stat_blocks(spell_id)")
             cursor.execute("UPDATE schema_version SET version = 3")
             current_version = 3
@@ -508,6 +512,15 @@ class SpellDatabase:
                 cursor.execute("UPDATE schema_version SET version = 30")
                 current_version = 30
 
+        # Migration to version 31: add the bundled rules pages (rules.json, the
+        # Free Basic Rules). Inserted by name and only if the name is missing, so
+        # a user's own page - or an edit - is never touched. Idempotent, and
+        # retried on the next launch if seeding can't run.
+        if current_version < 31:
+            if self._seed_official_rules(cursor):
+                cursor.execute("UPDATE schema_version SET version = 31")
+                current_version = 31
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -605,6 +618,25 @@ class SpellDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_name ON magic_items(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_type ON magic_items(type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_magic_items_rarity ON magic_items(rarity)")
+
+        # Rules pages (the rulebook text; one markup string per page, see rules.py)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                category TEXT DEFAULT '',
+                description TEXT DEFAULT '',
+                source TEXT DEFAULT '',
+                tags_json TEXT DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_official INTEGER NOT NULL DEFAULT 1,
+                is_custom INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_name ON rules(name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON rules(category)")
 
         # Monsters table (creature stat blocks). Plain values get their own
         # column; lists / dicts are stored as JSON (see _MONSTER_SCALARS/_JSONS).
@@ -781,13 +813,7 @@ class SpellDatabase:
 
     def _bundled_json_path(self, filename):
         """Absolute path to a bundled JSON seed file (PyInstaller-aware)."""
-        import os
-        import sys
-        if getattr(sys, 'frozen', False):
-            base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-        else:
-            base = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base, filename)
+        return resource_path(filename)
 
     def _backfill_equipment_crafting_tools(self, cursor):
         """Copy crafting_tool from the bundled equipment.json onto existing rows.
@@ -801,8 +827,7 @@ class SpellDatabase:
         if not os.path.exists(path):
             return
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            data = self._load_json(path)
             for item in data.get('equipment', []):
                 tool = (item.get('crafting_tool') or '').strip()
                 if not tool:
@@ -826,8 +851,7 @@ class SpellDatabase:
         if not os.path.exists(path):
             return
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            data = self._load_json(path)
             for item in data.get('magic_items', []):
                 cost = (item.get('cost') or '').strip()
                 if not cost:
@@ -851,6 +875,40 @@ class SpellDatabase:
             "WHERE name = 'The Horrors Within' AND is_custom = 0 AND COALESCE(source, '') = ''",
             ("Harkon's Bite", "Ravenloft - The Horrors Within"))
 
+    @staticmethod
+    def _bundled_class_row(class_name: str, cls: dict) -> dict:
+        """A classes.json entry in the shape ``insert_class`` takes."""
+        spellcasting = None
+        if cls.get('is_spellcaster', False):
+            spellcasting = {
+                'is_spellcaster': True,
+                'ability': cls.get('spellcasting_ability', '')
+            }
+        return {
+            'name': class_name,
+            'hit_die': cls.get('hit_die', 'd8'),
+            'primary_ability': cls.get('primary_ability', ''),
+            'saving_throws': cls.get('saving_throw_proficiencies', []),
+            'armor_proficiencies': cls.get('armor_proficiencies', []),
+            'weapon_proficiencies': cls.get('weapon_proficiencies', []),
+            'tool_proficiencies': cls.get('tool_proficiencies', []),
+            'skill_proficiencies': cls.get('skill_proficiency_options', []),
+            'num_skills': cls.get('skill_proficiency_choices', 2),
+            'starting_equipment': cls.get('starting_equipment_options', []),
+            'class_features': cls.get('levels', {}),
+            'spellcasting': spellcasting,
+            'subclass_name': cls.get('subclass_name', ''),
+            'subclass_level': cls.get('subclass_level', 3),
+            'class_table_columns': cls.get('class_table_columns', []),
+            'trackable_features': cls.get('trackable_features', []),
+            'class_spells': cls.get('class_spells', []),
+            'unarmored_defense': cls.get('unarmored_defense', ''),
+            'source': cls.get('source', ''),
+            'is_official': cls.get('is_official', True),
+            'is_custom': cls.get('is_custom', False),
+            'is_legacy': cls.get('is_legacy', False),
+        }
+
     def _insert_class_with_subclasses(self, cursor, class_name, cls) -> int:
         """INSERT OR IGNORE one bundled class and its subclasses; returns how many rows were added.
 
@@ -859,45 +917,8 @@ class SpellDatabase:
         touched.
         """
         added = 0
-        # Build spellcasting info from JSON fields
-        spellcasting_info = None
-        if cls.get('is_spellcaster', False):
-            spellcasting_info = {
-                'is_spellcaster': True,
-                'ability': cls.get('spellcasting_ability', '')
-            }
-        cursor.execute("""
-            INSERT OR IGNORE INTO classes
-            (name, hit_die, primary_ability, saving_throws_json, armor_proficiencies_json,
-             weapon_proficiencies_json, tool_proficiencies_json, skill_proficiencies_json,
-             num_skills, starting_equipment_json, class_features_json, spellcasting_json,
-             subclass_name, subclass_level, class_table_columns_json, trackable_features_json,
-             class_spells_json, unarmored_defense, source, is_official, is_custom, is_legacy)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            class_name,
-            cls.get('hit_die', 'd8'),
-            cls.get('primary_ability', ''),
-            json.dumps(cls.get('saving_throw_proficiencies', [])),
-            json.dumps(cls.get('armor_proficiencies', [])),
-            json.dumps(cls.get('weapon_proficiencies', [])),
-            json.dumps(cls.get('tool_proficiencies', [])),
-            json.dumps(cls.get('skill_proficiency_options', [])),
-            cls.get('skill_proficiency_choices', 2),
-            json.dumps(cls.get('starting_equipment_options', [])),
-            json.dumps(cls.get('levels', {})),
-            json.dumps(spellcasting_info) if spellcasting_info else 'null',
-            cls.get('subclass_name', ''),
-            cls.get('subclass_level', 3),
-            json.dumps(cls.get('class_table_columns', [])),
-            json.dumps(cls.get('trackable_features', [])),
-            json.dumps(cls.get('class_spells', [])),
-            cls.get('unarmored_defense', ''),
-            cls.get('source', ''),
-            1 if cls.get('is_official', True) else 0,
-            1 if cls.get('is_custom', False) else 0,
-            1 if cls.get('is_legacy', False) else 0
-        ))
+        cursor.execute(CLASSES.insert_statement(or_ignore=True),
+                       CLASSES.values(self._bundled_class_row(class_name, cls)))
         added += cursor.rowcount
 
         cursor.execute("SELECT id FROM classes WHERE name = ? COLLATE NOCASE", (class_name,))
@@ -905,26 +926,8 @@ class SpellDatabase:
         if not row:
             return added
         for sub in cls.get('subclasses', []):
-            # Store all subclass data in features_json
-            features_data = {
-                'features': sub.get('features', []),
-                'subclass_spells': sub.get('subclass_spells', []),
-                'armor_proficiencies': sub.get('armor_proficiencies', []),
-                'weapon_proficiencies': sub.get('weapon_proficiencies', []),
-                'unarmored_defense': sub.get('unarmored_defense', ''),
-                'trackable_features': sub.get('trackable_features', []),
-            }
-            cursor.execute("""
-                INSERT OR IGNORE INTO subclasses
-                (name, class_id, description, features_json, source, is_official, is_custom, is_legacy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                sub.get('name', ''), row[0], sub.get('description', ''),
-                json.dumps(features_data), sub.get('source', ''),
-                1 if sub.get('is_official', True) else 0,
-                1 if sub.get('is_custom', False) else 0,
-                1 if sub.get('is_legacy', False) else 0,
-            ))
+            cursor.execute(SUBCLASSES.insert_statement(or_ignore=True),
+                           SUBCLASSES.values({**sub, 'name': sub.get('name', ''), 'class_id': row[0]}))
             added += cursor.rowcount
         return added
 
@@ -943,8 +946,7 @@ class SpellDatabase:
                 return True
         try:
             if classes is None:
-                with open(path, 'r', encoding='utf-8') as f:
-                    classes = json.load(f).get('classes', {})
+                classes = self._load_json(path).get('classes', {})
             added = 0
             for class_name, cls in classes.items():
                 added += self._insert_class_with_subclasses(cursor, class_name, cls)
@@ -1066,198 +1068,63 @@ class SpellDatabase:
             print(f"Error linking object mentions (will retry next launch): {e}")
             return False
 
-    def _seed_equipment_and_magic_items(self, cursor):
-        """INSERT OR IGNORE the bundled equipment.json / magic_items.json rows.
+    def _seed_collection(self, cursor, coll, filename: str, key: str, data=None,
+                         success: str = "Migrated {n} rows to database",
+                         failure: str = "Error migrating rows: {e}") -> bool:
+        """INSERT OR IGNORE the rows of a bundled JSON file into a collection's table.
 
-        Idempotent (the tables' name column is UNIQUE), so this is safe to run
-        both when first populating a fresh database and from an upgrade
-        migration that backfills installs predating this content. User-created
-        rows are never touched.
-        """
+        Idempotent (the table's name column is UNIQUE), so it is safe both when first populating a fresh
+        database and from an upgrade migration that backfills installs predating the content. User-created
+        rows are never touched. ``data`` is an already-loaded ``{key: [...]}`` (the legacy bundle) used
+        instead of the file. Returns False if loading failed."""
         import os
 
-        equipment_path = self._bundled_json_path('equipment.json')
-        if os.path.exists(equipment_path):
-            try:
-                with open(equipment_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                for item in data.get('equipment', []):
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO equipment
-                        (name, type, cost, weight, source, crafting_materials_json, crafting_tool,
-                         description, tags_json, properties_json, is_official, is_custom)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        item.get('name', ''),
-                        item.get('type', 'Adventuring Gear'),
-                        item.get('cost', ''),
-                        item.get('weight', 0.0),
-                        item.get('source', ''),
-                        json.dumps(item.get('crafting_materials', [])),
-                        item.get('crafting_tool', ''),
-                        item.get('description', ''),
-                        json.dumps(item.get('tags', [])),
-                        json.dumps(item.get('properties', [])),
-                        1 if item.get('is_official', True) else 0,
-                        1 if item.get('is_custom', False) else 0
-                    ))
-                print(f"Seeded {len(data.get('equipment', []))} equipment items")
-            except Exception as e:
-                print(f"Error seeding equipment: {e}")
+        if data is None:
+            path = self._bundled_json_path(filename)
+            if not os.path.exists(path):
+                return True
+        try:
+            if data is None:
+                data = self._load_json(path)
+            rows = data.get(key, [])
+            for item in rows:
+                cursor.execute(coll.seed_sql, coll.seed_values(item))
+            print(success.format(n=len(rows)))
+        except Exception as e:
+            print(failure.format(e=e))
+            return False
+        return True
 
-        magic_items_path = self._bundled_json_path('magic_items.json')
-        if os.path.exists(magic_items_path):
-            try:
-                with open(magic_items_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                for item in data.get('magic_items', []):
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO magic_items
-                        (name, type, cost, weight, source, enchanting_materials_json, description,
-                         tags_json, properties_json, rarity, requires_attunement,
-                         attunement_requirement, attunement_optional, is_official, is_custom)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        item.get('name', ''),
-                        item.get('type', 'Wondrous Item'),
-                        item.get('cost', ''),
-                        item.get('weight', 0.0),
-                        item.get('source', ''),
-                        json.dumps(item.get('enchanting_materials', [])),
-                        item.get('description', ''),
-                        json.dumps(item.get('tags', [])),
-                        json.dumps(item.get('properties', [])),
-                        item.get('rarity', 'Common'),
-                        1 if item.get('requires_attunement', bool(item.get('attunement_requirement'))) else 0,
-                        item.get('attunement_requirement', ''),
-                        1 if item.get('attunement_optional', False) else 0,
-                        1 if item.get('is_official', True) else 0,
-                        1 if item.get('is_custom', False) else 0
-                    ))
-                print(f"Seeded {len(data.get('magic_items', []))} magic items")
-            except Exception as e:
-                print(f"Error seeding magic items: {e}")
+    def _seed_equipment_and_magic_items(self, cursor):
+        """INSERT OR IGNORE the bundled equipment.json / magic_items.json rows (see _seed_collection)."""
+        self._seed_collection(cursor, EQUIPMENT, 'equipment.json', 'equipment',
+                              success="Seeded {n} equipment items", failure="Error seeding equipment: {e}")
+        self._seed_collection(cursor, MAGIC_ITEMS, 'magic_items.json', 'magic_items',
+                              success="Seeded {n} magic items", failure="Error seeding magic items: {e}")
 
     def _seed_lineages(self, cursor, data=None) -> bool:
         """INSERT OR IGNORE the bundled lineages.json rows (name is UNIQUE).
 
         ``data`` is an already-loaded ``{"lineages": [...]}`` (the legacy bundle).
         """
-        import os
-
-        if data is None:
-            path = self._bundled_json_path('lineages.json')
-            if not os.path.exists(path):
-                return True
-        try:
-            if data is None:
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            for lin in data.get('lineages', []):
-                cursor.execute("""
-                    INSERT OR IGNORE INTO lineages
-                    (name, description, creature_type, size, speed, traits_json, source, is_official, is_custom, is_legacy)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    lin.get('name', ''),
-                    lin.get('description', ''),
-                    lin.get('creature_type', 'Humanoid'),
-                    lin.get('size', 'Medium'),
-                    lin.get('speed', 30),
-                    json.dumps(lin.get('traits', [])),
-                    lin.get('source', ''),
-                    1 if lin.get('is_official', True) else 0,
-                    1 if lin.get('is_custom', False) else 0,
-                    1 if lin.get('is_legacy', False) else 0
-                ))
-            print(f"Migrated {len(data.get('lineages', []))} lineages to database")
-        except Exception as e:
-            print(f"Error migrating lineages: {e}")
-            return False
-        return True
+        return self._seed_collection(cursor, LINEAGES, 'lineages.json', 'lineages', data,
+                                     "Migrated {n} lineages to database", "Error migrating lineages: {e}")
 
     def _seed_feats(self, cursor, data=None) -> bool:
         """INSERT OR IGNORE the bundled feats.json rows (name is UNIQUE).
 
         ``data`` is an already-loaded ``{"feats": [...]}`` (the legacy bundle).
         """
-        import os
-
-        if data is None:
-            path = self._bundled_json_path('feats.json')
-            if not os.path.exists(path):
-                return True
-        try:
-            if data is None:
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            for feat in data.get('feats', []):
-                cursor.execute("""
-                    INSERT OR IGNORE INTO feats
-                    (name, type, is_spellcasting, spell_lists_json, spells_num_json, has_prereq, prereq,
-                     set_spells_json, description, source, is_official, is_custom, is_legacy)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    feat.get('name', ''),
-                    feat.get('type', ''),
-                    1 if feat.get('is_spellcasting', False) else 0,
-                    json.dumps(feat.get('spell_lists', [])),
-                    json.dumps(feat.get('spells_num', {})),
-                    1 if feat.get('has_prereq', False) else 0,
-                    feat.get('prereq', ''),
-                    json.dumps(feat.get('set_spells', [])),
-                    feat.get('description', ''),
-                    feat.get('source', ''),
-                    1 if feat.get('is_official', True) else 0,
-                    1 if feat.get('is_custom', False) else 0,
-                    1 if feat.get('is_legacy', False) else 0
-                ))
-            print(f"Migrated {len(data.get('feats', []))} feats to database")
-        except Exception as e:
-            print(f"Error migrating feats: {e}")
-            return False
-        return True
+        return self._seed_collection(cursor, FEATS, 'feats.json', 'feats', data,
+                                     "Migrated {n} feats to database", "Error migrating feats: {e}")
 
     def _seed_backgrounds(self, cursor, data=None) -> bool:
         """INSERT OR IGNORE the bundled backgrounds.json rows (name is UNIQUE).
 
         ``data`` is an already-loaded ``{"backgrounds": [...]}`` (the legacy bundle).
         """
-        import os
-
-        if data is None:
-            path = self._bundled_json_path('backgrounds.json')
-            if not os.path.exists(path):
-                return True
-        try:
-            if data is None:
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            for bg in data.get('backgrounds', []):
-                cursor.execute("""
-                    INSERT OR IGNORE INTO backgrounds
-                    (name, source, is_legacy, description, skills_json, other_proficiencies_json,
-                     ability_scores_json, feats_json, equipment, features_json, is_official, is_custom)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    bg.get('name', ''),
-                    bg.get('source', ''),
-                    1 if bg.get('is_legacy', False) else 0,
-                    bg.get('description', ''),
-                    json.dumps(bg.get('skills', [])),
-                    json.dumps(bg.get('other_proficiencies', [])),
-                    json.dumps(bg.get('ability_scores', [])),
-                    json.dumps(bg.get('feats', [])),
-                    bg.get('equipment', ''),
-                    json.dumps(bg.get('features', [])),
-                    1 if bg.get('is_official', True) else 0,
-                    1 if bg.get('is_custom', False) else 0
-                ))
-            print(f"Migrated {len(data.get('backgrounds', []))} backgrounds to database")
-        except Exception as e:
-            print(f"Error migrating backgrounds: {e}")
-            return False
-        return True
+        return self._seed_collection(cursor, BACKGROUNDS, 'backgrounds.json', 'backgrounds', data,
+                                     "Migrated {n} backgrounds to database", "Error migrating backgrounds: {e}")
 
     def _seed_missing_spells(self, cursor, spells=None) -> int:
         """Insert bundled official spells (tools/spell_data.py) whose name isn't in the table.
@@ -1362,15 +1229,6 @@ class SpellDatabase:
     def _migrate_json_to_database(self, cursor):
         """Migrate data from JSON files to database tables."""
         import os
-        import sys
-        
-        def get_json_path(filename):
-            # For bundled PyInstaller app, look in _MEIPASS for bundled JSON files
-            if getattr(sys, 'frozen', False):
-                base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-            else:
-                base = os.path.dirname(os.path.abspath(__file__))
-            return os.path.join(base, filename)
         
         # Migrate lineages and feats (shared with the v23 backfill migration)
         self._seed_lineages(cursor)
@@ -1382,15 +1240,17 @@ class SpellDatabase:
         # Bundled monsters (shared with the v28 backfill migration)
         self._seed_official_monsters(cursor)
 
+        # Bundled rules pages (shared with the v31 backfill migration)
+        self._seed_official_rules(cursor)
+
         # Migrate backgrounds (shared with the v23 backfill migration)
         self._seed_backgrounds(cursor)
 
         # Migrate classes
-        classes_path = get_json_path('classes.json')
+        classes_path = resource_path('classes.json')
         if os.path.exists(classes_path):
             try:
-                with open(classes_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                data = self._load_json(classes_path)
                 classes_data = data.get('classes', {})
                 for class_name, cls in classes_data.items():
                     self._insert_class_with_subclasses(cursor, class_name, cls)
@@ -1401,55 +1261,40 @@ class SpellDatabase:
         # Bundled legacy (2014) content (its spells come with populate_initial_spells)
         self._seed_legacy_content(cursor, include_spells=False)
     
-    def _remigrate_class_features(self, cursor):
-        """Re-migrate class_features_json from JSON file to fix incorrect field mapping."""
-        def get_json_path(filename):
-            if getattr(sys, 'frozen', False):
-                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-            else:
-                base_path = os.path.dirname(os.path.abspath(__file__))
-            return os.path.join(base_path, filename)
-        
-        classes_path = get_json_path('classes.json')
+    @staticmethod
+    def _load_json(path: str):
+        """Parse a bundled JSON file."""
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def _update_classes_from_bundle(self, cursor, columns: tuple, summary: str, failure: str):
+        """Set these columns of every class in the bundled classes.json (matched by name).
+
+        Printed on success: ``summary`` with ``{n}`` = how many classes were updated; on a failure: ``failure``
+        with ``{e}``."""
+        classes_path = resource_path('classes.json')
         if os.path.exists(classes_path):
             try:
-                with open(classes_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                classes_data = data.get('classes', {})
+                classes_data = self._load_json(classes_path).get('classes', {})
+                sql = CLASSES.update_by_name_sql(*columns)
                 updated_count = 0
                 for class_name, cls in classes_data.items():
-                    # Build spellcasting info from JSON fields
-                    spellcasting_info = None
-                    if cls.get('is_spellcaster', False):
-                        spellcasting_info = {
-                            'is_spellcaster': True,
-                            'ability': cls.get('spellcasting_ability', '')
-                        }
-                    # Update the class with correct levels data
-                    cursor.execute("""
-                        UPDATE classes SET 
-                            class_features_json = ?,
-                            saving_throws_json = ?,
-                            skill_proficiencies_json = ?,
-                            num_skills = ?,
-                            starting_equipment_json = ?,
-                            spellcasting_json = ?
-                        WHERE name = ? COLLATE NOCASE
-                    """, (
-                        json.dumps(cls.get('levels', {})),
-                        json.dumps(cls.get('saving_throw_proficiencies', [])),
-                        json.dumps(cls.get('skill_proficiency_options', [])),
-                        cls.get('skill_proficiency_choices', 2),
-                        json.dumps(cls.get('starting_equipment_options', [])),
-                        json.dumps(spellcasting_info) if spellcasting_info else 'null',
-                        class_name
-                    ))
+                    row = self._bundled_class_row(class_name, cls)
+                    cursor.execute(sql, CLASSES.column_values(row, *columns) + [class_name])
                     if cursor.rowcount > 0:
                         updated_count += 1
-                print(f"Re-migrated class features for {updated_count} classes")
+                print(summary.format(n=updated_count))
             except Exception as e:
-                print(f"Error re-migrating class features: {e}")
-    
+                print(failure.format(e=e))
+
+    def _remigrate_class_features(self, cursor):
+        """Re-migrate class_features_json from JSON file to fix incorrect field mapping."""
+        self._update_classes_from_bundle(
+            cursor,
+            ('class_features_json', 'saving_throws_json', 'skill_proficiencies_json', 'num_skills',
+             'starting_equipment_json', 'spellcasting_json'),
+            "Re-migrated class features for {n} classes", "Error re-migrating class features: {e}")
+
     def _add_class_columns_v10(self, cursor):
         """Add missing class columns (class_table_columns, trackable_features, class_spells, unarmored_defense)."""
         # Add the missing columns if they don't exist
@@ -1468,73 +1313,18 @@ class SpellDatabase:
                 cursor.execute(f"ALTER TABLE classes ADD COLUMN {col_name} {col_def}")
         
         # Now populate the new columns from JSON file
-        def get_json_path(filename):
-            if getattr(sys, 'frozen', False):
-                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-            else:
-                base_path = os.path.dirname(os.path.abspath(__file__))
-            return os.path.join(base_path, filename)
-        
-        classes_path = get_json_path('classes.json')
-        if os.path.exists(classes_path):
-            try:
-                with open(classes_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                classes_data = data.get('classes', {})
-                updated_count = 0
-                for class_name, cls in classes_data.items():
-                    cursor.execute("""
-                        UPDATE classes SET 
-                            class_table_columns_json = ?,
-                            trackable_features_json = ?,
-                            class_spells_json = ?,
-                            unarmored_defense = ?
-                        WHERE name = ? COLLATE NOCASE
-                    """, (
-                        json.dumps(cls.get('class_table_columns', [])),
-                        json.dumps(cls.get('trackable_features', [])),
-                        json.dumps(cls.get('class_spells', [])),
-                        cls.get('unarmored_defense', ''),
-                        class_name
-                    ))
-                    if cursor.rowcount > 0:
-                        updated_count += 1
-                print(f"Updated {updated_count} classes with missing column data")
-            except Exception as e:
-                print(f"Error updating class columns: {e}")
+        self._update_classes_from_bundle(
+            cursor,
+            ('class_table_columns_json', 'trackable_features_json', 'class_spells_json', 'unarmored_defense'),
+            "Updated {n} classes with missing column data", "Error updating class columns: {e}")
     
     def _fix_subclass_features_v11(self, cursor):
         """Fix missing subclass feature placeholders for Bard and other classes."""
-        def get_json_path(filename):
-            if getattr(sys, 'frozen', False):
-                base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-            else:
-                base_path = os.path.dirname(os.path.abspath(__file__))
-            return os.path.join(base_path, filename)
-        
-        classes_path = get_json_path('classes.json')
-        if os.path.exists(classes_path):
-            try:
-                with open(classes_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                classes_data = data.get('classes', {})
-                updated_count = 0
-                for class_name, cls in classes_data.items():
-                    # Update class_features_json with the corrected levels data
-                    cursor.execute("""
-                        UPDATE classes SET 
-                            class_features_json = ?
-                        WHERE name = ? COLLATE NOCASE
-                    """, (
-                        json.dumps(cls.get('levels', {})),
-                        class_name
-                    ))
-                    if cursor.rowcount > 0:
-                        updated_count += 1
-                print(f"Fixed subclass features for {updated_count} classes")
-            except Exception as e:
-                print(f"Error fixing subclass features: {e}")
-    
+        # Update class_features_json with the corrected levels data
+        self._update_classes_from_bundle(
+            cursor, ('class_features_json',),
+            "Fixed subclass features for {n} classes", "Error fixing subclass features: {e}")
+
     def _refresh_spell_descriptions_v13(self, cursor):
         """Refresh spell descriptions with table formatting from spell_data.py.
         
@@ -1618,6 +1408,47 @@ class SpellDatabase:
         
         return count
     
+    def _seed_official_rules(self, cursor) -> bool:
+        """Insert the bundled rules.json pages whose name is not in the table.
+
+        Idempotent (existing rows - user edits or homebrew pages that reuse a
+        name - are left alone), so it serves both a fresh database and the
+        backfill migration. Returns True on success.
+        """
+        import os
+        path = self._bundled_json_path('rules.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            records = self._load_json(path).get('rules', [])
+            added = 0
+            for rec in records:
+                name = (rec.get('name') or '').strip()
+                if not name:
+                    continue
+                cursor.execute("SELECT 1 FROM rules WHERE name = ? COLLATE NOCASE", (name,))
+                if cursor.fetchone():
+                    continue
+                cursor.execute("""
+                    INSERT INTO rules (name, category, description, source, tags_json, sort_order,
+                                       is_official, is_custom)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, 0)
+                """, (
+                    name,
+                    rec.get('category', ''),
+                    rec.get('description', ''),
+                    rec.get('source', ''),
+                    json.dumps(rec.get('tags', [])),
+                    int(rec.get('order', 0) or 0),
+                ))
+                added += 1
+            if added:
+                print(f"Seeded {added} rules pages")
+            return True
+        except Exception as e:
+            print(f"Error seeding rules (will retry next launch): {e}")
+            return False
+
     def _seed_official_monsters(self, cursor) -> bool:
         """Insert the bundled monsters.json records whose name is not in the table.
 
@@ -1631,8 +1462,7 @@ class SpellDatabase:
             return True
         try:
             from monster import Monster
-            with open(path, 'r', encoding='utf-8') as f:
-                records = json.load(f).get('monsters', [])
+            records = self._load_json(path).get('monsters', [])
             added = 0
             for rec in records:
                 name = rec.get('name', '')
@@ -1742,78 +1572,115 @@ class SpellDatabase:
             row = cursor.fetchone()
             return row['version'] if row else 0
     
+    # ---- the pieces every spell write shares
+
+    @staticmethod
+    def _spell_core_values(spell_data: dict) -> tuple:
+        """The columns every spell write has in common, in table order (name ... source)."""
+        return (
+            spell_data['name'],
+            spell_data['level'],
+            spell_data['casting_time'],
+            1 if spell_data.get('ritual', False) else 0,
+            spell_data['range_value'],
+            spell_data['components'],
+            spell_data['duration'],
+            1 if spell_data.get('concentration', False) else 0,
+            spell_data.get('description', ''),
+            spell_data.get('source', ''),
+        )
+
+    def _insert_spell_row(self, cursor, spell_data: dict, original_name: str) -> int:
+        """Insert the spell's own row (not its classes or tags); returns its ID."""
+        cursor.execute("""
+            INSERT INTO spells (
+                name, level, casting_time, ritual, range_value,
+                components, duration, concentration, description, source, original_name, is_legacy
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, self._spell_core_values(spell_data) + (
+            original_name,
+            1 if spell_data.get('is_legacy', False) else 0,
+        ))
+        spell_id = cursor.lastrowid
+        assert spell_id is not None, "Failed to get spell ID after insert"
+        return spell_id
+
+    @staticmethod
+    def _insert_spell_classes(cursor, spell_id: int, spell_data: dict):
+        classes = spell_data.get('classes', [])
+        if classes:
+            cursor.executemany(
+                "INSERT INTO spell_classes (spell_id, class_name) VALUES (?, ?)",
+                [(spell_id, cls) for cls in classes]
+            )
+
+    def _insert_spell_tags(self, cursor, spell_id: int, spell_data: dict):
+        """Insert the spell's tags, normalized."""
+        tags = spell_data.get('tags', [])
+        if tags:
+            normalized_tags = [self.normalize_tag(tag) for tag in tags]
+            cursor.executemany(
+                "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
+                [(spell_id, tag) for tag in normalized_tags]
+            )
+
+    @staticmethod
+    def _spell_dict(row, classes: List[str], tags: List[str]) -> dict:
+        """A spell row, with its classes and tags already fetched, as a dictionary."""
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'level': row['level'],
+            'casting_time': row['casting_time'],
+            'ritual': bool(row['ritual']),
+            'range_value': row['range_value'],
+            'components': row['components'],
+            'duration': row['duration'],
+            'concentration': bool(row['concentration']),
+            'description': row['description'] or '',
+            'source': row['source'] or '',
+            'classes': classes,
+            'tags': tags,
+            'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
+            'original_name': row['original_name'] if 'original_name' in row.keys() else '',
+            'is_legacy': bool(row['is_legacy']) if 'is_legacy' in row.keys() else False,
+            'created_at': row['created_at'],
+            'updated_at': row['updated_at']
+        }
+
     def insert_spell(self, spell_data: dict) -> int:
         """
         Insert a new spell into the database.
-        
+
         Args:
             spell_data: Dictionary with keys:
                 - name, level, casting_time, ritual, range_value, components,
                 - duration, concentration, description, source, classes, tags
-        
+
         Returns:
             The new spell's ID
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            # Insert main spell data
-            cursor.execute("""
-                INSERT INTO spells (
-                    name, level, casting_time, ritual, range_value, 
-                    components, duration, concentration, description, source, original_name, is_legacy
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                spell_data['name'],
-                spell_data['level'],
-                spell_data['casting_time'],
-                1 if spell_data.get('ritual', False) else 0,
-                spell_data['range_value'],
-                spell_data['components'],
-                spell_data['duration'],
-                1 if spell_data.get('concentration', False) else 0,
-                spell_data.get('description', ''),
-                spell_data.get('source', ''),
-                spell_data.get('original_name', ''),
-                1 if spell_data.get('is_legacy', False) else 0
-            ))
-            
-            spell_id = cursor.lastrowid
-            assert spell_id is not None, "Failed to get spell ID after insert"
-            
-            # Insert classes
-            classes = spell_data.get('classes', [])
-            if classes:
-                cursor.executemany(
-                    "INSERT INTO spell_classes (spell_id, class_name) VALUES (?, ?)",
-                    [(spell_id, cls) for cls in classes]
-                )
-            
-            # Insert tags (normalized)
-            tags = spell_data.get('tags', [])
-            if tags:
-                normalized_tags = [self.normalize_tag(tag) for tag in tags]
-                cursor.executemany(
-                    "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
-                    [(spell_id, tag) for tag in normalized_tags]
-                )
-            
+            spell_id = self._insert_spell_row(cursor, spell_data, spell_data.get('original_name', ''))
+            self._insert_spell_classes(cursor, spell_id, spell_data)
+            self._insert_spell_tags(cursor, spell_id, spell_data)
             return spell_id
-    
+
     def update_spell(self, spell_id: int, spell_data: dict) -> bool:
         """
         Update an existing spell.
-        
+
         Args:
             spell_id: The spell's database ID
             spell_data: Dictionary with spell data (same as insert_spell)
-        
+
         Returns:
             True if successful
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Update main spell data (including is_modified and is_legacy)
             cursor.execute("""
                 UPDATE spells SET
@@ -1822,43 +1689,20 @@ class SpellDatabase:
                     concentration = ?, description = ?, source = ?,
                     is_modified = ?, is_legacy = ?
                 WHERE id = ?
-            """, (
-                spell_data['name'],
-                spell_data['level'],
-                spell_data['casting_time'],
-                1 if spell_data.get('ritual', False) else 0,
-                spell_data['range_value'],
-                spell_data['components'],
-                spell_data['duration'],
-                1 if spell_data.get('concentration', False) else 0,
-                spell_data.get('description', ''),
-                spell_data.get('source', ''),
+            """, self._spell_core_values(spell_data) + (
                 1 if spell_data.get('is_modified', False) else 0,
                 1 if spell_data.get('is_legacy', False) else 0,
-                spell_id
+                spell_id,
             ))
-            
-            # Update classes - delete and re-insert
+
+            # Classes and tags: delete and re-insert
             cursor.execute("DELETE FROM spell_classes WHERE spell_id = ?", (spell_id,))
-            classes = spell_data.get('classes', [])
-            if classes:
-                cursor.executemany(
-                    "INSERT INTO spell_classes (spell_id, class_name) VALUES (?, ?)",
-                    [(spell_id, cls) for cls in classes]
-                )
-            
-            # Update tags - delete and re-insert (normalized)
+            self._insert_spell_classes(cursor, spell_id, spell_data)
             cursor.execute("DELETE FROM spell_tags WHERE spell_id = ?", (spell_id,))
-            tags = spell_data.get('tags', [])
-            if tags:
-                normalized_tags = [self.normalize_tag(tag) for tag in tags]
-                cursor.executemany(
-                    "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
-                    [(spell_id, tag) for tag in normalized_tags]
-                )
-            
+            self._insert_spell_tags(cursor, spell_id, spell_data)
+
             return cursor.rowcount > 0
-    
+
     def delete_spell(self, spell_id: int) -> bool:
         """Delete a spell by ID."""
         with self.get_connection() as conn:
@@ -2101,27 +1945,16 @@ class SpellDatabase:
         cursor.execute("SELECT tag FROM spell_tags WHERE spell_id = ?", (spell_id,))
         tags = [r['tag'] for r in cursor.fetchall()]
         
-        return {
-            'id': spell_id,
-            'name': row['name'],
-            'level': row['level'],
-            'casting_time': row['casting_time'],
-            'ritual': bool(row['ritual']),
-            'range_value': row['range_value'],
-            'components': row['components'],
-            'duration': row['duration'],
-            'concentration': bool(row['concentration']),
-            'description': row['description'] or '',
-            'source': row['source'] or '',
-            'classes': classes,
-            'tags': tags,
-            'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
-            'original_name': row['original_name'] if 'original_name' in row.keys() else '',
-            'is_legacy': bool(row['is_legacy']) if 'is_legacy' in row.keys() else False,
-            'created_at': row['created_at'],
-            'updated_at': row['updated_at']
-        }
+        return self._spell_dict(row, classes, tags)
     
+    @staticmethod
+    def _group_by_spell(rows, column: str) -> dict:
+        """``spell_id -> [row[column], ...]`` for rows of a spell_classes / spell_tags query."""
+        grouped = {}
+        for r in rows:
+            grouped.setdefault(r['spell_id'], []).append(r[column])
+        return grouped
+
     def _rows_to_spell_dicts_batch(self, conn: sqlite3.Connection, rows: List[sqlite3.Row]) -> List[dict]:
         """Convert multiple database rows to spell dictionaries using batch queries.
         This avoids the N+1 query problem by fetching all classes and tags in just 2 queries.
@@ -2142,13 +1975,7 @@ class SpellDatabase:
             WHERE spell_id IN ({placeholders})
         """, spell_ids)
         
-        # Build a dictionary mapping spell_id -> list of classes
-        classes_by_spell = {}
-        for r in cursor.fetchall():
-            spell_id = r['spell_id']
-            if spell_id not in classes_by_spell:
-                classes_by_spell[spell_id] = []
-            classes_by_spell[spell_id].append(r['class_name'])
+        classes_by_spell = self._group_by_spell(cursor.fetchall(), 'class_name')
         
         # Batch fetch all tags for these spells (1 query instead of N)
         cursor.execute(f"""
@@ -2157,40 +1984,11 @@ class SpellDatabase:
             WHERE spell_id IN ({placeholders})
         """, spell_ids)
         
-        # Build a dictionary mapping spell_id -> list of tags
-        tags_by_spell = {}
-        for r in cursor.fetchall():
-            spell_id = r['spell_id']
-            if spell_id not in tags_by_spell:
-                tags_by_spell[spell_id] = []
-            tags_by_spell[spell_id].append(r['tag'])
+        tags_by_spell = self._group_by_spell(cursor.fetchall(), 'tag')
         
         # Convert rows to dictionaries using the pre-fetched data
-        result = []
-        for row in rows:
-            spell_id = row['id']
-            result.append({
-                'id': spell_id,
-                'name': row['name'],
-                'level': row['level'],
-                'casting_time': row['casting_time'],
-                'ritual': bool(row['ritual']),
-                'range_value': row['range_value'],
-                'components': row['components'],
-                'duration': row['duration'],
-                'concentration': bool(row['concentration']),
-                'description': row['description'] or '',
-                'source': row['source'] or '',
-                'classes': classes_by_spell.get(spell_id, []),
-                'tags': tags_by_spell.get(spell_id, []),
-                'is_modified': bool(row['is_modified']) if 'is_modified' in row.keys() else False,
-                'original_name': row['original_name'] if 'original_name' in row.keys() else '',
-                'is_legacy': bool(row['is_legacy']) if 'is_legacy' in row.keys() else False,
-                'created_at': row['created_at'],
-                'updated_at': row['updated_at']
-            })
-        
-        return result
+        return [self._spell_dict(row, classes_by_spell.get(row['id'], []), tags_by_spell.get(row['id'], []))
+                for row in rows]
     
     def search_spells(self, 
                       search_text: str = "",
@@ -2206,12 +2004,13 @@ class SpellDatabase:
                       duration: Optional[str] = None,
                       has_verbal: Optional[bool] = None,
                       has_somatic: Optional[bool] = None,
-                      has_material: Optional[bool] = None) -> List[dict]:
+                      has_material: Optional[bool] = None,
+                      titles_only: bool = False) -> List[dict]:
         """
         Search spells with various filters using optimized SQL queries.
         
         Args:
-            search_text: Text to search in name, description, and tags
+            search_text: Text to search in name, description, and tags (with titles_only: in the name alone)
             level: Spell level (-1 for all)
             class_name: Filter by class
             ritual: Filter by ritual (None for any)
@@ -2263,7 +2062,10 @@ class SpellDatabase:
                     params.extend(tags)
             
             # Add WHERE clause conditions
-            if search_text:
+            if search_text and titles_only:
+                conditions.append("s.name LIKE ? COLLATE NOCASE")
+                params.append(f"%{search_text}%")
+            elif search_text:
                 # Name and description through the full-text index when it is there, plus any tag match
                 search_pattern = f"%{search_text}%"
                 if self._search_index_available(conn):
@@ -2347,77 +2149,41 @@ class SpellDatabase:
     def bulk_insert_spells(self, spells: List[dict]) -> int:
         """
         Insert multiple spells at once (more efficient for imports).
-        
+
         Args:
             spells: List of spell dictionaries
-        
+
         Returns:
             Number of spells inserted
         """
         inserted = 0
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             for spell_data in spells:
                 try:
                     # Check if spell exists
                     cursor.execute(
-                        "SELECT id FROM spells WHERE name = ? COLLATE NOCASE", 
+                        "SELECT id FROM spells WHERE name = ? COLLATE NOCASE",
                         (spell_data['name'],)
                     )
                     if cursor.fetchone():
                         continue  # Skip duplicates
-                    
+
                     # Insert spell (for official spells, original_name = name)
                     original_name = spell_data.get('original_name', spell_data['name'])
-                    cursor.execute("""
-                        INSERT INTO spells (
-                            name, level, casting_time, ritual, range_value,
-                            components, duration, concentration, description, source, original_name, is_legacy
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        spell_data['name'],
-                        spell_data['level'],
-                        spell_data['casting_time'],
-                        1 if spell_data.get('ritual', False) else 0,
-                        spell_data['range_value'],
-                        spell_data['components'],
-                        spell_data['duration'],
-                        1 if spell_data.get('concentration', False) else 0,
-                        spell_data.get('description', ''),
-                        spell_data.get('source', ''),
-                        original_name,
-                        1 if spell_data.get('is_legacy', False) else 0
-                    ))
-                    
-                    spell_id = cursor.lastrowid
-                    
-                    # Insert classes
-                    classes = spell_data.get('classes', [])
-                    if classes:
-                        cursor.executemany(
-                            "INSERT INTO spell_classes (spell_id, class_name) VALUES (?, ?)",
-                            [(spell_id, cls) for cls in classes]
-                        )
-                    
-                    # Insert tags (normalized)
-                    tags = spell_data.get('tags', [])
-                    if tags:
-                        normalized_tags = [self.normalize_tag(tag) for tag in tags]
-                        cursor.executemany(
-                            "INSERT INTO spell_tags (spell_id, tag) VALUES (?, ?)",
-                            [(spell_id, tag) for tag in normalized_tags]
-                        )
-                    
+                    spell_id = self._insert_spell_row(cursor, spell_data, original_name)
+                    self._insert_spell_classes(cursor, spell_id, spell_data)
+                    self._insert_spell_tags(cursor, spell_id, spell_data)
                     inserted += 1
-                    
+
                 except sqlite3.IntegrityError:
                     continue  # Skip duplicates
-            
+
             conn.commit()
-        
+
         return inserted
-    
+
     def clear_all_spells(self):
         """Remove all spells from the database. Use with caution!"""
         with self.get_connection() as conn:
@@ -2442,414 +2208,111 @@ class SpellDatabase:
     
     def get_all_lineages(self) -> List[dict]:
         """Get all lineages from the database."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM lineages ORDER BY name")
-            return [self._row_to_lineage_dict(row) for row in cursor.fetchall()]
-    
+        return self._coll_get_all(LINEAGES)
+
     def get_lineage_by_name(self, name: str) -> Optional[dict]:
         """Get a lineage by name (case-insensitive)."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM lineages WHERE name = ? COLLATE NOCASE", (name,))
-            row = cursor.fetchone()
-            return self._row_to_lineage_dict(row) if row else None
-    
+        return self._coll_get_by_name(LINEAGES, name)
+
     def insert_lineage(self, lineage_data: dict) -> int:
         """Insert a new lineage."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO lineages (name, description, creature_type, size, speed, traits_json, 
-                                      source, is_official, is_custom, is_legacy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                lineage_data['name'],
-                lineage_data.get('description', ''),
-                lineage_data.get('creature_type', 'Humanoid'),
-                lineage_data.get('size', 'Medium'),
-                lineage_data.get('speed', 30),
-                json.dumps(lineage_data.get('traits', [])),
-                lineage_data.get('source', ''),
-                1 if lineage_data.get('is_official', True) else 0,
-                1 if lineage_data.get('is_custom', False) else 0,
-                1 if lineage_data.get('is_legacy', False) else 0
-            ))
-            return cursor.lastrowid or 0
-    
+        return self._coll_insert(LINEAGES, lineage_data)
+
     def update_lineage(self, lineage_id: int, lineage_data: dict) -> bool:
         """Update an existing lineage."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE lineages SET name = ?, description = ?, creature_type = ?, size = ?, 
-                speed = ?, traits_json = ?, source = ?, is_official = ?, is_custom = ?, is_legacy = ?,
-                updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                lineage_data['name'],
-                lineage_data.get('description', ''),
-                lineage_data.get('creature_type', 'Humanoid'),
-                lineage_data.get('size', 'Medium'),
-                lineage_data.get('speed', 30),
-                json.dumps(lineage_data.get('traits', [])),
-                lineage_data.get('source', ''),
-                1 if lineage_data.get('is_official', True) else 0,
-                1 if lineage_data.get('is_custom', False) else 0,
-                1 if lineage_data.get('is_legacy', False) else 0,
-                lineage_id
-            ))
-            return cursor.rowcount > 0
-    
+        return self._coll_update(LINEAGES, lineage_id, lineage_data)
+
     def delete_lineage(self, lineage_id: int) -> bool:
         """Delete a lineage by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM lineages WHERE id = ?", (lineage_id,))
-            return cursor.rowcount > 0
-    
-    def _row_to_lineage_dict(self, row) -> dict:
-        """Convert a database row to a lineage dictionary."""
-        return {
-            'id': row['id'],
-            'name': row['name'],
-            'description': row['description'] or '',
-            'creature_type': row['creature_type'] or 'Humanoid',
-            'size': row['size'] or 'Medium',
-            'speed': row['speed'] or 30,
-            'traits': json.loads(row['traits_json']) if row['traits_json'] else [],
-            'source': row['source'] or '',
-            'is_official': bool(row['is_official']),
-            'is_custom': bool(row['is_custom']),
-            'is_legacy': bool(row['is_legacy']),
-        }
-    
+        return self._coll_delete(LINEAGES, lineage_id)
+
     # ==================== FEAT METHODS ====================
     
     def get_all_feats(self) -> List[dict]:
         """Get all feats from the database."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM feats ORDER BY name")
-            return [self._row_to_feat_dict(row) for row in cursor.fetchall()]
-    
+        return self._coll_get_all(FEATS)
+
     def get_feat_by_name(self, name: str) -> Optional[dict]:
         """Get a feat by name (case-insensitive)."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM feats WHERE name = ? COLLATE NOCASE", (name,))
-            row = cursor.fetchone()
-            return self._row_to_feat_dict(row) if row else None
-    
+        return self._coll_get_by_name(FEATS, name)
+
     def insert_feat(self, feat_data: dict) -> int:
         """Insert a new feat."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO feats (name, type, is_spellcasting, spell_lists_json, spells_num_json,
-                                   has_prereq, prereq, set_spells_json, description, source,
-                                   is_official, is_custom, is_legacy, roll_effects_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                feat_data['name'],
-                feat_data.get('type', ''),
-                1 if feat_data.get('is_spellcasting', False) else 0,
-                json.dumps(feat_data.get('spell_lists', [])),
-                json.dumps(feat_data.get('spells_num', {})),
-                1 if feat_data.get('has_prereq', False) else 0,
-                feat_data.get('prereq', ''),
-                json.dumps(feat_data.get('set_spells', [])),
-                feat_data.get('description', ''),
-                feat_data.get('source', ''),
-                1 if feat_data.get('is_official', True) else 0,
-                1 if feat_data.get('is_custom', False) else 0,
-                1 if feat_data.get('is_legacy', False) else 0,
-                json.dumps(feat_data.get('roll_effects', []) or [])
-            ))
-            return cursor.lastrowid or 0
-    
+        return self._coll_insert(FEATS, feat_data)
+
     def update_feat(self, feat_id: int, feat_data: dict) -> bool:
         """Update an existing feat."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE feats SET name = ?, type = ?, is_spellcasting = ?, spell_lists_json = ?,
-                spells_num_json = ?, has_prereq = ?, prereq = ?, set_spells_json = ?, description = ?,
-                source = ?, is_official = ?, is_custom = ?, is_legacy = ?, roll_effects_json = ?,
-                updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                feat_data['name'],
-                feat_data.get('type', ''),
-                1 if feat_data.get('is_spellcasting', False) else 0,
-                json.dumps(feat_data.get('spell_lists', [])),
-                json.dumps(feat_data.get('spells_num', {})),
-                1 if feat_data.get('has_prereq', False) else 0,
-                feat_data.get('prereq', ''),
-                json.dumps(feat_data.get('set_spells', [])),
-                feat_data.get('description', ''),
-                feat_data.get('source', ''),
-                1 if feat_data.get('is_official', True) else 0,
-                1 if feat_data.get('is_custom', False) else 0,
-                1 if feat_data.get('is_legacy', False) else 0,
-                json.dumps(feat_data.get('roll_effects', []) or []),
-                feat_id
-            ))
-            return cursor.rowcount > 0
-    
+        return self._coll_update(FEATS, feat_id, feat_data)
+
     def delete_feat(self, feat_id: int) -> bool:
         """Delete a feat by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM feats WHERE id = ?", (feat_id,))
-            return cursor.rowcount > 0
-    
-    def _row_to_feat_dict(self, row) -> dict:
-        """Convert a database row to a feat dictionary."""
-        spells_num_raw = json.loads(row['spells_num_json']) if row['spells_num_json'] else {}
-        spells_num = {int(k): v for k, v in spells_num_raw.items()} if spells_num_raw else {}
-        return {
-            'id': row['id'],
-            'name': row['name'],
-            'type': row['type'] or '',
-            'is_spellcasting': bool(row['is_spellcasting']),
-            'spell_lists': json.loads(row['spell_lists_json']) if row['spell_lists_json'] else [],
-            'spells_num': spells_num,
-            'has_prereq': bool(row['has_prereq']),
-            'prereq': row['prereq'] or '',
-            'set_spells': json.loads(row['set_spells_json']) if row['set_spells_json'] else [],
-            'description': row['description'] or '',
-            'source': row['source'] or '',
-            'is_official': bool(row['is_official']),
-            'is_custom': bool(row['is_custom']),
-            'is_legacy': bool(row['is_legacy']),
-            'roll_effects': self._safe_json_list(row, 'roll_effects_json'),
-        }
-    
+        return self._coll_delete(FEATS, feat_id)
+
     # ==================== EQUIPMENT METHODS ====================
 
     def get_all_equipment(self) -> List[dict]:
         """Get all equipment from the database."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM equipment ORDER BY name")
-            return [self._row_to_equipment_dict(row) for row in cursor.fetchall()]
+        return self._coll_get_all(EQUIPMENT)
 
     def get_equipment_by_name(self, name: str) -> Optional[dict]:
         """Get an equipment item by name (case-insensitive)."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM equipment WHERE name = ? COLLATE NOCASE", (name,))
-            row = cursor.fetchone()
-            return self._row_to_equipment_dict(row) if row else None
+        return self._coll_get_by_name(EQUIPMENT, name)
 
     def insert_equipment(self, item_data: dict) -> int:
         """Insert a new equipment item."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO equipment (name, type, cost, weight, source, crafting_materials_json,
-                                       crafting_tool, description, tags_json, properties_json,
-                                       is_official, is_custom)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                item_data['name'],
-                item_data.get('type', 'Adventuring Gear'),
-                item_data.get('cost', ''),
-                item_data.get('weight', 0.0),
-                item_data.get('source', ''),
-                json.dumps(item_data.get('crafting_materials', [])),
-                item_data.get('crafting_tool', ''),
-                item_data.get('description', ''),
-                json.dumps(item_data.get('tags', [])),
-                json.dumps(item_data.get('properties', [])),
-                1 if item_data.get('is_official', True) else 0,
-                1 if item_data.get('is_custom', False) else 0
-            ))
-            return cursor.lastrowid or 0
+        return self._coll_insert(EQUIPMENT, item_data)
 
     def update_equipment(self, item_id: int, item_data: dict) -> bool:
         """Update an existing equipment item."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE equipment SET name = ?, type = ?, cost = ?, weight = ?, source = ?,
-                crafting_materials_json = ?, crafting_tool = ?, description = ?, tags_json = ?,
-                properties_json = ?, is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                item_data['name'],
-                item_data.get('type', 'Adventuring Gear'),
-                item_data.get('cost', ''),
-                item_data.get('weight', 0.0),
-                item_data.get('source', ''),
-                json.dumps(item_data.get('crafting_materials', [])),
-                item_data.get('crafting_tool', ''),
-                item_data.get('description', ''),
-                json.dumps(item_data.get('tags', [])),
-                json.dumps(item_data.get('properties', [])),
-                1 if item_data.get('is_official', True) else 0,
-                1 if item_data.get('is_custom', False) else 0,
-                item_id
-            ))
-            return cursor.rowcount > 0
+        return self._coll_update(EQUIPMENT, item_id, item_data)
 
     def delete_equipment(self, item_id: int) -> bool:
         """Delete an equipment item by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM equipment WHERE id = ?", (item_id,))
-            return cursor.rowcount > 0
+        return self._coll_delete(EQUIPMENT, item_id)
 
-    def _row_to_equipment_dict(self, row) -> dict:
-        """Convert a database row to an equipment dictionary."""
-        return {
-            'id': row['id'],
-            'name': row['name'],
-            'type': row['type'] or 'Adventuring Gear',
-            'cost': row['cost'] or '',
-            'weight': row['weight'] if row['weight'] is not None else 0.0,
-            'source': row['source'] or '',
-            'crafting_materials': json.loads(row['crafting_materials_json']) if row['crafting_materials_json'] else [],
-            'crafting_tool': row['crafting_tool'] or '',
-            'description': row['description'] or '',
-            'tags': json.loads(row['tags_json']) if row['tags_json'] else [],
-            'properties': self._safe_json_list(row, 'properties_json'),
-            'is_official': bool(row['is_official']),
-            'is_custom': bool(row['is_custom']),
-        }
+    # ==================== RULES METHODS ====================
 
-    @staticmethod
-    def _safe_json_list(row, key):
-        """Read a JSON-list column that may be absent on older rows/schemas."""
-        try:
-            raw = row[key]
-        except (IndexError, KeyError):
-            return []
-        if not raw:
-            return []
-        try:
-            value = json.loads(raw)
-            return value if isinstance(value, list) else []
-        except (ValueError, TypeError):
-            return []
+    def get_all_rules(self) -> List[dict]:
+        """All rules pages, in book order (the user's own after them)."""
+        return self._coll_get_all(RULES)
+
+    def get_rule_by_name(self, name: str) -> Optional[dict]:
+        """A rules page by name (case-insensitive)."""
+        return self._coll_get_by_name(RULES, name)
+
+    def insert_rule(self, data: dict) -> int:
+        """Insert a new rules page."""
+        return self._coll_insert(RULES, data)
+
+    def update_rule(self, rule_id: int, data: dict) -> bool:
+        """Update an existing rules page."""
+        return self._coll_update(RULES, rule_id, data)
+
+    def delete_rule(self, rule_id: int) -> bool:
+        """Delete a rules page by ID."""
+        return self._coll_delete(RULES, rule_id)
 
     # ==================== MAGIC ITEM METHODS ====================
 
     def get_all_magic_items(self) -> List[dict]:
         """Get all magic items from the database."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM magic_items ORDER BY name")
-            return [self._row_to_magic_item_dict(row) for row in cursor.fetchall()]
+        return self._coll_get_all(MAGIC_ITEMS)
 
     def get_magic_item_by_name(self, name: str) -> Optional[dict]:
         """Get a magic item by name (case-insensitive)."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM magic_items WHERE name = ? COLLATE NOCASE", (name,))
-            row = cursor.fetchone()
-            return self._row_to_magic_item_dict(row) if row else None
+        return self._coll_get_by_name(MAGIC_ITEMS, name)
 
     def insert_magic_item(self, item_data: dict) -> int:
         """Insert a new magic item."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO magic_items (name, type, cost, weight, source, enchanting_materials_json,
-                                         description, tags_json, properties_json, rarity,
-                                         requires_attunement, attunement_requirement, attunement_optional,
-                                         is_official, is_custom, roll_effects_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                item_data['name'],
-                item_data.get('type', 'Wondrous Item'),
-                item_data.get('cost', ''),
-                item_data.get('weight', 0.0),
-                item_data.get('source', ''),
-                json.dumps(item_data.get('enchanting_materials', [])),
-                item_data.get('description', ''),
-                json.dumps(item_data.get('tags', [])),
-                json.dumps(item_data.get('properties', [])),
-                item_data.get('rarity', 'Common'),
-                1 if item_data.get('requires_attunement', bool(item_data.get('attunement_requirement'))) else 0,
-                item_data.get('attunement_requirement', ''),
-                1 if item_data.get('attunement_optional', False) else 0,
-                1 if item_data.get('is_official', True) else 0,
-                1 if item_data.get('is_custom', False) else 0,
-                json.dumps(item_data.get('roll_effects', []) or [])
-            ))
-            return cursor.lastrowid or 0
+        return self._coll_insert(MAGIC_ITEMS, item_data)
 
     def update_magic_item(self, item_id: int, item_data: dict) -> bool:
         """Update an existing magic item."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE magic_items SET name = ?, type = ?, cost = ?, weight = ?, source = ?,
-                enchanting_materials_json = ?, description = ?, tags_json = ?, properties_json = ?,
-                rarity = ?, requires_attunement = ?, attunement_requirement = ?, attunement_optional = ?,
-                is_official = ?, is_custom = ?, roll_effects_json = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                item_data['name'],
-                item_data.get('type', 'Wondrous Item'),
-                item_data.get('cost', ''),
-                item_data.get('weight', 0.0),
-                item_data.get('source', ''),
-                json.dumps(item_data.get('enchanting_materials', [])),
-                item_data.get('description', ''),
-                json.dumps(item_data.get('tags', [])),
-                json.dumps(item_data.get('properties', [])),
-                item_data.get('rarity', 'Common'),
-                1 if item_data.get('requires_attunement', bool(item_data.get('attunement_requirement'))) else 0,
-                item_data.get('attunement_requirement', ''),
-                1 if item_data.get('attunement_optional', False) else 0,
-                1 if item_data.get('is_official', True) else 0,
-                1 if item_data.get('is_custom', False) else 0,
-                json.dumps(item_data.get('roll_effects', []) or []),
-                item_id
-            ))
-            return cursor.rowcount > 0
+        return self._coll_update(MAGIC_ITEMS, item_id, item_data)
 
     def delete_magic_item(self, item_id: int) -> bool:
         """Delete a magic item by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM magic_items WHERE id = ?", (item_id,))
-            return cursor.rowcount > 0
-
-    def _row_to_magic_item_dict(self, row) -> dict:
-        """Convert a database row to a magic item dictionary."""
-        return {
-            'id': row['id'],
-            'name': row['name'],
-            'type': row['type'] or 'Wondrous Item',
-            'cost': row['cost'] or '',
-            'weight': row['weight'] if row['weight'] is not None else 0.0,
-            'source': row['source'] or '',
-            'enchanting_materials': json.loads(row['enchanting_materials_json']) if row['enchanting_materials_json'] else [],
-            'description': row['description'] or '',
-            'tags': json.loads(row['tags_json']) if row['tags_json'] else [],
-            'properties': self._safe_json_list(row, 'properties_json'),
-            'rarity': row['rarity'] or 'Common',
-            'requires_attunement': self._row_flag(row, 'requires_attunement',
-                                                  bool((row['attunement_requirement'] or '').strip())),
-            'attunement_requirement': row['attunement_requirement'] or '',
-            'attunement_optional': bool(row['attunement_optional']),
-            'is_official': bool(row['is_official']),
-            'is_custom': bool(row['is_custom']),
-            'roll_effects': self._safe_json_list(row, 'roll_effects_json'),
-        }
-
-    @staticmethod
-    def _row_flag(row, key, default=False):
-        """Read a boolean column that may be absent on an older row/schema."""
-        try:
-            val = row[key]
-        except (IndexError, KeyError):
-            return default
-        return bool(val)
+        return self._coll_delete(MAGIC_ITEMS, item_id)
 
     # ==================== MONSTER METHODS ====================
 
@@ -2982,95 +2445,24 @@ class SpellDatabase:
     
     def get_all_backgrounds(self) -> List[dict]:
         """Get all backgrounds from the database."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM backgrounds ORDER BY name")
-            return [self._row_to_background_dict(row) for row in cursor.fetchall()]
-    
+        return self._coll_get_all(BACKGROUNDS)
+
     def get_background_by_name(self, name: str) -> Optional[dict]:
         """Get a background by name (case-insensitive)."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM backgrounds WHERE name = ? COLLATE NOCASE", (name,))
-            row = cursor.fetchone()
-            return self._row_to_background_dict(row) if row else None
-    
+        return self._coll_get_by_name(BACKGROUNDS, name)
+
     def insert_background(self, bg_data: dict) -> int:
         """Insert a new background."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO backgrounds (name, source, is_legacy, description, skills_json,
-                                         other_proficiencies_json, ability_scores_json, feats_json,
-                                         equipment, features_json, is_official, is_custom)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                bg_data['name'],
-                bg_data.get('source', ''),
-                1 if bg_data.get('is_legacy', False) else 0,
-                bg_data.get('description', ''),
-                json.dumps(bg_data.get('skills', [])),
-                json.dumps(bg_data.get('other_proficiencies', [])),
-                json.dumps(bg_data.get('ability_scores', [])),
-                json.dumps(bg_data.get('feats', [])),
-                bg_data.get('equipment', ''),
-                json.dumps(bg_data.get('features', [])),
-                1 if bg_data.get('is_official', True) else 0,
-                1 if bg_data.get('is_custom', False) else 0
-            ))
-            return cursor.lastrowid or 0
-    
+        return self._coll_insert(BACKGROUNDS, bg_data)
+
     def update_background(self, bg_id: int, bg_data: dict) -> bool:
         """Update an existing background."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE backgrounds SET name = ?, source = ?, is_legacy = ?, description = ?,
-                skills_json = ?, other_proficiencies_json = ?, ability_scores_json = ?, feats_json = ?,
-                equipment = ?, features_json = ?, is_official = ?, is_custom = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                bg_data['name'],
-                bg_data.get('source', ''),
-                1 if bg_data.get('is_legacy', False) else 0,
-                bg_data.get('description', ''),
-                json.dumps(bg_data.get('skills', [])),
-                json.dumps(bg_data.get('other_proficiencies', [])),
-                json.dumps(bg_data.get('ability_scores', [])),
-                json.dumps(bg_data.get('feats', [])),
-                bg_data.get('equipment', ''),
-                json.dumps(bg_data.get('features', [])),
-                1 if bg_data.get('is_official', True) else 0,
-                1 if bg_data.get('is_custom', False) else 0,
-                bg_id
-            ))
-            return cursor.rowcount > 0
-    
+        return self._coll_update(BACKGROUNDS, bg_id, bg_data)
+
     def delete_background(self, bg_id: int) -> bool:
         """Delete a background by ID."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM backgrounds WHERE id = ?", (bg_id,))
-            return cursor.rowcount > 0
-    
-    def _row_to_background_dict(self, row) -> dict:
-        """Convert a database row to a background dictionary."""
-        return {
-            'id': row['id'],
-            'name': row['name'],
-            'source': row['source'] or '',
-            'is_legacy': bool(row['is_legacy']),
-            'description': row['description'] or '',
-            'skills': json.loads(row['skills_json']) if row['skills_json'] else [],
-            'other_proficiencies': json.loads(row['other_proficiencies_json']) if row['other_proficiencies_json'] else [],
-            'ability_scores': json.loads(row['ability_scores_json']) if row['ability_scores_json'] else [],
-            'feats': json.loads(row['feats_json']) if row['feats_json'] else [],
-            'equipment': row['equipment'] or '',
-            'features': json.loads(row['features_json']) if row['features_json'] else [],
-            'is_official': bool(row['is_official']),
-            'is_custom': bool(row['is_custom'])
-        }
-    
+        return self._coll_delete(BACKGROUNDS, bg_id)
+
     # ==================== CLASS METHODS ====================
     
     def get_all_character_classes(self) -> List[dict]:
@@ -3102,84 +2494,12 @@ class SpellDatabase:
     
     def insert_class(self, class_data: dict) -> int:
         """Insert a new class."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO classes (name, hit_die, primary_ability, saving_throws_json,
-                                     armor_proficiencies_json, weapon_proficiencies_json,
-                                     tool_proficiencies_json, skill_proficiencies_json,
-                                     num_skills, starting_equipment_json, class_features_json,
-                                     spellcasting_json, subclass_name, subclass_level,
-                                     class_table_columns_json, trackable_features_json,
-                                     class_spells_json, unarmored_defense,
-                                     source, is_official, is_custom, is_legacy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                class_data['name'],
-                class_data.get('hit_die', 8),
-                class_data.get('primary_ability', ''),
-                json.dumps(class_data.get('saving_throws', [])),
-                json.dumps(class_data.get('armor_proficiencies', [])),
-                json.dumps(class_data.get('weapon_proficiencies', [])),
-                json.dumps(class_data.get('tool_proficiencies', [])),
-                json.dumps(class_data.get('skill_proficiencies', [])),
-                class_data.get('num_skills', 2),
-                json.dumps(class_data.get('starting_equipment', [])),
-                json.dumps(class_data.get('class_features', [])),
-                json.dumps(class_data.get('spellcasting')) if class_data.get('spellcasting') else 'null',
-                class_data.get('subclass_name', ''),
-                class_data.get('subclass_level', 3),
-                json.dumps(class_data.get('class_table_columns', [])),
-                json.dumps(class_data.get('trackable_features', [])),
-                json.dumps(class_data.get('class_spells', [])),
-                class_data.get('unarmored_defense', ''),
-                class_data.get('source', ''),
-                1 if class_data.get('is_official', True) else 0,
-                1 if class_data.get('is_custom', False) else 0,
-                1 if class_data.get('is_legacy', False) else 0
-            ))
-            return cursor.lastrowid or 0
-    
+        return self._coll_insert(CLASSES, class_data)
+
     def update_class(self, class_id: int, class_data: dict) -> bool:
         """Update an existing class."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE classes SET name = ?, hit_die = ?, primary_ability = ?, saving_throws_json = ?,
-                armor_proficiencies_json = ?, weapon_proficiencies_json = ?, tool_proficiencies_json = ?,
-                skill_proficiencies_json = ?, num_skills = ?, starting_equipment_json = ?,
-                class_features_json = ?, spellcasting_json = ?, subclass_name = ?, subclass_level = ?,
-                class_table_columns_json = ?, trackable_features_json = ?, class_spells_json = ?,
-                unarmored_defense = ?, source = ?, is_official = ?, is_custom = ?, is_legacy = ?,
-                updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                class_data['name'],
-                class_data.get('hit_die', 8),
-                class_data.get('primary_ability', ''),
-                json.dumps(class_data.get('saving_throws', [])),
-                json.dumps(class_data.get('armor_proficiencies', [])),
-                json.dumps(class_data.get('weapon_proficiencies', [])),
-                json.dumps(class_data.get('tool_proficiencies', [])),
-                json.dumps(class_data.get('skill_proficiencies', [])),
-                class_data.get('num_skills', 2),
-                json.dumps(class_data.get('starting_equipment', [])),
-                json.dumps(class_data.get('class_features', [])),
-                json.dumps(class_data.get('spellcasting')) if class_data.get('spellcasting') else 'null',
-                class_data.get('subclass_name', ''),
-                class_data.get('subclass_level', 3),
-                json.dumps(class_data.get('class_table_columns', [])),
-                json.dumps(class_data.get('trackable_features', [])),
-                json.dumps(class_data.get('class_spells', [])),
-                class_data.get('unarmored_defense', ''),
-                class_data.get('source', ''),
-                1 if class_data.get('is_official', True) else 0,
-                1 if class_data.get('is_custom', False) else 0,
-                1 if class_data.get('is_legacy', False) else 0,
-                class_id
-            ))
-            return cursor.rowcount > 0
-    
+        return self._coll_update(CLASSES, class_id, class_data)
+
     def delete_class(self, class_id: int) -> bool:
         """Delete a class by ID (cascades to subclasses)."""
         with self.get_connection() as conn:
@@ -3299,62 +2619,12 @@ class SpellDatabase:
     
     def insert_subclass(self, subclass_data: dict) -> int:
         """Insert a new subclass. class_id must be in subclass_data."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            # Store all subclass data in features_json
-            features_data = {
-                'features': subclass_data.get('features', []),
-                'subclass_spells': subclass_data.get('subclass_spells', []),
-                'armor_proficiencies': subclass_data.get('armor_proficiencies', []),
-                'weapon_proficiencies': subclass_data.get('weapon_proficiencies', []),
-                'unarmored_defense': subclass_data.get('unarmored_defense', ''),
-                'trackable_features': subclass_data.get('trackable_features', [])
-            }
-            cursor.execute("""
-                INSERT INTO subclasses (name, class_id, description, features_json, source,
-                                        is_official, is_custom, is_legacy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                subclass_data['name'],
-                subclass_data['class_id'],
-                subclass_data.get('description', ''),
-                json.dumps(features_data),
-                subclass_data.get('source', ''),
-                1 if subclass_data.get('is_official', True) else 0,
-                1 if subclass_data.get('is_custom', False) else 0,
-                1 if subclass_data.get('is_legacy', False) else 0
-            ))
-            return cursor.lastrowid or 0
-    
+        return self._coll_insert(SUBCLASSES, subclass_data)
+
     def update_subclass(self, subclass_id: int, subclass_data: dict) -> bool:
         """Update an existing subclass."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            # Store all subclass data in features_json
-            features_data = {
-                'features': subclass_data.get('features', []),
-                'subclass_spells': subclass_data.get('subclass_spells', []),
-                'armor_proficiencies': subclass_data.get('armor_proficiencies', []),
-                'weapon_proficiencies': subclass_data.get('weapon_proficiencies', []),
-                'unarmored_defense': subclass_data.get('unarmored_defense', ''),
-                'trackable_features': subclass_data.get('trackable_features', [])
-            }
-            cursor.execute("""
-                UPDATE subclasses SET name = ?, description = ?, features_json = ?, source = ?,
-                is_official = ?, is_custom = ?, is_legacy = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (
-                subclass_data['name'],
-                subclass_data.get('description', ''),
-                json.dumps(features_data),
-                subclass_data.get('source', ''),
-                1 if subclass_data.get('is_official', True) else 0,
-                1 if subclass_data.get('is_custom', False) else 0,
-                1 if subclass_data.get('is_legacy', False) else 0,
-                subclass_id
-            ))
-            return cursor.rowcount > 0
-    
+        return self._coll_update(SUBCLASSES, subclass_id, subclass_data)
+
     def delete_subclass(self, subclass_id: int) -> bool:
         """Delete a subclass by ID."""
         with self.get_connection() as conn:

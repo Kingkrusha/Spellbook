@@ -4,6 +4,9 @@ Provides a full character sheet interface with D&D 5e standard layout.
 """
 # pyright: reportOptionalMemberAccess=false
 
+from ui.description_popup import DescriptionPopup
+from ui.base_widgets import create_context_menu, show_context_menu
+from ui.window_utils import add_cancel_save, center_on_parent
 import customtkinter as ctk
 from typography import ui_font
 from ui.restyle import style_name, widget_kind
@@ -25,7 +28,7 @@ from legacy_content import apply_legacy_filter
 from theme import get_theme_manager
 from character_class import get_class_manager, ClassAbility
 from feat import get_feat_manager
-from atomic_io import atomic_write_json
+from atomic_io import SaveErrorListeners, atomic_write_json
 from paths import user_data_path
 from ui.platform_compat import bind_right_click
 from ui.object_link_widgets import attach_object_linking, open_link_popup
@@ -35,7 +38,7 @@ import json
 import os
 
 
-class CharacterSheetManager:
+class CharacterSheetManager(SaveErrorListeners):
     """Manages character sheet persistence."""
     
     DEFAULT_FILE = "character_sheets.json"
@@ -44,22 +47,6 @@ class CharacterSheetManager:
         self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._sheets: Dict[str, CharacterSheet] = {}  # character_name -> CharacterSheet
         self._error_listeners: List[Callable[[str], None]] = []
-
-    def add_error_listener(self, callback: Callable[[str], None]):
-        """Add a listener notified when a load/save fails.
-
-        Without this, a failed save was only ever ``print()``-ed - invisible
-        in a windowed build with no console - so sheet edits could silently
-        vanish without the user ever finding out.
-        """
-        self._error_listeners.append(callback)
-
-    def _notify_error(self, message: str):
-        for listener in self._error_listeners:
-            try:
-                listener(message)
-            except Exception:
-                pass
 
     def load(self) -> bool:
         """Load character sheets from file."""
@@ -118,19 +105,7 @@ class CharacterSheetManager:
                     
                     if class_def:
                         for save in class_def.saving_throw_proficiencies:
-                            ability = None
-                            if save == "STR":
-                                ability = AbilityScore.STRENGTH
-                            elif save == "DEX":
-                                ability = AbilityScore.DEXTERITY
-                            elif save == "CON":
-                                ability = AbilityScore.CONSTITUTION
-                            elif save == "INT":
-                                ability = AbilityScore.INTELLIGENCE
-                            elif save == "WIS":
-                                ability = AbilityScore.WISDOM
-                            elif save == "CHA":
-                                ability = AbilityScore.CHARISMA
+                            ability = AbilityScore.from_short_name(save)
                             
                             if ability:
                                 sheet.saving_throws.set_proficiency(ability, True)
@@ -1786,19 +1761,7 @@ class CharacterSheetView(ctk.CTkFrame):
         
         # Apply saving throw proficiencies
         for save in class_def.saving_throw_proficiencies:
-            ability = None
-            if save == "STR":
-                ability = AbilityScore.STRENGTH
-            elif save == "DEX":
-                ability = AbilityScore.DEXTERITY
-            elif save == "CON":
-                ability = AbilityScore.CONSTITUTION
-            elif save == "INT":
-                ability = AbilityScore.INTELLIGENCE
-            elif save == "WIS":
-                ability = AbilityScore.WISDOM
-            elif save == "CHA":
-                ability = AbilityScore.CHARISMA
+            ability = AbilityScore.from_short_name(save)
             
             if ability:
                 sheet.saving_throws.set_proficiency(ability, True)
@@ -1955,7 +1918,10 @@ class CharacterSheetView(ctk.CTkFrame):
             font=ui_font("subheading", bold=True)
         )
         ac_entry.pack(pady=3)
-        ac_entry.bind("<FocusOut>", lambda e: self._save_int_field("armor_class", self.ac_var.get()))
+        self.ac_entry = ac_entry
+        for event in ("<FocusOut>", "<Return>"):
+            ac_entry.bind(event, lambda e: self._on_stat_typed("armor_class"))
+        self._stat_tips = {"armor_class": HoverTooltip(ac_entry, "")}
         
         # Initiative
         init_frame = ctk.CTkFrame(stats_row, fg_color=self.theme.get_current_color('bg_tertiary'),
@@ -1964,12 +1930,15 @@ class CharacterSheetView(ctk.CTkFrame):
         init_frame.pack_propagate(False)
         ctk.CTkLabel(init_frame, text="INIT", font=ui_font("small", 9, bold=True)).pack(pady=(5, 0))
         init_mod = sheet.get_initiative()
-        init_text = f"+{init_mod}" if init_mod >= 0 else str(init_mod)
-        self.init_label = ctk.CTkLabel(
-            init_frame, text=init_text,
-            font=ui_font("heading", 16, bold=True)
+        self.init_var = ctk.StringVar(value=f"{init_mod:+d}")
+        self.init_entry = ctk.CTkEntry(
+            init_frame, width=44, height=26, textvariable=self.init_var, justify="center",
+            font=ui_font("subheading", bold=True)
         )
-        self.init_label.pack(pady=3)
+        self.init_entry.pack(pady=3)
+        for event in ("<FocusOut>", "<Return>"):
+            self.init_entry.bind(event, lambda e: self._on_stat_typed("initiative"))
+        self._stat_tips["initiative"] = HoverTooltip(self.init_entry, "")
         
         # Speed
         speed_frame = ctk.CTkFrame(stats_row, fg_color=self.theme.get_current_color('bg_tertiary'),
@@ -2019,7 +1988,8 @@ class CharacterSheetView(ctk.CTkFrame):
             on_inspiration_change=self._on_inspiration_change
         )
         self.death_widget.pack(fill="x", padx=8, pady=(3, 8))
-    
+        self._refresh_stat_boxes()
+
     def _create_armor_dropdowns(self, parent, sheet: CharacterSheet):
         """Create armor and shield dropdowns for AC calculation."""
         # Armor row
@@ -2125,47 +2095,129 @@ class CharacterSheetView(ctk.CTkFrame):
         self._recalculate_ac()
         self._recalculate_speed()
     
+    # ---- AC, hit point maximum and initiative: worked out (items and features counted) or typed over
+
+    def _stat_lookups(self):
+        """How the numbers engine finds the class, feat, species and magic item a sheet names."""
+        from character_rolls import Lookups
+        from feat import get_feat_manager
+        from lineage import get_lineage_manager
+        from magic_item import get_magic_item_manager
+        return Lookups(class_def=lambda n: get_class_manager().get_class(n),
+                       magic_item=lambda n: get_magic_item_manager().get_item(n),
+                       feat=lambda n: get_feat_manager().get_feat(n),
+                       lineage=lambda n: get_lineage_manager().get_lineage(n))
+
+    def _auto_stats(self) -> dict:
+        """AC, hit point maximum and initiative as the rules give them (see sheet_stats.py)."""
+        import sheet_stats
+        character, sheet, lookups = self.current_character, self.current_sheet, self._stat_lookups()
+        bonuses = sheet_stats.find_bonuses(character, sheet, lookups)
+        return {"armor_class": sheet_stats.auto_ac(character, sheet, lookups, bonuses),
+                "hp_max": sheet_stats.auto_hp_max(character, sheet, lookups, bonuses),
+                "initiative": sheet_stats.auto_initiative(character, sheet, lookups, bonuses),
+                "initiative_extra": sheet_stats.initiative_extra(character, sheet, lookups, bonuses)}
+
+    def _refresh_stat_boxes(self):
+        """Show each of the AC, initiative and hit point maximum boxes as automatic or manually set, with a tooltip
+        that says how the number was made (or what it would be if it were not typed in)."""
+        if not self.current_sheet or not self.current_character or not hasattr(self, "_stat_tips"):
+            return
+        import sheet_stats
+        sheet = self.current_sheet
+        try:
+            autos = self._auto_stats()
+        except Exception as e:                         # a lookup problem must not break the sheet
+            print(f"Could not work out the sheet numbers: {e}")
+            return
+        if sheet.initiative_auto_bonus != autos["initiative_extra"]:
+            sheet.initiative_auto_bonus = autos["initiative_extra"]
+            self.sheet_manager.update_sheet(self.current_character.name, sheet)
+        warn = self.theme.get_text_warning()
+        normal = self.theme.get_current_color('text_primary')
+        boxes = (("armor_class", getattr(self, "ac_entry", None), "Armor Class", lambda v: str(v)),
+                 ("initiative", getattr(self, "init_entry", None), "Initiative", lambda v: f"{v:+d}"),
+                 ("hp_max", getattr(self, "max_hp_entry", None), "Hit point maximum", lambda v: str(v)))
+        for key, entry, title, fmt in boxes:
+            if entry is None or not entry.winfo_exists() or key not in self._stat_tips:
+                continue
+            auto = autos[key]
+            manual = key in sheet.stat_overrides
+            entry.configure(text_color=warn if manual else normal)
+            if key == "initiative":
+                shown = fmt(sheet.get_initiative())
+                if self.init_var.get() != shown and entry.focus_get() is not entry:
+                    self.init_var.set(shown)
+            tip = (sheet_stats.manual_tip(fmt(auto.value)) if manual
+                   else f"{title}: {fmt(auto.value)}\n{auto.explain()}")
+            self._stat_tips[key].update_text(tip)
+
+    def _on_stat_typed(self, key: str):
+        """A number was typed in the AC, initiative or hit point maximum box. The number the rules give anyway (or an
+        empty box) means automatic; anything else is kept as a manual setting."""
+        if self._rebuilding_ui or not self.current_sheet or not self.current_character:
+            return
+        import sheet_stats
+        sheet = self.current_sheet
+        var = {"armor_class": self.ac_var, "initiative": self.init_var, "hp_max": self.max_hp_var}[key]
+        autos = self._auto_stats()
+        auto = autos[key].value
+        shown = {"armor_class": sheet.armor_class, "initiative": sheet.get_initiative(),
+                 "hp_max": sheet.hit_points.maximum}[key]
+        text = var.get().strip()
+        if text and text.replace("+", "") == str(shown):
+            return                                                    # nothing was changed
+        try:
+            override = sheet_stats.set_override(sheet, key, text, auto)
+        except ValueError as e:
+            messagebox.showwarning("Not a number", str(e), parent=self.winfo_toplevel())
+            var.set(f"{shown:+d}" if key == "initiative" else str(shown))
+            return
+        value = auto if override is None else override
+        if key == "armor_class":
+            sheet.armor_class = max(0, value)
+            self.ac_var.set(str(sheet.armor_class))
+        elif key == "hp_max":
+            sheet.hit_points.maximum = max(1, value)
+            sheet.hit_points.current = min(sheet.hit_points.current, sheet.hit_points.maximum)
+            self.max_hp_var.set(str(sheet.hit_points.maximum))
+            self.current_hp_var.set(str(sheet.hit_points.current))
+        self.sheet_manager.update_sheet(self.current_character.name, sheet)
+        self._refresh_stat_boxes()
+
+    def _after_item_change(self):
+        """Items, feats, the species or the subclass changed: the numbers that follow from them are worked out again."""
+        if not self.current_sheet or not self.current_character:
+            return
+        settings = get_settings_manager().settings
+        if settings.auto_calculate_ac:
+            self._recalculate_ac()
+        if settings.auto_calculate_hp:
+            self._auto_update_hp()
+        self._refresh_stat_boxes()
+
     def _recalculate_ac(self):
-        """Recalculate AC based on armor, shield, and abilities."""
+        """Recalculate AC from armor, shield, abilities, magic items and features (unless it was typed in)."""
         if not self.current_sheet:
             return
-        
+
         sheet = self.current_sheet
-        
-        # Get armor type
-        armor_type = ArmorType.from_name(sheet.armor_type)
-        
-        # Get ability modifiers
-        dex_mod = sheet.ability_scores.modifier(AbilityScore.DEXTERITY)
-        con_mod = sheet.ability_scores.modifier(AbilityScore.CONSTITUTION)
-        wis_mod = sheet.ability_scores.modifier(AbilityScore.WISDOM)
-        cha_mod = sheet.ability_scores.modifier(AbilityScore.CHARISMA)
-        
-        # Get shield bonus
-        shield_bonus = sheet.shield_bonus if hasattr(sheet, 'shield_bonus') else (2 if sheet.has_shield else 0)
-        
-        # Calculate AC
-        new_ac = calculate_ac(
-            armor_type=armor_type,
-            dex_modifier=dex_mod,
-            has_shield=False,  # Use shield_bonus instead
-            unarmored_defense=sheet.unarmored_defense,
-            con_modifier=con_mod,
-            wis_modifier=wis_mod,
-            cha_modifier=cha_mod,
-            shield_bonus=shield_bonus
-        )
-        
+        stat = self._auto_stats()["armor_class"] if self.current_character else None
+        if stat is None:
+            return
+        new_ac = sheet.stat_overrides.get("armor_class", stat.value)
+
         # Update sheet and UI
         sheet.armor_class = new_ac
         if hasattr(self, 'ac_var'):
             self.ac_var.set(str(new_ac))
-        
+
         # Save
         if self.current_character:
             self.sheet_manager.update_sheet(self.current_character.name, sheet)
             self.character_manager.save_characters()
-    
+        self._refresh_stat_boxes()
+
     def _has_powerful_build(self) -> bool:
         """Check whether the character's lineage grants Powerful Build (doubles
         carrying capacity - e.g. Goliath). Checked regardless of whether the
@@ -2371,6 +2423,8 @@ class CharacterSheetView(ctk.CTkFrame):
         max_entry.pack(side="left", padx=3)
         max_entry.bind("<FocusOut>", self._on_hp_field_change)
         max_entry.bind("<Return>", self._on_hp_field_change)
+        self.max_hp_entry = max_entry
+        self._stat_tips["hp_max"] = HoverTooltip(max_entry, "")
         
         # Temp HP
         ctk.CTkLabel(hp_row, text="Temp:", font=ui_font("small", 10)).pack(side="left", padx=(10, 0))
@@ -2463,9 +2517,8 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         
         class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
-        con_mod = self.current_sheet.ability_scores.modifier(AbilityScore.CONSTITUTION)
-        
-        new_max = calculate_hp_maximum(class_levels, con_mod, self.current_character.feats)
+        self.current_sheet.stat_overrides.pop("hp_max", None)          # "Recalculate" goes back to automatic
+        new_max = self._auto_stats()["hp_max"].value
         self.max_hp_var.set(str(new_max))
         
         # Also update current if it exceeds new max
@@ -2483,20 +2536,26 @@ class CharacterSheetView(ctk.CTkFrame):
                            f"HP Maximum set to {new_max}\n(Based on class levels + CON modifier)")
     
     def _on_hp_field_change(self, event=None):
-        """Handle HP field changes."""
+        """Handle HP field changes (a maximum that differs from the automatic one is kept as a manual setting)."""
         if self.current_sheet:
             try:
-                self.current_sheet.hit_points.current = max(0, int(self.current_hp_var.get() or "0"))
-                self.current_sheet.hit_points.maximum = max(1, int(self.max_hp_var.get() or "1"))
-                self.current_sheet.hit_points.temporary = max(0, int(self.temp_hp_var.get() or "0"))
-                self.current_sheet.hit_points.hit_dice_total = self._total_hit_dice
+                sheet = self.current_sheet
+                typed_max = max(1, int(self.max_hp_var.get() or "1"))
+                if typed_max != sheet.hit_points.maximum and not self._rebuilding_ui:
+                    import sheet_stats
+                    sheet_stats.set_override(sheet, "hp_max", str(typed_max), self._auto_stats()["hp_max"].value)
+                sheet.hit_points.current = max(0, int(self.current_hp_var.get() or "0"))
+                sheet.hit_points.maximum = typed_max
+                sheet.hit_points.temporary = max(0, int(self.temp_hp_var.get() or "0"))
+                sheet.hit_points.hit_dice_total = self._total_hit_dice
                 
                 # Update hit die type based on primary class
                 if self.current_character.classes:
                     primary_class = self.current_character.classes[0].get_class_name()
-                    self.current_sheet.hit_points.hit_die_type = CLASS_HIT_DICE.get(primary_class, "d8")
+                    sheet.hit_points.hit_die_type = CLASS_HIT_DICE.get(primary_class, "d8")
                 
-                self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+                self.sheet_manager.update_sheet(self.current_character.name, sheet)
+                self._refresh_stat_boxes()
             except ValueError:
                 pass
     
@@ -3125,25 +3184,8 @@ class CharacterSheetView(ctk.CTkFrame):
         # Get current value from sheet, default to max
         current = sheet.class_feature_uses.get(key, max_value)
         
-        frame = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_tertiary'),
-                            corner_radius=6)
-        # Use grid for wrapping layout
-        frame.grid(row=self._feature_row, column=self._feature_col, padx=3, pady=2, sticky="nsew")
-        self._feature_col += 1
-        if self._feature_col >= self._max_cols:
-            self._feature_col = 0
-            self._feature_row += 1
-        
-        inner = ctk.CTkFrame(frame, fg_color="transparent")
-        inner.pack(expand=True, fill="both", padx=8, pady=5)
-        
-        # Label
-        ctk.CTkLabel(
-            inner, text=label,
-            font=ui_font("small", 10),
-            text_color=self.theme.get_text_secondary()
-        ).pack(anchor="center")
-        
+        inner = self._feature_stat_box(parent, label)
+
         # Current/Max row
         value_row = ctk.CTkFrame(inner, fg_color="transparent")
         value_row.pack(anchor="center", pady=2)
@@ -3168,8 +3210,8 @@ class CharacterSheetView(ctk.CTkFrame):
             font=ui_font("body", bold=True)
         ).pack(side="left", padx=(2, 0))
     
-    def _create_feature_display_stat(self, parent, label: str, value: str):
-        """Create a display-only feature stat (no uses to track)."""
+    def _feature_stat_box(self, parent, label: str):
+        """A small labelled box in the features grid (the next free cell); returns the frame to put its value in."""
         frame = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_tertiary'),
                             corner_radius=6)
         # Use grid for wrapping layout
@@ -3178,16 +3220,21 @@ class CharacterSheetView(ctk.CTkFrame):
         if self._feature_col >= self._max_cols:
             self._feature_col = 0
             self._feature_row += 1
-        
+
         inner = ctk.CTkFrame(frame, fg_color="transparent")
         inner.pack(expand=True, fill="both", padx=8, pady=5)
-        
+
         ctk.CTkLabel(
             inner, text=label,
             font=ui_font("small", 10),
             text_color=self.theme.get_text_secondary()
         ).pack(anchor="center")
-        
+        return inner
+
+    def _create_feature_display_stat(self, parent, label: str, value: str):
+        """Create a display-only feature stat (no uses to track)."""
+        inner = self._feature_stat_box(parent, label)
+
         ctk.CTkLabel(
             inner, text=value,
             font=ui_font("subheading", bold=True)
@@ -3421,15 +3468,15 @@ class CharacterSheetView(ctk.CTkFrame):
             text_color=self.theme.get_current_color('text_primary')
         ).pack(side="left")
         
-        # Add/Edit feats button
+        # Add feats button (feats are removed by right-clicking them)
         ctk.CTkButton(
-            feats_header, text="Edit",
+            feats_header, text="+ Add Feat",
             font=ui_font("small", 10),
-            width=50, height=20,
+            width=70, height=20,
             fg_color=self.theme.get_current_color('bg_tertiary'),
             hover_color=self.theme.get_current_color('accent'),
             text_color=self.theme.get_current_color('text_primary'),
-            command=self._show_feat_editor
+            command=self._add_feats
         ).pack(side="right")
         
         if has_feats:
@@ -3688,133 +3735,49 @@ class CharacterSheetView(ctk.CTkFrame):
         # Refresh only the features section
         self._refresh_features_section()
     
+    def _popup_menu(self, event, label: str, command):
+        """A one-entry right-click menu at the pointer."""
+        show_context_menu(create_context_menu(self, [(label, command)], self.theme), event)
+
+    def _hide_feature(self, hidden_id: str):
+        """Hide a trait, feature or feat (``"kind:name"``) on the current character's sheet."""
+        if self.current_character:
+            if hidden_id not in self.current_character.hidden_features:
+                self.current_character.hidden_features.append(hidden_id)
+                self.character_manager.save_characters()
+                self._refresh_features_section()
+
+    def _show_all_hidden(self, kind: str, section_suffix: str):
+        """Un-hide everything hidden under ``kind`` and open that section again."""
+        if self.current_character:
+            prefix = f"{kind}:"
+            self.current_character.hidden_features = [
+                f for f in self.current_character.hidden_features
+                if not f.startswith(prefix)
+            ]
+            self.character_manager.save_characters()
+
+            # Also uncollapse the section
+            if hasattr(self, '_collapsed_sections'):
+                self._collapsed_sections[f"{kind}_{section_suffix}"] = False
+
+            self._refresh_features_section()
+
     def _show_trait_context_menu(self, event, trait, trait_type: str):
         """Show context menu for hiding a trait."""
-        # Use tkinter Menu for more reliable context menu behavior
-        import tkinter as tk
-        menu = tk.Menu(self, tearoff=0)
-        
-        menu.configure(
-            bg=self.theme.get_current_color('bg_secondary'),
-            fg=self.theme.get_current_color('text_primary'),
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=self.theme.get_current_color('text_primary')
-        )
-        
-        def hide_trait():
-            if self.current_character:
-                trait_id = f"{trait_type}:{trait.name}"
-                if trait_id not in self.current_character.hidden_features:
-                    self.current_character.hidden_features.append(trait_id)
-                    self.character_manager.save_characters()
-                    self._refresh_features_section()
-        
-        menu.add_command(label="Hide Trait", command=hide_trait)
-        
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
-    
+        self._popup_menu(event, "Hide Trait", lambda: self._hide_feature(f"{trait_type}:{trait.name}"))
+
     def _show_all_traits_menu(self, event, trait_type: str):
         """Show context menu for showing all hidden traits of a type."""
-        # Use tkinter Menu for more reliable context menu behavior
-        import tkinter as tk
-        menu = tk.Menu(self, tearoff=0)
-        
-        menu.configure(
-            bg=self.theme.get_current_color('bg_secondary'),
-            fg=self.theme.get_current_color('text_primary'),
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=self.theme.get_current_color('text_primary')
-        )
-        
-        def show_all_traits():
-            if self.current_character:
-                # Remove all hidden features of this type
-                prefix = f"{trait_type}:"
-                self.current_character.hidden_features = [
-                    f for f in self.current_character.hidden_features
-                    if not f.startswith(prefix)
-                ]
-                self.character_manager.save_characters()
-                
-                # Also uncollapse the section
-                if hasattr(self, '_collapsed_sections'):
-                    section_key = f"{trait_type}_traits"
-                    self._collapsed_sections[section_key] = False
-                
-                self._refresh_features_section()
-        
-        menu.add_command(label="Show All Hidden Traits", command=show_all_traits)
-        
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
-    
+        self._popup_menu(event, "Show All Hidden Traits", lambda: self._show_all_hidden(trait_type, "traits"))
+
     def _show_feature_context_menu(self, event, feature_name: str, feature_type: str):
         """Show context menu for hiding a class/subclass feature."""
-        import tkinter as tk
-        menu = tk.Menu(self, tearoff=0)
-        
-        menu.configure(
-            bg=self.theme.get_current_color('bg_secondary'),
-            fg=self.theme.get_current_color('text_primary'),
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=self.theme.get_current_color('text_primary')
-        )
-        
-        def hide_feature():
-            if self.current_character:
-                feature_id = f"{feature_type}:{feature_name}"
-                if feature_id not in self.current_character.hidden_features:
-                    self.current_character.hidden_features.append(feature_id)
-                    self.character_manager.save_characters()
-                    self._refresh_features_section()
-        
-        menu.add_command(label="Hide Feature", command=hide_feature)
-        
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
-    
+        self._popup_menu(event, "Hide Feature", lambda: self._hide_feature(f"{feature_type}:{feature_name}"))
+
     def _show_all_features_menu(self, event, feature_type: str):
         """Show context menu for showing all hidden features of a type."""
-        import tkinter as tk
-        menu = tk.Menu(self, tearoff=0)
-        
-        menu.configure(
-            bg=self.theme.get_current_color('bg_secondary'),
-            fg=self.theme.get_current_color('text_primary'),
-            activebackground=self.theme.get_current_color('accent_primary'),
-            activeforeground=self.theme.get_current_color('text_primary')
-        )
-        
-        def show_all_features():
-            if self.current_character:
-                # Remove all hidden features of this type
-                prefix = f"{feature_type}:"
-                self.current_character.hidden_features = [
-                    f for f in self.current_character.hidden_features
-                    if not f.startswith(prefix)
-                ]
-                self.character_manager.save_characters()
-                
-                # Also uncollapse the section
-                if hasattr(self, '_collapsed_sections'):
-                    section_key = f"{feature_type}_features"
-                    self._collapsed_sections[section_key] = False
-                
-                self._refresh_features_section()
-        
-        menu.add_command(label="Show All Hidden Features", command=show_all_features)
-        
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
+        self._popup_menu(event, "Show All Hidden Features", lambda: self._show_all_hidden(feature_type, "features"))
 
     def _get_character_feats(self):
         """Get the list of Feat objects for the current character."""
@@ -3865,33 +3828,53 @@ class CharacterSheetView(ctk.CTkFrame):
                 command=lambda f=feat: self._show_feat_popup(f)
             )
             btn.pack(side="left", padx=2, pady=1)
+            bind_right_click(btn, lambda e, f=feat: self._show_feat_menu(e, f))
             items_in_row += 1
     
+    def _show_feat_menu(self, event, feat):
+        """Right-click on a feat: remove it from the character."""
+        self._popup_menu(event, f"Remove {feat.name}", lambda: self._remove_feat(feat.name))
+
     def _show_feat_popup(self, feat):
         """Show a popup with the full feat description."""
         popup = FeatPopupDialog(self, feat)
         popup.focus()
     
-    def _show_feat_editor(self):
-        """Show dialog to add/remove feats from character."""
+    def _add_feats(self):
+        """Open the feat picker (green Add button on every row, stays open) and add each feat clicked."""
         if not self.current_character:
             return
-        
-        dialog = CharacterFeatEditorDialog(self, self.current_character)
-        self.wait_window(dialog)
-        
-        if dialog.result is not None:
-            # Update character feats
-            self.current_character.feats = dialog.result
-            self._refresh_granted_spells(self.current_character)      # feats can give spells
-            # Save the character
-            self.character_manager.update_character(self.current_character.name, self.current_character)
-            self.character_manager.save_characters()
-            # Refresh the view
-            self.refresh()
-            # Update spell tab visibility based on feats
-            self._update_spell_tab_for_feats()
-    
+        from ui.item_picker import pick_feat
+        character = self.current_character
+
+        def add(feat) -> bool:
+            if feat.name in (character.feats or []):
+                return False
+            character.feats = list(character.feats or []) + [feat.name]
+            return True
+
+        added = pick_feat(self.winfo_toplevel(), list(character.feats or []), add)
+        if added:
+            self._feats_changed()
+
+    def _remove_feat(self, name: str):
+        """Take a feat away from the character (right-click menu on the feat)."""
+        character = self.current_character
+        if not character or name not in (character.feats or []):
+            return
+        character.feats = [f for f in character.feats if f != name]
+        self._feats_changed()
+
+    def _feats_changed(self):
+        """Feats were added or removed: spells, AC / HP / initiative, saving and the sheet follow."""
+        character = self.current_character
+        self._refresh_granted_spells(character)                    # feats can give spells
+        self._after_item_change()                                  # Tough, Alert, Defense...
+        self.character_manager.update_character(character.name, character)
+        self.character_manager.save_characters()
+        self.refresh()
+        self._update_spell_tab_for_feats()
+
     def _refresh_granted_spells(self, character):
         """Add (or take away) the spells the character's species, feats and features give."""
         from character import update_subclass_spells
@@ -4327,25 +4310,24 @@ class CharacterSheetView(ctk.CTkFrame):
             modifier = sheet.get_skill_bonus(skill, jack_bonus)
             widget.update_modifier(modifier)
         
-        # Update initiative
-        init_mod = sheet.get_initiative()
-        init_text = f"+{init_mod}" if init_mod >= 0 else str(init_mod)
-        self.init_label.configure(text=init_text)
-    
+        # Update initiative, and the tooltips of the numbers that follow from the scores
+        self._refresh_stat_boxes()
+
     def _auto_update_hp(self):
         """Automatically update HP when CON or level changes (no dialog)."""
         if not self.current_sheet or not self.current_character:
             return
         
         class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
-        # Use effective CON modifier (includes bonuses like Primal Champion)
-        con_mod = self.current_sheet.get_effective_ability_modifier(AbilityScore.CONSTITUTION, max_score=25)
-        
-        new_max = calculate_hp_maximum(class_levels, con_mod, self.current_character.feats)
+        # Includes the effective CON modifier (Primal Champion...), Tough, and bonuses from items and features;
+        # a maximum that was typed over stays as typed
+        new_max = self.current_sheet.stat_overrides.get("hp_max", self._auto_stats()["hp_max"].value)
         old_max = self.current_sheet.hit_points.maximum
         
         # Calculate current HP proportionally
-        if old_max > 0:
+        if new_max == old_max:
+            new_current = self.current_sheet.hit_points.current
+        elif old_max > 0:
             hp_ratio = self.current_sheet.hit_points.current / old_max
             new_current = max(1, min(new_max, int(new_max * hp_ratio)))
         else:
@@ -4365,6 +4347,7 @@ class CharacterSheetView(ctk.CTkFrame):
         self._total_hit_dice = total_dice
         
         self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+        self._refresh_stat_boxes()
     
     def refresh(self):
         """Refresh the view."""
@@ -4404,17 +4387,7 @@ class CharacterSheetView(ctk.CTkFrame):
         if not get_settings_manager().settings.show_carry_weight_indicator:
             return
 
-        header = ctk.CTkFrame(
-            parent, fg_color=self.theme.get_current_color('accent_primary'),
-            corner_radius=5, height=30
-        )
-        header.pack(fill="x", padx=10, pady=(10, 5))
-        header.pack_propagate(False)
-        ctk.CTkLabel(
-            header, text="CARRYING CAPACITY",
-            font=ui_font("body", bold=True),
-            text_color="white"
-        ).pack(side="left", padx=10, pady=5)
+        self._inventory_header(parent, "CARRYING CAPACITY", pady=(10, 5))
 
         frame = ctk.CTkFrame(
             parent, fg_color=self.theme.get_current_color('bg_secondary'),
@@ -4521,30 +4494,35 @@ class CharacterSheetView(ctk.CTkFrame):
         self._recalculate_speed()
         self._update_carry_weight_indicator_display()
 
-    def _create_inventory_equipment_section(self, parent):
-        """Create the equipment section in inventory tab."""
-        # Header
+    def _inventory_header(self, parent, title: str, pady=(0, 5), add_text: str = "", add_width: int = 0, add_command=None):
+        """The accent title bar of an inventory section, with an optional white "+ Add" button at its right."""
         header = ctk.CTkFrame(
             parent,
             fg_color=self.theme.get_current_color('accent_primary'),
             corner_radius=5, height=30
         )
-        header.pack(fill="x", padx=10, pady=(0, 5))
+        header.pack(fill="x", padx=10, pady=pady)
         header.pack_propagate(False)
 
         ctk.CTkLabel(
-            header, text="EQUIPMENT",
+            header, text=title,
             font=ui_font("body", bold=True),
             text_color="white"
         ).pack(side="left", padx=10, pady=5)
 
-        add_btn = ctk.CTkButton(
-            header, text="+ Add Equipment", width=110, height=24,
-            fg_color="white", text_color=self.theme.get_current_color('accent_primary'),
-            hover_color="#e0e0e0",
-            command=self._add_equipment_item
-        )
-        add_btn.pack(side="right", padx=10, pady=3)
+        if add_command:
+            ctk.CTkButton(
+                header, text=add_text, width=add_width, height=24,
+                fg_color="white", text_color=self.theme.get_current_color('accent_primary'),
+                hover_color="#e0e0e0",
+                command=add_command
+            ).pack(side="right", padx=10, pady=3)
+        return header
+
+    def _create_inventory_equipment_section(self, parent):
+        """Create the equipment section in inventory tab."""
+        self._inventory_header(parent, "EQUIPMENT", add_text="+ Add Equipment", add_width=110,
+                               add_command=self._add_equipment_item)
 
         # Equipment frame
         equip_frame = ctk.CTkFrame(
@@ -4652,18 +4630,24 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         from ui.item_picker import pick_equipment
 
-        picked = pick_equipment(self.winfo_toplevel())
-        if picked is None:
-            return
+        def add(picked) -> bool:
+            for row in self.current_sheet.equipment_items:           # one more of what is already carried
+                if row.get("name") == picked.name:
+                    row["quantity"] = int(row.get("quantity", 1) or 1) + 1
+                    break
+            else:
+                self.current_sheet.equipment_items.append({
+                    "name": picked.name,
+                    "quantity": 1,
+                    "weight": picked.weight,
+                })
+            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+            return True
 
-        self.current_sheet.equipment_items.append({
-            "name": picked.name,
-            "quantity": 1,
-            "weight": picked.weight,
-        })
-        self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
-        self._recalculate_speed()
-        self._create_inventory_content()
+        added = pick_equipment(self.winfo_toplevel(), add_fn=add)
+        if added:
+            self._recalculate_speed()
+            self._create_inventory_content()
 
     def _save_equipment_item_quantity(self, index: int, value: str):
         """Save a linked equipment row's quantity."""
@@ -4689,29 +4673,8 @@ class CharacterSheetView(ctk.CTkFrame):
 
     def _create_inventory_magic_items_section(self, parent):
         """Create the magic items section in inventory tab."""
-        # Header
-        header = ctk.CTkFrame(
-            parent,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            corner_radius=5, height=30
-        )
-        header.pack(fill="x", padx=10, pady=(0, 5))
-        header.pack_propagate(False)
-
-        ctk.CTkLabel(
-            header, text="MAGIC ITEMS",
-            font=ui_font("body", bold=True),
-            text_color="white"
-        ).pack(side="left", padx=10, pady=5)
-
-        # Add item button
-        add_btn = ctk.CTkButton(
-            header, text="+ Add Item", width=80, height=24,
-            fg_color="white", text_color=self.theme.get_current_color('accent_primary'),
-            hover_color="#e0e0e0",
-            command=self._add_magic_item
-        )
-        add_btn.pack(side="right", padx=10, pady=3)
+        self._inventory_header(parent, "MAGIC ITEMS", add_text="+ Add Item", add_width=80,
+                               add_command=self._add_magic_item)
 
         # Attunement info
         attunement_count = sum(1 for item in self.current_sheet.magic_items if item.get("attuned", False))
@@ -4802,21 +4765,23 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         from ui.item_picker import pick_magic_item
 
-        picked = pick_magic_item(self.winfo_toplevel())
-        if picked is None:
-            return
+        def add(picked) -> bool:
+            self.current_sheet.magic_items.append({
+                "name": picked.name,
+                "description": picked.description,
+                "attuned": False,
+                "requires_attunement": picked.requires_attunement,
+                "extra_properties": "",
+                "weight": picked.weight,
+            })
+            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+            return True
 
-        self.current_sheet.magic_items.append({
-            "name": picked.name,
-            "description": picked.description,
-            "attuned": False,
-            "requires_attunement": picked.requires_attunement,
-            "extra_properties": "",
-            "weight": picked.weight,
-        })
-        self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
-        self._recalculate_speed()
-        self._create_inventory_content()
+        added = pick_magic_item(self.winfo_toplevel(), add_fn=add)
+        if added:
+            self._recalculate_speed()
+            self._after_item_change()
+            self._create_inventory_content()
 
     def _save_magic_item_field(self, index: int, field: str, value: str):
         """Save a magic item field."""
@@ -4840,6 +4805,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
             self.current_sheet.magic_items[index]["attuned"] = attuned
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+            self._after_item_change()
 
             # Update attunement count
             attunement_count = sum(1 for item in self.current_sheet.magic_items if item.get("attuned", False))
@@ -4880,6 +4846,7 @@ class CharacterSheetView(ctk.CTkFrame):
             del self.current_sheet.magic_items[index]
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
             self._recalculate_speed()
+            self._after_item_change()
             self._create_inventory_content()
     
     def _create_spells_content(self):
@@ -4960,10 +4927,7 @@ class NewCharacterDialog(ctk.CTkToplevel):
         self._create_widgets()
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent)
     
     def _create_widgets(self):
         container = ctk.CTkFrame(self, fg_color="transparent")
@@ -5006,19 +4970,8 @@ class NewCharacterDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Create", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_create
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_create, confirm_text="Create",
+                        cancel_width=100, confirm_width=100, accent=True)
     
     def _on_create(self):
         name = self.name_var.get().strip()
@@ -5080,10 +5033,7 @@ class AddClassDialog(ctk.CTkToplevel):
         self._create_widgets()
         
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        center_on_parent(self, parent)
     
     def _create_widgets(self):
         container = ctk.CTkFrame(self, fg_color="transparent")
@@ -5106,19 +5056,8 @@ class AddClassDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(container, fg_color="transparent")
         btn_frame.pack(fill="x")
         
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=80,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            btn_frame, text="Add", width=80,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_add
-        ).pack(side="right")
+        add_cancel_save(btn_frame, self.theme, self.destroy, self._on_add, confirm_text="Add",
+                        cancel_width=80, confirm_width=80, accent=True)
     
     def _on_add(self):
         class_name = self.class_var.get()
@@ -5127,45 +5066,14 @@ class AddClassDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-class FeaturePopupDialog(ctk.CTkToplevel):
+class FeaturePopupDialog(DescriptionPopup):
     """Dialog for displaying class feature details with formatted description."""
-    
+
     def __init__(self, parent, ability: ClassAbility, class_name: str):
-        super().__init__(parent)
-        
-        from ui.rich_text_utils import RichTextRenderer
-        
         self.ability = ability
         self.class_name = class_name
-        self.theme = get_theme_manager()
-        self._renderer = RichTextRenderer(self.theme)
-        
-        self.title(f"{ability.title}")
-        self.geometry("550x450")
-        self.resizable(True, True)
-        self.minsize(450, 350)
-        
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-        
-        self._create_widgets()
-        
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-    
-    def _render_formatted_text(self, parent, text: str):
-        """Render text with rich formatting using global utilities."""
-        # Use single * for italic/bold in class features (legacy format)
-        self._renderer.render_formatted_text(
-            parent, text, 
-            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s),
-            bold_pattern=r'\*([^*]+)\*'
-        )
-    
+        super().__init__(parent, ability.title, f"({class_name})", ability.description)
+
     def _render_table(self, parent, table: dict):
         """Render a table from ability.tables."""
         title = table.get("title", "")
@@ -5187,165 +5095,41 @@ class FeaturePopupDialog(ctk.CTkToplevel):
             parent, columns, rows,
             on_spell_click=lambda s: self._renderer.show_spell_popup(self, s)
         )
-    
-    def _create_widgets(self):
-        container = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_primary'))
-        container.pack(fill="both", expand=True)
-        
-        # Header
-        header = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'),
-                              corner_radius=0)
-        header.pack(fill="x")
-        
-        ctk.CTkLabel(
-            header, text=self.ability.title,
-            font=ui_font("heading", bold=True)
-        ).pack(side="left", padx=15, pady=10)
-        
-        ctk.CTkLabel(
-            header, text=f"({self.class_name})",
-            font=ui_font("body"),
-            text_color=self.theme.get_current_color('text_secondary')
-        ).pack(side="left", padx=5, pady=10)
-        
-        # Close button
-        ctk.CTkButton(
-            header, text="✕", width=30, height=30,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=5, pady=5)
-        
-        # Scrollable content
-        scroll_frame = ctk.CTkScrollableFrame(container, fg_color="transparent")
-        scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Description with formatted text
-        desc_frame = ctk.CTkFrame(scroll_frame, fg_color=self.theme.get_current_color('bg_secondary'),
-                                  corner_radius=8)
-        desc_frame.pack(fill="x")
-        
-        inner_frame = ctk.CTkFrame(desc_frame, fg_color="transparent")
-        inner_frame.pack(fill="x", padx=10, pady=10)
-        
-        if self.ability.description:
-            self._render_formatted_text(inner_frame, self.ability.description)
-        else:
-            ctk.CTkLabel(
-                inner_frame, text="No description available.",
-                font=ui_font("body"),
-                text_color=self.theme.get_current_color('text_secondary')
-            ).pack(anchor="w")
-        
+
+    def _add_below_description(self, scroll_frame):
         # Render tables if present
         if hasattr(self.ability, 'tables') and self.ability.tables:
             tables_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
             tables_frame.pack(fill="x", pady=(10, 0))
-            
+
             for table in self.ability.tables:
                 self._render_table(tables_frame, table)
-        
-        # OK button at bottom
-        ctk.CTkButton(
-            container, text="OK", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self.destroy
-        ).pack(pady=15)
 
 
-class FeatPopupDialog(ctk.CTkToplevel):
+class FeatPopupDialog(DescriptionPopup):
     """Dialog for displaying feat details with formatted description."""
-    
+
     def __init__(self, parent, feat):
-        super().__init__(parent)
-        
-        from ui.rich_text_utils import RichTextRenderer
-        
         self.feat = feat
-        self.theme = get_theme_manager()
-        self._renderer = RichTextRenderer(self.theme)
-        
-        self.title(f"{feat.name}")
-        self.geometry("550x450")
-        self.resizable(True, True)
-        self.minsize(450, 350)
-        
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-        
-        self._create_widgets()
-        
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-    
-    def _render_formatted_text(self, parent, text: str):
-        """Render text with rich formatting using global utilities."""
-        # Use single * for italic/bold in feats (legacy format)
-        self._renderer.render_formatted_text(
-            parent, text, 
-            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s),
-            bold_pattern=r'\*([^*]+)\*'
-        )
-    
-    def _create_widgets(self):
-        container = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_primary'))
-        container.pack(fill="both", expand=True)
-        
-        # Header
-        header = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'),
-                              corner_radius=0)
-        header.pack(fill="x")
-        
-        ctk.CTkLabel(
-            header, text=self.feat.name,
-            font=ui_font("heading", bold=True)
-        ).pack(side="left", padx=15, pady=10)
-        
-        # Type badge
-        if self.feat.type:
-            type_text = self.feat.type
-        else:
-            type_text = "General"
-        
-        ctk.CTkLabel(
-            header, text=f"({type_text})",
-            font=ui_font("body"),
-            text_color=self.theme.get_current_color('text_secondary')
-        ).pack(side="left", padx=5, pady=10)
-        
-        # Close button
-        ctk.CTkButton(
-            header, text="✕", width=30, height=30,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=5, pady=5)
-        
-        # Scrollable content
-        scroll_frame = ctk.CTkScrollableFrame(container, fg_color="transparent")
-        scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-        
+        super().__init__(parent, feat.name, f"({feat.type or 'General'})", feat.description)
+
+    def _add_above_description(self, scroll_frame):
         # Prerequisite warning if applicable
         if self.feat.has_prereq and self.feat.prereq:
             prereq_frame = ctk.CTkFrame(scroll_frame, fg_color="#4a3000", corner_radius=8)
             prereq_frame.pack(fill="x", pady=(0, 10))
-            
+
             ctk.CTkLabel(
                 prereq_frame, text=f"⚠️ Prerequisite: {self.feat.prereq}",
                 font=ui_font("small"),
                 text_color="#ffcc00"
             ).pack(padx=10, pady=8)
-        
+
         # Spellcasting info if applicable
         if self.feat.is_spellcasting:
             spell_frame = ctk.CTkFrame(scroll_frame, fg_color=self.theme.get_current_color('accent_primary'), corner_radius=8)
             spell_frame.pack(fill="x", pady=(0, 10))
-            
+
             spell_info = "🔮 Spellcasting Feat"
             if self.feat.spell_lists:
                 spell_info += f"\nSpell Lists: {', '.join(self.feat.spell_lists)}"
@@ -5353,405 +5137,21 @@ class FeatPopupDialog(ctk.CTkToplevel):
                 spell_info += f"\nSpells: {self.feat.get_spells_summary()}"
             if self.feat.set_spells:
                 spell_info += f"\nGranted Spells: {', '.join(self.feat.set_spells)}"
-            
+
             ctk.CTkLabel(
                 spell_frame, text=spell_info,
                 font=ui_font("small"),
                 justify="left"
             ).pack(padx=10, pady=8, anchor="w")
-        
-        # Description
-        desc_frame = ctk.CTkFrame(scroll_frame, fg_color=self.theme.get_current_color('bg_secondary'),
-                                  corner_radius=8)
-        desc_frame.pack(fill="x")
-        
-        inner_frame = ctk.CTkFrame(desc_frame, fg_color="transparent")
-        inner_frame.pack(fill="x", padx=10, pady=10)
-        
-        if self.feat.description:
-            self._render_formatted_text(inner_frame, self.feat.description)
-        else:
-            ctk.CTkLabel(
-                inner_frame, text="No description available.",
-                font=ui_font("body"),
-                text_color=self.theme.get_current_color('text_secondary')
-            ).pack(anchor="w")
-        
-        # OK button at bottom
-        ctk.CTkButton(
-            container, text="OK", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self.destroy
-        ).pack(pady=15)
 
 
-class LineageTraitPopupDialog(ctk.CTkToplevel):
+class LineageTraitPopupDialog(DescriptionPopup):
     """Dialog for displaying lineage trait details."""
-    
+
+    GEOMETRY = "600x500"
+    MINSIZE = (500, 350)
+    BOLD_PATTERN = None
+
     def __init__(self, parent, trait):
-        super().__init__(parent)
-        
-        from lineage import LineageTrait
-        from ui.rich_text_utils import RichTextRenderer
-        
-        self.trait: LineageTrait = trait
-        self.theme = get_theme_manager()
-        self._renderer = RichTextRenderer(self.theme)
-        
-        self.title(f"{trait.name}")
-        self.geometry("600x500")
-        self.resizable(True, True)
-        self.minsize(500, 350)
-        
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-        
-        self._create_widgets()
-        
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-    
-    def _render_formatted_text(self, parent, text: str):
-        """Render text with rich formatting using global utilities."""
-        self._renderer.render_formatted_text(
-            parent, text, 
-            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s)
-        )
-    
-    def _create_widgets(self):
-        container = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_primary'))
-        container.pack(fill="both", expand=True)
-        
-        # Header
-        header = ctk.CTkFrame(container, fg_color=self.theme.get_current_color('bg_secondary'),
-                              corner_radius=0)
-        header.pack(fill="x")
-        
-        ctk.CTkLabel(
-            header, text=self.trait.name,
-            font=ui_font("heading", bold=True)
-        ).pack(side="left", padx=15, pady=10)
-        
-        ctk.CTkLabel(
-            header, text="(Lineage Trait)",
-            font=ui_font("body"),
-            text_color=self.theme.get_current_color('text_secondary')
-        ).pack(side="left", padx=5, pady=10)
-        
-        # Close button
-        ctk.CTkButton(
-            header, text="✕", width=30, height=30,
-            fg_color="transparent",
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self.destroy
-        ).pack(side="right", padx=5, pady=5)
-        
-        # Scrollable content
-        scroll_frame = ctk.CTkScrollableFrame(container, fg_color="transparent")
-        scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
-        
-        # Description
-        desc_frame = ctk.CTkFrame(scroll_frame, fg_color=self.theme.get_current_color('bg_secondary'),
-                                  corner_radius=8)
-        desc_frame.pack(fill="x")
-        
-        inner_frame = ctk.CTkFrame(desc_frame, fg_color="transparent")
-        inner_frame.pack(fill="x", padx=10, pady=10)
-        
-        if self.trait.description:
-            self._render_formatted_text(inner_frame, self.trait.description)
-        else:
-            ctk.CTkLabel(
-                inner_frame, text="No description available.",
-                font=ui_font("body"),
-                text_color=self.theme.get_current_color('text_secondary')
-            ).pack(anchor="w")
-        
-        # OK button at bottom
-        ctk.CTkButton(
-            container, text="OK", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self.destroy
-        ).pack(pady=15)
-
-
-class CharacterFeatEditorDialog(ctk.CTkToplevel):
-    """Dialog for adding/removing feats from a character."""
-    
-    def __init__(self, parent, character: CharacterSpellList):
-        super().__init__(parent)
-        
-        self.character = character
-        self.result = None
-        self.theme = get_theme_manager()
-        self.feat_manager = get_feat_manager()
-        
-        # Current feats (copy to allow cancel)
-        self.selected_feats = list(character.feats) if character.feats else []
-        
-        self.title(f"Edit Feats - {character.name}")
-        self.geometry("700x550")
-        self.resizable(True, True)
-        self.minsize(600, 450)
-        
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-        
-        self._create_widgets()
-        
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
-    
-    def _create_widgets(self):
-        container = ctk.CTkFrame(self, fg_color=self.theme.get_current_color('bg_primary'))
-        container.pack(fill="both", expand=True, padx=15, pady=15)
-        container.grid_columnconfigure(0, weight=1)
-        container.grid_columnconfigure(1, weight=0)
-        container.grid_columnconfigure(2, weight=1)
-        container.grid_rowconfigure(1, weight=1)
-        
-        # Left side: Available feats
-        ctk.CTkLabel(
-            container, text="Available Feats",
-            font=ui_font("subheading", bold=True)
-        ).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        
-        # Search and filter
-        filter_frame = ctk.CTkFrame(container, fg_color="transparent")
-        filter_frame.grid(row=0, column=0, sticky="e", pady=(0, 5))
-        
-        self.search_var = ctk.StringVar()
-        self._filter_after_id = None
-        self.search_var.trace_add("write", lambda *args: self._schedule_filter_feats())
-
-        search_entry = ctk.CTkEntry(
-            filter_frame, textvariable=self.search_var,
-            placeholder_text="Search...", width=150
-        )
-        search_entry.pack(side="left", padx=(0, 5))
-        
-        # Available feats list
-        self.available_frame = ctk.CTkScrollableFrame(
-            container, fg_color=self.theme.get_current_color('bg_secondary')
-        )
-        self.available_frame.grid(row=1, column=0, sticky="nsew", pady=5)
-        
-        # Middle: Add/Remove buttons
-        button_frame = ctk.CTkFrame(container, fg_color="transparent")
-        button_frame.grid(row=1, column=1, padx=10)
-        
-        ctk.CTkButton(
-            button_frame, text="Add →", width=80,
-            fg_color=self.theme.get_current_color('button_success'),
-            hover_color=self.theme.get_current_color('button_success_hover'),
-            command=self._add_selected_feat
-        ).pack(pady=5)
-        
-        ctk.CTkButton(
-            button_frame, text="← Remove", width=80,
-            fg_color=self.theme.get_current_color('button_danger'),
-            hover_color=self.theme.get_current_color('button_danger_hover'),
-            command=self._remove_selected_feat
-        ).pack(pady=5)
-        
-        # Right side: Character's feats
-        ctk.CTkLabel(
-            container, text="Character's Feats",
-            font=ui_font("subheading", bold=True)
-        ).grid(row=0, column=2, sticky="w", pady=(0, 5))
-        
-        self.selected_frame = ctk.CTkScrollableFrame(
-            container, fg_color=self.theme.get_current_color('bg_secondary')
-        )
-        self.selected_frame.grid(row=1, column=2, sticky="nsew", pady=5)
-        
-        # Bottom buttons
-        bottom_frame = ctk.CTkFrame(container, fg_color="transparent")
-        bottom_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
-        
-        ctk.CTkButton(
-            bottom_frame, text="Cancel", width=100,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._on_cancel
-        ).pack(side="right", padx=(10, 0))
-        
-        ctk.CTkButton(
-            bottom_frame, text="Save", width=100,
-            fg_color=self.theme.get_current_color('accent_primary'),
-            hover_color=self.theme.get_current_color('accent_hover'),
-            command=self._on_save
-        ).pack(side="right")
-        
-        # Populate lists
-        self._populate_available_feats()
-        self._populate_selected_feats()
-        
-        # Track selected items
-        self.selected_available_feat = None
-        self.selected_character_feat = None
-    
-    def _populate_available_feats(self):
-        """Populate the available feats list."""
-        # Clear existing
-        for widget in self.available_frame.winfo_children():
-            widget.destroy()
-        
-        # Get search filter
-        search = self.search_var.get().lower().strip()
-        
-        # Get all feats not already selected
-        available = [f for f in self.feat_manager.feats if f.name not in self.selected_feats]
-        # Legacy content setting ("Name (Legacy)" pairs with the 2024 "Name")
-        available = apply_legacy_filter(available, get_settings_manager().settings.legacy_content_filter)
-        
-        # Apply search filter
-        if search:
-            available = [f for f in available if search in f.name.lower() or search in f.type.lower()]
-        
-        # Sort by name
-        available.sort(key=lambda f: f.name)
-        
-        for feat in available:
-            self._create_feat_row(self.available_frame, feat, is_available=True)
-    
-    def _populate_selected_feats(self):
-        """Populate the character's feats list."""
-        # Clear existing
-        for widget in self.selected_frame.winfo_children():
-            widget.destroy()
-        
-        for feat_name in self.selected_feats:
-            feat = self.feat_manager.get_feat(feat_name)
-            if feat:
-                self._create_feat_row(self.selected_frame, feat, is_available=False)
-    
-    def _create_feat_row(self, parent, feat, is_available: bool):
-        """Create a row for a feat in the list."""
-        row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.pack(fill="x", pady=2, padx=5)
-        
-        # Radio-like selection
-        var_name = f"available_{feat.name}" if is_available else f"selected_{feat.name}"
-        
-        btn = ctk.CTkButton(
-            row,
-            text=feat.name,
-            font=ui_font("small"),
-            fg_color=self.theme.get_current_color('bg_tertiary'),
-            hover_color=self.theme.get_current_color('accent'),
-            text_color=self.theme.get_current_color('text_primary'),
-            anchor="w",
-            height=28,
-            command=lambda f=feat, a=is_available: self._select_feat(f, a)
-        )
-        btn.pack(side="left", fill="x", expand=True)
-        
-        # Store reference for selection highlighting
-        setattr(self, var_name.replace(" ", "_"), btn)
-        
-        # Type badge
-        if feat.type:
-            type_colors = {
-                "Origin": "#2d5a27",
-                "Fighting Style": "#5a2727",
-                "Eldritch Invocation": "#3d275a",
-                "Epic Boon": "#5a4827",
-                "Aberrant Dragonmark": "#275a5a"
-            }
-            badge_color = type_colors.get(feat.type, self.theme.get_current_color('bg_tertiary'))
-            
-            ctk.CTkLabel(
-                row, text=feat.type[:3],
-                font=ui_font("small", 9),
-                fg_color=badge_color,
-                corner_radius=4,
-                width=30
-            ).pack(side="right", padx=2)
-        
-        # Spellcasting indicator
-        if feat.is_spellcasting:
-            ctk.CTkLabel(
-                row, text="🔮",
-                font=ui_font("small", 10)
-            ).pack(side="right", padx=2)
-    
-    def _select_feat(self, feat, is_available: bool):
-        """Handle feat selection."""
-        if is_available:
-            self.selected_available_feat = feat.name
-            self.selected_character_feat = None
-        else:
-            self.selected_character_feat = feat.name
-            self.selected_available_feat = None
-    
-    def _add_selected_feat(self):
-        """Add the selected available feat to character."""
-        if self.selected_available_feat and self.selected_available_feat not in self.selected_feats:
-            self.selected_feats.append(self.selected_available_feat)
-            self.selected_available_feat = None
-            self._populate_available_feats()
-            self._populate_selected_feats()
-    
-    def _remove_selected_feat(self):
-        """Remove the selected feat from character."""
-        if self.selected_character_feat and self.selected_character_feat in self.selected_feats:
-            self.selected_feats.remove(self.selected_character_feat)
-            self.selected_character_feat = None
-            self._populate_available_feats()
-            self._populate_selected_feats()
-    
-    def _schedule_filter_feats(self):
-        """Debounce search-box edits before rebuilding the feat list.
-
-        Filtering rebuilds every row in ``available_frame`` from scratch
-        (~185 feats' worth of CTkFrame/CTkButton/CTkLabel widgets). Doing
-        that synchronously on every single keystroke (the old behaviour) is
-        what made the dialog feel slow and unresponsive while typing - each
-        keystroke blocked the UI thread to destroy and recreate hundreds of
-        widgets. Waiting for a short pause in typing collapses a fast typist's
-        keystrokes into one rebuild instead of one per character.
-        """
-        if self._filter_after_id is not None:
-            self.after_cancel(self._filter_after_id)
-        self._filter_after_id = self.after(150, self._filter_feats)
-
-    def _filter_feats(self):
-        """Filter available feats based on search."""
-        self._filter_after_id = None
-        self._populate_available_feats()
-    
-    def destroy(self):
-        """Cancel any pending debounced filter before teardown.
-
-        Covers every close path (Save, Cancel, the window's own [X],
-        Alt+F4) so the scheduled ``after()`` callback can't fire against a
-        destroyed window.
-        """
-        if self._filter_after_id is not None:
-            try:
-                self.after_cancel(self._filter_after_id)
-            except Exception:
-                pass
-            self._filter_after_id = None
-        super().destroy()
-
-    def _on_save(self):
-        """Save the selected feats."""
-        self.result = self.selected_feats
-        self.destroy()
-
-    def _on_cancel(self):
-        """Cancel without saving."""
-        self.result = None
-        self.destroy()
+        self.trait = trait
+        super().__init__(parent, trait.name, "(Lineage Trait)", trait.description)
