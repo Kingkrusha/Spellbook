@@ -24,6 +24,12 @@ class GameToolsView(ctk.CTkFrame):
         ("matchup", "🥊 Matchup",
          "Put two creatures or characters in a one-on-one fight: the odds, how long it takes, each side's damage "
          "against the other and what could swing it.", True),
+        ("random_tables", "📜 Random Tables",
+         "Store d100 tables (or d20, 2d6...), search them, and roll: the result comes up straight away, with "
+         "any dice or other tables it names rolled too.", True),
+        ("calendar", "📅 Calendar",
+         "Each campaign's calendar and clock: your own months, weeks and holidays, and progress bars for "
+         "crafting, travel or training that fill as the days pass.", True),
         ("studio", "🛠️ Homebrew Studio",
          "Write your own spells, items, monsters, classes and more with the rest of the collection beside you: "
          "it points out content that already does the same thing and checks a monster against its CR.", True),

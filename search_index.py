@@ -3,7 +3,7 @@ Full-text search index for every collection.
 
 One SQLite FTS5 table (``search_index``) holds the name and readable text of
 every spell, lineage, feat, background, class, subclass, piece of equipment,
-magic item and monster. It uses the trigram tokenizer, so a search still
+magic item, monster, rules page and random table. It uses the trigram tokenizer, so a search still
 matches any part of a word ("ball" finds "Fireball"), the same as the old
 ``LIKE '%...%'`` scans did, but each word is looked up in the index instead
 of reading every row, parsing its JSON and stripping its links.
@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Sequence
 
 # Bump when the indexed text or the table layout changes: the index is then
 # rebuilt the next time the app starts.
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 
 TABLE = "search_index"
 META_TABLE = "search_index_meta"
@@ -45,6 +45,7 @@ SOURCES: Dict[str, tuple] = {
     "Equipment": ("equipment", ("type", "description", "properties_json"), None),
     "Magic Items": ("magic_items", ("type", "rarity", "description", "properties_json"), None),
     "Rules": ("rules", ("category", "description"), None),
+    "Random Tables": ("random_tables", ("category", "description", "entries_json"), None),
     # Summoned creatures (spell_only) only exist inside their spell, so they are not searchable.
     "Monsters": ("monsters", ("creature_type", "description", "traits_json", "actions_json",
                               "bonus_actions_json", "reactions_json", "legendary_actions_json"),

@@ -380,6 +380,7 @@ class CollectionsView(ctk.CTkFrame):
             'Magic Items': 'magic_items',
             'Monsters': 'monsters',
             'Rules': 'rules',
+            'Random Tables': 'random_tables',
         }
         
         nav_key = section_map.get(section, section.lower())

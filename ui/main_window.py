@@ -549,6 +549,8 @@ class MainWindow(ctk.CTkFrame):
             "initiative": "Initiative",
             "dice_analyzer": "Dice Analyzer",
             "matchup": "Matchup",
+            "random_tables": "Random Tables",
+            "calendar": "Calendar",
             "studio": "Homebrew Studio",
         }.get(page_type, "Spellbook")
 
@@ -604,7 +606,7 @@ class MainWindow(ctk.CTkFrame):
         if page == "studio":
             page = "game_tools"       # the Studio is heavy to build: a restored tab opens on the tool list instead
         if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
-                    "initiative", "dice_analyzer", "matchup"):
+                    "initiative", "dice_analyzer", "matchup", "random_tables", "calendar"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -745,6 +747,16 @@ class MainWindow(ctk.CTkFrame):
             return self._build_dice_analyzer(tab_id)
         if page_type == "matchup":
             return self._build_matchup(tab_id)
+        if page_type == "random_tables":
+            from ui.random_tables_view import RandomTablesView
+            state = self._tab_views[tab_id].setdefault('random_tables_state', {}) \
+                if tab_id in self._tab_views else {}
+            return RandomTablesView(self, state, service=self.session,
+                                    on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
+        if page_type == "calendar":
+            from ui.calendar_view import CalendarView
+            state = self._tab_views[tab_id].setdefault('calendar_state', {}) if tab_id in self._tab_views else {}
+            return CalendarView(self, state, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
         if page_type == "studio":
             return self._build_studio(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
@@ -990,8 +1002,8 @@ class MainWindow(ctk.CTkFrame):
                 self._navigate_tab(tab_id, "initiative")
         elif key == "dice_analyzer":
             self._navigate_tab(tab_id, "dice_analyzer")
-        elif key == "matchup":
-            self._navigate_tab(tab_id, "matchup")
+        elif key in ("matchup", "random_tables", "calendar"):
+            self._navigate_tab(tab_id, key)
         elif key == "studio":
             self._navigate_tab(tab_id, "studio")
 
@@ -1431,6 +1443,9 @@ class MainWindow(ctk.CTkFrame):
         """Navigate to a collection within a specific tab."""
         if tab_id not in self._tab_views:
             return
+        if collection_key == "random_tables":
+            self._open_random_table(tab_id, item_name)
+            return
 
         view_info = self._tab_views[tab_id]
         view_info['current_collection'] = collection_key
@@ -1448,6 +1463,19 @@ class MainWindow(ctk.CTkFrame):
         # Show the appropriate sub-view
         self._show_collection_sub_view(tab_id, collection_key, item_name)
         self._schedule_tab_save()
+
+    def _open_random_table(self, tab_id: str, name: Optional[str] = None):
+        """Show the Random Tables page in this tab (a random table picked in the global search)."""
+        info = self._tab_views.get(tab_id) or {}
+        if info.get('type') == 'collections' and hasattr(info.get('view'), 'search_bar'):
+            info['view'].search_bar.cleanup()
+        if name:
+            state = info.setdefault('random_tables_state', {})
+            state['selected'], state['query'] = name, ""
+        self._navigate_tab(tab_id, "random_tables")
+        view = (self._tab_views.get(tab_id) or {}).get('view')
+        if name and hasattr(view, 'select_table'):
+            view.select_table(name)
 
     def _update_tab_name_for_collection(self, tab_id: str, collection_key: str, item_name: Optional[str] = None):
         """Update the tab name based on the collection being viewed."""

@@ -1,0 +1,675 @@
+{
+ "random_tables": [
+  {
+   "name": "Weather",
+   "category": "Travel",
+   "dice": "d20",
+   "description": "The day's weather on the road. Roll each morning, or when the party makes camp.",
+   "entries": [
+    {
+     "low": 1,
+     "high": 6,
+     "text": "Clear skies and a light breeze."
+    },
+    {
+     "low": 7,
+     "high": 10,
+     "text": "Overcast; the light is flat and grey all day."
+    },
+    {
+     "low": 11,
+     "high": 13,
+     "text": "Light rain from midday. Tracks are easy to follow."
+    },
+    {
+     "low": 14,
+     "high": 15,
+     "text": "Thick morning fog: visibility 30 feet until noon."
+    },
+    {
+     "low": 16,
+     "high": 17,
+     "text": "Strong winds. Ranged attacks have disadvantage beyond normal range; flying is hard work."
+    },
+    {
+     "low": 18,
+     "high": 19,
+     "text": "Heavy rain all day. Travel pace is slowed and fires are hard to light."
+    },
+    {
+     "low": 20,
+     "high": 20,
+     "text": "A storm: thunder, lightning and driving rain. Seek shelter or risk exhaustion."
+    }
+   ],
+   "tags": [
+    "Travel",
+    "Weather"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "Road Encounters",
+   "category": "Travel",
+   "dice": "d100",
+   "description": "Who or what the party meets on a well-travelled road.",
+   "entries": [
+    {
+     "low": 1,
+     "high": 10,
+     "text": "A merchant with {1d4} pack mules, eager to trade."
+    },
+    {
+     "low": 11,
+     "high": 20,
+     "text": "{2d4} pilgrims walking to a distant shrine."
+    },
+    {
+     "low": 21,
+     "high": 30,
+     "text": "A patrol of {1d6+1} guards asks the party their business."
+    },
+    {
+     "low": 31,
+     "high": 40,
+     "text": "A broken-down wagon blocks the road; its driver begs for help."
+    },
+    {
+     "low": 41,
+     "high": 50,
+     "text": "A traveling performer offers a song for a coin."
+    },
+    {
+     "low": 51,
+     "high": 60,
+     "text": "Fresh tracks lead off the road into the trees."
+    },
+    {
+     "low": 61,
+     "high": 70,
+     "text": "{1d4+2} bandits demand a toll."
+    },
+    {
+     "low": 71,
+     "high": 78,
+     "text": "A lost child who says their village is \"just over the hill\"."
+    },
+    {
+     "low": 79,
+     "high": 86,
+     "text": "A hungry beast stalks the party from a distance."
+    },
+    {
+     "low": 87,
+     "high": 93,
+     "text": "A messenger on horseback gallops past without stopping, dropping a sealed letter."
+    },
+    {
+     "low": 94,
+     "high": 98,
+     "text": "An abandoned camp, its fire still warm."
+    },
+    {
+     "low": 99,
+     "high": 100,
+     "text": "Something strange. {table: Plot Twists}"
+    }
+   ],
+   "tags": [
+    "Travel",
+    "Encounter"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "Plot Twists",
+   "category": "Story",
+   "dice": "d12",
+   "description": "When the story needs a jolt.",
+   "entries": [
+    {
+     "low": 1,
+     "high": 1,
+     "text": "A trusted ally has been working for the enemy all along."
+    },
+    {
+     "low": 2,
+     "high": 2,
+     "text": "The quest giver lied about the reward."
+    },
+    {
+     "low": 3,
+     "high": 3,
+     "text": "The villain's plan is already complete; the party must deal with the result."
+    },
+    {
+     "low": 4,
+     "high": 4,
+     "text": "Someone the party thought dead returns."
+    },
+    {
+     "low": 5,
+     "high": 5,
+     "text": "The treasure everyone is chasing is a fake."
+    },
+    {
+     "low": 6,
+     "high": 6,
+     "text": "Two of the party's enemies turn on each other."
+    },
+    {
+     "low": 7,
+     "high": 7,
+     "text": "The weather turns, cutting the party off from help."
+    },
+    {
+     "low": 8,
+     "high": 8,
+     "text": "A rival group of adventurers gets there first."
+    },
+    {
+     "low": 9,
+     "high": 9,
+     "text": "The monster is protecting something, not attacking."
+    },
+    {
+     "low": 10,
+     "high": 10,
+     "text": "An old debt of one of the characters is called in."
+    },
+    {
+     "low": 11,
+     "high": 11,
+     "text": "The map is wrong."
+    },
+    {
+     "low": 12,
+     "high": 12,
+     "text": "The party is offered exactly what they want, at a price."
+    }
+   ],
+   "tags": [
+    "Story"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "Tavern Name",
+   "category": "Towns",
+   "dice": "d6",
+   "description": "A name for a tavern or inn. Each part is rolled on its own table.",
+   "entries": [
+    {
+     "low": 1,
+     "high": 3,
+     "text": "The {table: Tavern Name Word} {table: Tavern Name Thing}"
+    },
+    {
+     "low": 4,
+     "high": 5,
+     "text": "The {table: Tavern Name Thing} and {table: Tavern Name Thing}"
+    },
+    {
+     "low": 6,
+     "high": 6,
+     "text": "The {table: Tavern Name Word} {table: Tavern Name Thing} Inn"
+    }
+   ],
+   "tags": [
+    "Towns",
+    "Names"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "Tavern Name Word",
+   "category": "Towns",
+   "dice": "d20",
+   "description": "The first part of a tavern's name (see Tavern Name).",
+   "entries": [
+    {
+     "low": 1,
+     "high": 1,
+     "text": "Golden"
+    },
+    {
+     "low": 2,
+     "high": 2,
+     "text": "Rusty"
+    },
+    {
+     "low": 3,
+     "high": 3,
+     "text": "Laughing"
+    },
+    {
+     "low": 4,
+     "high": 4,
+     "text": "Drowned"
+    },
+    {
+     "low": 5,
+     "high": 5,
+     "text": "Sleeping"
+    },
+    {
+     "low": 6,
+     "high": 6,
+     "text": "Crooked"
+    },
+    {
+     "low": 7,
+     "high": 7,
+     "text": "Silver"
+    },
+    {
+     "low": 8,
+     "high": 8,
+     "text": "Wandering"
+    },
+    {
+     "low": 9,
+     "high": 9,
+     "text": "Red"
+    },
+    {
+     "low": 10,
+     "high": 10,
+     "text": "Lucky"
+    },
+    {
+     "low": 11,
+     "high": 11,
+     "text": "Broken"
+    },
+    {
+     "low": 12,
+     "high": 12,
+     "text": "Jolly"
+    },
+    {
+     "low": 13,
+     "high": 13,
+     "text": "Howling"
+    },
+    {
+     "low": 14,
+     "high": 14,
+     "text": "Last"
+    },
+    {
+     "low": 15,
+     "high": 15,
+     "text": "Green"
+    },
+    {
+     "low": 16,
+     "high": 16,
+     "text": "Thirsty"
+    },
+    {
+     "low": 17,
+     "high": 17,
+     "text": "Hidden"
+    },
+    {
+     "low": 18,
+     "high": 18,
+     "text": "Painted"
+    },
+    {
+     "low": 19,
+     "high": 19,
+     "text": "Old"
+    },
+    {
+     "low": 20,
+     "high": 20,
+     "text": "Velvet"
+    }
+   ],
+   "tags": [
+    "Towns",
+    "Names"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "Tavern Name Thing",
+   "category": "Towns",
+   "dice": "d20",
+   "description": "The second part of a tavern's name (see Tavern Name).",
+   "entries": [
+    {
+     "low": 1,
+     "high": 1,
+     "text": "Dragon"
+    },
+    {
+     "low": 2,
+     "high": 2,
+     "text": "Goat"
+    },
+    {
+     "low": 3,
+     "high": 3,
+     "text": "Lantern"
+    },
+    {
+     "low": 4,
+     "high": 4,
+     "text": "Anchor"
+    },
+    {
+     "low": 5,
+     "high": 5,
+     "text": "Barrel"
+    },
+    {
+     "low": 6,
+     "high": 6,
+     "text": "Crown"
+    },
+    {
+     "low": 7,
+     "high": 7,
+     "text": "Fox"
+    },
+    {
+     "low": 8,
+     "high": 8,
+     "text": "Kettle"
+    },
+    {
+     "low": 9,
+     "high": 9,
+     "text": "Stag"
+    },
+    {
+     "low": 10,
+     "high": 10,
+     "text": "Wheel"
+    },
+    {
+     "low": 11,
+     "high": 11,
+     "text": "Raven"
+    },
+    {
+     "low": 12,
+     "high": 12,
+     "text": "Tankard"
+    },
+    {
+     "low": 13,
+     "high": 13,
+     "text": "Boar"
+    },
+    {
+     "low": 14,
+     "high": 14,
+     "text": "Griffon"
+    },
+    {
+     "low": 15,
+     "high": 15,
+     "text": "Mermaid"
+    },
+    {
+     "low": 16,
+     "high": 16,
+     "text": "Hound"
+    },
+    {
+     "low": 17,
+     "high": 17,
+     "text": "Candle"
+    },
+    {
+     "low": 18,
+     "high": 18,
+     "text": "Pony"
+    },
+    {
+     "low": 19,
+     "high": 19,
+     "text": "Harp"
+    },
+    {
+     "low": 20,
+     "high": 20,
+     "text": "Toad"
+    }
+   ],
+   "tags": [
+    "Towns",
+    "Names"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "NPC Quirks",
+   "category": "People",
+   "dice": "d20",
+   "description": "Something memorable about a character the party meets.",
+   "entries": [
+    {
+     "low": 1,
+     "high": 1,
+     "text": "Hums constantly, always the same tune."
+    },
+    {
+     "low": 2,
+     "high": 2,
+     "text": "Never makes eye contact."
+    },
+    {
+     "low": 3,
+     "high": 3,
+     "text": "Speaks in a whisper, even when angry."
+    },
+    {
+     "low": 4,
+     "high": 4,
+     "text": "Collects buttons and asks for any the party has."
+    },
+    {
+     "low": 5,
+     "high": 5,
+     "text": "Laughs at their own jokes before finishing them."
+    },
+    {
+     "low": 6,
+     "high": 6,
+     "text": "Is terrified of cats."
+    },
+    {
+     "low": 7,
+     "high": 7,
+     "text": "Quotes a famous poet, badly."
+    },
+    {
+     "low": 8,
+     "high": 8,
+     "text": "Chews on a twig."
+    },
+    {
+     "low": 9,
+     "high": 9,
+     "text": "Calls everyone \"friend\", including enemies."
+    },
+    {
+     "low": 10,
+     "high": 10,
+     "text": "Insists on haggling over everything."
+    },
+    {
+     "low": 11,
+     "high": 11,
+     "text": "Has a pet rat on their shoulder."
+    },
+    {
+     "low": 12,
+     "high": 12,
+     "text": "Tells long stories about a cousin who is clearly made up."
+    },
+    {
+     "low": 13,
+     "high": 13,
+     "text": "Writes everything down in a tiny notebook."
+    },
+    {
+     "low": 14,
+     "high": 14,
+     "text": "Is extremely polite and formal."
+    },
+    {
+     "low": 15,
+     "high": 15,
+     "text": "Can't stand still."
+    },
+    {
+     "low": 16,
+     "high": 16,
+     "text": "Distrusts anyone carrying a weapon."
+    },
+    {
+     "low": 17,
+     "high": 17,
+     "text": "Gives everyone a nickname."
+    },
+    {
+     "low": 18,
+     "high": 18,
+     "text": "Speaks to the gods out loud."
+    },
+    {
+     "low": 19,
+     "high": 19,
+     "text": "Has an outrageous hat and is proud of it."
+    },
+    {
+     "low": 20,
+     "high": 20,
+     "text": "Knows everyone's business in town."
+    }
+   ],
+   "tags": [
+    "People"
+   ],
+   "source": "Spellbook"
+  },
+  {
+   "name": "Pocket Contents",
+   "category": "Loot",
+   "dice": "d20",
+   "description": "What a commoner, guard or bandit has in their pockets.",
+   "entries": [
+    {
+     "low": 1,
+     "high": 1,
+     "text": "{1d6} copper pieces"
+    },
+    {
+     "low": 2,
+     "high": 2,
+     "text": "{1d4} silver pieces"
+    },
+    {
+     "low": 3,
+     "high": 3,
+     "text": "A half-eaten apple"
+    },
+    {
+     "low": 4,
+     "high": 4,
+     "text": "A carved wooden die"
+    },
+    {
+     "low": 5,
+     "high": 5,
+     "text": "A love letter, unsent"
+    },
+    {
+     "low": 6,
+     "high": 6,
+     "text": "A key to an unknown lock"
+    },
+    {
+     "low": 7,
+     "high": 7,
+     "text": "A pipe and a pouch of tobacco"
+    },
+    {
+     "low": 8,
+     "high": 8,
+     "text": "A lucky rabbit's foot"
+    },
+    {
+     "low": 9,
+     "high": 9,
+     "text": "A crumpled wanted poster"
+    },
+    {
+     "low": 10,
+     "high": 10,
+     "text": "A small knife"
+    },
+    {
+     "low": 11,
+     "high": 11,
+     "text": "A pair of dice, one loaded"
+    },
+    {
+     "low": 12,
+     "high": 12,
+     "text": "A ribbon"
+    },
+    {
+     "low": 13,
+     "high": 13,
+     "text": "A tooth (not theirs)"
+    },
+    {
+     "low": 14,
+     "high": 14,
+     "text": "A list of names, some crossed out"
+    },
+    {
+     "low": 15,
+     "high": 15,
+     "text": "Flint and steel"
+    },
+    {
+     "low": 16,
+     "high": 16,
+     "text": "A wax seal stamp"
+    },
+    {
+     "low": 17,
+     "high": 17,
+     "text": "A tiny wooden figurine"
+    },
+    {
+     "low": 18,
+     "high": 18,
+     "text": "A pressed flower"
+    },
+    {
+     "low": 19,
+     "high": 19,
+     "text": "A gambling marker for {2d6} gold pieces"
+    },
+    {
+     "low": 20,
+     "high": 20,
+     "text": "A gold piece wrapped in a note: \"for luck\""
+    }
+   ],
+   "tags": [
+    "Loot"
+   ],
+   "source": "Spellbook"
+  }
+ ]
+}

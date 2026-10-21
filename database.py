@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 from paths import resource_path, user_data_path
 from db_collections import (CollectionStoreMixin, LINEAGES, FEATS, EQUIPMENT, MAGIC_ITEMS,
-                            BACKGROUNDS, RULES, CLASSES, SUBCLASSES)
+                            BACKGROUNDS, RULES, RANDOM_TABLES, CLASSES, SUBCLASSES)
 import search_index
 
 
@@ -50,7 +50,7 @@ class SpellDatabase(CollectionStoreMixin):
     """SQLite database handler for spell storage."""
     
     DEFAULT_DB_PATH = "spellbook.db"
-    SCHEMA_VERSION = 31  # bundled rules pages
+    SCHEMA_VERSION = 32  # bundled random tables
     
     # Protected tags that users cannot add/remove (case-insensitive)
     PROTECTED_TAGS = {"Official", "Unofficial"}
@@ -521,6 +521,14 @@ class SpellDatabase(CollectionStoreMixin):
                 cursor.execute("UPDATE schema_version SET version = 31")
                 current_version = 31
 
+        # Migration to version 32: the random tables (Game Tools > Random Tables). The table
+        # is created by _create_content_tables; this adds the bundled starter tables, by name
+        # and only if missing, the same way as the rules pages.
+        if current_version < 32:
+            if self._seed_random_tables(cursor):
+                cursor.execute("UPDATE schema_version SET version = 32")
+                current_version = 32
+
     def _create_content_tables(self, cursor):
         """Create tables for lineages, feats, backgrounds, and classes."""
         # Lineages table
@@ -637,6 +645,25 @@ class SpellDatabase(CollectionStoreMixin):
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_name ON rules(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON rules(category)")
+
+        # Random tables (d100 tables and the like; entries_json is a list of {low, high, text})
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS random_tables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                category TEXT DEFAULT '',
+                dice TEXT NOT NULL DEFAULT 'd100',
+                description TEXT DEFAULT '',
+                entries_json TEXT DEFAULT '[]',
+                tags_json TEXT DEFAULT '[]',
+                source TEXT DEFAULT '',
+                is_official INTEGER NOT NULL DEFAULT 0,
+                is_custom INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_random_tables_category ON random_tables(category)")
 
         # Monsters table (creature stat blocks). Plain values get their own
         # column; lists / dicts are stored as JSON (see _MONSTER_SCALARS/_JSONS).
@@ -1243,6 +1270,9 @@ class SpellDatabase(CollectionStoreMixin):
         # Bundled rules pages (shared with the v31 backfill migration)
         self._seed_official_rules(cursor)
 
+        # Bundled random tables (shared with the v32 backfill migration)
+        self._seed_random_tables(cursor)
+
         # Migrate backgrounds (shared with the v23 backfill migration)
         self._seed_backgrounds(cursor)
 
@@ -1408,6 +1438,29 @@ class SpellDatabase(CollectionStoreMixin):
         
         return count
     
+    def _seed_random_tables(self, cursor) -> bool:
+        """Insert the bundled random_tables.json tables whose name is not in the table
+        (idempotent, like _seed_official_rules). Returns True on success."""
+        import os
+        path = self._bundled_json_path('random_tables.json')
+        if not os.path.exists(path):
+            return True
+        try:
+            records = self._load_json(path).get('random_tables', [])
+            for rec in records:
+                name = (rec.get('name') or '').strip()
+                if not name:
+                    continue
+                cursor.execute("SELECT 1 FROM random_tables WHERE name = ? COLLATE NOCASE", (name,))
+                if cursor.fetchone():
+                    continue
+                cursor.execute(RANDOM_TABLES.insert_sql, RANDOM_TABLES.values(
+                    {**rec, 'name': name, 'is_official': True, 'is_custom': False}))
+            return True
+        except Exception as e:
+            print(f"Error seeding random tables (will retry next launch): {e}")
+            return False
+
     def _seed_official_rules(self, cursor) -> bool:
         """Insert the bundled rules.json pages whose name is not in the table.
 
@@ -2291,6 +2344,31 @@ class SpellDatabase(CollectionStoreMixin):
     def delete_rule(self, rule_id: int) -> bool:
         """Delete a rules page by ID."""
         return self._coll_delete(RULES, rule_id)
+
+    # ==================== RANDOM TABLE METHODS ====================
+
+    def get_all_random_tables(self) -> List[dict]:
+        return self._coll_get_all(RANDOM_TABLES)
+
+    def get_random_table_by_name(self, name: str) -> Optional[dict]:
+        return self._coll_get_by_name(RANDOM_TABLES, name)
+
+    def insert_random_table(self, data: dict) -> int:
+        return self._coll_insert(RANDOM_TABLES, data)
+
+    def update_random_table(self, table_id: int, data: dict) -> bool:
+        return self._coll_update(RANDOM_TABLES, table_id, data)
+
+    def delete_random_table(self, table_id: int) -> bool:
+        return self._coll_delete(RANDOM_TABLES, table_id)
+
+    def random_table_search_ids(self, query: str) -> Optional[List[int]]:
+        """Ids of the random tables whose name or text holds every word of ``query`` (from the
+        search index), or None when the index can't be used."""
+        with self.get_connection() as conn:
+            if not self._search_index_available(conn):
+                return None
+            return search_index.item_ids(conn, query, "Random Tables")
 
     # ==================== MAGIC ITEM METHODS ====================
 

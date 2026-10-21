@@ -101,6 +101,8 @@ ACTIONS: List[Action] = [
     Action("page.initiative", "Initiative", "Pages", ""),
     Action("page.dice_analyzer", "Dice Analyzer", "Pages", ""),
     Action("page.matchup", "Matchup", "Pages", ""),
+    Action("page.random_tables", "Random Tables", "Pages", ""),
+    Action("page.calendar", "Calendar", "Pages", ""),
     Action("page.settings", "Settings", "Pages", "Ctrl+,"),
     # This page
     Action("view.refresh", "Refresh page", "This page", "F5"),

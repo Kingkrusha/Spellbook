@@ -38,6 +38,8 @@ Look things up, search them, and add your own.
 - **Homebrew Studio**: Write homebrew with reference panels beside you. As you write, it points out existing content that already does the same thing, and checks a monster's numbers against its challenge rating
 - **Dice Analyzer**: The odds of any roll, from `2d6+4` to advantage, disadvantage, rerolls and keeping the best dice: average, spread, the chance of reaching a number, and a chart of every result. It can use your character's own features
 - **Matchup**: Pit two characters or monsters against each other and see who wins most often, how long the fight lasts and what turns it
+- **Random Tables**: Keep d100 tables (or d20, 2d6 and so on), search them by name or by what's in them, and roll: the result comes up at once and is lit up in the table. Paste a table from a book or a website as it is. A result can roll its own dice (`{2d6} wolves`) or roll on another table (`{table: Weather}`), and in a session you can share it in the chat
+- **Calendar**: A calendar and clock for each campaign, with your own months (any length, with leap days), days outside the months, weeks, holidays and events. Move time on by minutes, hours, days or weeks, and keep progress bars for crafting, travel or training that fill as time passes; switch a bar to manual while the work is paused
 - **Initiative Tracker**: Run combat with monsters, characters and events, groups that take turns together, conditions, and a round counter
 - **Game sessions**: Host or join a game over your network. Chat, roll with `/roll`, link spells and items in messages, and send characters and homebrew to each other. Sessions are encrypted
 
