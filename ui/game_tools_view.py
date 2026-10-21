@@ -30,6 +30,9 @@ class GameToolsView(ctk.CTkFrame):
         ("calendar", "📅 Calendar",
          "Each campaign's calendar and clock: your own months, weeks and holidays, and progress bars for "
          "crafting, travel or training that fill as the days pass.", True),
+        ("pdf_library", "📚 PDF Library",
+         "Search the text of all your PDFs at once and jump to the page. Pull an entry's text from a page "
+         "into a collection's importer.", True),
         ("studio", "🛠️ Homebrew Studio",
          "Write your own spells, items, monsters, classes and more with the rest of the collection beside you: "
          "it points out content that already does the same thing and checks a monster against its CR.", True),

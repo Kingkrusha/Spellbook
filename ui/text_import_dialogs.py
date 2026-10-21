@@ -121,6 +121,8 @@ class TextImportDialog(ctk.CTkToplevel):
     """Collect a block of text and parse it into one or more drafts."""
 
     SPEC: TextImportSpec = None
+    # Text the next dialog opens with instead of the example (set by the PDF library's Import Text)
+    PREFILL: Optional[str] = None
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -169,8 +171,13 @@ class TextImportDialog(ctk.CTkToplevel):
         self._text = ctk.CTkTextbox(container, corner_radius=8,
                                     font=ui_font("body"))
         self._text.pack(fill="both", expand=True, pady=(0, 8))
-        self._text.insert("1.0", spec.placeholder)
-        self._placeholder_active = True
+        prefill, TextImportDialog.PREFILL = TextImportDialog.PREFILL, None
+        if prefill:
+            self._text.insert("1.0", prefill)
+            self._placeholder_active = False
+        else:
+            self._text.insert("1.0", spec.placeholder)
+            self._placeholder_active = True
         self._text.bind("<FocusIn>", self._clear_placeholder)
 
         self._status = ctk.CTkLabel(

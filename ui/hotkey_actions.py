@@ -21,7 +21,7 @@ _RICH_EDITORS: "weakref.WeakValueDictionary[str, object]" = weakref.WeakValueDic
 
 COLLECTION_PAGES = ("spells", "feats", "lineages", "backgrounds", "classes",
                     "equipment", "magic_items", "monsters", "rules")
-TOOL_PAGES = ("session", "initiative", "dice_analyzer", "matchup", "random_tables", "calendar")
+TOOL_PAGES = ("session", "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library")
 LEGACY_CYCLE = [
     ("show_all", "Show All Content"),
     ("show_unupdated", "Show Unupdated"),
