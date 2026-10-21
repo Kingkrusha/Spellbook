@@ -19,7 +19,7 @@ Some text about stunned creatures.
 
 | Name | Cost | Notes |
 |---|---|---|
-| [[equipment:Club|Club]] | 1 SP | A long note that will have to wrap inside its column when there is not enough room |
+| [[equipment:Club|Club]] | 1 SP | A long note that will have to wrap inside its column when there is not enough room for all of it on one line |
 | Dagger | 2 GP | Short |
 
 ## Sub Heading
@@ -91,6 +91,7 @@ def test_words_wrap_to_the_column():
 def test_the_viewer_draws_headings_lists_tables_and_links(host, tk_root):
     from ui.rule_text import RuleTextView
     clicked = []
+    tk_root.geometry("560x860")         # narrow enough that the long note must wrap, whatever the font
     view = RuleTextView(host, on_link=lambda cat, name: clicked.append((cat, name)))
     view.pack(fill="both", expand=True)
     view.set_markup(PAGE)
@@ -218,7 +219,8 @@ def test_searching_stunned_opens_the_conditions_page_at_stunned(view, tk_root):
     pump(tk_root, 0.6)
     tv = view.detail_panel.text_view
     heading_line = tv.text.index(f"sec{items[0].section}").split(".")[0]
-    assert tv.text.index("@0,0").split(".")[0] == heading_line      # the page opens with Stunned at the top
+    # the page opens with Stunned at the top, or as near the top as the page can scroll (it is near the end)
+    assert tv.text.index("@0,0").split(".")[0] == heading_line or tv.text.yview()[1] >= 0.999
 
 
 def test_clearing_the_search_keeps_the_page_open_without_highlights(view, tk_root):
