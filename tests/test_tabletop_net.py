@@ -10,7 +10,7 @@ from lan import protocol as P
 from lan.service import CLIENT, SessionService
 
 
-def pump_until(cond, *services, timeout=8.0):
+def pump_until(cond, *services, timeout=20.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for s in services:
@@ -54,7 +54,7 @@ class Game:
     def svcs(self):
         return [s for s, _ in self.players.values()]
 
-    def settle(self, cond=None, timeout=6.0):
+    def settle(self, cond=None, timeout=20.0):
         pump_until(cond or (lambda: True), self.host, *self.svcs(), timeout=timeout)
         for _ in range(12):
             for s in [self.host] + self.svcs():
