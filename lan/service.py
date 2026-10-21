@@ -259,6 +259,40 @@ class SessionService:
         self._client.send_tracker_cmd(cmd)
         return True
 
+    # ---------------------------------------------------------------- tabletop
+
+    def send_table_state(self, peer_id: str, view: dict) -> None:
+        """Host: give one player their view of the scene they're shown."""
+        if self._host is not None:
+            self._host.send_to(peer_id, "table_state", {"view": view})
+
+    def send_table_error(self, peer_id: str, message: str, seq: Optional[int] = None) -> None:
+        if self._host is not None:
+            self._host.send_to(peer_id, "table_error", {"message": P.clean_text(message, 200), "seq": seq})
+
+    def send_table_asset(self, peer_id: str, asset_id: str, part: int, parts: int, data: str) -> None:
+        """Host: one part (base64) of a picture a player asked for."""
+        if self._host is not None:
+            self._host.send_to(peer_id, "table_asset", {"id": asset_id, "part": part, "parts": parts, "data": data})
+
+    def send_table_ping(self, peer_id: str, ping: dict) -> None:
+        if self._host is not None:
+            self._host.send_to(peer_id, "table_ping", {"ping": ping})
+
+    def send_table_cmd(self, cmd: dict, seq: Optional[int] = None) -> bool:
+        """Player: ask the host to run a tabletop command as us. False if we aren't connected."""
+        if self._client is None or self.role != CLIENT:
+            return False
+        self._client.send("table_cmd", {"cmd": cmd, "seq": seq})
+        return True
+
+    def request_table_assets(self, ids: List[str]) -> bool:
+        """Player: ask the host for pictures we don't have yet."""
+        if self._client is None or self.role != CLIENT or not ids:
+            return False
+        self._client.send("table_asset_req", {"ids": list(ids)[:50]})
+        return True
+
     # ---------------------------------------------------------------- transfers
 
     def send_transfer(self, peer_id: str, payload: dict, title: str) -> Optional[str]:
@@ -494,6 +528,18 @@ class SessionService:
             self._notify("tracker_state", view=ev["view"])
         elif kind == "tracker_error":
             self._notify("tracker_error", message=ev["message"], seq=ev.get("seq"))
+        elif kind == "table_cmd":
+            self._notify("table_cmd", peer_id=ev["peer_id"], name=ev["name"], cmd=ev["cmd"], seq=ev.get("seq"))
+        elif kind == "table_asset_req":
+            self._notify("table_asset_req", peer_id=ev["peer_id"], ids=ev["ids"])
+        elif kind == "table_state":
+            self._notify("table_state", view=ev["view"])
+        elif kind == "table_asset":
+            self._notify("table_asset", id=ev["id"], part=ev.get("part"), parts=ev.get("parts"), data=ev["data"])
+        elif kind == "table_error":
+            self._notify("table_error", message=ev["message"], seq=ev.get("seq"))
+        elif kind == "table_ping":
+            self._notify("table_ping", ping=ev.get("ping") or {})
         elif kind == "peer_left":
             self.client_ids.pop(ev["peer"]["peer_id"], None)
             self._drop_peer(ev["peer"])
