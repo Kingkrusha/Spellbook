@@ -4,6 +4,8 @@ import time
 
 import pytest
 
+from tests.lan_wait import stall_report
+
 import tabletop as T
 import tabletop_net as N
 from lan import protocol as P
@@ -18,7 +20,7 @@ def pump_until(cond, *services, timeout=20.0):
         if cond():
             return
         time.sleep(0.02)
-    raise AssertionError("condition not reached")
+    raise AssertionError("condition not reached\n" + stall_report(services))
 
 
 def png(color):
