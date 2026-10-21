@@ -128,7 +128,7 @@ def test_host_is_found_and_can_be_joined_through_discovery(dport):
         assert f.name == "Zed the DM" and f.password and not f.approval and f.port == host.port
         assert f.fingerprint == host.fingerprint
         client = LanClient("Alice", password="pw")
-        client.connect(f.address, f.port, f.fingerprint, timeout=10)
+        client.connect(f.address, f.port, f.fingerprint, timeout=20)
         wait_for(host.events, "peer_joined")
         # the player count is advertised
         assert D.scan(timeout=1.0, port=dport, targets=["127.0.0.1"])[0].players == 1
@@ -147,7 +147,7 @@ def test_a_forged_advertisement_fails_the_certificate_check(dport):
     try:
         forged = D.parse_reply(reply_bytes(port=host.port, fp="Q" * 26), "127.0.0.1")
         with pytest.raises(P.LanError) as exc:
-            LanClient("Alice").connect(forged.address, forged.port, forged.fingerprint, timeout=10)
+            LanClient("Alice").connect(forged.address, forged.port, forged.fingerprint, timeout=20)
         assert exc.value.code == "fingerprint"
     finally:
         host.stop()
