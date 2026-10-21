@@ -20,6 +20,7 @@ from ui.version_bar import VersionBar
 
 class VersionedDetailBase(ThemeListenerMixin, ctk.CTkFrame):
     CURRENT_ATTR = "_current_item"
+    IMAGE_KIND: Optional[str] = None      # the collection's key in content_images (a picture beside the name)
 
     def __init__(self, parent):
         super().__init__(parent, corner_radius=10)
@@ -56,12 +57,14 @@ class VersionedDetailBase(ThemeListenerMixin, ctk.CTkFrame):
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
 
-        self.name_label = ctk.CTkLabel(
-            self.scroll_frame, text=placeholder,
-            font=ui_font("title", bold=True),
-            wraplength=wraplength
-        )
-        self.name_label.pack(anchor="w", pady=(0, 5))
+        from ui.content_image import title_row
+        self.name_label, self.content_image = title_row(
+            self.scroll_frame, self.IMAGE_KIND, text=placeholder,
+            font=ui_font("title", bold=True), wraplength=wraplength, justify="left")
+
+    def _show_picture(self, name: Optional[str]):
+        if self.content_image is not None:
+            self.content_image.show(name)
 
     def _add_version_bar(self):
         """The Source line: a drop-down when the entry has several versions."""

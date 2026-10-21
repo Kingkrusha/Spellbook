@@ -226,6 +226,7 @@ class SettingsView(ctk.CTkFrame):
             self._build_loading_options_section,
             self._build_object_linking_section,
             self._build_hotkeys_section,
+            self._build_pictures_section,
             self._build_about_section,
         ]
         self.after(10, self._build_next_section)
@@ -1006,6 +1007,17 @@ class SettingsView(ctk.CTkFrame):
         self._hotkey_editor = HotkeyEditor(content, self.settings_manager)
         self._hotkey_editor.pack(fill="x")
 
+    def _build_pictures_section(self):
+        """Build the Pictures section: content pictures and image packs (see ui/image_packs_panel.py)."""
+        from ui.image_packs_panel import ImagePacksPanel
+        self._create_section(self.container, "Pictures")
+        frame = ctk.CTkFrame(self.container, corner_radius=10,
+                             fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(frame)
+        frame.pack(fill="x", pady=(0, 20))
+        self._pictures_panel = ImagePacksPanel(frame, self.settings_manager)
+        self._pictures_panel.pack(fill="x", padx=20, pady=15)
+
     def _build_about_section(self):
         """Build the About section (built after the window is up: see _build_remaining)."""
         text_secondary = self.theme_manager.get_text_secondary()
@@ -1290,6 +1302,8 @@ class SettingsView(ctk.CTkFrame):
         """Point every control's variable at the current settings (the sections must already be built)."""
         settings = self.settings_manager.settings
         self._appearance_var.set(settings.appearance_mode)
+        if getattr(self, '_pictures_panel', None) is not None:
+            self._pictures_panel.show_var.set(getattr(settings, 'show_content_images', True))
         theme_key = self.theme_manager.normalize_key(getattr(settings, 'theme_name', 'default'))
         self._theme_menu.configure(values=self._theme_names())
         self._theme_var.set(self.theme_manager.display_name(theme_key))

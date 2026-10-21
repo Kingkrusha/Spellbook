@@ -55,6 +55,7 @@ class LineageListPanel(VirtualListPanel):
 
 class LineageDetailPanel(VersionedDetailBase):
     """Panel displaying detailed information about a lineage."""
+    IMAGE_KIND = "lineages"
 
     CURRENT_ATTR = "_current_lineage"
     
@@ -176,6 +177,7 @@ class LineageDetailPanel(VersionedDetailBase):
         
         if lineage is None:
             self.name_label.configure(text="Select a lineage")
+            self._show_picture(None)
             self.source_label.configure(text="")
             self.stats_frame.pack_forget()
             self.desc_header.pack_forget()
@@ -189,6 +191,7 @@ class LineageDetailPanel(VersionedDetailBase):
         # Name (with custom indicator)
         name_text = f"* {display_name(lineage.name)}" if lineage.is_custom else display_name(lineage.name)
         self.name_label.configure(text=name_text)
+        self._show_picture(display_name(lineage.name))
         
         # Source
         if lineage.source:

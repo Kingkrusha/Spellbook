@@ -106,6 +106,9 @@ class MonsterDetailPanel(ctk.CTkFrame):
         self.scroll_frame.pack(fill="both", expand=True, padx=15, pady=15)
         self._placeholder = ctk.CTkLabel(self.scroll_frame, text="Select a monster",
                                          font=ui_font("title", bold=True))
+        # the monster's picture sits beside its stat block, like a page of a bestiary
+        from ui.content_image import ContentImage
+        self.content_image = ContentImage(self.scroll_frame, "monsters", side=220)
         self._stat_block = MonsterStatBlock(self.scroll_frame)
         self.show_monster(None)
         self.theme.add_listener(self._on_theme_changed)
@@ -119,11 +122,16 @@ class MonsterDetailPanel(ctk.CTkFrame):
     def show_monster(self, monster: Optional[Monster]):
         if monster is None:
             self._stat_block.pack_forget()
+            self.content_image.pack_forget()
+            self.content_image.show(None)
             self._placeholder.pack(anchor="w")
         else:
             self._placeholder.pack_forget()
+            self._stat_block.pack_forget()
+            self.content_image.show(monster.name)
+            self.content_image.pack(side="right", anchor="n", padx=(10, 0))
             self._stat_block.show_monster(monster)
-            self._stat_block.pack(fill="x")
+            self._stat_block.pack(side="left", fill="x", expand=True, anchor="n")
 
 
 class MonsterEditorBody(EditorBody):

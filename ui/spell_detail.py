@@ -291,14 +291,19 @@ class SpellDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
         self.content_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.content_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Spell name (title)
+        # Spell name (title), with the spell's picture at the right
+        from ui.content_image import ContentImage
+        title_row = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        title_row.pack(fill="x", pady=(0, 5))
+        self.content_image = ContentImage(title_row, "spells")
+        self.content_image.pack(side="right", anchor="n", padx=(10, 0))
         self.name_label = ctk.CTkLabel(
-            self.content_frame, text="",
+            title_row, text="",
             font=ui_font("title", bold=True),
-            anchor="w"
+            anchor="w", justify="left"
         )
-        self.name_label.pack(fill="x", pady=(0, 5))
-        follow_width(self.content_frame, self.name_label, margin=10)
+        self.name_label.pack(side="left", fill="x", expand=True, anchor="n")
+        follow_width(self.content_frame, self.name_label, margin=170)
         
         # Level with colored badge
         self.level_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -593,6 +598,7 @@ class SpellDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
         # Update labels - use display_name for asterisk on modified official spells
         display_text = display_name(spell.display_name).upper()
         self.name_label.configure(text=display_text)
+        self.content_image.show(display_name(spell.name))
         
         # Update tooltip if spell is modified
         if spell.is_official and spell.is_modified:
