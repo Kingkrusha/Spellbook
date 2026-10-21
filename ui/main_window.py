@@ -504,6 +504,28 @@ class MainWindow(ctk.CTkFrame):
         # Reopen the tabs from last time (if wanted); otherwise the app opens on a Home tab
         self._restore_tabs()
 
+        self._install_hotkeys()
+
+    def _install_hotkeys(self):
+        """Bind the keyboard shortcuts (Settings > Keyboard Shortcuts changes them)."""
+        import hotkeys
+        from ui.hotkey_actions import build_handlers
+        overrides = dict(getattr(self.settings_manager.settings, 'hotkeys', {}) or {})
+        try:
+            manager = hotkeys.install(self.winfo_toplevel(), build_handlers(self), overrides)
+        except Exception as e:
+            print(f"Keyboard shortcuts are off: {e}")
+            return
+        last = {'value': overrides}
+
+        def on_settings(settings):
+            # Reset to defaults (or an edit elsewhere) changed the shortcuts: bind them again
+            current = dict(getattr(settings, 'hotkeys', {}) or {})
+            if current != last['value']:
+                last['value'] = current
+                manager.apply(current)
+        self.settings_manager.add_listener(on_settings)
+
     def _on_new_tab_requested(self, index: Optional[int] = None):
         """The tab bar's "+" (or its context menu) asked for a new tab: it opens on Home."""
         self._open_page_in_new_tab("home", index=index)

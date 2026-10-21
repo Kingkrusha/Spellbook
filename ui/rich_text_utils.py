@@ -1308,6 +1308,10 @@ class RichTextEditor:
         # description field.
         from ui.object_link_widgets import attach_object_linking
         self.linker = attach_object_linking(text_widget, self.theme, get_popup_parent=lambda: self.parent)
+
+        # Formatting shortcuts (Ctrl+B, ...) act on whichever editor has focus
+        from ui.hotkey_actions import register_rich_editor
+        register_rich_editor(text_widget, self)
     
     def create_toolbar(self, toolbar_parent) -> ctk.CTkFrame:
         """
@@ -1368,9 +1372,10 @@ class RichTextEditor:
         try:
             # Try to get selection
             selection = self.text_widget.selection_get()
-            # Replace selection with bold version
+            # Replace selection with bold version, where the selection was
+            start = self.text_widget.index("sel.first")
             self.text_widget.delete("sel.first", "sel.last")
-            self._insert_text(f"**{selection}**")
+            self.text_widget.insert(start, f"**{selection}**")
         except tk.TclError:
             # No selection, just insert markers
             self._insert_text("**text**")

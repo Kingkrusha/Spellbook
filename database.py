@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 from contextlib import contextmanager
 
 from paths import user_data_path
+import search_index
 
 
 class SpellDatabase:
@@ -74,6 +75,7 @@ class SpellDatabase:
         """Initialize the database connection."""
         self.db_path = db_path or user_data_path(self.DEFAULT_DB_PATH)
         self._connection: Optional[sqlite3.Connection] = None
+        self._search_index_ready: Optional[bool] = None
         
     @contextmanager
     def get_connection(self):
@@ -85,6 +87,8 @@ class SpellDatabase:
         # [[category:Name|shown]] link markup (see search_spells).
         from object_link_sweep import strip_links
         conn.create_function("strip_links", 1, lambda t: strip_links(t) if t else t, deterministic=True)
+        # The search index triggers call search_text() (see search_index.py).
+        search_index.register_functions(conn)
         try:
             yield conn
             conn.commit()
@@ -218,6 +222,9 @@ class SpellDatabase:
             if is_fresh_db:
                 print("Populating content tables from bundled JSON files...")
                 self._migrate_json_to_database(cursor)
+
+            # Full-text index over every collection (built once, then kept current by triggers)
+            self._search_index_ready = search_index.ensure(conn)
     
     def _run_migrations(self, conn):
         """Run schema migrations if needed."""
@@ -2257,14 +2264,26 @@ class SpellDatabase:
             
             # Add WHERE clause conditions
             if search_text:
-                # Search in name, description, and check if any tag matches
-                conditions.append("""(
-                    s.name LIKE ? COLLATE NOCASE OR 
-                    strip_links(s.description) LIKE ? COLLATE NOCASE OR
-                    EXISTS (SELECT 1 FROM spell_tags st WHERE st.spell_id = s.id AND st.tag LIKE ? COLLATE NOCASE)
-                )""")
+                # Name and description through the full-text index when it is there, plus any tag match
                 search_pattern = f"%{search_text}%"
-                params.extend([search_pattern, search_pattern, search_pattern])
+                if self._search_index_available(conn):
+                    # (matching ids are joined through a temp table: there can be hundreds)
+                    cursor.execute("CREATE TEMP TABLE IF NOT EXISTS _search_ids (id INTEGER PRIMARY KEY)")
+                    cursor.execute("DELETE FROM _search_ids")
+                    cursor.executemany("INSERT INTO _search_ids (id) VALUES (?)",
+                                       [(i,) for i in search_index.item_ids(conn, search_text, 'Spells')])
+                    conditions.append("""(
+                        s.id IN (SELECT id FROM _search_ids) OR
+                        EXISTS (SELECT 1 FROM spell_tags st WHERE st.spell_id = s.id AND st.tag LIKE ? COLLATE NOCASE)
+                    )""")
+                    params.append(search_pattern)
+                else:
+                    conditions.append("""(
+                        s.name LIKE ? COLLATE NOCASE OR
+                        strip_links(s.description) LIKE ? COLLATE NOCASE OR
+                        EXISTS (SELECT 1 FROM spell_tags st WHERE st.spell_id = s.id AND st.tag LIKE ? COLLATE NOCASE)
+                    )""")
+                    params.extend([search_pattern, search_pattern, search_pattern])
             
             if level >= 0:
                 conditions.append("s.level = ?")
@@ -3399,78 +3418,71 @@ class SpellDatabase:
     
     def global_search(self, query: str, limit: int = 50) -> List[dict]:
         """
-        Search across all content types by name.
-        Returns list of dicts with 'name', 'section', and 'id'.
+        Search every collection for items whose name or text contains each word of `query`.
+        Returns list of dicts with 'name', 'section', 'id' and 'in_name' (False when only the
+        item's text matched). Name matches come first.
         """
-        if not query or len(query) < 1:
+        query = (query or "").strip()
+        if not query:
             return []
-        
-        results = []
-        search_pattern = f"%{query}%"
-        
+
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Search spells
-            cursor.execute("""
-                SELECT id, name FROM spells 
-                WHERE name LIKE ? COLLATE NOCASE 
-                ORDER BY name LIMIT ?
-            """, (search_pattern, limit))
+            if self._search_index_available(conn):
+                hits = search_index.search(conn, query, limit=limit)
+                return self._label_subclass_hits(conn, hits)
+            return self._global_search_by_name(conn, query, limit)
+
+    def _search_index_available(self, conn) -> bool:
+        """Whether the full-text index can be used (checked once per database object)."""
+        if self._search_index_ready is None:
+            self._search_index_ready = search_index.ensure(conn)
+        return self._search_index_ready
+
+    def rebuild_search_index(self) -> bool:
+        """Build the full-text index again from scratch. Returns False if SQLite can't index."""
+        with self.get_connection() as conn:
+            self._search_index_ready = search_index.rebuild(conn)
+            return self._search_index_ready
+
+    @staticmethod
+    def _label_subclass_hits(conn, hits: List[dict]) -> List[dict]:
+        """Subclass hits are shown as "Name (Class)"."""
+        ids = [h['id'] for h in hits if h['section'] == 'Subclasses']
+        if not ids:
+            return hits
+        rows = conn.execute(
+            "SELECT s.id, c.name FROM subclasses s JOIN classes c ON s.class_id = c.id "
+            f"WHERE s.id IN ({','.join('?' * len(ids))})", ids).fetchall()
+        class_of = {r[0]: r[1] for r in rows}
+        for h in hits:
+            if h['section'] == 'Subclasses' and h['id'] in class_of:
+                h['name'] = f"{h['name']} ({class_of[h['id']]})"
+        return hits
+
+    def _global_search_by_name(self, conn, query: str, limit: int) -> List[dict]:
+        """Name-only search, for SQLite builds without the full-text index."""
+        results = []
+        pattern = f"%{query}%"
+        cursor = conn.cursor()
+        for section, (table, _cols, where) in search_index.SOURCES.items():
+            if section == 'Subclasses':
+                continue
+            extra = f" AND {where}" if where else ""
+            cursor.execute(f"SELECT id, name FROM {table} WHERE name LIKE ? COLLATE NOCASE{extra} "
+                           "ORDER BY name LIMIT ?", (pattern, limit))
             for row in cursor.fetchall():
-                results.append({'id': row['id'], 'name': row['name'], 'section': 'Spells'})
-            
-            # Search lineages
-            cursor.execute("""
-                SELECT id, name FROM lineages 
-                WHERE name LIKE ? COLLATE NOCASE 
-                ORDER BY name LIMIT ?
-            """, (search_pattern, limit))
-            for row in cursor.fetchall():
-                results.append({'id': row['id'], 'name': row['name'], 'section': 'Lineages'})
-            
-            # Search feats
-            cursor.execute("""
-                SELECT id, name FROM feats 
-                WHERE name LIKE ? COLLATE NOCASE 
-                ORDER BY name LIMIT ?
-            """, (search_pattern, limit))
-            for row in cursor.fetchall():
-                results.append({'id': row['id'], 'name': row['name'], 'section': 'Feats'})
-            
-            # Search backgrounds
-            cursor.execute("""
-                SELECT id, name FROM backgrounds 
-                WHERE name LIKE ? COLLATE NOCASE 
-                ORDER BY name LIMIT ?
-            """, (search_pattern, limit))
-            for row in cursor.fetchall():
-                results.append({'id': row['id'], 'name': row['name'], 'section': 'Backgrounds'})
-            
-            # Search classes
-            cursor.execute("""
-                SELECT id, name FROM classes 
-                WHERE name LIKE ? COLLATE NOCASE 
-                ORDER BY name LIMIT ?
-            """, (search_pattern, limit))
-            for row in cursor.fetchall():
-                results.append({'id': row['id'], 'name': row['name'], 'section': 'Classes'})
-            
-            # Search subclasses
-            cursor.execute("""
-                SELECT s.id, s.name, c.name as class_name FROM subclasses s
-                JOIN classes c ON s.class_id = c.id
-                WHERE s.name LIKE ? COLLATE NOCASE 
-                ORDER BY s.name LIMIT ?
-            """, (search_pattern, limit))
-            for row in cursor.fetchall():
-                results.append({
-                    'id': row['id'], 
-                    'name': f"{row['name']} ({row['class_name']})", 
-                    'section': 'Subclasses'
-                })
-        
-        # Sort by name and limit total results
+                results.append({'id': row['id'], 'name': row['name'], 'section': section,
+                                'in_name': True})
+        cursor.execute("""
+            SELECT s.id, s.name, c.name as class_name FROM subclasses s
+            JOIN classes c ON s.class_id = c.id
+            WHERE s.name LIKE ? COLLATE NOCASE
+            ORDER BY s.name LIMIT ?
+        """, (pattern, limit))
+        for row in cursor.fetchall():
+            results.append({'id': row['id'], 'name': f"{row['name']} ({row['class_name']})",
+                            'section': 'Subclasses', 'in_name': True})
         results.sort(key=lambda x: x['name'].lower())
         return results[:limit]
+
 

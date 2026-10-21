@@ -373,7 +373,10 @@ class CollectionsView(ctk.CTkFrame):
             'Lineages': 'lineages',
             'Classes': 'classes',
             'Subclasses': 'classes',  # Subclasses navigate to classes
-            'Backgrounds': 'backgrounds'
+            'Backgrounds': 'backgrounds',
+            'Equipment': 'equipment',
+            'Magic Items': 'magic_items',
+            'Monsters': 'monsters',
         }
         
         nav_key = section_map.get(section, section.lower())

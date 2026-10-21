@@ -211,6 +211,7 @@ class SettingsView(ctk.CTkFrame):
             self._build_monsters_section,
             self._build_loading_options_section,
             self._build_object_linking_section,
+            self._build_hotkeys_section,
             self._build_about_section,
         ]
         self.after(10, self._build_next_section)
@@ -908,6 +909,26 @@ class SettingsView(ctk.CTkFrame):
         )
 
 
+    def _build_hotkeys_section(self):
+        """Build the Keyboard Shortcuts section (built after the window is up: see _build_remaining)."""
+        from ui.hotkey_editor import HotkeyEditor
+        self._create_section(self.container, "Keyboard Shortcuts")
+        frame = ctk.CTkFrame(self.container, corner_radius=10,
+                             fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(frame)
+        frame.pack(fill="x", pady=(0, 20))
+        content = ctk.CTkFrame(frame, fg_color="transparent")
+        content.pack(fill="x", padx=20, pady=15)
+        ctk.CTkLabel(
+            content,
+            text="Click a shortcut to change it. Formatting shortcuts work while you type in a "
+                 "description editor. On a Mac, Ctrl means the Command key.",
+            font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
+            anchor="w", justify="left", wraplength=640
+        ).pack(fill="x", pady=(0, 10))
+        self._hotkey_editor = HotkeyEditor(content, self.settings_manager)
+        self._hotkey_editor.pack(fill="x")
+
     def _build_about_section(self):
         """Build the About section (built after the window is up: see _build_remaining)."""
         text_secondary = self.theme_manager.get_text_secondary()
@@ -1192,6 +1213,9 @@ class SettingsView(ctk.CTkFrame):
         editor = getattr(self, '_typography_editor', None)
         if editor is not None:
             editor.refresh()
+        hotkey_editor = getattr(self, '_hotkey_editor', None)
+        if hotkey_editor is not None:
+            hotkey_editor.refresh()
         
         # Update UI variables
         settings = self.settings_manager.settings
