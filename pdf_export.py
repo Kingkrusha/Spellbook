@@ -108,6 +108,26 @@ def block_for(entry) -> Block:
         return Block(name, "Background", stats, body.strip())
     if kind == "Monster":
         return Block(name, entry.get_type_line(), monster=entry)
+    if kind == "CharacterClassDefinition":
+        stats = [("Primary Ability", entry.primary_ability), ("Hit Die", entry.hit_die),
+                 ("Saving Throws", ", ".join(entry.saving_throw_proficiencies)),
+                 ("Skills", f"Choose {entry.skill_proficiency_choices}: " + ", ".join(entry.skill_proficiency_options)
+                  if entry.skill_proficiency_options else ""),
+                 ("Weapons", ", ".join(entry.weapon_proficiencies)), ("Armor", ", ".join(entry.armor_proficiencies)),
+                 ("Tools", ", ".join(entry.tool_proficiencies))]
+        body = entry.description or ""
+        for level in sorted(entry.levels):
+            for ability in entry.levels[level].abilities:
+                if not getattr(ability, "is_subclass_feature", False):
+                    body += f"\n\n### Level {level}: {ability.title}\n\n{ability.description}"
+        return Block(name, "Class", [(k, v) for k, v in stats if v], body.strip())
+    if kind == "SubclassDefinition":
+        body = entry.description or ""
+        for feature in sorted(entry.features, key=lambda f: f.level):
+            body += f"\n\n### Level {feature.level}: {feature.title}\n\n{feature.description}"
+        return Block(name, f"{entry.parent_class} Subclass", [], body.strip())
+    if kind == "RulePage":
+        return Block(name, entry.category, [], entry.description)
     # anything else with a name and a description
     return Block(name, "", [], getattr(entry, "description", ""))
 
