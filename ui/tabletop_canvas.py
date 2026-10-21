@@ -25,9 +25,12 @@ from ui.platform_compat import bind_right_click
 
 ZOOM_MIN, ZOOM_MAX = 0.1, 6.0
 TOOLS = ("select", "free", "line", "rect", "ellipse", "erase", "measure", "ping", "fog_reveal", "fog_hide",
-         "fog_lasso_reveal", "fog_lasso_hide")
+         "fog_lasso_reveal", "fog_lasso_hide", "wall", "door")
 DRAW_TOOLS = {"free", "line", "rect", "ellipse"}
-DM_TOOLS = {"fog_reveal", "fog_hide", "fog_lasso_reveal", "fog_lasso_hide"}
+DM_TOOLS = {"fog_reveal", "fog_hide", "fog_lasso_reveal", "fog_lasso_hide", "wall", "door"}
+WALL_TOOLS = {"wall", "door"}
+WALL_SNAP_PX = 12             # a wall end clicked this close (on screen) to another wall's end joins it
+WALL_COLOR, DOOR_COLOR, OPEN_DOOR_COLOR = "#FF9800", "#3498DB", "#2ECC71"
 FOG_SCALE_MAX = 1024          # the fog mask is kept at most this many pixels across
 
 
@@ -58,6 +61,7 @@ class MapCanvas(tk.Canvas):
     def __init__(self, parent, backend, *, on_select: Optional[Callable[[Optional[str]], None]] = None,
                  on_token_menu: Optional[Callable[[str, tk.Event], None]] = None,
                  on_token_open: Optional[Callable[[str], None]] = None,
+                 on_wall_menu: Optional[Callable[[str, tk.Event], None]] = None,
                  on_status: Optional[Callable[[str], None]] = None,
                  on_error: Optional[Callable[[str], None]] = None, bg: str = "#1E1E1E"):
         super().__init__(parent, highlightthickness=0, borderwidth=0, bg=bg, takefocus=1)
@@ -65,6 +69,7 @@ class MapCanvas(tk.Canvas):
         self.on_select = on_select
         self.on_token_menu = on_token_menu
         self.on_token_open = on_token_open
+        self.on_wall_menu = on_wall_menu
         self.on_status = on_status or (lambda _t: None)
         self.on_error = on_error or (lambda _t: None)
         self.empty_bg = bg
@@ -78,6 +83,9 @@ class MapCanvas(tk.Canvas):
         self.place: Optional[dict] = None  # a token waiting to be put down (from the library)
         self.selected: Optional[str] = None
         self.show_grid = True
+        self.show_walls = True             # the DM sees the walls they drew
+        self.preview_sight = False         # the DM sees the map dimmed as the players' tokens see it
+        self._chain: Optional[Tuple[float, float]] = None   # the last corner of the wall being drawn
 
         self._scene: Optional[dict] = None
         self._scene_id = ""
@@ -311,10 +319,21 @@ class MapCanvas(tk.Canvas):
         g = scene["grid"]
         if self.show_grid and g.get("type") != "none" and g.get("opacity", 0) > 0 and g["cell"] * z >= 6:
             out = self._paint_grid(out, scene, W, H)
-        # the fog
-        if scene["fog"].get("on"):
-            out = self._paint_fog(out, scene, W, H)
+        # the fog, and what the tokens can't see
+        sight = self._sight(scene)
+        if scene["fog"].get("on") or sight is not None:
+            out = self._paint_fog(out, scene, W, H, sight)
         return out
+
+    def _sight(self, scene: dict) -> Optional[List[dict]]:
+        """What the darkness leaves visible: a player's view comes with it (when the DM has line of sight
+        on); the DM gets it only as a preview, through the selected token or else the party."""
+        if not self.is_dm:
+            return scene.get("sight")
+        if not self.preview_sight:
+            return None
+        eyes = [t for t in scene["tokens"] if t["id"] == self.selected and t.get("kind") != "prop"]
+        return T.sight_for(scene, eyes or T.eyes_for(scene, ""))
 
     def _paint_grid(self, out, scene, W, H):
         from PIL import Image, ImageDraw
@@ -351,17 +370,22 @@ class MapCanvas(tk.Canvas):
         base.alpha_composite(layer)
         return base.convert("RGB")
 
-    def _fog_mask(self, scene):
-        """The fog over the whole map at a reduced size: 255 = hidden, 0 = revealed."""
-        from PIL import Image, ImageDraw
+    def _fog_mask(self, scene, sight: Optional[List[dict]] = None):
+        """The fog (and the darkness outside the tokens' sight) over the whole map at a reduced size:
+        255 = hidden, 0 = revealed."""
+        from PIL import Image, ImageChops, ImageDraw
         ops = scene["fog"]["ops"]
-        key = (scene["id"], scene["w"], scene["h"], len(ops), repr(ops[-1]) if ops else "")
+        fog_on = bool(scene["fog"].get("on"))
+        sight_key = None if sight is None else tuple(
+            (s["x"], s["y"], s["r"], len(s["pts"]), hash(tuple(s["pts"]))) for s in sight)
+        key = (scene["id"], scene["w"], scene["h"], fog_on, len(ops), repr(ops[-1]) if ops else "", sight_key)
         if self._fog_cache[0] == key:
             return self._fog_cache[1]
         scale = min(1.0, FOG_SCALE_MAX / max(scene["w"], scene["h"], 1))
-        mask = Image.new("L", (max(1, int(scene["w"] * scale)), max(1, int(scene["h"] * scale))), 255)
+        size = (max(1, int(scene["w"] * scale)), max(1, int(scene["h"] * scale)))
+        mask = Image.new("L", size, 255 if fog_on else 0)
         draw = ImageDraw.Draw(mask)
-        for op in ops:
+        for op in (ops if fog_on else []):
             fill = 0 if op["mode"] == "reveal" else 255
             pts = [p * scale for p in op["pts"]]
             if op["shape"] == "rect":
@@ -370,13 +394,26 @@ class MapCanvas(tk.Canvas):
                 draw.ellipse(_box(pts), fill=fill)
             else:
                 draw.polygon(pts, fill=fill)
+        if sight is not None:
+            dark = Image.new("L", size, 255)
+            for s in sight:
+                seen = Image.new("L", size, 0)
+                if len(s["pts"]) >= 6:
+                    ImageDraw.Draw(seen).polygon([p * scale for p in s["pts"]], fill=255)
+                if s.get("r"):
+                    reach = Image.new("L", size, 0)
+                    x, y, r = s["x"] * scale, s["y"] * scale, s["r"] * scale
+                    ImageDraw.Draw(reach).ellipse((x - r, y - r, x + r, y + r), fill=255)
+                    seen = ImageChops.darker(seen, reach)
+                dark = ImageChops.darker(dark, ImageChops.invert(seen))
+            mask = ImageChops.lighter(mask, dark)
         result = (mask, scale)
         self._fog_cache = (key, result)
         return result
 
-    def _paint_fog(self, out, scene, W, H):
+    def _paint_fog(self, out, scene, W, H, sight: Optional[List[dict]] = None):
         from PIL import Image
-        mask, scale = self._fog_mask(scene)
+        mask, scale = self._fog_mask(scene, sight)
         z = self.zoom
         # the fog mask's part under the canvas, grown by a pixel so the edges line up
         fx0, fy0 = self.vx * scale, self.vy * scale
@@ -406,6 +443,8 @@ class MapCanvas(tk.Canvas):
             return
         for d in scene["drawings"]:
             self._draw_drawing(d)
+        if self.is_dm and (self.show_walls or self.tool in WALL_TOOLS):
+            self._draw_walls(scene)
         for t in scene["tokens"]:
             self._draw_token(t)
         self._draw_pings()
@@ -428,6 +467,78 @@ class MapCanvas(tk.Canvas):
             self.create_rectangle(*_box(pts[:4]), outline=color, width=width, tags=tags, dash=dash)
         elif d["kind"] == "ellipse":
             self.create_oval(*_box(pts[:4]), outline=color, width=width, tags=tags, dash=dash)
+
+    def _draw_walls(self, scene: dict):
+        width = max(2.0, min(5.0, 3 * self.zoom))
+        for w in scene.get("walls") or []:
+            a, b = self.to_screen(*w["pts"][:2]), self.to_screen(*w["pts"][2:4])
+            tags = ("overlay", "wall", f"w:{w['id']}")
+            if w.get("door"):
+                is_open = bool(w.get("open"))
+                self.create_line(*a, *b, fill=OPEN_DOOR_COLOR if is_open else DOOR_COLOR, width=width * 2,
+                                 dash=(6, 4) if is_open else None, capstyle="butt", tags=tags)
+            else:
+                self.create_line(*a, *b, fill=WALL_COLOR, width=width, capstyle="round", tags=tags)
+
+    def wall_at(self, sx: float, sy: float) -> Optional[str]:
+        """The id of the wall drawn under a canvas point, if any."""
+        for item in reversed(self.find_overlapping(sx - 5, sy - 5, sx + 5, sy + 5)):
+            for tag in self.gettags(item):
+                if tag.startswith("w:"):
+                    return tag[2:]
+        return None
+
+    def _wall_snap(self, sx: float, sy: float) -> Tuple[float, float]:
+        """Where a wall corner clicked here goes: onto a nearby wall end, else a nearby grid corner."""
+        mx, my = self.to_map(sx, sy)
+        reach = WALL_SNAP_PX / self.zoom
+        best, best_d = None, reach
+        for w in (self._scene or {}).get("walls") or []:
+            for px, py in ((w["pts"][0], w["pts"][1]), (w["pts"][2], w["pts"][3])):
+                d = math.hypot(px - mx, py - my)
+                if d <= best_d:
+                    best, best_d = (px, py), d
+        if self._chain is not None and math.hypot(self._chain[0] - mx, self._chain[1] - my) <= best_d:
+            best = None
+        if best is not None:
+            return best
+        grid = self.grid
+        if grid.kind == "square":
+            gx = grid.ox + round((mx - grid.ox) / grid.cell) * grid.cell
+            gy = grid.oy + round((my - grid.oy) / grid.cell) * grid.cell
+            if math.hypot(gx - mx, gy - my) <= reach:
+                return gx, gy
+        return round(mx, 1), round(my, 1)
+
+    def _wall_click(self, e):
+        p = self._wall_snap(e.x, e.y)
+        if self._chain is None:
+            self._chain = p
+            self.on_status("Click to put down the next corner. Double-click, right-click or Esc to stop.")
+        elif math.hypot(p[0] - self._chain[0], p[1] - self._chain[1]) > 1:
+            door = self.tool == "door"
+            self.dispatch({"op": "wall_add", "wall": {"pts": [*self._chain, *p], "door": door}})
+            self._chain = None if door else p
+            if door:
+                self.on_status("")
+        self._draw_wall_preview(e.x, e.y)
+
+    def _draw_wall_preview(self, sx: float, sy: float):
+        self.delete("preview")
+        if self._chain is None:
+            return
+        a = self.to_screen(*self._chain)
+        b = self.to_screen(*self._wall_snap(sx, sy))
+        color = DOOR_COLOR if self.tool == "door" else WALL_COLOR
+        self.create_line(*a, *b, fill=color, width=3, dash=(6, 4), tags=("overlay", "preview"))
+        self.create_oval(a[0] - 4, a[1] - 4, a[0] + 4, a[1] + 4, fill=color, outline="", tags=("overlay", "preview"))
+
+    def end_wall(self):
+        """Stop drawing the current run of walls."""
+        if self._chain is not None:
+            self._chain = None
+            self.delete("preview")
+            self.on_status("")
 
     def _token_photo(self, asset_id: str, diameter: int):
         """A token's picture cut to a circle, at the size it's drawn."""
@@ -469,15 +580,18 @@ class MapCanvas(tk.Canvas):
                              width=max(3.0, sr * 0.12), tags=tags + ("turn",))
         # body
         if photo is not None:
-            self.create_oval(sx - sr, sy - sr, sx + sr, sy + sr, fill="#111111", outline="", tags=tags)
+            # (a picture with see-through parts shows the token's colour behind it)
+            self.create_oval(sx - sr, sy - sr, sx + sr, sy + sr, fill=t.get("color", "#111111"), outline="",
+                             tags=tags)
             self.create_image(sx, sy, image=photo, tags=tags)
         else:
             self.create_oval(sx - sr, sy - sr, sx + sr, sy + sr, fill=t.get("color", "#C0392B"),
                              outline="#111111", width=1, tags=tags, stipple="gray50" if hidden else "")
-            initials = "".join(w[0] for w in t["name"].split()[:2]).upper() or "?"
-            if sr >= 9:
-                self.create_text(sx, sy, text=initials, fill="white",
-                                 font=("TkDefaultFont", max(7, int(sr * 0.7)), "bold"), tags=tags)
+            if sr >= 6:
+                letter = token_letter(t.get("name", ""))
+                font = ("TkDefaultFont", -max(8, int(sr * 1.1)), "bold")    # negative: pixels, not points
+                self.create_text(sx + 1, sy + 1, text=letter, fill="#000000", font=font, tags=tags)
+                self.create_text(sx, sy, text=letter, fill="white", font=font, tags=tags)
         # the outline: the token's colour, gold when selected
         selected = t["id"] == self.selected
         self.create_oval(sx - sr, sy - sr, sx + sr, sy + sr, outline="#F1C40F" if selected else t.get("color"),
@@ -586,8 +700,12 @@ class MapCanvas(tk.Canvas):
     # ------------------------------------------------------------------ mouse
 
     def set_tool(self, tool: str):
+        self.end_wall()
+        was_walls = self.tool in WALL_TOOLS
         self.tool = tool if tool in TOOLS else "select"
         self.place = None
+        if self._scene is not None and was_walls != (self.tool in WALL_TOOLS) and not self.show_walls:
+            self._draw_overlay()
         self.configure(cursor={"select": "", "measure": "crosshair", "ping": "hand2", "erase": "X_cursor"}.get(
             self.tool, "pencil" if self.tool in DRAW_TOOLS else "crosshair"))
 
@@ -598,6 +716,7 @@ class MapCanvas(tk.Canvas):
         self.on_status(f"Click the map to place {token.get('name', 'the token')}. Esc cancels.")
 
     def _escape(self):
+        self.end_wall()
         self.place = None
         self._drag = None
         self._measure = None
@@ -611,7 +730,7 @@ class MapCanvas(tk.Canvas):
         if not self._scene:
             return
         mx, my = self.to_map(e.x, e.y)
-        if e.state & 0x0008 or e.state & 0x20000:       # Alt-click pings, whatever the tool
+        if _alt_held(e.state):                           # Alt-click pings, whatever the tool
             self.backend.ping(mx, my)
             return
         if self.place is not None:
@@ -650,6 +769,9 @@ class MapCanvas(tk.Canvas):
             return
         if tool in DRAW_TOOLS:
             self._drag = {"kind": "draw", "pts": [mx, my], "last": (e.x, e.y)}
+            return
+        if tool in WALL_TOOLS and self.is_dm:
+            self._wall_click(e)
             return
         if tool in DM_TOOLS and self.is_dm:
             self._drag = {"kind": "fog", "pts": [mx, my], "last": (e.x, e.y)}
@@ -770,8 +892,15 @@ class MapCanvas(tk.Canvas):
                     self.delete(f"d:{drawing_id}")
                     self.dispatch({"op": "draw_delete", "id": drawing_id})
                     return
+                if tag.startswith("w:") and self.is_dm:
+                    self.delete(tag)
+                    self.dispatch({"op": "wall_delete", "id": tag[2:]})
+                    return
 
     def _double(self, e):
+        if self.tool in WALL_TOOLS:
+            self.end_wall()
+            return
         if self.tool != "select" or not self._scene:
             return
         t = self._token_at(e.x, e.y)
@@ -781,14 +910,24 @@ class MapCanvas(tk.Canvas):
     def _right_click(self, e):
         if not self._scene:
             return
+        if self._chain is not None:
+            self.end_wall()
+            return
         t = self._token_at(e.x, e.y)
         if t is not None:
             self.select(t["id"])
             if self.on_token_menu:
                 self.on_token_menu(t["id"], e)
+            return
+        wall = self.wall_at(e.x, e.y) if self.is_dm else None
+        if wall is not None and self.on_wall_menu:
+            self.on_wall_menu(wall, e)
 
     def _hover(self, e):
         if self._drag is not None or not self._scene:
+            return
+        if self._chain is not None:
+            self._draw_wall_preview(e.x, e.y)
             return
         t = self._token_at(e.x, e.y)
         if self.tool == "select" and self.place is None:
@@ -826,12 +965,32 @@ class MapCanvas(tk.Canvas):
             return
         self.selected = token_id
         self._draw_overlay()
+        if self.preview_sight:
+            self.schedule_render(5)               # the preview looks through the selected token
         if self.on_select:
             self.on_select(token_id)
 
     def _delete_selected(self):
         if self.is_dm and self.selected:
             self.dispatch({"op": "token_delete", "id": self.selected})
+
+
+def token_letter(name: str) -> str:
+    """The letter on a token without a picture: the first letter (or digit) of its name."""
+    for ch in name or "":
+        if ch.isalnum():
+            return ch.upper()
+    return "?"
+
+
+def _alt_held(state: int) -> bool:
+    """Whether Alt (Option on a Mac) is held in a mouse event's state. The bit differs by system: on Windows
+    0x0008 means Num Lock is on, so reading it as Alt turned every click into a ping there."""
+    if sys.platform == "win32":
+        return bool(state & 0x20000)
+    if sys.platform == "darwin":
+        return bool(state & 0x0010)
+    return bool(state & 0x0008)
 
 
 def _box(pts) -> Tuple[float, float, float, float]:

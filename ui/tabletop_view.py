@@ -41,6 +41,9 @@ TOOL_BUTTONS = [
     ("fog_hide", "🌫 Hide", "Drag a box to cover that part of the map again.", True),
     ("fog_lasso_reveal", "☀ Lasso", "Draw around an area to reveal it.", True),
     ("fog_lasso_hide", "🌫 Lasso", "Draw around an area to cover it again.", True),
+    ("wall", "🧱 Wall", "Click corner to corner to draw walls; double-click, right-click or Esc stops. Ends snap to "
+                       "other walls and grid corners. With line of sight on, players can't see through them.", True),
+    ("door", "🚪 Door", "Click both ends of a door. Right-click a door to open or close it.", True),
 ]
 DRAW_COLORS = ["#E74C3C", "#F1C40F", "#2ECC71", "#3498DB", "#9B59B6", "#FFFFFF", "#111111"]
 SIZE_NAMES = list(T.TOKEN_SIZES)
@@ -198,6 +201,8 @@ class TabletopView(ctk.CTkFrame):
                 continue
             if tool == "fog_reveal":
                 ctk.CTkLabel(tools, text="Fog", font=ui_font("small", bold=True)).pack(pady=(10, 2))
+            if tool == "wall":
+                ctk.CTkLabel(tools, text="Walls", font=ui_font("small", bold=True)).pack(pady=(10, 2))
             b = ctk.CTkButton(tools, text=label, width=86, height=30, anchor="w",
                               command=lambda t=tool: self.set_tool(t))
             b.pack(pady=2)
@@ -234,7 +239,8 @@ class TabletopView(ctk.CTkFrame):
         holder = ctk.CTkFrame(body, fg_color=self._c("bg_tertiary"), corner_radius=8)
         holder.pack(side="left", fill="both", expand=True)
         self.canvas = MapCanvas(holder, self.backend, on_select=self._on_select, on_token_menu=self._token_menu,
-                                on_token_open=self._edit_token, on_status=self._set_status,
+                                on_token_open=self._edit_token, on_wall_menu=self._wall_menu,
+                                on_status=self._set_status,
                                 on_error=self._show_error, bg=_hex(self._c("bg_tertiary")))
         self.canvas.pack(fill="both", expand=True, padx=4, pady=4)
         self.canvas.bind("<Control-z>", lambda _e: self._undo())
@@ -423,6 +429,26 @@ class TabletopView(ctk.CTkFrame):
         self._button(row, "Reveal all", lambda: self._dispatch({"op": "fog_reset", "mode": "clear"}), width=90
                      ).pack(side="left")
 
+        label("Walls and line of sight")
+        self.los_var = ctk.BooleanVar()
+        los = ctk.CTkSwitch(f, text="Line of sight", variable=self.los_var,
+                            command=lambda: self._scene_fields(los=bool(self.los_var.get())))
+        los.pack(anchor="w", pady=2)
+        HoverTooltip(los, "Players see only what their tokens can see past the walls (a player with no token "
+                          "of their own sees through the party's). Creatures out of sight are left off their map.")
+        self.show_walls_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(f, text="Show walls", variable=self.show_walls_var,
+                        command=self._toggle_show_walls).pack(anchor="w", pady=2)
+        self.preview_var = ctk.BooleanVar(value=False)
+        preview = ctk.CTkCheckBox(f, text="Preview what players see", variable=self.preview_var,
+                                  command=self._toggle_preview)
+        preview.pack(anchor="w", pady=2)
+        HoverTooltip(preview, "Dim the map as the party's tokens see it, or as the selected token sees it.")
+        self.walls_label = ctk.CTkLabel(f, text="", font=ui_font("small"), anchor="w",
+                                        text_color=self.theme.get_text_secondary())
+        self.walls_label.pack(fill="x")
+        self._button(f, "Remove all walls", self._clear_walls, width=140).pack(anchor="w", pady=2)
+
         label("Map")
         row = ctk.CTkFrame(f, fg_color="transparent")
         row.pack(fill="x", pady=2)
@@ -515,6 +541,11 @@ class TabletopView(ctk.CTkFrame):
         self.players_draw_var.set(bool(scene.get("players_draw")))
         self.players_move_var.set(bool(scene.get("players_move_all")))
         self.fog_var.set(bool(scene["fog"].get("on")))
+        self.los_var.set(bool(scene.get("los")))
+        walls = scene.get("walls") or []
+        doors = sum(1 for w in walls if w.get("door"))
+        self.walls_label.configure(text=f"{len(walls) - doors} wall{'s' if len(walls) - doors != 1 else ''}, "
+                                        f"{doors} door{'s' if doors != 1 else ''}")
         if scene.get("map"):
             self.blank_box.pack_forget()
         else:
@@ -652,6 +683,44 @@ class TabletopView(ctk.CTkFrame):
         if messagebox.askyesno("Clear drawings", "Remove every drawing on this map?", parent=self):
             self._dispatch({"op": "draw_clear"})
 
+    def _toggle_show_walls(self):
+        self.canvas.show_walls = bool(self.show_walls_var.get())
+        self.canvas._draw_overlay()
+
+    def _toggle_preview(self):
+        self.canvas.preview_sight = bool(self.preview_var.get())
+        self.canvas.render()
+
+    def _clear_walls(self):
+        scene = self.backend.view().get("scene")
+        if not scene or not scene.get("walls"):
+            return
+        if messagebox.askyesno("Remove walls", f"Remove all {len(scene['walls'])} walls and doors from this map?",
+                               parent=self):
+            self._dispatch({"op": "wall_clear"})
+
+    def _wall_menu(self, wall_id: str, event):
+        scene = self.backend.view().get("scene") or {}
+        wall = next((w for w in scene.get("walls") or [] if w["id"] == wall_id), None)
+        if wall is None or self.backend.role != "dm":
+            return
+        menu = tk.Menu(self, tearoff=0)
+        if wall.get("door"):
+            menu.add_command(label="Close door" if wall.get("open") else "Open door",
+                             command=lambda: self._dispatch({"op": "wall_update", "id": wall_id,
+                                                             "fields": {"open": not wall.get("open")}}))
+            menu.add_command(label="Make it a wall", command=lambda: self._dispatch(
+                {"op": "wall_update", "id": wall_id, "fields": {"door": False}}))
+        else:
+            menu.add_command(label="Make it a door", command=lambda: self._dispatch(
+                {"op": "wall_update", "id": wall_id, "fields": {"door": True}}))
+        menu.add_separator()
+        menu.add_command(label="Delete", command=lambda: self._dispatch({"op": "wall_delete", "id": wall_id}))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
     def _delete_scene(self):
         scene = self.backend.view().get("scene")
         if scene and messagebox.askyesno("Delete map", f"Delete '{scene['name']}' with its tokens and drawings? "
@@ -706,7 +775,24 @@ class TabletopView(ctk.CTkFrame):
                              self._players(), title="New token")
         self.wait_window(dialog)
         if dialog.result:
-            self.canvas.start_placing(dialog.result)
+            token = dict(dialog.result)
+            if not token.get("image"):
+                # a token named after a monster gets the monster's picture, if an image pack has one
+                image = self._monster_image(_base_name(token["name"]))
+                if image:
+                    token["image"] = image
+            self.canvas.start_placing(token)
+
+    def _monster_image(self, name: str) -> str:
+        """The token picture (an asset id) for a monster with a picture in the image packs, or ""."""
+        picture = _content_picture("monsters", name)
+        if not picture:
+            return ""
+        try:
+            return self.assets.add_image(picture, token=True)[0]
+        except Exception as e:
+            print(f"Tabletop: the picture of {name} couldn't be used ({e})")
+            return ""
 
     def _place_file(self, path: str, name: str):
         if self._scene_or_warn() is None:
@@ -733,12 +819,9 @@ class TabletopView(ctk.CTkFrame):
         token = {"name": self._unique_name(monster.name), "size": T.TOKEN_SIZES.get(monster.size, 1.0),
                  "hp": monster.hp, "hp_max": monster.hp, "color": T.DEFAULT_COLORS[0],
                  "source": f"monster:{monster.name}"}
-        picture = _content_picture("monsters", monster.name)
-        if picture:
-            try:
-                token["image"] = self.assets.add_image(picture, token=True)[0]
-            except Exception:
-                pass
+        image = self._monster_image(monster.name)
+        if image:
+            token["image"] = image
         self.canvas.start_placing(token)
 
     def _add_character(self):
@@ -943,7 +1026,9 @@ class _Dialog(ctk.CTkToplevel):
 
     def _buttons(self, confirm: str = "OK"):
         row = ctk.CTkFrame(self.body, fg_color="transparent")
-        row.pack(side="bottom", fill="x", pady=(10, 0))
+        first = self.body.pack_slaves()
+        # packed ahead of the rest, so a short window squeezes the fields, never the buttons
+        row.pack(side="bottom", fill="x", pady=(10, 0), **({"before": first[0]} if first else {}))
         add_cancel_save(row, self.theme, self.destroy, self._accept, confirm_text=confirm, outlined=True)
 
     def _accept(self):
@@ -1060,6 +1145,13 @@ class TokenDialog(_Dialog):
         for entry, value in ((self.hp, token.get("hp")), (self.hp_max, token.get("hp_max"))):
             if value is not None:
                 entry.insert(0, str(value))
+        ctk.CTkLabel(hp, text="Sight (ft)", font=ui_font("small", bold=True)).pack(side="left", padx=(14, 0))
+        self.vision = ctk.CTkEntry(hp, width=56, placeholder_text="any")
+        self.vision.pack(side="left", padx=6)
+        if token.get("vision"):
+            self.vision.insert(0, f"{token['vision']:g}")
+        HoverTooltip(self.vision, "How far this token sees with line of sight on (e.g. 60 for darkvision in a dark "
+                                  "dungeon). Leave it empty to see as far as the walls allow.")
 
         ctk.CTkLabel(b, text="Colour", font=ui_font("small", bold=True), anchor="w").pack(fill="x", pady=(10, 0))
         colors = ctk.CTkFrame(b, fg_color="transparent")
@@ -1139,7 +1231,7 @@ class TokenDialog(_Dialog):
             "name": self.name.get().strip() or "Token", "size": T.TOKEN_SIZES[self.size.get()],
             "hp": number(self.hp), "hp_max": number(self.hp_max), "color": self.color, "owner": owner,
             "owner_name": shown_name, "hidden": bool(self.hidden.get()), "show_name": bool(self.show_name.get()),
-            "conditions": conditions,
+            "conditions": conditions, "vision": max(0, number(self.vision) or 0),
         }
         if self.token.get("image"):
             self.result["image"] = self.token["image"]

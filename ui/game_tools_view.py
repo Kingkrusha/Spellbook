@@ -62,8 +62,10 @@ class GameToolsView(ctk.CTkFrame):
                 command=on_home).pack(side="left", padx=(0, 15))
         ctk.CTkLabel(header, text="Game Tools", font=ui_font("title", 28, bold=True)).pack(side="left")
 
-        # the cards wrap onto more rows when the window is narrow
-        self._row = ctk.CTkFrame(outer, fg_color="transparent")
+        # the cards wrap onto more rows when the window is narrow, and scroll when it is short
+        self.scroll = ctk.CTkScrollableFrame(outer, fg_color="transparent")
+        self.scroll.pack(fill="both", expand=True)
+        self._row = ctk.CTkFrame(self.scroll, fg_color="transparent")
         self._row.pack(anchor="n")
         self._cards = []
         for tool in self.TOOLS:
@@ -75,7 +77,8 @@ class GameToolsView(ctk.CTkFrame):
     CARD_SPAN = 330
 
     def _on_resize(self, event):
-        self._layout(max(1, (event.width - 40) // self.CARD_SPAN))
+        # (less the scrollbar's width)
+        self._layout(max(1, (event.width - 60) // self.CARD_SPAN))
 
     def _layout(self, columns: int):
         columns = max(1, min(columns, len(self._cards)))
