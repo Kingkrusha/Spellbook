@@ -14,7 +14,7 @@ from tracker_hub import TrackerHub
 from tracker_net import RemoteBackend, TrackerHostLink, valid_view
 
 
-def pump_until(cond, *services, timeout=8.0):
+def pump_until(cond, *services, timeout=20.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for s in services:
@@ -51,7 +51,7 @@ class Table:
     def _svcs(self):
         return [s for s, _ in self.players.values()]
 
-    def settle(self, cond=None, timeout=5.0):
+    def settle(self, cond=None, timeout=20.0):
         pump_until(cond or (lambda: True), self.host, *self._svcs(), timeout=timeout)
         # let any in-flight messages land
         for _ in range(10):

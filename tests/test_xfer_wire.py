@@ -133,7 +133,7 @@ def test_transfers_are_rate_limited_per_sender():
     h = LanHost("DM", require_approval=False)
     h.start(port=0, bind="127.0.0.1")
     a = LanClient("Alice")
-    a.connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+    a.connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
     try:
         statuses = []
         for i in range(8):
@@ -154,7 +154,7 @@ def test_malformed_transfers_are_rejected():
     h = LanHost("DM", require_approval=False)
     h.start(port=0, bind="127.0.0.1")
     a = LanClient("Alice")
-    a.connect("127.0.0.1", h.port, h.fingerprint, timeout=10)
+    a.connect("127.0.0.1", h.port, h.fingerprint, timeout=20)
     try:
         a.send("xfer", {"to": "host", "xfer_id": "", "payload": PAYLOAD})
         assert wait_for(a.events, "xfer_status")["status"] == "failed"

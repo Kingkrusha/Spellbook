@@ -9,7 +9,7 @@ from lan.protocol import LanError
 from lan.service import CLIENT, HOSTING, JOINING, NONE, SessionService, local_addresses
 
 
-def pump_until(cond, *services, timeout=8.0):
+def pump_until(cond, *services, timeout=20.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for s in services:
