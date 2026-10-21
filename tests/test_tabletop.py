@@ -202,3 +202,101 @@ def test_token_library_imports_folders_and_zips(tmp_path):
     found = T.list_token_files(str(lib))
     assert ("Goblins / Archers", "goblin archer") in [(g, n) for g, n, _ in found]
     assert any(n == "zombie" for _, n, _ in found)
+
+
+# ---- walls and line of sight
+
+def _wall_scene(table, **kw):
+    sid = make_scene(table, **kw)
+    table.apply({"op": "scene_update", "scene": sid, "fields": {"los": True}})
+    # a wall straight down the middle, with a door in it at the bottom
+    table.apply({"op": "wall_add", "scene": sid, "walls": [{"pts": [350, 0, 350, 560]}]})
+    door = table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [350, 560, 350, 700], "door": True}})
+    me = table.apply({"op": "token_add", "scene": sid, "token": {"name": "Me", "x": 105, "y": 105,
+                                                                  "owner": "me", "kind": "pc"}})["token"]
+    orc = table.apply({"op": "token_add", "scene": sid, "token": {"name": "Orc", "x": 595, "y": 105}})["token"]
+    table.apply({"op": "scene_show", "scene": sid})
+    return sid, door["walls"][0], me, orc
+
+
+def test_walls_hide_what_a_players_tokens_cant_see(table):
+    sid, door, me, orc = _wall_scene(table)
+    view = table.view_for("me")["scene"]
+    assert {t["name"] for t in view["tokens"]} == {"Me"}           # the orc is behind the wall
+    assert "walls" not in view and len(view["sight"]) == 1          # the walls themselves stay with the DM
+    assert T.in_sight(view["sight"], 200, 300) and not T.in_sight(view["sight"], 500, 300)
+
+    # opening the door lets the eye through the gap
+    table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"open": True}})
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 105, "y": 630}, actor="me")
+    table.apply({"op": "token_move", "scene": sid, "id": orc, "x": 595, "y": 630})
+    assert {t["name"] for t in table.view_for("me")["scene"]["tokens"]} == {"Me", "Orc"}
+
+    # line of sight off: everything (that isn't hidden) again, and no darkness
+    table.apply({"op": "scene_update", "scene": sid, "fields": {"los": False}})
+    table.apply({"op": "token_move", "scene": sid, "id": orc, "x": 595, "y": 105})
+    view = table.view_for("me")["scene"]
+    assert "sight" not in view and {t["name"] for t in view["tokens"]} == {"Me", "Orc"}
+
+
+def test_sight_range_and_the_partys_eyes(table):
+    sid, _door, me, orc = _wall_scene(table)
+    table.apply({"op": "wall_clear", "scene": sid})
+    table.apply({"op": "token_update", "scene": sid, "id": me, "fields": {"vision": 30}})   # 6 squares of 5 ft
+    sight = table.view_for("me")["scene"]["sight"]
+    assert sight[0]["r"] == pytest.approx(420)
+    assert not T.in_sight(sight, 595, 105)                          # the orc is 7 squares away
+    table.apply({"op": "token_update", "scene": sid, "id": me, "fields": {"vision": None}})
+    assert "Orc" in {t["name"] for t in table.view_for("me")["scene"]["tokens"]}
+    # someone with no token of their own sees what the party sees
+    assert len(table.view_for("someone-else")["scene"]["sight"]) == 1
+
+
+def test_wall_commands_are_dm_only_clean_and_undoable(table):
+    sid = make_scene(table)
+    table.apply({"op": "scene_show", "scene": sid})
+    with pytest.raises(T.CommandError):
+        table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [0, 0, 70, 0]}}, actor="player")
+    with pytest.raises(T.CommandError):
+        table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [5, 5, 5, 5]}})        # no length
+    ids = table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [0, 0, 70, 0], "open": True}})["walls"]
+    wall = table.scene(sid)["walls"][0]
+    assert wall["id"] == ids[0] and wall["door"] is False and wall["open"] is False
+    table.apply({"op": "wall_update", "scene": sid, "id": ids[0], "fields": {"door": True, "open": True}})
+    assert table.scene(sid)["walls"][0]["open"] is True
+    assert table.undo() and table.scene(sid)["walls"][0]["door"] is False
+    table.apply({"op": "wall_delete", "scene": sid, "ids": ids})
+    assert table.scene(sid)["walls"] == []
+    assert table.save() and T.Tabletop(table.path).scene(sid)["los"] is False
+
+
+def test_the_visibility_polygon_matches_a_brute_force_check():
+    import random
+    rng = random.Random(7)
+    scene = T.new_scene("x", width=1400, height=1000)
+    scene["walls"] = [T.clean_wall({"pts": [rng.uniform(0, 1400), rng.uniform(0, 1000),
+                                            rng.uniform(0, 1400), rng.uniform(0, 1000)]}) for _ in range(30)]
+    eye = {"x": 700.5, "y": 500.5}
+    sight = T.sight_for(scene, [eye])
+
+    def crosses(a, b, c, d):
+        def side(p, q, r):
+            return (r[1] - p[1]) * (q[0] - p[0]) - (q[1] - p[1]) * (r[0] - p[0]) > 0
+        return side(a, c, d) != side(b, c, d) and side(a, b, c) != side(a, b, d)
+
+    for _ in range(800):
+        p = (rng.uniform(0, 1400), rng.uniform(0, 1000))
+        blocked = any(crosses((eye["x"], eye["y"]), p, w[:2], w[2:]) for w in T.blocking_walls(scene))
+        assert T.in_sight(sight, *p) == (not blocked)
+
+
+def test_token_pictures_are_cut_square_keeping_a_portraits_top(tmp_path):
+    from PIL import Image
+    store = T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c"))
+    tall = Image.new("RGB", (200, 600), (0, 0, 255))
+    tall.paste((255, 0, 0), (0, 0, 200, 200))                     # a red "head" at the top
+    asset, w, h = store.add_image(tall, token=True)
+    assert (w, h) == (200, 200)
+    with Image.open(store.path(asset)) as im:
+        r, g, b = im.convert("RGB").getpixel((100, 60))
+        assert r > 200 and b < 60

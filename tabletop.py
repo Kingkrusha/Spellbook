@@ -33,6 +33,7 @@ import secrets
 import shutil
 import threading
 import zipfile
+from collections import OrderedDict
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from paths import user_data_path
@@ -49,6 +50,7 @@ MAX_ASSET_BYTES = 12 * 1024 * 1024
 MAX_TOKENS = 400
 MAX_DRAWINGS = 2000
 MAX_FOG_OPS = 600
+MAX_WALLS = 3000
 MAX_POINTS = 600              # points in one freehand line or fog polygon
 MAX_TEXT = 60
 IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
@@ -255,7 +257,7 @@ def new_scene(name: str, map_asset: str = "", width: int = 0, height: int = 0, c
         "grid": {"type": grid if grid in GRID_TYPES else "square", "cell": float(cell), "ox": 0.0, "oy": 0.0,
                  "color": "#000000", "opacity": 0.35, "feet": 5},
         "fog": {"on": False, "ops": []},
-        "tokens": [], "drawings": [],
+        "tokens": [], "drawings": [], "walls": [], "los": False,
         "players_move_all": False, "players_draw": True,
     }
 
@@ -269,13 +271,14 @@ def new_token(name: str, x: float, y: float, *, size: float = 1.0, color: str = 
         "color": _color(color, DEFAULT_COLORS[0]), "image": image if valid_asset_id(image) else "",
         "hp": hp, "hp_max": hp_max, "conditions": [], "owner": owner, "owner_name": _text(owner_name, 32),
         "hidden": bool(hidden), "kind": kind if kind in ("npc", "pc", "prop") else "npc", "show_name": True,
+        "vision": 0.0,
     }
 
 
 TOKEN_FIELDS = {"name", "size", "color", "image", "hp", "hp_max", "conditions", "owner", "owner_name", "hidden",
-                "kind", "show_name", "x", "y", "entry", "source"}
+                "kind", "show_name", "x", "y", "entry", "source", "vision"}
 PRIVATE_TOKEN_FIELDS = ("entry", "source")    # the DM's bookkeeping, never sent to players
-SCENE_FIELDS = {"name", "bg", "players_move_all", "players_draw", "w", "h"}
+SCENE_FIELDS = {"name", "bg", "players_move_all", "players_draw", "w", "h", "los"}
 GRID_FIELDS = {"type", "cell", "ox", "oy", "color", "opacity", "feet"}
 
 
@@ -313,6 +316,8 @@ def _clean_token_fields(fields: dict) -> dict:
             out[k] = v if v in ("npc", "pc", "prop") else "npc"
         elif k in ("x", "y"):
             out[k] = _num(v)
+        elif k == "vision":
+            out[k] = 0.0 if v in (None, "") else _num(v, 0.0, 0.0, 5280.0)
     return out
 
 
@@ -343,9 +348,165 @@ def clean_fog_op(op: dict) -> Optional[dict]:
     return {"mode": op["mode"], "shape": op["shape"], "pts": pts}
 
 
+def clean_wall(w: dict) -> Optional[dict]:
+    """A wall (or door) is one straight segment: ``pts`` = [x0, y0, x1, y1]."""
+    if not isinstance(w, dict):
+        return None
+    pts = _clean_points(w.get("pts"), 2)
+    if len(pts) != 4 or (abs(pts[2] - pts[0]) < 0.5 and abs(pts[3] - pts[1]) < 0.5):
+        return None
+    return {"id": _text(w.get("id"), 16) or new_id(), "pts": [round(p, 1) for p in pts],
+            "door": bool(w.get("door")), "open": bool(w.get("door")) and bool(w.get("open"))}
+
+
 def token_box(token: dict, grid: Grid) -> Tuple[float, float, float]:
     """``(centre x, centre y, radius)`` of a token in map pixels."""
     return token["x"], token["y"], max(4.0, token.get("size", 1.0) * grid.cell / 2.0)
+
+
+# --------------------------------------------------------------------------- #
+# Walls and line of sight
+# --------------------------------------------------------------------------- #
+#
+# With line of sight on, a player sees only what their tokens can see: each token's eye is its centre, and its
+# view is the visibility polygon around it (the area no wall stands in front of), cut to the token's sight range
+# when it has one. Tokens outside every polygon are left out of the player's view, like hidden ones.
+#
+# The polygon comes from casting a ray just either side of every wall end. To stay quick in plain Python, each
+# ray tries the walls nearest the eye first and stops once no further wall could be closer than its hit, and
+# polygons are kept in a small cache keyed on the eye and the walls.
+
+_SIGHT_CACHE: "OrderedDict[tuple, List[float]]" = OrderedDict()
+_SIGHT_CACHE_SIZE = 256
+_EPS = 1e-4
+
+
+def blocking_walls(scene: dict) -> List[Tuple[float, float, float, float]]:
+    """The segments that block sight: every wall, and every door that is closed."""
+    return [tuple(w["pts"]) for w in scene.get("walls") or [] if not (w.get("door") and w.get("open"))]
+
+
+def _seg_distance(ex: float, ey: float, s: Tuple[float, float, float, float]) -> float:
+    x0, y0, x1, y1 = s
+    dx, dy = x1 - x0, y1 - y0
+    length = dx * dx + dy * dy
+    u = 0.0 if length == 0 else max(0.0, min(1.0, ((ex - x0) * dx + (ey - y0) * dy) / length))
+    return math.hypot(x0 + u * dx - ex, y0 + u * dy - ey)
+
+
+def visibility_polygon(ex: float, ey: float, walls: List[Tuple[float, float, float, float]],
+                       box: Tuple[float, float, float, float]) -> List[float]:
+    """The area visible from (ex, ey), as a flat point list, inside ``box`` (x0, y0, x1, y1)."""
+    bx0, by0, bx1, by1 = min(box[0], ex - 1), min(box[1], ey - 1), max(box[2], ex + 1), max(box[3], ey + 1)
+    segs = list(walls)
+    segs += [(bx0, by0, bx1, by0), (bx1, by0, bx1, by1), (bx1, by1, bx0, by1), (bx0, by1, bx0, by0)]
+    order = sorted(((_seg_distance(ex, ey, s), s) for s in segs), key=lambda p: p[0])
+    angles = set()
+    for _d, (x0, y0, x1, y1) in order:
+        for px, py in ((x0, y0), (x1, y1)):
+            if bx0 <= px <= bx1 and by0 <= py <= by1:
+                a = math.atan2(py - ey, px - ex)
+                angles.add(round(a, 6))
+    rays = sorted({a + d for a in angles for d in (-_EPS, _EPS)})
+    far = math.hypot(bx1 - bx0, by1 - by0) * 2
+    out: List[float] = []
+    for a in rays:
+        dx, dy = math.cos(a), math.sin(a)
+        best = far
+        for dist, (x0, y0, x1, y1) in order:
+            if dist >= best:
+                break
+            sx, sy = x1 - x0, y1 - y0
+            denom = dx * sy - dy * sx
+            if -1e-12 < denom < 1e-12:
+                continue
+            ox, oy = x0 - ex, y0 - ey
+            t = (ox * sy - oy * sx) / denom
+            if t <= 1e-6 or t >= best:
+                continue
+            u = (ox * dy - oy * dx) / denom
+            if -1e-9 <= u <= 1 + 1e-9:
+                best = t
+        out.extend((round(ex + dx * best, 1), round(ey + dy * best, 1)))
+    return out
+
+
+def point_in_polygon(x: float, y: float, pts: List[float]) -> bool:
+    inside = False
+    n = len(pts) // 2
+    j = n - 1
+    for i in range(n):
+        xi, yi, xj, yj = pts[2 * i], pts[2 * i + 1], pts[2 * j], pts[2 * j + 1]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def sight_range(token: dict, scene: dict) -> float:
+    """How far a token sees, in map pixels (0 = no limit)."""
+    feet = token.get("vision") or 0
+    g = scene.get("grid") or {}
+    if feet <= 0 or not g.get("feet"):
+        return 0.0
+    return feet / float(g["feet"]) * float(g.get("cell", 70))
+
+
+def eye_sight(scene: dict, token: dict, walls=None) -> dict:
+    """One token's view: ``{"x", "y", "r", "pts"}`` (``r`` 0 = no limit)."""
+    walls = blocking_walls(scene) if walls is None else walls
+    r = sight_range(token, scene)
+    ex, ey = float(token["x"]), float(token["y"])
+    cell = float((scene.get("grid") or {}).get("cell", 70))
+    if r > 0:
+        box = (ex - r - cell, ey - r - cell, ex + r + cell, ey + r + cell)
+        walls = [w for w in walls if _seg_distance(ex, ey, w) <= r]
+    else:
+        box = (-cell, -cell, scene["w"] + cell, scene["h"] + cell)
+    key = (round(ex, 1), round(ey, 1), box, hash(tuple(walls)), len(walls))
+    pts = _SIGHT_CACHE.get(key)
+    if pts is None:
+        pts = visibility_polygon(ex, ey, walls, box)
+        _SIGHT_CACHE[key] = pts
+        while len(_SIGHT_CACHE) > _SIGHT_CACHE_SIZE:
+            _SIGHT_CACHE.popitem(last=False)
+    else:
+        _SIGHT_CACHE.move_to_end(key)
+    return {"x": ex, "y": ey, "r": round(r, 1), "pts": pts}
+
+
+def sight_for(scene: dict, eyes: Iterable[dict]) -> List[dict]:
+    walls = blocking_walls(scene)
+    return [eye_sight(scene, t, walls) for t in eyes]
+
+
+def eyes_for(scene: dict, viewer: str) -> List[dict]:
+    """Whose eyes a player sees through: their own tokens, or (if they have none) the party's."""
+    shown = [t for t in scene["tokens"] if not t.get("hidden")]
+    mine = [t for t in shown if viewer and t.get("owner") == viewer]
+    return mine or [t for t in shown if t.get("kind") == "pc"]
+
+
+def in_sight(sight: List[dict], x: float, y: float) -> bool:
+    for s in sight:
+        if s["r"] and math.hypot(x - s["x"], y - s["y"]) > s["r"]:
+            continue
+        if point_in_polygon(x, y, s["pts"]):
+            return True
+    return False
+
+
+def token_in_sight(sight: List[dict], token: dict, grid: Grid) -> bool:
+    """Whether any part of a token is seen (its centre, or a point near its edge)."""
+    cx, cy, r = token_box(token, grid)
+    if in_sight(sight, cx, cy):
+        return True
+    k = r * 0.85
+    for i in range(8):
+        a = i * math.pi / 4
+        if in_sight(sight, cx + k * math.cos(a), cy + k * math.sin(a)):
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- #
@@ -365,10 +526,18 @@ def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0, turn=()) -
         for t in view["tokens"]:
             t["turn"] = bool(t.get("entry")) and t["entry"] in turn
         return {"rev": rev, "scene": view, "role": "dm"}
-    s = {k: copy.deepcopy(v) for k, v in scene.items() if k not in ("tokens", "drawings", "fog")}
+    s = {k: copy.deepcopy(v) for k, v in scene.items() if k not in ("tokens", "drawings", "fog", "walls")}
     s["tokens"] = []
+    sight = None
+    if scene.get("los"):
+        # the walls themselves stay with the DM (a secret door is a wall too); the player gets what they see
+        sight = sight_for(scene, eyes_for(scene, viewer))
+        s["sight"] = sight
+    grid = Grid.of(scene)
     for t in scene["tokens"]:
         if t.get("hidden"):
+            continue
+        if sight is not None and t.get("owner") != viewer and not token_in_sight(sight, t, grid):
             continue
         t = dict(t)
         t["turn"] = bool(t.get("entry")) and t["entry"] in turn
@@ -601,6 +770,8 @@ class Tabletop:
                 scene[k] = int(_num(v, scene[k], 100, 20000))
             elif k == "fog_on":
                 scene["fog"]["on"] = bool(v)
+            elif k == "los":
+                scene["los"] = bool(v)
         grid = cmd.get("grid") or {}
         g = scene["grid"]
         for k, v in grid.items():
@@ -727,6 +898,45 @@ class Tabletop:
         scene = self._scene_or_fail(cmd)
         scene["drawings"] = []
 
+    # walls and doors
+    def _op_wall_add(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        raw = cmd.get("walls") if isinstance(cmd.get("walls"), list) else [cmd.get("wall")]
+        walls = [w for w in (clean_wall(w) for w in raw[:MAX_WALLS]) if w is not None]
+        if not walls:
+            raise CommandError("That wall couldn't be read.")
+        if len(scene["walls"]) + len(walls) > MAX_WALLS:
+            raise CommandError(f"A map holds at most {MAX_WALLS} walls.")
+        taken = {w["id"] for w in scene["walls"]}
+        for w in walls:
+            if w["id"] in taken:
+                w["id"] = new_id()
+            taken.add(w["id"])
+        scene["walls"].extend(walls)
+        return {"walls": [w["id"] for w in walls]}
+
+    def _op_wall_update(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        wall = next((w for w in scene["walls"] if w["id"] == cmd.get("id")), None)
+        if wall is None:
+            raise CommandError("That wall is gone.")
+        fields = cmd.get("fields") or {}
+        if "door" in fields:
+            wall["door"] = bool(fields["door"])
+        if "open" in fields:
+            wall["open"] = bool(fields["open"])
+        if not wall["door"]:
+            wall["open"] = False
+
+    def _op_wall_delete(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        ids = cmd.get("ids") if isinstance(cmd.get("ids"), list) else [cmd.get("id")]
+        scene["walls"] = [w for w in scene["walls"] if w["id"] not in ids]
+
+    def _op_wall_clear(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        scene["walls"] = []
+
     # fog
     def _op_fog(self, cmd, actor, actor_name):
         scene = self._scene_or_fail(cmd)
@@ -828,6 +1038,8 @@ class AssetStore:
         if image.mode not in ("RGB", "RGBA"):
             image = image.convert("RGBA" if "transparency" in image.info or image.mode in ("LA", "P")
                                   else "RGB")
+        if token:
+            image = square_crop(image)
         data, ext = self._encode(image, TOKEN_MAX_SIDE if token else MAP_MAX_SIDE)
         w, h = image.size
         return self._store(data, ext), w, h
@@ -858,6 +1070,20 @@ class AssetStore:
             return 0, 0
         with Image.open(p) as im:
             return im.size
+
+
+def square_crop(image):
+    """Cut a picture to a square for a round token. A tall picture (a creature's portrait) keeps its top
+    part, where the head usually is; a wide one keeps its middle."""
+    w, h = image.size
+    if w == h or not w or not h:
+        return image
+    side = min(w, h)
+    if h > w:
+        top = int((h - side) * 0.2)
+        return image.crop((0, top, side, top + side))
+    left = (w - side) // 2
+    return image.crop((left, 0, left + side, side))
 
 
 _assets: Optional[AssetStore] = None

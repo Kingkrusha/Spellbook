@@ -236,3 +236,95 @@ def test_tokens_join_initiative_and_the_active_one_glows(window, tk_root, tmp_pa
     pump(tk_root)
     assert tracker.state.entries == [] and not page.canvas.find_withtag("turn")
     link.close()
+
+
+def test_alt_is_read_per_system(monkeypatch):
+    import ui.tabletop_canvas as C
+    monkeypatch.setattr(C.sys, "platform", "win32")
+    assert not C._alt_held(0x0008)                     # Num Lock on Windows: a plain click, not a ping
+    assert C._alt_held(0x20000)
+    monkeypatch.setattr(C.sys, "platform", "linux")
+    assert C._alt_held(0x0008)
+    assert C.token_letter("  goblin boss") == "G" and C.token_letter("") == "?"
+
+
+def test_a_click_with_num_lock_on_still_places_a_token(page, tk_root, monkeypatch):
+    import ui.tabletop_canvas as C
+    monkeypatch.setattr(C.sys, "platform", "win32")
+    sid = with_map(page, tk_root)
+    page.canvas.start_placing({"name": "Bandit"})
+    x, y = page.canvas.to_screen(105, 105)
+    page.canvas._press(type("E", (), {"x": x, "y": y, "state": 0x0008})())
+    pump(tk_root)
+    token = page.table_.scene(sid)["tokens"][0]
+    assert token["name"] == "Bandit" and not token["image"]
+    texts = [page.canvas.itemcget(i, "text") for i in page.canvas.find_withtag(f"t:{token['id']}")
+             if page.canvas.type(i) == "text"]
+    assert "B" in texts                                  # no picture: a coloured circle with its first letter
+
+
+def test_a_monster_token_uses_its_image_pack_picture(page, tk_root, tmp_path, monkeypatch):
+    from PIL import Image
+    import ui.tabletop_view as V
+    pic = tmp_path / "goblin.png"
+    Image.new("RGB", (400, 700), (10, 120, 10)).save(pic)
+    monkeypatch.setattr(V, "_content_picture", lambda kind, name: str(pic) if name == "Goblin" else None)
+    with_map(page, tk_root)
+    placed = []
+    monkeypatch.setattr(page.canvas, "start_placing", placed.append)
+
+    class Dialog:
+        def __init__(self, *a, **k):
+            self.result = {"name": "Goblin 2", "size": 1.0}
+    monkeypatch.setattr(V, "TokenDialog", Dialog)
+    page._add_blank_token()
+    assert placed[0]["image"] and page.assets.size(placed[0]["image"]) == (256, 256)
+
+
+def test_drawing_walls_and_toggling_a_door(page, tk_root):
+    sid = with_map(page, tk_root)
+    c = page.canvas
+    page.set_tool("wall")
+    for mx, my in ((140, 0), (140, 210), (280, 210)):
+        x, y = c.to_screen(mx + 2, my + 2)                 # near a grid corner: snaps onto it
+        c.event_generate("<ButtonPress-1>", x=int(x), y=int(y))
+        c.event_generate("<ButtonRelease-1>", x=int(x), y=int(y))
+    c.event_generate("<Escape>")
+    walls = page.table_.scene(sid)["walls"]
+    assert [w["pts"] for w in walls] == [[140, 0, 140, 210], [140, 210, 280, 210]]
+    pump(tk_root)
+    assert len(c.find_withtag("wall")) == 2
+
+    page.set_tool("door")
+    for mx, my in ((280, 210), (350, 210)):
+        x, y = c.to_screen(mx, my)
+        c.event_generate("<ButtonPress-1>", x=int(x), y=int(y))
+    door = page.table_.scene(sid)["walls"][-1]
+    assert door["door"] and door["pts"] == [280, 210, 350, 210]
+    page._dispatch({"op": "wall_update", "id": door["id"], "fields": {"open": True}})
+    assert page.table_.scene(sid)["walls"][-1]["open"]
+
+    # the DM's preview darkens what the party can't see
+    page._dispatch({"op": "token_add", "token": {"name": "Hero", "x": 35, "y": 35, "kind": "pc"}})
+    page.preview_var.set(True)
+    page._toggle_preview()
+    pump(tk_root)
+    assert page.canvas._fog_cache[0] is not None
+
+    page.set_tool("erase")
+    a, b = c.to_screen(140, 100), c.to_screen(140, 100)
+    c.event_generate("<ButtonPress-1>", x=int(a[0]), y=int(a[1]))
+    c.event_generate("<ButtonRelease-1>", x=int(b[0]), y=int(b[1]))
+    assert len(page.table_.scene(sid)["walls"]) == 2
+
+
+def test_the_game_tools_page_scrolls(window, tk_root):
+    from ui.game_tools_view import GameToolsView
+    window.geometry("700x400")
+    view = GameToolsView(window, on_open=lambda k: None)
+    view.pack(fill="both", expand=True)
+    pump(tk_root, 10)
+    canvas = view.scroll._parent_canvas
+    top, bottom = canvas.yview()
+    assert bottom < 1.0                                  # the cards run past the window: there's more to scroll to
+    view.destroy()
