@@ -10,19 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import queue
-import sys
 import threading
 from concurrent.futures import Future
 from typing import Any, Awaitable, Dict, List, Optional
-
-
-def new_loop() -> asyncio.AbstractEventLoop:
-    """An event loop for the network thread. On Windows this is the selector loop: TLS on the default
-    (proactor) loop now and then stalls right after the handshake, which left a join hanging until it
-    timed out. Spellbook only needs sockets, which the selector loop handles fine."""
-    if sys.platform == "win32":
-        return asyncio.SelectorEventLoop()
-    return asyncio.new_event_loop()
 
 
 class EventQueue:
@@ -83,7 +73,7 @@ class LoopThread:
 
     def start(self) -> None:
         def run():
-            loop = new_loop()
+            loop = asyncio.new_event_loop()
             loop.set_exception_handler(_quiet_exception_handler)
             asyncio.set_event_loop(loop)
             self._loop = loop
