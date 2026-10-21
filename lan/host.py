@@ -14,6 +14,8 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``dm`` - ``from, name, to, text, ts`` (only DMs sent to or by the host)
 * ``approval_request`` - ``request_id, name, address``; answer with :meth:`resolve_approval`
 * ``tracker_cmd`` - a player's initiative-tracker command: ``peer_id, name, cmd, seq``
+* ``table_cmd`` - a player's tabletop command (move a token, draw, ping): ``peer_id, name, cmd, seq``
+* ``table_asset_req`` - a player is missing tabletop pictures: ``peer_id, ids``
 * ``xfer`` - something sent to the host: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_reply`` - the recipient answered a transfer: ``from, name, xfer_id, status, detail``
 """
@@ -126,6 +128,8 @@ class LanHost:
         self.register_handler("dm", self._on_dm)
         self.register_handler("xfer", self._on_xfer)
         self.register_handler("tracker_cmd", self._on_tracker_cmd)
+        self.register_handler("table_cmd", self._on_table_cmd)
+        self.register_handler("table_asset_req", self._on_table_asset_req)
         self.register_handler("xfer_reply", self._on_xfer_reply)
 
     # ------------------------------------------------------------------ lifecycle
@@ -494,6 +498,25 @@ class LanHost:
         seq = body.get("seq")
         self._emit("tracker_cmd", peer_id=peer.peer_id, name=peer.name, cmd=cmd,
                    seq=seq if isinstance(seq, int) else None)
+
+    # ------------------------------------------------------------------ tabletop
+
+    async def _on_table_cmd(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        cmd = body.get("cmd")
+        seq = body.get("seq")
+        seq = seq if isinstance(seq, int) else None
+        if not isinstance(cmd, dict) or len(json.dumps(cmd, separators=(",", ":"))) > 32768:
+            await peer.send({"type": "table_error", "from": HOST_ID, "ts": time.time(),
+                             "body": {"message": "That was not a valid tabletop command.", "seq": seq}})
+            return
+        self._emit("table_cmd", peer_id=peer.peer_id, name=peer.name, cmd=cmd, seq=seq)
+
+    async def _on_table_asset_req(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        ids = body.get("ids")
+        if isinstance(ids, list):
+            ids = [i for i in ids if isinstance(i, str) and len(i) <= 40][:50]
+            if ids:
+                self._emit("table_asset_req", peer_id=peer.peer_id, ids=ids)
 
     # ------------------------------------------------------------------ transfers
 

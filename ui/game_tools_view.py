@@ -33,6 +33,9 @@ class GameToolsView(ctk.CTkFrame):
         ("pdf_library", "📚 PDF Library",
          "Search the text of all your PDFs at once and jump to the page. Pull an entry's text from a page "
          "into a collection's importer.", True),
+        ("tabletop", "🗺️ Tabletop",
+         "Battle maps with square or hex grids: tokens with condition rings, drawing, a ruler and fog of war. "
+         "In a session, players see the map you show and move their own tokens.", True),
         ("studio", "🛠️ Homebrew Studio",
          "Write your own spells, items, monsters, classes and more with the rest of the collection beside you: "
          "it points out content that already does the same thing and checks a monster against its CR.", True),

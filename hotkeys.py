@@ -104,6 +104,7 @@ ACTIONS: List[Action] = [
     Action("page.random_tables", "Random Tables", "Pages", ""),
     Action("page.calendar", "Calendar", "Pages", ""),
     Action("page.pdf_library", "PDF Library", "Pages", ""),
+    Action("page.tabletop", "Tabletop", "Pages", ""),
     Action("page.settings", "Settings", "Pages", "Ctrl+,"),
     # This page
     Action("view.refresh", "Refresh page", "This page", "F5"),

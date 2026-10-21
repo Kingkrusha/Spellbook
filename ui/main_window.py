@@ -300,6 +300,15 @@ class MainWindow(ctk.CTkFrame):
             pass
 
         try:
+            import tabletop
+            if self._table_link is not None:
+                self._table_link.close()
+            if tabletop._tabletop is not None:      # players' moves made while the page was closed
+                tabletop._tabletop.save()
+        except Exception:
+            pass
+
+        try:
             if hasattr(self, '_theme'):
                 self._theme.remove_listener(self._on_theme_changed)
         except Exception:
@@ -335,7 +344,20 @@ class MainWindow(ctk.CTkFrame):
             from tracker_net import RemoteBackend
             self._remote_tracker = RemoteBackend(self.session)
             self._remote_was_started = False
-        elif role != CLIENT and self._remote_tracker is not None:
+        # the tabletop follows the session the same way
+        if role == HOSTING and self._table_link is None:
+            from tabletop_net import TableHostLink
+            self._table_link = TableHostLink(self.session, schedule=lambda ms, fn: self.after(ms, fn))
+        elif role != HOSTING and self._table_link is not None:
+            self._table_link.close()
+            self._table_link = None
+        if role == CLIENT and self._remote_table is None:
+            from tabletop_net import RemoteTable
+            self._remote_table = RemoteTable(self.session)
+        elif role != CLIENT and self._remote_table is not None:
+            self._remote_table.close()
+            self._remote_table = None
+        if role != CLIENT and self._remote_tracker is not None:
             window = self._tracker_windows.get("remote")
             if window is not None and window.winfo_exists():
                 window.close()
@@ -396,6 +418,9 @@ class MainWindow(ctk.CTkFrame):
         self._tracker_windows = {}
         self._tracker_link = None           # while hosting: sends each player their view
         self._remote_tracker = None         # while a player: the host's view, as a backend
+        self._table_link = None             # while hosting: sends each player their view of the shown map
+        self._remote_table = None           # while a player: the map the DM shows
+        self._initiative_link = None        # tabletop tokens <-> initiative tracker entries (the DM's)
         self._remote_was_started = False
         from lan.service import SessionService
         from version import __version__
@@ -437,6 +462,13 @@ class MainWindow(ctk.CTkFrame):
             self._sync_tracker_links()
         elif kind == 'tracker_state':
             self._maybe_open_tracker_for_player(data.get('view') or {})
+        elif kind == 'table_state':
+            scene = (data.get('view') or {}).get('scene') or {}
+            shown = scene.get('id')
+            if shown and shown != getattr(self, '_table_last_note', None):
+                self._table_last_note = shown
+                self.session.note(f"The DM is showing the map '{str(scene.get('name', ''))[:60]}'. "
+                                  "Open it in Game Tools > Tabletop.")
         elif kind == 'approval_request':
             from ui.session_widgets import ApprovalDialog
             request_id = data['request_id']
@@ -552,6 +584,7 @@ class MainWindow(ctk.CTkFrame):
             "random_tables": "Random Tables",
             "calendar": "Calendar",
             "pdf_library": "PDF Library",
+            "tabletop": "Tabletop",
             "studio": "Homebrew Studio",
         }.get(page_type, "Spellbook")
 
@@ -607,7 +640,8 @@ class MainWindow(ctk.CTkFrame):
         if page == "studio":
             page = "game_tools"       # the Studio is heavy to build: a restored tab opens on the tool list instead
         if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
-                    "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library"):
+                    "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library",
+                    "tabletop"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -763,9 +797,57 @@ class MainWindow(ctk.CTkFrame):
             state = self._tab_views[tab_id].setdefault('pdf_state', {}) if tab_id in self._tab_views else {}
             return PdfLibraryView(self, state, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
                                   on_import_text=self.import_text_into)
+        if page_type == "tabletop":
+            from ui.tabletop_view import TabletopView
+            state = self._tab_views[tab_id].setdefault('tabletop_state', {}) if tab_id in self._tab_views else {}
+            from lan.service import CLIENT
+            if self.session.role != CLIENT:
+                self._tabletop_initiative()         # catch the tokens up with the tracker
+            return TabletopView(self, state, service=self.session, remote_backend=lambda: self._remote_table,
+                                on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
+                                characters=self._tabletop_characters, initiative=self._tabletop_initiative)
         if page_type == "studio":
             return self._build_studio(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
+
+    def _tabletop_initiative(self):
+        """The link between tabletop tokens and the initiative tracker, made the first time it's needed."""
+        if self._initiative_link is None:
+            import tabletop
+            from tabletop_initiative import InitiativeLink
+            self._initiative_link = InitiativeLink(tabletop.get_tabletop(), self.tracker_hub.tracker,
+                                                   lookup=self._initiative_entry_for_token)
+        return self._initiative_link
+
+    def _initiative_entry_for_token(self, token: dict):
+        """The tracker entry (AC, initiative bonus...) for a token made from a monster or a character."""
+        import initiative_sources as S
+        kind, _, name = (token.get("source") or "").partition(":")
+        if kind == "monster":
+            from monster import get_monster_manager
+            monster = get_monster_manager().get_monster(name)
+            return S.from_monster(monster) if monster is not None else None
+        if kind == "character":
+            from ui.character_sheet_view import get_sheet_manager
+            sheet = get_sheet_manager().get_sheet(name)
+            return S.from_sheet(sheet, owner=token.get("owner", "")) if sheet is not None else None
+        return None
+
+    def _tabletop_characters(self):
+        """``[{name, portrait, hp, hp_max}]`` for the Tabletop's "Character…" button."""
+        import portraits
+        from ui.character_sheet_view import get_sheet_manager
+        out = []
+        for c in self.character_manager.characters:
+            sheet = get_sheet_manager().get_sheet(c.name)
+            entry = {"name": c.name, "portrait": None, "hp": None, "hp_max": None,
+                     "player": getattr(c, "player_name", "") or ""}
+            if sheet is not None:
+                entry["hp"], entry["hp_max"] = sheet.hit_points.current, sheet.hit_points.maximum
+                if getattr(sheet, "portrait", None):
+                    entry["portrait"] = portraits.portrait_path(sheet.portrait)
+            out.append(entry)
+        return out
 
     def _analysis_tools(self):
         """What the Dice Analyzer and Matchup pages need: a character loader and the lookups for the things a sheet
@@ -1008,7 +1090,7 @@ class MainWindow(ctk.CTkFrame):
                 self._navigate_tab(tab_id, "initiative")
         elif key == "dice_analyzer":
             self._navigate_tab(tab_id, "dice_analyzer")
-        elif key in ("matchup", "random_tables", "calendar", "pdf_library"):
+        elif key in ("matchup", "random_tables", "calendar", "pdf_library", "tabletop"):
             self._navigate_tab(tab_id, key)
         elif key == "studio":
             self._navigate_tab(tab_id, "studio")

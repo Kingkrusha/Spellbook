@@ -8,6 +8,10 @@ worker thread, not the UI thread. After that everything arrives on :attr:`events
 * ``roll`` - ``seq, from, name, expr, detail, total, label, crit, private, ts``
 * ``tracker_state`` - the initiative tracker as this player may see it: ``view``
 * ``tracker_error`` - the host refused a tracker command: ``message, seq``
+* ``table_state`` - the tabletop scene as this player may see it: ``view``
+* ``table_asset`` - one part of a tabletop picture: ``id, part, parts, data`` (base64)
+* ``table_error`` - the host refused a tabletop command: ``message, seq``
+* ``table_ping`` - someone pointed at the map: ``ping``
 * ``xfer`` - characters/homebrew sent to us: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_status`` - the host's receipt for something we sent: ``xfer_id, status, detail``
 * ``xfer_reply`` - the recipient's answer: ``from, name, xfer_id, status, detail``
@@ -254,6 +258,20 @@ class LanClient:
             view = body.get("view")
             if isinstance(view, dict):
                 self.events.put("tracker_state", view=view)
+        elif kind == "table_state":
+            view = body.get("view")
+            if isinstance(view, dict):
+                self.events.put("table_state", view=view)
+        elif kind == "table_asset":
+            data = body.get("data")
+            if isinstance(data, str) and isinstance(body.get("id"), str):
+                self.events.put("table_asset", id=body["id"][:40], part=body.get("part"), parts=body.get("parts"),
+                                data=data)
+        elif kind == "table_error":
+            self.events.put("table_error", message=P.clean_text(body.get("message"), 200),
+                            seq=body.get("seq") if isinstance(body.get("seq"), int) else None)
+        elif kind == "table_ping":
+            self.events.put("table_ping", ping=body.get("ping") if isinstance(body.get("ping"), dict) else {})
         elif kind == "tracker_error":
             self.events.put("tracker_error", message=P.clean_text(body.get("message"), 200),
                             seq=body.get("seq") if isinstance(body.get("seq"), int) else None)

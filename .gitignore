@@ -41,3 +41,8 @@ font_settings.json
 custom_themes.json
 portraits/
 crash.log
+calendars.json
+/images/
+/PDFs/
+pdf_index.db
+/tabletop/
