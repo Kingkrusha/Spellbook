@@ -54,7 +54,31 @@ def tk_root():
     else:
         root.withdraw()
     yield root
+    import gc
+    gc.collect()                    # finalise this module's Tk objects here, on the main thread
     try:
         root.destroy()
     except Exception:
         pass
+    gc.collect()
+
+
+def _uses_lan(module) -> bool:
+    for value in vars(module).values():
+        name = getattr(value, "__module__", None) or getattr(value, "__name__", "") or ""
+        if isinstance(name, str) and (name == "lan" or name.startswith("lan.")):
+            return True
+    return False
+
+
+@pytest.fixture(autouse=True)
+def _no_tk_garbage_in_network_threads(request):
+    """Tk objects left over from UI tests (fonts, variables) sit in reference cycles until the garbage
+    collector runs, and it runs in whichever thread happens to allocate. When that is a LAN network
+    thread, the object's ``__del__`` calls into Tcl from the wrong thread and blocks waiting for a Tk
+    main loop the tests never run, freezing that connection (a join that never finishes). Collecting
+    on the main thread before each networking test clears them out first."""
+    if request.module is not None and _uses_lan(request.module):
+        import gc
+        gc.collect()
+    yield
