@@ -790,13 +790,21 @@ def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0, turn=()) -
                     t["state"] = "bloodied"
             t["hp"] = t["hp_max"] = None
             t["mine"] = False
+            t["owner"] = ""                    # (another player's install id stays with the DM)
         else:
             t["mine"] = True
         s["tokens"].append(t)
-    s["drawings"] = [dict(d) for d in scene["drawings"] if not d.get("private")]
-    s["areas"] = [dict(a, mine=a.get("author") == viewer) for a in scene.get("areas") or []]
+    # who drew what stays with the DM too: a player learns only which ones are theirs
+    s["drawings"] = [_mine(d, viewer) for d in scene["drawings"] if not d.get("private")]
+    s["areas"] = [_mine(a, viewer) for a in scene.get("areas") or []]
     s["fog"] = {"on": scene["fog"]["on"], "ops": copy.deepcopy(scene["fog"]["ops"])}
     return {"rev": rev, "scene": s, "role": "player"}
+
+
+def _mine(item: dict, viewer: str) -> dict:
+    out = {k: v for k, v in item.items() if k != "author"}
+    out["mine"] = item.get("author") == viewer
+    return out
 
 
 # --------------------------------------------------------------------------- #

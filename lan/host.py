@@ -355,6 +355,8 @@ class LanHost:
         if channel.web:
             # a browser picks its own id: kept apart from app installs' so it can never pass for one
             client_id = "web:" + "".join(ch for ch in client_id if ch.isalnum())[:32]
+        elif client_id.startswith("web:"):
+            client_id = secrets.token_hex(8)        # (nor can an app pass for a browser)
         address = channel.address
 
         if self.require_approval:

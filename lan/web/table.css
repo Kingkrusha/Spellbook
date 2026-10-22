@@ -131,7 +131,149 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   z-index: 50;
 }
 
+/* ---- the map and its tools */
+.map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+.side-toggle { display: none; padding: 4px 10px; }
+
+.tools {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  bottom: 10px;
+  width: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  pointer-events: none;
+}
+.tools > * { pointer-events: auto; }
+.tool-group { display: flex; flex-direction: column; gap: 4px; }
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #22222aee;
+  font-size: 14px;
+  text-align: left;
+}
+.tool span { font-size: 13px; }
+.tool.on { background: var(--accent-2); border-color: var(--accent); }
+.no-drawing .draw-tool { opacity: .45; }
+.tool-options {
+  background: #22222aee;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 6px;
+  display: grid;
+  gap: 8px;
+}
+.tool-options select {
+  width: 100%;
+  padding: 5px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.swatches { display: grid; grid-template-columns: repeat(3, 22px); gap: 5px; justify-content: center; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #ffffff33;
+}
+.swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.width { font-size: 12px; color: var(--muted); display: grid; gap: 2px; }
+.width input { width: 100%; }
+
+.selection {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  background: #22222af2;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 6px 24px #0008;
+}
+.selection strong { font-size: 14px; margin-right: 4px; }
+.sel-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.sel-actions button { padding: 6px 10px; font-size: 13px; }
+.sel-actions .danger { border-color: #8b4040; background: #5a2626; }
+
+.zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.zoom button { width: 38px; height: 38px; padding: 0; font-size: 18px; background: #22222aee; }
+.map-status {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 220px);
+  background: #000b;
+  border: 1px solid var(--line);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
 @media (max-width: 720px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; grid-template-areas: "bar" "stage" "side"; }
-  .side { border-left: 0; border-top: 1px solid var(--line); max-height: 34vh; }
+  .app { grid-template-columns: 1fr; grid-template-areas: "bar" "stage"; }
+  .side-toggle { display: inline-block; }
+  .side {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 86vw);
+    z-index: 40;
+    border-left: 1px solid var(--line);
+    transform: translateX(100%);
+    transition: transform .18s ease;
+  }
+  .side.open { transform: none; box-shadow: -10px 0 30px #000a; }
+  /* the tools run along the bottom on a phone */
+  .tools {
+    top: auto;
+    right: 56px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    flex-direction: column-reverse;
+    overflow: visible;
+  }
+  .tool-group { flex-direction: row; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .tool { flex: none; flex-direction: column; gap: 0; padding: 5px 7px; min-width: 50px; font-size: 18px; text-align: center; }
+  .tool span { font-size: 10px; }
+  .tool-options { display: flex; align-items: center; gap: 10px; padding: 6px 8px; align-self: flex-start; max-width: 100%; overflow-x: auto; }
+  .tool-options select { width: auto; }
+  .swatches { display: flex; }
+  .width { display: flex; align-items: center; gap: 6px; }
+  .width input { width: 90px; }
+  .selection { bottom: auto; top: 8px; left: 8px; right: 8px; transform: none; max-width: none; flex-wrap: nowrap; padding: 6px 8px; }
+  .selection strong { flex: none; max-width: 32%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sel-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .sel-actions button { flex: none; white-space: nowrap; }
+  .map-status { top: auto; bottom: 120px; max-width: calc(100% - 24px); }
+  .zoom { bottom: 8px; right: 8px; }
+  .zoom button { width: 40px; height: 40px; }
 }

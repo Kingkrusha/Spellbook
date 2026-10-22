@@ -35,13 +35,54 @@
     <span id="conn" class="conn" title="Connected"></span>
     <strong id="scene-name">Spellbook</strong>
     <span id="who" class="muted"></span>
+    <button id="side-toggle" class="side-toggle" type="button" aria-controls="side" aria-expanded="false">☰</button>
   </header>
+
   <section id="stage" class="stage">
+    <canvas id="map" class="map" tabindex="0" aria-label="The map"></canvas>
+
     <div id="waiting" class="waiting">
       <p id="waiting-title">You're in.</p>
       <p id="waiting-text" class="muted">The tabletop opens here when the DM shows a map.</p>
     </div>
+
+    <!-- the tools -->
+    <nav id="tools" class="tools" aria-label="Tools" hidden>
+      <div class="tool-group" role="radiogroup" aria-label="Tool">
+        <button class="tool" data-tool="select" title="Move your tokens; drag empty space to pan. Alt-click pings.">✋<span>Move</span></button>
+        <button class="tool" data-tool="ping" title="Point at a spot for everyone.">📍<span>Ping</span></button>
+        <button class="tool" data-tool="measure" title="Drag to measure a distance.">📐<span>Ruler</span></button>
+        <button class="tool draw-tool" data-tool="free" title="Draw freehand.">✏️<span>Draw</span></button>
+        <button class="tool draw-tool" data-tool="line" title="A straight line (it snaps level or upright when close).">╱<span>Line</span></button>
+        <button class="tool draw-tool" data-tool="rect" title="A box. Shift makes a square; Ctrl draws out from the middle.">▭<span>Box</span></button>
+        <button class="tool draw-tool" data-tool="ellipse" title="A circle or oval. Shift makes a circle; Ctrl draws out from the middle.">◯<span>Circle</span></button>
+        <button class="tool" data-tool="erase" title="Tap or drag over your drawings and areas to remove them.">🧽<span>Erase</span></button>
+        <button class="tool" data-tool="area" title="Drag out a spell's area. Start on a token to cast it from that creature.">💥<span>Area</span></button>
+      </div>
+      <div id="pen" class="tool-options">
+        <div class="swatches" id="pen-colors" aria-label="Pen colour"></div>
+        <label class="width">Width <input id="pen-width" type="range" min="1" max="20" value="4"></label>
+      </div>
+      <div id="area-options" class="tool-options" hidden>
+        <select id="area-shape" aria-label="Area shape"></select>
+        <div class="swatches" id="area-colors" aria-label="Area colour"></div>
+      </div>
+    </nav>
+
+    <!-- what is selected: one of your tokens, or one of your areas -->
+    <div id="selection" class="selection" hidden>
+      <strong id="sel-title"></strong>
+      <div id="sel-actions" class="sel-actions"></div>
+    </div>
+
+    <div class="zoom" id="zoom" hidden>
+      <button type="button" data-zoom="in" title="Zoom in">＋</button>
+      <button type="button" data-zoom="out" title="Zoom out">－</button>
+      <button type="button" data-zoom="fit" title="Fit the map">⤢</button>
+    </div>
+    <div id="status" class="map-status" role="status" aria-live="polite" hidden></div>
   </section>
+
   <aside id="side" class="side">
     <h2>At the table</h2>
     <ul id="people" class="people"></ul>
@@ -50,6 +91,8 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+<script src="geometry.js"></script>
 <script src="table.js"></script>
+<script src="tabletop.js"></script>
 </body>
 </html>

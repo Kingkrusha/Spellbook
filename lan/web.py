@@ -44,6 +44,8 @@ FILES = {
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/table.css": ("table.css", "text/css; charset=utf-8"),
     "/table.js": ("table.js", "text/javascript; charset=utf-8"),
+    "/geometry.js": ("geometry.js", "text/javascript; charset=utf-8"),
+    "/tabletop.js": ("tabletop.js", "text/javascript; charset=utf-8"),
 }
 
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")

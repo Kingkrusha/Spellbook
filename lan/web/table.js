@@ -220,6 +220,20 @@
     }
   }
 
+  // the side panel slides in over the map on a phone
+  $("side-toggle").addEventListener("click", () => {
+    const open = !$("side").classList.contains("open");
+    $("side").classList.toggle("open", open);
+    $("side-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("pointerdown", (ev) => {
+    const side = $("side");
+    if (side.classList.contains("open") && !side.contains(ev.target) && ev.target !== $("side-toggle")) {
+      side.classList.remove("open");
+      $("side-toggle").setAttribute("aria-expanded", "false");
+    }
+  });
+
   $("join-name").value = stored("name", "");
   $("join-form").addEventListener("submit", (ev) => {
     ev.preventDefault();
