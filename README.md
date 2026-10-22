@@ -49,11 +49,12 @@ Look things up, search them, and add your own.
 - **Themes**: Dark and light modes, 23 colour themes, and a Theme Studio to make your own
 - **Fonts**: Pick the font for titles, headings and text across the whole app
 - **Settings**: Choose what loads at start-up, which warnings to see, how legacy content is shown and more
+- **Backup and transfer**: Settings > Backup and Transfer saves your settings and everything you made or changed (homebrew, characters, random tables, calendars, Studio drafts, pictures, tabletop maps, tokens and PDFs) in one file, with a tick box for each. Import that file on another computer, or after reinstalling, and choose what to bring in and whether it replaces what's already there
 - **Keyboard shortcuts**: Ctrl+T / Ctrl+W open and close tabs, Ctrl+Tab and Ctrl+1 to 9 switch tabs, Ctrl+K searches everything, Ctrl+F searches the page you're on, F5 refreshes it, Ctrl+B and Ctrl+I make text bold or italic in description editors, Ctrl+Shift+D switches light and dark mode, and more. Change any of them, or give a key to actions such as opening a collection, in Settings > Keyboard Shortcuts. On a Mac, Ctrl is the Command key
 
 ## Getting started
 
-**Windows and macOS**: download the latest build from the [Releases page](https://github.com/Kingkrusha/Spellbook/releases) and run it. Your characters, homebrew and settings are saved next to the app (on macOS, in `~/Library/Application Support/Spellbook/`), so back that folder up if you want to keep them safe.
+**Windows and macOS**: download the latest build from the [Releases page](https://github.com/Kingkrusha/Spellbook/releases) and run it. Your characters, homebrew and settings are saved next to the app (on macOS, in `~/Library/Application Support/Spellbook/`), so back that folder up if you want to keep them safe, or use Settings > Backup and Transfer to save it all in one file.
 
 On macOS the app isn't notarized (that needs a paid Apple account), so the first time, right-click `Spellbook.app`, choose **Open**, then **Open** again. After that it opens normally.
 

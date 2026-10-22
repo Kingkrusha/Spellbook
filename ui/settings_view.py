@@ -227,6 +227,7 @@ class SettingsView(ctk.CTkFrame):
             self._build_object_linking_section,
             self._build_hotkeys_section,
             self._build_pictures_section,
+            self._build_backup_section,
             self._build_about_section,
         ]
         self.after(10, self._build_next_section)
@@ -1017,6 +1018,17 @@ class SettingsView(ctk.CTkFrame):
         frame.pack(fill="x", pady=(0, 20))
         self._pictures_panel = ImagePacksPanel(frame, self.settings_manager)
         self._pictures_panel.pack(fill="x", padx=20, pady=15)
+
+    def _build_backup_section(self):
+        """Build the Backup section: export everything to one file, or import one (ui/backup_dialogs.py)."""
+        from ui.backup_dialogs import BackupPanel
+        self._create_section(self.container, "Backup and Transfer")
+        frame = ctk.CTkFrame(self.container, corner_radius=10,
+                             fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(frame)
+        frame.pack(fill="x", pady=(0, 20))
+        self._backup_panel = BackupPanel(frame)
+        self._backup_panel.pack(fill="x", padx=20, pady=15)
 
     def _build_about_section(self):
         """Build the About section (built after the window is up: see _build_remaining)."""
