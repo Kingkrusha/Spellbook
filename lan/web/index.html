@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16161b">
+<title>Spellbook Tabletop</title>
+<link rel="stylesheet" href="table.css">
+</head>
+<body>
+
+<!-- Joining: name (and the session password, when there is one), then the DM's approval -->
+<section id="join" class="join">
+  <div class="card">
+    <h1>Spellbook Tabletop</h1>
+    <p id="join-host" class="muted">Looking for the session…</p>
+    <form id="join-form" autocomplete="on">
+      <label for="join-name">Your name</label>
+      <input id="join-name" name="name" maxlength="32" required autocomplete="nickname"
+             placeholder="What the table calls you">
+      <div id="join-pw-row" hidden>
+        <label for="join-pw">Session password</label>
+        <input id="join-pw" name="password" type="password" autocomplete="off">
+      </div>
+      <button id="join-btn" type="submit">Join the table</button>
+    </form>
+    <p id="join-status" class="status" role="status" aria-live="polite"></p>
+  </div>
+</section>
+
+<!-- In the session -->
+<main id="app" class="app" hidden>
+  <header class="bar">
+    <span id="conn" class="conn" title="Connected"></span>
+    <strong id="scene-name">Spellbook</strong>
+    <span id="who" class="muted"></span>
+  </header>
+  <section id="stage" class="stage">
+    <div id="waiting" class="waiting">
+      <p id="waiting-title">You're in.</p>
+      <p id="waiting-text" class="muted">The tabletop opens here when the DM shows a map.</p>
+    </div>
+  </section>
+  <aside id="side" class="side">
+    <h2>At the table</h2>
+    <ul id="people" class="people"></ul>
+  </aside>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="table.js"></script>
+</body>
+</html>

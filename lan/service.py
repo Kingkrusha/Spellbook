@@ -221,6 +221,11 @@ class SessionService:
         self._remember(lan_player_name=name, lan_port=port, lan_require_approval=require_approval,
                        lan_discovery=bool(discoverable))
         self._add_line("system", "Session started. Share an invite with your players.")
+        if self.saved("lan_web", False):
+            try:
+                self.start_web()
+            except LanError as e:
+                self._add_line("system", e.message)
         self._wake()
         self._notify("state")
         return self.port
@@ -231,6 +236,43 @@ class SessionService:
             return []
         return [(ip, self._host.invite(ip).encode()) for ip in local_addresses()] or \
                [("this computer", self._host.invite("<your IP address>").encode())]
+
+    # ---- browser players (lan/web.py)
+
+    @property
+    def web_port(self) -> int:
+        """The port browsers join on (0 = browsers can't join)."""
+        return self._host.web_port if self._host is not None else 0
+
+    def start_web(self, port: Optional[int] = None) -> int:
+        """Host: let browsers on the local network join. Raises :class:`LanError` (e.g. the port is taken)."""
+        from lan.web import DEFAULT_WEB_PORT
+        if self._host is None:
+            raise LanError("web", "Start a session first.")
+        if port is None:
+            port = int(self.saved("lan_web_port", DEFAULT_WEB_PORT) or DEFAULT_WEB_PORT)
+        port = self._host.start_web(port)
+        self._remember(lan_web=True, lan_web_port=port)
+        self._add_line("system", "Browsers can join: " + ", ".join(self.web_addresses()[:2]))
+        self._notify("state")
+        return port
+
+    def stop_web(self) -> None:
+        if self._host is not None and self._host.web_port:
+            self._host.stop_web()
+            self._remember(lan_web=False)
+            self._add_line("system", "Browsers can no longer join (the ones already here stay).")
+            self._notify("state")
+
+    def web_addresses(self) -> List[str]:
+        """``http://address:port`` for every address players might reach this machine on."""
+        port = self.web_port
+        if not port:
+            return []
+        return [f"http://{ip}:{port}" for ip in local_addresses()] or [f"http://localhost:{port}"]
+
+    def is_web_peer(self, peer_id: str) -> bool:
+        return any(p.get("web") for p in self.peers if p["peer_id"] == peer_id)
 
     def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.") -> None:
         if self._host is not None:
@@ -300,6 +342,8 @@ class SessionService:
         id, or None if we aren't in a session or that player isn't here."""
         if not self.in_session or peer_id == self.my_id or not self.peer_name(peer_id):
             return None
+        if self.is_web_peer(peer_id):
+            return None                       # a browser has nowhere to keep characters or homebrew
         xfer_id = secrets.token_hex(8)
         title = P.clean_text(title, P.MAX_TITLE) or "something"
         to_name = self.peer_name(peer_id)
@@ -315,7 +359,7 @@ class SessionService:
         """Send the same payload to everyone else in the session. Returns how many it went to."""
         count = 0
         for p in list(self.peers):
-            if p["peer_id"] != self.my_id and self.send_transfer(p["peer_id"], payload, title):
+            if p["peer_id"] != self.my_id and not p.get("web") and self.send_transfer(p["peer_id"], payload, title):
                 count += 1
         return count
 
@@ -547,7 +591,8 @@ class SessionService:
             self._add_line("system", f"{ev['peer']['name']} left{why}.")
             self._notify("state")
         elif kind == "approval_request":
-            self._notify("approval_request", request_id=ev["request_id"], name=ev["name"], address=ev["address"])
+            self._notify("approval_request", request_id=ev["request_id"], name=ev["name"], address=ev["address"],
+                         web=bool(ev.get("web")))
         elif kind == "error":
             self._add_line("system", ev.get("message") or "Something went wrong.")
         elif kind == "disconnected":

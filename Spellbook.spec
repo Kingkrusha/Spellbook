@@ -16,7 +16,7 @@ _optional_content = [
 # makes the per-session TLS certificate (lan/security.py).
 _LAN_IMPORTS = [
     'lan', 'lan.protocol', 'lan.security', 'lan.runtime', 'lan.host', 'lan.client', 'lan.service',
-    'lan.discovery', 'lan.dice', 'transfer', 'character_io',
+    'lan.discovery', 'lan.dice', 'lan.web', 'lan.qr', 'transfer', 'character_io',
     'ui.session_view', 'ui.session_widgets', 'ui.chat_overlay', 'ui.chat_input', 'ui.chat_render',
     'ui.transfer_dialogs', 'ui.game_tools_view',
     'initiative_state', 'initiative_rows', 'initiative_sources', 'conditions', 'tracker_hub',
@@ -42,6 +42,7 @@ a = Analysis(
         ('backgrounds.json', '.'),
         ('equipment.json', '.'),
         ('tools', 'tools'),
+        ('lan/web', 'lan/web'),          # the page browser players open (lan/web.py)
         ('Spellbook Icon.png', '.'),
         ('Spellbook Icon.ico', '.'),
     ] + _optional_content,

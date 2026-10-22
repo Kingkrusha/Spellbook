@@ -1,0 +1,137 @@
+/* Spellbook Tabletop in a browser. Dark, like the map canvas in the app. */
+:root {
+  --bg: #16161b;
+  --panel: #22222a;
+  --panel-2: #2c2c36;
+  --line: #3a3a46;
+  --text: #ececf1;
+  --muted: #a3a3b2;
+  --accent: #3b82f6;
+  --accent-2: #2563eb;
+  --good: #2ecc71;
+  --bad: #e74c3c;
+  --warn: #f1c40f;
+  --radius: 10px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+.muted { color: var(--muted); }
+button, input, select { font: inherit; color: inherit; }
+button {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: #565666; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- joining */
+.join {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px 20px;
+}
+.card h1 { margin: 0 0 4px; font-size: 22px; }
+.card form { display: grid; gap: 6px; margin-top: 18px; }
+.card label { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.card input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.card button[type=submit] {
+  margin-top: 14px;
+  padding: 11px;
+  background: var(--accent-2);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.card button[disabled] { opacity: .6; cursor: default; }
+.status { min-height: 1.4em; margin: 14px 0 0; color: var(--muted); }
+.status.error { color: #ff8a80; }
+
+/* ---- the table */
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "bar bar" "stage side";
+}
+.bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.bar strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar #who { margin-left: auto; white-space: nowrap; font-size: 13px; }
+.conn { width: 10px; height: 10px; border-radius: 50%; background: var(--good); flex: none; }
+.conn.off { background: var(--bad); }
+.stage { grid-area: stage; position: relative; overflow: hidden; background: #1e1e1e; touch-action: none; }
+.waiting {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 16px;
+}
+.waiting p { margin: 4px 0; }
+#waiting-title { font-size: 18px; font-weight: 600; }
+.side {
+  grid-area: side;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  padding: 12px 14px;
+  overflow: auto;
+}
+.side h2 { font-size: 14px; margin: 4px 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.people { list-style: none; margin: 0; padding: 0; }
+.people li { padding: 5px 0; display: flex; gap: 6px; align-items: center; }
+.people .tag { font-size: 12px; color: var(--muted); }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  background: #000c;
+  border: 1px solid var(--line);
+  padding: 9px 14px;
+  border-radius: 8px;
+  z-index: 50;
+}
+
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; grid-template-areas: "bar" "stage" "side"; }
+  .side { border-left: 0; border-top: 1px solid var(--line); max-height: 34vh; }
+}

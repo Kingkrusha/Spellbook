@@ -175,7 +175,7 @@ class ApprovalDialog(ctk.CTkToplevel):
 
     Closing the window counts as "Deny"."""
 
-    def __init__(self, parent, name: str, address: str, on_answer: Callable[[bool], None]):
+    def __init__(self, parent, name: str, address: str, on_answer: Callable[[bool], None], web: bool = False):
         super().__init__(parent)
         theme = get_theme_manager()
         self._on_answer = on_answer
@@ -194,7 +194,8 @@ class ApprovalDialog(ctk.CTkToplevel):
         ctk.CTkLabel(box, text=f"{name} wants to join your session",
                      font=ui_font("heading", 16, bold=True), wraplength=340, justify="left"
                      ).pack(anchor="w")
-        ctk.CTkLabel(box, text=f"From {address}. Only let in people you invited.",
+        where = f"From a web browser at {address}." if web else f"From {address}."
+        ctk.CTkLabel(box, text=f"{where} Only let in people you invited.",
                      font=ui_font("body"), text_color=theme.get_text_secondary(),
                      wraplength=340, justify="left").pack(anchor="w", pady=(4, 14))
 

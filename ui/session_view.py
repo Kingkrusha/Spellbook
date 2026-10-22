@@ -488,6 +488,76 @@ class SessionView(ctk.CTkFrame):
         if s.password:
             ctk.CTkLabel(parent, text=f"Password: {s.password}", font=ui_font("small"),
                          text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(8, 0))
+        self._build_web_panel(parent)
+
+    def _build_web_panel(self, parent):
+        """Players without Spellbook: a switch that lets browsers join, and the address (and QR code) to open."""
+        s = self.service
+        ctk.CTkLabel(parent, text="Players without Spellbook", font=ui_font("heading", 16, bold=True)
+                     ).pack(anchor="w", padx=16, pady=(18, 2))
+        var = ctk.BooleanVar(value=bool(s.web_port))
+        error = ctk.CTkLabel(parent, text="", font=ui_font("small"), wraplength=206, justify="left",
+                             text_color=self.theme.get_current_color('text_warning'))
+
+        def toggle():
+            error.configure(text="")
+            try:
+                if var.get():
+                    s.start_web()
+                else:
+                    s.stop_web()
+            except LanError as e:
+                var.set(False)
+                error.configure(text=e.message)
+            self._fill_web_box()
+        ctk.CTkSwitch(parent, text="Let browsers join", variable=var, command=toggle
+                      ).pack(anchor="w", padx=16, pady=(4, 2))
+        error.pack(anchor="w", padx=16)
+        self._web_box = ctk.CTkFrame(parent, fg_color="transparent")
+        self._web_box.pack(fill="x")
+        self._fill_web_box()
+
+    def _fill_web_box(self):
+        """The address browsers open (and its QR code), or a word on what the switch does."""
+        box, s = self._web_box, self.service
+        for child in box.winfo_children():
+            child.destroy()
+        if not s.web_port:
+            ctk.CTkLabel(box, text="Players open an address in any web browser (a phone works) and play on the "
+                                   "tabletop without installing anything.", font=ui_font("small"),
+                         text_color=self.theme.get_text_secondary(), wraplength=206, justify="left"
+                         ).pack(anchor="w", padx=16)
+            return
+        addresses = s.web_addresses()
+        ctk.CTkLabel(box, text="Players open this in a browser on the same network:", font=ui_font("small"),
+                     text_color=self.theme.get_text_secondary(), wraplength=206, justify="left"
+                     ).pack(anchor="w", padx=16, pady=(4, 0))
+        for address in addresses[:3]:
+            line = ctk.CTkFrame(box, fg_color="transparent")
+            line.pack(fill="x", padx=12, pady=(4, 0))
+            entry = ctk.CTkEntry(line, height=28, font=ui_font("small"))
+            entry.pack(side="left", fill="x", expand=True, padx=(4, 4))
+            entry.insert(0, address)
+            entry.configure(state="readonly")
+            btn = ctk.CTkButton(line, text="Copy", width=52, height=28,
+                                fg_color=self.theme.get_current_color('button_normal'),
+                                hover_color=self.theme.get_current_color('button_hover'))
+            btn.configure(command=lambda t=address, b=btn: self._copy(t, b))
+            btn.pack(side="left")
+        try:
+            from lan import qr
+            image = qr.to_image(qr.make(addresses[0]), scale=5, border=3)
+            self._qr_image = ctk.CTkImage(light_image=image, dark_image=image, size=(170, 170))
+            ctk.CTkLabel(box, text="", image=self._qr_image).pack(padx=16, pady=(10, 2))
+            ctk.CTkLabel(box, text="A phone can open it from this code.", font=ui_font("small"),
+                         text_color=self.theme.get_text_secondary()).pack(padx=16)
+        except Exception as e:                   # the code is a convenience; the address is what matters
+            print(f"Session: the QR code couldn't be made: {e}")
+        ctk.CTkLabel(box, text="Browser players are asked for your approval like anyone else. Their connection "
+                               "isn't encrypted, so use this on your own network. Windows may ask once to "
+                               "allow Spellbook through the firewall.", font=ui_font("small"),
+                     text_color=self.theme.get_text_secondary(), wraplength=206, justify="left"
+                     ).pack(anchor="w", padx=16, pady=(8, 0))
 
     def _copy(self, text: str, button: ctk.CTkButton):
         try:
@@ -513,7 +583,10 @@ class SessionView(ctk.CTkFrame):
             ctk.CTkLabel(row, text=f"{crown}{p['name']}{you}", font=ui_font("body"), anchor="w"
                          ).pack(side="left", padx=(4, 0))
             theirs, mine = p.get("app"), s.app_version
-            if theirs and mine and theirs != mine:
+            if p.get("web"):
+                ctk.CTkLabel(row, text="🌐 browser", font=ui_font("small"),
+                             text_color=self.theme.get_text_secondary()).pack(side="left", padx=(6, 0))
+            elif theirs and mine and theirs != mine:
                 ctk.CTkLabel(row, text=f"⚠ v{theirs}", font=ui_font("small"),
                              text_color=self.theme.get_current_color('text_warning')
                              ).pack(side="left", padx=(6, 0))
