@@ -502,3 +502,20 @@ def test_the_side_panel_script_is_served(host):
     page = http_get(host.web_port, "/")[2]
     for needed in (b'src="side.js"', b'id="chat-log"', b'id="turn-list"', b'id="dice-buttons"'):
         assert needed in page
+
+
+def test_hosting_starts_even_if_the_browser_page_cant(monkeypatch):
+    """Turning on "Let browsers join" is remembered; if the page can't open next time, the session still starts."""
+    from lan.service import HOSTING, SessionService
+    s = SessionService()
+    monkeypatch.setattr(s, "saved", lambda key, default=None: True if key == "lan_web" else default)
+
+    def broken(port=None):
+        raise RuntimeError("no luck")
+    monkeypatch.setattr(s, "start_web", broken)
+    try:
+        s.start_host("DM", require_approval=False, port=0, bind="127.0.0.1", discoverable=False)
+        assert s.role == HOSTING
+        assert any("no luck" in line.get("text", "") for line in s.chat)
+    finally:
+        s.leave()
