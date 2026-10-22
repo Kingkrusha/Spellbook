@@ -23,7 +23,7 @@ import tabletop_net as N
 from conditions import COMMON_EFFECTS, CONDITIONS
 from theme import get_theme_manager
 from typography import ui_font
-from ui.tabletop_canvas import MapCanvas
+from ui.tabletop_canvas import MODE_TOOLS, MapCanvas
 from ui.tooltip import HoverTooltip
 from ui.window_utils import add_cancel_save, center_on_parent
 
@@ -33,9 +33,10 @@ TOOL_BUTTONS = [
     ("ping", "📍 Ping", "Point at a spot on the map for everyone.", False),
     ("measure", "📐 Ruler", "Drag to measure a distance.", False),
     ("free", "✏️ Draw", "Draw freehand.", False),
-    ("line", "╱ Line", "Draw a straight line.", False),
-    ("rect", "▭ Box", "Draw a rectangle.", False),
-    ("ellipse", "◯ Circle", "Draw a circle or oval.", False),
+    ("line", "╱ Line", "Draw a straight line (it snaps level or upright when close).", False),
+    ("rect", "▭ Box", "Draw a rectangle. Shift makes it a square; Ctrl draws it out from the middle.", False),
+    ("ellipse", "◯ Circle", "Draw a circle or oval. Shift makes it a circle; Ctrl draws it out from the middle.",
+     False),
     ("erase", "🧽 Erase", "Click or drag over drawings and areas to remove them (players can only erase their own).",
      False),
     ("area", "💥 Area", "Drag out a spell's area: start on a token to cast it from that creature (it then moves with "
@@ -114,6 +115,8 @@ class TabletopView(ctk.CTkFrame):
         self.canvas: Optional[MapCanvas] = None
         self._local: Optional[N.LocalTable] = None
         self._tool_buttons: Dict[str, ctk.CTkButton] = {}
+        self._mode_arrows: Dict[str, ctk.CTkButton] = {}
+        self._tool_labels: Dict[str, str] = {}
         self._thumbs = _Thumbs()
         self._status_job = None
         self._save_job = None
@@ -214,9 +217,24 @@ class TabletopView(ctk.CTkFrame):
                 ctk.CTkLabel(tools, text="Walls", font=ui_font("small", bold=True)).pack(pady=(10, 2))
             if tool == "area":
                 ctk.CTkLabel(tools, text="Areas", font=ui_font("small", bold=True)).pack(pady=(10, 2))
-            b = ctk.CTkButton(tools, text=label, width=86, height=30, anchor="w",
-                              command=lambda t=tool: self.set_tool(t))
-            b.pack(pady=2)
+            if dm and tool in MODE_TOOLS:
+                # the shape tools can also make walls or raised ground: a small ▾ picks which
+                row = ctk.CTkFrame(tools, fg_color="transparent")
+                row.pack(pady=2)
+                b = ctk.CTkButton(row, text=label, width=64, height=30, anchor="w",
+                                  command=lambda t=tool: self.set_tool(t))
+                b.pack(side="left")
+                arrow = ctk.CTkButton(row, text="▾", width=20, height=30, fg_color=self._c("button_normal"),
+                                      hover_color=self._c("button_hover"), text_color=self._c("text_primary"),
+                                      command=lambda t=tool: self._mode_menu(t))
+                arrow.pack(side="left", padx=(2, 0))
+                HoverTooltip(arrow, "Draw a picture, walls, or a raised or sunken area with this shape.")
+                self._mode_arrows[tool] = arrow
+                self._tool_labels[tool] = label
+            else:
+                b = ctk.CTkButton(tools, text=label, width=86, height=30, anchor="w",
+                                  command=lambda t=tool: self.set_tool(t))
+                b.pack(pady=2)
             HoverTooltip(b, tip)
             self._tool_buttons[tool] = b
             if tool == "area":
@@ -368,8 +386,7 @@ class TabletopView(ctk.CTkFrame):
                                                                                self.canvas.center_on(x, y)))
             b.pack(fill="x")
             b.bind("<Double-Button-1>", lambda _e, tok=dict(t): self.open_source(tok))
-        if self.on_open_source is not None:
-            HoverTooltip(self.token_list, "Double-click a creature to open its stat block or character sheet.")
+        HoverTooltip(self.token_list, "Double-click a creature to open its stat block or character sheet.")
 
     def source_of(self, token: dict) -> Optional[tuple]:
         """``("monster" or "character", name)`` for what a token stands for, if it is in the collection."""
@@ -387,12 +404,22 @@ class TabletopView(ctk.CTkFrame):
 
     def open_source(self, token: dict) -> bool:
         """Open a token's stat block (a monster) or character sheet (a character), if it has one."""
+        if self.backend is None or self.backend.role != "dm":
+            return False                                 # players never get the DM's stat blocks
         source = self.source_of(token)
-        if source is None or self.on_open_source is None:
+        if source is None or (source[0] == "character" and self.on_open_source is None):
             self._set_status(f"{token.get('name', 'That token')} has no stat block or character sheet.")
             return False
-        self.on_open_source(*source)
+        if source[0] == "monster":
+            self.open_monster_popup(source[1])
+        else:
+            self.on_open_source(*source)
         return True
+
+    def open_monster_popup(self, name: str):
+        """A monster's stat block in a window of its own, over the map."""
+        from ui.object_link_widgets import open_link_popup
+        open_link_popup(self, "monster", name)
 
     # ---- map tab
     def _build_map_tab(self, tab):
@@ -654,6 +681,29 @@ class TabletopView(ctk.CTkFrame):
             b.configure(fg_color=self._c("accent_primary") if active else self._c("button_normal"),
                         hover_color=self._c("accent_hover") if active else self._c("button_hover"),
                         text_color=self._c("text_on_accent") if active else self._c("text_primary"))
+
+    MODE_NAMES = {"draw": "Drawing", "wall": "Walls", "height": "Height"}
+
+    def _mode_menu(self, tool: str):
+        menu = tk.Menu(self, tearoff=0)
+        menu._var = tk.StringVar(self, value=self.canvas.shape_mode.get(tool, "draw"))
+        for mode in MODE_TOOLS[tool]:
+            menu.add_radiobutton(label=self.MODE_NAMES[mode], value=mode, variable=menu._var,
+                                 command=lambda m=mode: self.set_mode(tool, m))
+        arrow = self._mode_arrows[tool]
+        try:
+            menu.tk_popup(arrow.winfo_rootx(), arrow.winfo_rooty() + arrow.winfo_height())
+        finally:
+            menu.grab_release()
+
+    def set_mode(self, tool: str, mode: str):
+        """Make the Draw, Line, Box or Circle tool draw a picture, walls or raised ground, and pick it."""
+        self.canvas.set_mode(tool, mode)
+        label = self._tool_labels.get(tool, "")
+        icon = label.split(" ", 1)[0]
+        text = label if mode == "draw" else f"{icon} {self.MODE_NAMES[mode]}"
+        self._tool_buttons[tool].configure(text=text)
+        self.set_tool(tool)
 
     def _set_pen(self, color: str):
         self.canvas.draw_color = color

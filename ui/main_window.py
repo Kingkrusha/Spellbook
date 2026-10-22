@@ -474,7 +474,7 @@ class MainWindow(ctk.CTkFrame):
             request_id = data['request_id']
             self._approval_dialogs[request_id] = ApprovalDialog(
                 self.winfo_toplevel(), data['name'], data['address'],
-                lambda accept, rid=request_id: self.session.resolve_approval(rid, accept))
+                lambda accept, rid=request_id: self.session.resolve_approval(rid, accept), web=bool(data.get('web')))
         elif kind == 'approval_done':
             dialog = self._approval_dialogs.pop(data['request_id'], None)
             if dialog is not None:

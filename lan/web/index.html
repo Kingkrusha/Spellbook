@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16161b">
+<title>Spellbook Tabletop</title>
+<link rel="stylesheet" href="table.css">
+</head>
+<body>
+
+<!-- Joining: name (and the session password, when there is one), then the DM's approval -->
+<section id="join" class="join">
+  <div class="card">
+    <h1>Spellbook Tabletop</h1>
+    <p id="join-host" class="muted">Looking for the session…</p>
+    <form id="join-form" autocomplete="on">
+      <label for="join-name">Your name</label>
+      <input id="join-name" name="name" maxlength="32" required autocomplete="nickname"
+             placeholder="What the table calls you">
+      <div id="join-pw-row" hidden>
+        <label for="join-pw">Session password</label>
+        <input id="join-pw" name="password" type="password" autocomplete="off">
+      </div>
+      <button id="join-btn" type="submit">Join the table</button>
+    </form>
+    <p id="join-status" class="status" role="status" aria-live="polite"></p>
+  </div>
+</section>
+
+<!-- In the session -->
+<main id="app" class="app" hidden>
+  <header class="bar">
+    <span id="conn" class="conn" title="Connected"></span>
+    <strong id="scene-name">Spellbook</strong>
+    <span id="who" class="muted"></span>
+    <button id="side-toggle" class="side-toggle" type="button" aria-controls="side" aria-expanded="false" aria-label="Chat, turns and people">☰<span id="side-dot" class="dot" hidden></span></button>
+  </header>
+
+  <section id="stage" class="stage">
+    <canvas id="map" class="map" tabindex="0" aria-label="The map"></canvas>
+
+    <div id="waiting" class="waiting">
+      <p id="waiting-title">You're in.</p>
+      <p id="waiting-text" class="muted">The tabletop opens here when the DM shows a map.</p>
+    </div>
+
+    <!-- the tools -->
+    <nav id="tools" class="tools" aria-label="Tools" hidden>
+      <div class="tool-group" role="radiogroup" aria-label="Tool">
+        <button class="tool" data-tool="select" title="Move your tokens; drag empty space to pan. Alt-click pings.">✋<span>Move</span></button>
+        <button class="tool" data-tool="ping" title="Point at a spot for everyone.">📍<span>Ping</span></button>
+        <button class="tool" data-tool="measure" title="Drag to measure a distance.">📐<span>Ruler</span></button>
+        <button class="tool draw-tool" data-tool="free" title="Draw freehand.">✏️<span>Draw</span></button>
+        <button class="tool draw-tool" data-tool="line" title="A straight line (it snaps level or upright when close).">╱<span>Line</span></button>
+        <button class="tool draw-tool" data-tool="rect" title="A box. Shift makes a square; Ctrl draws out from the middle.">▭<span>Box</span></button>
+        <button class="tool draw-tool" data-tool="ellipse" title="A circle or oval. Shift makes a circle; Ctrl draws out from the middle.">◯<span>Circle</span></button>
+        <button class="tool" data-tool="erase" title="Tap or drag over your drawings and areas to remove them.">🧽<span>Erase</span></button>
+        <button class="tool" data-tool="area" title="Drag out a spell's area. Start on a token to cast it from that creature.">💥<span>Area</span></button>
+      </div>
+      <div id="pen" class="tool-options">
+        <div class="swatches" id="pen-colors" aria-label="Pen colour"></div>
+        <label class="width">Width <input id="pen-width" type="range" min="1" max="20" value="4"></label>
+      </div>
+      <div id="area-options" class="tool-options" hidden>
+        <select id="area-shape" aria-label="Area shape"></select>
+        <div class="swatches" id="area-colors" aria-label="Area colour"></div>
+      </div>
+    </nav>
+
+    <!-- what is selected: one of your tokens, or one of your areas -->
+    <div id="selection" class="selection" hidden>
+      <strong id="sel-title"></strong>
+      <div id="sel-actions" class="sel-actions"></div>
+    </div>
+
+    <div class="zoom" id="zoom" hidden>
+      <button type="button" data-zoom="in" title="Zoom in">＋</button>
+      <button type="button" data-zoom="out" title="Zoom out">－</button>
+      <button type="button" data-zoom="fit" title="Fit the map">⤢</button>
+    </div>
+    <div id="status" class="map-status" role="status" aria-live="polite" hidden></div>
+  </section>
+
+  <aside id="side" class="side">
+    <div class="tabs" role="tablist" aria-label="Side panel">
+      <button class="tab on" type="button" role="tab" data-tab="chat" aria-selected="true">Chat<span id="chat-dot" class="dot" hidden></span></button>
+      <button class="tab" type="button" role="tab" data-tab="turns" aria-selected="false">Turns<span id="turn-dot" class="dot" hidden></span></button>
+      <button class="tab" type="button" role="tab" data-tab="people" aria-selected="false">People</button>
+    </div>
+
+    <!-- chat and dice -->
+    <section id="tab-chat" class="pane chat-pane" role="tabpanel">
+      <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+      <div class="dice" aria-label="Roll dice">
+        <div class="dice-row" id="dice-buttons"></div>
+        <div class="dice-row dice-opts">
+          <label>Bonus <input id="dice-bonus" type="number" min="-99" max="99" step="1" value="0" inputmode="numeric"></label>
+          <select id="dice-mode" aria-label="Advantage">
+            <option value="">Normal</option>
+            <option value="adv">Advantage</option>
+            <option value="dis">Disadvantage</option>
+          </select>
+          <label class="check" title="Only you and the DM see a private roll"><input id="dice-private" type="checkbox"> Private</label>
+        </div>
+      </div>
+      <form id="chat-form" class="chat-form" autocomplete="off">
+        <select id="chat-to" aria-label="Send to"></select>
+        <input id="chat-text" maxlength="500" placeholder="Say something, or /roll 2d6+3">
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <!-- turn order -->
+    <section id="tab-turns" class="pane" role="tabpanel" hidden>
+      <p id="turn-round" class="muted">No combat yet.</p>
+      <ol id="turn-list" class="turn-list"></ol>
+      <form id="add-me" class="add-me" hidden>
+        <h3>Join the turn order</h3>
+        <label>Name <input id="add-name" maxlength="40" required></label>
+        <div class="add-row">
+          <label>HP <input id="add-hp" type="number" min="0" max="9999" value="10" inputmode="numeric"></label>
+          <label>AC <input id="add-ac" type="number" min="0" max="50" value="10" inputmode="numeric"></label>
+          <label>Init bonus <input id="add-init" type="number" min="-20" max="20" value="0" inputmode="numeric"></label>
+        </div>
+        <button type="submit">Add me</button>
+      </form>
+    </section>
+
+    <section id="tab-people" class="pane" role="tabpanel" hidden>
+      <h2>At the table</h2>
+      <ul id="people" class="people"></ul>
+    </section>
+  </aside>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="geometry.js"></script>
+<script src="table.js"></script>
+<script src="tabletop.js"></script>
+<script src="side.js"></script>
+</body>
+</html>

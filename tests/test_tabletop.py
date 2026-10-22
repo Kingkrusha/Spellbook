@@ -75,6 +75,23 @@ def test_dm_builds_a_scene_and_players_get_a_filtered_view(table):
     assert pc["token"] and orc["token"]
 
 
+def test_player_views_keep_other_players_ids_private(table):
+    sid = make_scene(table)
+    table.apply({"op": "scene_show", "scene": sid})
+    table.apply({"op": "token_add", "scene": sid, "token": {"name": "Mine", "owner": "alice", "kind": "pc"}})
+    table.apply({"op": "token_add", "scene": sid, "token": {"name": "Theirs", "owner": "bob", "kind": "pc"}})
+    line = {"kind": "free", "pts": [0, 0, 5, 5, 9, 9]}
+    table.apply({"op": "draw_add", "scene": sid, "drawing": line}, actor="alice")
+    table.apply({"op": "draw_add", "scene": sid, "drawing": line}, actor="bob")
+    view = table.view_for("alice")["scene"]
+    tokens = {t["name"]: t for t in view["tokens"]}
+    assert tokens["Mine"]["owner"] == "alice" and tokens["Mine"]["mine"]
+    assert tokens["Theirs"]["owner"] == "" and not tokens["Theirs"]["mine"]
+    assert sorted(d["mine"] for d in view["drawings"]) == [False, True]
+    assert all("author" not in d for d in view["drawings"])
+    assert "bob" not in repr(view)
+
+
 def test_players_may_only_move_their_own_tokens(table):
     sid = make_scene(table)
     table.apply({"op": "scene_show", "scene": sid})

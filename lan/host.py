@@ -41,6 +41,9 @@ MAX_PENDING = 8                 # connections still being admitted
 APPROVAL_TIMEOUT = 60.0         # how long the DM has to say yes
 MAX_STRIKES = 20                # rate-limit violations before a peer is dropped
 
+# What a browser player may send (see lan/web.py): no characters or homebrew
+WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req"}
+
 Handler = Callable[["LanHost", "_Peer", dict], Awaitable[None]]
 
 
@@ -62,25 +65,25 @@ class _Bucket:
         return False
 
 
-class _Peer:
-    def __init__(self, peer_id: str, name: str, client_id: str, reader, writer, address: str):
-        self.peer_id = peer_id
-        self.name = name
-        self.client_id = client_id
+class StreamChannel:
+    """An app player's connection: length-prefixed JSON frames over TLS."""
+
+    web = False
+    max_frame = P.MAX_FRAME
+
+    def __init__(self, reader, writer):
         self.reader = reader
         self.writer = writer
-        self.address = address
-        self.bucket = _Bucket()
-        self.xfer_bucket = _Bucket(rate=0.5, burst=4)      # transfers are big: a slower allowance
-        self.app_version = ""
-        self.strikes = 0
-        self.dropped = False
         self._lock = asyncio.Lock()
 
-    def public(self) -> dict:
-        return {"peer_id": self.peer_id, "name": self.name, "is_host": False, "app": self.app_version}
+    @property
+    def address(self) -> str:
+        return (self.writer.get_extra_info("peername") or ("?",))[0]
 
-    async def send(self, msg: dict) -> None:
+    async def read(self, max_size: int = P.MAX_FRAME) -> dict:
+        return await P.read_frame(self.reader, max_size)
+
+    async def write(self, msg: dict) -> None:
         data = P.encode_frame(msg)
         async with self._lock:
             self.writer.write(data)
@@ -91,6 +94,33 @@ class _Peer:
             self.writer.close()
         except Exception:
             pass
+
+
+class _Peer:
+    def __init__(self, peer_id: str, name: str, client_id: str, channel, address: str):
+        self.peer_id = peer_id
+        self.name = name
+        self.client_id = client_id
+        self.channel = channel
+        self.address = address
+        self.web = bool(getattr(channel, "web", False))
+        self.bucket = _Bucket()
+        self.xfer_bucket = _Bucket(rate=0.5, burst=4)      # transfers are big: a slower allowance
+        self.app_version = ""
+        self.strikes = 0
+        self.dropped = False
+
+    def public(self) -> dict:
+        out = {"peer_id": self.peer_id, "name": self.name, "is_host": False, "app": self.app_version}
+        if self.web:
+            out["web"] = True
+        return out
+
+    async def send(self, msg: dict) -> None:
+        await self.channel.write(msg)
+
+    def close(self) -> None:
+        self.channel.close()
 
 
 class LanHost:
@@ -123,6 +153,7 @@ class LanHost:
         self._public: List[dict] = []          # snapshot for other threads
         self._client_ids: Dict[str, str] = {}  # peer id -> install id, replaced (never edited) on change
         self._started = False
+        self._web = None                       # lan.web.WebServer while browsers may join
 
         self.register_handler("chat", self._on_chat)
         self.register_handler("dm", self._on_dm)
@@ -175,7 +206,41 @@ class LanHost:
             pass
         self._runner.stop()
 
+    # ---- browser players (lan/web.py)
+
+    def start_web(self, port: int = 0, bind: str = "0.0.0.0") -> int:
+        """Let browsers on the local network join (``port=0`` picks a free one). Returns the port.
+        Raises LanError if the port is taken."""
+        if not self._started:
+            raise LanError("web", "Start the session first.")
+        if self._web is not None:
+            return self._web.port
+        from lan.web import WebServer
+        web = WebServer(self)
+        try:
+            port = self._runner.call(web.start(bind, port), 10)
+        except OSError as e:
+            raise LanError("web", f"Could not open the browser page on port {port}: {e}")
+        self._web = web
+        return port
+
+    def stop_web(self) -> None:
+        """Stop answering browsers (the ones already in the session stay)."""
+        web, self._web = self._web, None
+        if web is not None and self._started:
+            try:
+                self._runner.call(web.stop(), 5)
+            except Exception:
+                pass
+
+    @property
+    def web_port(self) -> int:
+        return self._web.port if self._web is not None else 0
+
     async def _shutdown(self) -> None:
+        if self._web is not None:
+            await self._web.stop()
+            self._web = None
         if self._server is not None:
             self._server.close()
         for fut in list(self._approvals.values()):
@@ -236,24 +301,28 @@ class LanHost:
         self.events.put(kind, **fields)
 
     async def _on_connect(self, reader, writer) -> None:
+        await self.accept(StreamChannel(reader, writer))
+
+    async def accept(self, channel) -> None:
+        """Admit and then serve one connection (an app player's, or a browser's from :mod:`lan.web`)."""
         if self._pending >= MAX_PENDING:
-            writer.close()
+            channel.close()
             return
         self._pending += 1
         peer: Optional[_Peer] = None
         try:
             try:
-                peer = await self._admit(reader, writer)
+                peer = await self._admit(channel)
             except LanError as e:
                 try:
-                    writer.write(P.encode_frame({"type": "error", "body": {"code": e.code, "message": e.message}}))
-                    await asyncio.wait_for(writer.drain(), 3)
+                    await asyncio.wait_for(channel.write({"type": "error", "body": {"code": e.code,
+                                                                                     "message": e.message}}), 3)
                 except Exception:
                     pass
-                writer.close()
+                channel.close()
                 return
             except (ProtocolError, asyncio.TimeoutError, OSError):
-                writer.close()
+                channel.close()
                 return
         finally:
             self._pending -= 1
@@ -265,8 +334,8 @@ class LanHost:
         finally:
             await self._drop(peer, "")
 
-    async def _admit(self, reader, writer) -> _Peer:
-        hello = await asyncio.wait_for(P.read_frame(reader, P.MAX_PREAUTH_FRAME), P.HANDSHAKE_TIMEOUT)
+    async def _admit(self, channel) -> _Peer:
+        hello = await asyncio.wait_for(channel.read(P.MAX_PREAUTH_FRAME), P.HANDSHAKE_TIMEOUT)
         body = hello.get("body")
         if hello["type"] != "hello" or not isinstance(body, dict):
             raise LanError("protocol", "Expected a hello message.")
@@ -283,10 +352,15 @@ class LanHost:
 
         name = P.clean_name(body.get("name"))
         client_id = P.clean_text(body.get("client_id"), 64) or secrets.token_hex(8)
-        address = (writer.get_extra_info("peername") or ("?",))[0]
+        if channel.web:
+            # a browser picks its own id: kept apart from app installs' so it can never pass for one
+            client_id = "web:" + "".join(ch for ch in client_id if ch.isalnum())[:32]
+        elif client_id.startswith("web:"):
+            client_id = secrets.token_hex(8)        # (nor can an app pass for a browser)
+        address = channel.address
 
         if self.require_approval:
-            accepted, reason = await self._ask_dm(name, address)
+            accepted, reason = await self._ask_dm(name, address, web=channel.web)
             if not accepted:
                 raise LanError("declined", reason)
 
@@ -294,8 +368,8 @@ class LanHost:
         for old in [p for p in self._peers.values() if p.client_id == client_id]:
             await self._drop(old, "Replaced by a new connection.", notify=True)
 
-        peer = _Peer(self._new_peer_id(), self._unique_name(name), client_id, reader, writer, address)
-        peer.app_version = P.clean_text(body.get("app_version"), 20)
+        peer = _Peer(self._new_peer_id(), self._unique_name(name), client_id, channel, address)
+        peer.app_version = "browser" if channel.web else P.clean_text(body.get("app_version"), 20)
         await peer.send({"type": "welcome", "from": HOST_ID, "ts": time.time(), "body": {
             "peer_id": peer.peer_id,
             "name": peer.name,
@@ -313,11 +387,11 @@ class LanHost:
         self._emit("peer_joined", peer=peer.public(), client_id=peer.client_id)
         return peer
 
-    async def _ask_dm(self, name: str, address: str):
+    async def _ask_dm(self, name: str, address: str, web: bool = False):
         request_id = secrets.token_hex(6)
         fut: "asyncio.Future[tuple]" = asyncio.get_running_loop().create_future()
         self._approvals[request_id] = fut
-        self._emit("approval_request", request_id=request_id, name=name, address=address)
+        self._emit("approval_request", request_id=request_id, name=name, address=address, web=web)
         try:
             return await asyncio.wait_for(fut, APPROVAL_TIMEOUT)
         except asyncio.TimeoutError:
@@ -342,7 +416,7 @@ class LanHost:
 
     async def _serve(self, peer: _Peer) -> None:
         while not peer.dropped:
-            msg = await asyncio.wait_for(P.read_frame(peer.reader), P.IDLE_TIMEOUT)
+            msg = await asyncio.wait_for(peer.channel.read(peer.channel.max_frame), P.IDLE_TIMEOUT)
             kind = msg["type"]
             body = msg.get("body")
             body = body if isinstance(body, dict) else {}
@@ -359,6 +433,8 @@ class LanHost:
                                  "body": {"code": "rate_limited", "message": "You are sending too fast."}})
                 continue
             handler = self._handlers.get(kind)
+            if peer.web and kind not in WEB_TYPES:
+                handler = None                      # a browser can't send characters or homebrew
             if handler is None:
                 await peer.send({"type": "error", "from": HOST_ID, "ts": time.time(),
                                  "body": {"code": "unknown_type", "message": f"Unknown message type '{kind[:30]}'."}})

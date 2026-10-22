@@ -330,7 +330,7 @@ def test_the_game_tools_page_scrolls(window, tk_root):
     view.destroy()
 
 
-def test_lines_snap_straight_and_shift_boxes_grow_from_the_middle(page, tk_root):
+def test_lines_snap_straight_shift_squares_and_ctrl_centres(page, tk_root):
     sid = with_map(page, tk_root)
     c = page.canvas
     page.set_tool("line")
@@ -338,13 +338,48 @@ def test_lines_snap_straight_and_shift_boxes_grow_from_the_middle(page, tk_root)
     drag(c, [a, b])
     line = page.table_.scene(sid)["drawings"][-1]["pts"]
     assert line[1] == line[3]
+
+    starts = iter([(300, 300), (150, 150), (450, 150)])        # (apart, so quick presses aren't a double-click)
+
+    def box(state):
+        x, y = next(starts)
+        a, b = c.to_screen(x, y), c.to_screen(x + 100, y + 50)
+        c.event_generate("<ButtonPress-1>", x=int(a[0]), y=int(a[1]))
+        c.event_generate("<B1-Motion>", x=int(b[0]), y=int(b[1]), state=0x0100 | state)
+        c.event_generate("<ButtonRelease-1>", x=int(b[0]), y=int(b[1]))
+        return page.table_.scene(sid)["drawings"][-1]["pts"]
     page.set_tool("rect")
-    a, b = c.to_screen(300, 300), c.to_screen(400, 350)
-    c.event_generate("<ButtonPress-1>", x=int(a[0]), y=int(a[1]))
-    c.event_generate("<B1-Motion>", x=int(b[0]), y=int(b[1]), state=0x0101)   # Shift + button 1
-    c.event_generate("<ButtonRelease-1>", x=int(b[0]), y=int(b[1]))
-    x0, y0, x1, y1 = page.table_.scene(sid)["drawings"][-1]["pts"]
-    assert abs((x0 + x1) / 2 - 300) < 2 and abs((y0 + y1) / 2 - 300) < 2
+    x0, y0, x1, y1 = box(0x0001)                               # Shift: a square
+    assert abs((x1 - x0) - (y1 - y0)) < 1 and abs(x0 - 300) < 2
+    x0, y0, x1, y1 = box(0x0004)                               # Ctrl: out from the middle
+    assert abs((x0 + x1) / 2 - 150) < 2 and abs((y0 + y1) / 2 - 150) < 2 and abs((x1 - x0) - (y1 - y0)) > 20
+    x0, y0, x1, y1 = box(0x0005)                               # both: a square round the start
+    assert abs((x0 + x1) / 2 - 450) < 2 and abs((x1 - x0) - (y1 - y0)) < 1
+
+
+def test_shape_tools_can_draw_walls_and_raised_ground(page, tk_root):
+    sid = with_map(page, tk_root)
+    c = page.canvas
+    assert set(page._mode_arrows) == {"free", "line", "rect", "ellipse"}
+    page.set_mode("rect", "wall")
+    assert page._tool_buttons["rect"].cget("text") == "▭ Walls" and c.tool == "rect"
+    drag(c, [c.to_screen(70, 70), c.to_screen(210, 210)])
+    scene = page.table_.scene(sid)
+    assert len(scene["walls"]) == 4 and not scene["drawings"]
+    page.set_mode("ellipse", "height")
+    page.zone_entry.delete(0, "end")
+    page.zone_entry.insert(0, "20")
+    page._set_zone_height()
+    drag(c, [c.to_screen(350, 210), c.to_screen(490, 350)])
+    zone = scene["zones"][0]
+    assert zone["elev"] == 20 and len(zone["pts"]) == 64
+    assert T.ground_at(scene, 420, 280) == 20 and T.ground_at(scene, 352, 212) == 0
+    page.set_mode("line", "wall")
+    drag(c, [c.to_screen(0, 420), c.to_screen(280, 423)])
+    assert scene["walls"][-1]["pts"] == [0, 420, 280, 420] or abs(scene["walls"][-1]["pts"][1] -
+                                                                   scene["walls"][-1]["pts"][3]) < 0.01
+    page.set_mode("line", "draw")
+    assert page._tool_buttons["line"].cget("text") == "╱ Line"
 
 
 def test_an_area_from_a_token_lights_up_creatures_and_follows(page, tk_root):
@@ -395,22 +430,37 @@ def test_shift_dragging_a_token_raises_it_and_heights_show(page, tk_root):
 
 
 def test_double_clicking_a_token_in_the_list_opens_its_stat_block(page, tk_root):
-    opened = []
+    opened, popups = [], []
     page.on_open_source = lambda kind, name: opened.append((kind, name))
+    page.open_monster_popup = popups.append
     with_map(page, tk_root)
-    page._dispatch({"op": "token_add", "token": {"name": "Goblin 3", "x": 105, "y": 105}})
+    page._dispatch({"op": "token_add", "token": {"name": "Aboleth 3", "x": 105, "y": 105}})
     page._dispatch({"op": "token_add", "token": {"name": "Aria", "x": 175, "y": 105,
                                                  "source": "character:Aria"}})
     page._dispatch({"op": "token_add", "token": {"name": "Barrel", "x": 245, "y": 105}})
     pump(tk_root)
-    buttons = page.token_list.winfo_children()
-    for b in buttons:
+    for b in page.token_list.winfo_children():
         for _ in range(2):                                   # two quick clicks: a double-click
             b._canvas.event_generate("<ButtonPress-1>", x=5, y=5)
             b._canvas.event_generate("<ButtonRelease-1>", x=5, y=5)
     pump(tk_root)
-    from monster import get_monster_manager
-    expected = [("character", "Aria")]
-    if get_monster_manager().get_monster("Goblin") is not None:
-        expected.insert(0, ("monster", "Goblin"))
-    assert opened == expected
+    assert popups == ["Aboleth"] and opened == [("character", "Aria")]
+
+
+def test_a_monster_opens_in_a_pop_up_and_players_get_none(page, tk_root):
+    with_map(page, tk_root)
+    before = set(page.winfo_toplevel().winfo_children())
+    assert page.open_source({"name": "Aboleth"})
+    pump(tk_root)
+    new = [w for w in page.winfo_toplevel().winfo_children() if w not in before]
+    assert any(type(w).__name__ == "LinkPopup" for w in new)
+    for w in new:
+        w.destroy()
+
+    class Player:
+        role = "player"
+    page.backend, real = Player(), page.backend
+    try:
+        assert not page.open_source({"name": "Aboleth"})
+    finally:
+        page.backend = real
