@@ -46,3 +46,9 @@ calendars.json
 /PDFs/
 pdf_index.db
 /tabletop/
+__pycache__/atomic_io.cpython-313.pyc
+__pycache__/atomic_io.cpython-313.pyc
+character_sheets.json
+initiative_state.json
+spellbook.db
+studio.json
