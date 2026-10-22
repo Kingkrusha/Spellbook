@@ -36,7 +36,11 @@ TOOL_BUTTONS = [
     ("line", "╱ Line", "Draw a straight line.", False),
     ("rect", "▭ Box", "Draw a rectangle.", False),
     ("ellipse", "◯ Circle", "Draw a circle or oval.", False),
-    ("erase", "🧽 Erase", "Click or drag over drawings to remove them (players can only erase their own).", False),
+    ("erase", "🧽 Erase", "Click or drag over drawings and areas to remove them (players can only erase their own).",
+     False),
+    ("area", "💥 Area", "Drag out a spell's area: start on a token to cast it from that creature (it then moves with "
+                       "it). Covered squares and creatures light up. Right-click an area to tilt, raise or remove it.",
+     False),
     ("fog_reveal", "☀ Reveal", "Drag a box to reveal that part of the map to the players.", True),
     ("fog_hide", "🌫 Hide", "Drag a box to cover that part of the map again.", True),
     ("fog_lasso_reveal", "☀ Lasso", "Draw around an area to reveal it.", True),
@@ -44,7 +48,10 @@ TOOL_BUTTONS = [
     ("wall", "🧱 Wall", "Click corner to corner to draw walls; double-click, right-click or Esc stops. Ends snap to "
                        "other walls and grid corners. With line of sight on, players can't see through them.", True),
     ("door", "🚪 Door", "Click both ends of a door. Right-click a door to open or close it.", True),
+    ("elevation", "⛰ Height", "Draw around part of the map to raise or sink it (the height is set on the Map tab). "
+                             "Distances and areas count the climb.", True),
 ]
+AREA_CHOICES = [T.AREA_LABELS[k] for k in T.AREA_SHAPES]
 DRAW_COLORS = ["#E74C3C", "#F1C40F", "#2ECC71", "#3498DB", "#9B59B6", "#FFFFFF", "#111111"]
 SIZE_NAMES = list(T.TOKEN_SIZES)
 
@@ -90,8 +97,10 @@ class TabletopView(ctk.CTkFrame):
                  on_back: Optional[Callable[[], None]] = None,
                  characters: Optional[Callable[[], List[dict]]] = None,
                  table: Optional[T.Tabletop] = None, assets: Optional[T.AssetStore] = None,
-                 initiative: Optional[Callable[[], object]] = None):
+                 initiative: Optional[Callable[[], object]] = None,
+                 on_open_source: Optional[Callable[[str, str], None]] = None):
         super().__init__(parent, fg_color="transparent")
+        self.on_open_source = on_open_source  # (kind, name): open a monster's stat block or a character sheet
         self.initiative = initiative          # -> the tabletop_initiative.InitiativeLink (DM only)
         self.theme = get_theme_manager()
         self.state = state
@@ -203,11 +212,26 @@ class TabletopView(ctk.CTkFrame):
                 ctk.CTkLabel(tools, text="Fog", font=ui_font("small", bold=True)).pack(pady=(10, 2))
             if tool == "wall":
                 ctk.CTkLabel(tools, text="Walls", font=ui_font("small", bold=True)).pack(pady=(10, 2))
+            if tool == "area":
+                ctk.CTkLabel(tools, text="Areas", font=ui_font("small", bold=True)).pack(pady=(10, 2))
             b = ctk.CTkButton(tools, text=label, width=86, height=30, anchor="w",
                               command=lambda t=tool: self.set_tool(t))
             b.pack(pady=2)
             HoverTooltip(b, tip)
             self._tool_buttons[tool] = b
+            if tool == "area":
+                self.area_var = ctk.StringVar(value=T.AREA_LABELS["sphere"])
+                ctk.CTkOptionMenu(tools, values=AREA_CHOICES, variable=self.area_var, width=86,
+                                  dynamic_resizing=False, command=self._pick_area_shape).pack(pady=2)
+                colors = ctk.CTkFrame(tools, fg_color="transparent")
+                colors.pack()
+                self._area_swatches = {}
+                for i, color in enumerate(T.AREA_COLORS):
+                    sw = ctk.CTkButton(colors, text="", width=22, height=22, corner_radius=11, fg_color=color,
+                                       hover_color=color, border_width=2, border_color=self._c("bg_secondary"),
+                                       command=lambda c=color: self._set_area_color(c))
+                    sw.grid(row=i // 3, column=i % 3, padx=2, pady=2)
+                    self._area_swatches[color] = sw
         ctk.CTkLabel(tools, text="Pen", font=ui_font("small", bold=True)).pack(pady=(10, 2))
         swatches = ctk.CTkFrame(tools, fg_color="transparent")
         swatches.pack()
@@ -240,6 +264,7 @@ class TabletopView(ctk.CTkFrame):
         holder.pack(side="left", fill="both", expand=True)
         self.canvas = MapCanvas(holder, self.backend, on_select=self._on_select, on_token_menu=self._token_menu,
                                 on_token_open=self._edit_token, on_wall_menu=self._wall_menu,
+                                on_area_menu=self._area_menu, on_zone_menu=self._zone_menu,
                                 on_status=self._set_status,
                                 on_error=self._show_error, bg=_hex(self._c("bg_tertiary")))
         self.canvas.pack(fill="both", expand=True, padx=4, pady=4)
@@ -250,6 +275,7 @@ class TabletopView(ctk.CTkFrame):
         self.backend.listen(self._backend_changed)
         self.set_tool("select")
         self._set_pen(DRAW_COLORS[0])
+        self._set_area_color(T.AREA_COLORS[0])
         self._backend_changed()
 
     # ---- tokens tab
@@ -336,11 +362,37 @@ class TabletopView(ctk.CTkFrame):
         for t in scene["tokens"][:200]:
             label = t["name"] + ("  ⚔" if t.get("entry") else "") + ("  (hidden)" if t.get("hidden") else "") + (
                 f"  ({t['owner_name']})" if t.get("owner_name") else "")
-            ctk.CTkButton(self.token_list, text=label, anchor="w", height=24, fg_color="transparent",
-                          text_color=self._c("text_primary"), hover_color=self._c("button_hover"),
-                          command=lambda tid=t["id"], x=t["x"], y=t["y"]: (self.canvas.select(tid),
-                                                                           self.canvas.center_on(x, y))
-                          ).pack(fill="x")
+            b = ctk.CTkButton(self.token_list, text=label, anchor="w", height=24, fg_color="transparent",
+                              text_color=self._c("text_primary"), hover_color=self._c("button_hover"),
+                              command=lambda tid=t["id"], x=t["x"], y=t["y"]: (self.canvas.select(tid),
+                                                                               self.canvas.center_on(x, y)))
+            b.pack(fill="x")
+            b.bind("<Double-Button-1>", lambda _e, tok=dict(t): self.open_source(tok))
+        if self.on_open_source is not None:
+            HoverTooltip(self.token_list, "Double-click a creature to open its stat block or character sheet.")
+
+    def source_of(self, token: dict) -> Optional[tuple]:
+        """``("monster" or "character", name)`` for what a token stands for, if it is in the collection."""
+        kind, _, name = (token.get("source") or "").partition(":")
+        if kind in ("monster", "character") and name:
+            return kind, name
+        try:
+            from monster import get_monster_manager
+            base = _base_name(token.get("name", ""))
+            if get_monster_manager().get_monster(base) is not None:
+                return "monster", base
+        except Exception:
+            pass
+        return None
+
+    def open_source(self, token: dict) -> bool:
+        """Open a token's stat block (a monster) or character sheet (a character), if it has one."""
+        source = self.source_of(token)
+        if source is None or self.on_open_source is None:
+            self._set_status(f"{token.get('name', 'That token')} has no stat block or character sheet.")
+            return False
+        self.on_open_source(*source)
+        return True
 
     # ---- map tab
     def _build_map_tab(self, tab):
@@ -448,6 +500,26 @@ class TabletopView(ctk.CTkFrame):
                                         text_color=self.theme.get_text_secondary())
         self.walls_label.pack(fill="x")
         self._button(f, "Remove all walls", self._clear_walls, width=140).pack(anchor="w", pady=2)
+
+        label("Height")
+        row = ctk.CTkFrame(f, fg_color="transparent")
+        row.pack(fill="x", pady=2)
+        ctk.CTkLabel(row, text="New raised area (ft)", font=ui_font("small")).pack(side="left")
+        self.zone_entry = ctk.CTkEntry(row, width=56)
+        self.zone_entry.insert(0, "10")
+        self.zone_entry.pack(side="right")
+        self.zone_entry.bind("<KeyRelease>", lambda _e: self._set_zone_height())
+        HoverTooltip(row, "How high the next area you draw with the ⛰ Height tool is (negative sinks it: a pit "
+                          "or a river bed). Right-click an area to change it.")
+        self.show_zones_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(f, text="Show heights", variable=self.show_zones_var,
+                        command=self._toggle_show_zones).pack(anchor="w", pady=2)
+        row = ctk.CTkFrame(f, fg_color="transparent")
+        row.pack(fill="x", pady=2)
+        self._button(row, "Remove heights", lambda: self._confirm_clear("zones", "zone_clear"), width=120
+                     ).pack(side="left", padx=(0, 4))
+        self._button(row, "Remove areas", lambda: self._confirm_clear("areas", "area_clear"), width=110
+                     ).pack(side="left")
 
         label("Map")
         row = ctk.CTkFrame(f, fg_color="transparent")
@@ -682,6 +754,104 @@ class TabletopView(ctk.CTkFrame):
     def _clear_drawings(self):
         if messagebox.askyesno("Clear drawings", "Remove every drawing on this map?", parent=self):
             self._dispatch({"op": "draw_clear"})
+
+    # ---- areas and heights
+    def _pick_area_shape(self, label: str):
+        shape = {v: k for k, v in T.AREA_LABELS.items()}.get(label, "sphere")
+        self.canvas.area_shape = shape
+        self.set_tool("area")
+
+    def _set_area_color(self, color: str):
+        if not hasattr(self, "_area_swatches"):
+            return
+        self.canvas.area_color = color
+        for c, sw in self._area_swatches.items():
+            sw.configure(border_color="#FFFFFF" if c == color else self._c("bg_secondary"))
+
+    def _set_zone_height(self):
+        try:
+            self.canvas.zone_height = max(-T.MAX_HEIGHT, min(T.MAX_HEIGHT, float(self.zone_entry.get())))
+        except ValueError:
+            pass
+
+    def _toggle_show_zones(self):
+        self.canvas.show_zones = bool(self.show_zones_var.get())
+        self.canvas._draw_overlay()
+
+    def _confirm_clear(self, key: str, op: str):
+        scene = self.backend.view().get("scene") or {}
+        n = len(scene.get(key) or [])
+        if not n:
+            return
+        what = {"zones": "raised and sunken areas", "areas": "spell areas"}[key]
+        if messagebox.askyesno("Tabletop", f"Remove all {n} {what} from this map?", parent=self):
+            self._dispatch({"op": op})
+
+    def _area_menu(self, area_id: str, event):
+        area = self.canvas.area(area_id)
+        if not self.canvas.can_edit_area(area):
+            return
+        upd = lambda **f: self._dispatch({"op": "area_update", "id": area_id, "fields": f})  # noqa: E731
+        menu = tk.Menu(self, tearoff=0)
+        if area["shape"] in ("cone", "line"):
+            pitch = area.get("pitch", 0.0)
+            menu.add_command(label="Tilt up 15°", command=lambda: upd(pitch=min(90, pitch + 15)))
+            menu.add_command(label="Tilt down 15°", command=lambda: upd(pitch=max(-90, pitch - 15)))
+            if pitch:
+                menu.add_command(label="Level", command=lambda: upd(pitch=0))
+        if area["shape"] == "line":
+            width = area.get("width", 5.0)
+            menu.add_command(label="Wider (+5 ft)", command=lambda: upd(width=width + 5))
+            if width > 5:
+                menu.add_command(label="Narrower (−5 ft)", command=lambda: upd(width=width - 5))
+        dz = area.get("dz", 0.0)
+        menu.add_command(label="Raise 5 ft", command=lambda: upd(dz=dz + 5))
+        menu.add_command(label="Lower 5 ft", command=lambda: upd(dz=dz - 5))
+        menu.add_command(label="Bigger (+5 ft)", command=lambda: upd(size=area["size"] + 5))
+        if area["size"] > 5:
+            menu.add_command(label="Smaller (−5 ft)", command=lambda: upd(size=area["size"] - 5))
+        menu.add_separator()
+        following = self.canvas.token(area.get("token"))
+        selected = self.canvas.token(self.canvas.selected)
+        if following is not None:
+            menu.add_command(label=f"Stop moving with {following['name']}", command=lambda: upd(token=""))
+        if selected is not None and (following is None or selected["id"] != following["id"]):
+            menu.add_command(label=f"Move with {selected['name']}", command=lambda: upd(token=selected["id"]))
+        if following is None and selected is None:
+            menu.add_command(label="Move with a token (select it first)", state="disabled")
+        menu.add_separator()
+        menu.add_command(label="Delete", command=lambda: self._dispatch({"op": "area_delete", "id": area_id}))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _zone_menu(self, zone_id: str, event):
+        scene = self.backend.view().get("scene") or {}
+        zone = next((z for z in scene.get("zones") or [] if z["id"] == zone_id), None)
+        if zone is None or self.backend.role != "dm":
+            return
+        menu = tk.Menu(self, tearoff=0)
+        for delta in (5, 10, -5, -10):
+            menu.add_command(label=f"{'Raise' if delta > 0 else 'Lower'} {abs(delta)} ft",
+                             command=lambda d=delta: self._dispatch({"op": "zone_update", "id": zone_id,
+                                                                     "elev": zone["elev"] + d}))
+        menu.add_command(label="Height…", command=lambda: self._ask_zone_height(zone))
+        menu.add_separator()
+        menu.add_command(label="Delete", command=lambda: self._dispatch({"op": "zone_delete", "id": zone_id}))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _ask_zone_height(self, zone: dict):
+        dialog = ctk.CTkInputDialog(title="Height", text=f"Height in feet (now {zone['elev']:g}; negative is below "
+                                                         f"the ground):")
+        value = dialog.get_input()
+        try:
+            self._dispatch({"op": "zone_update", "id": zone["id"], "elev": float(value)})
+        except (TypeError, ValueError):
+            pass
 
     def _toggle_show_walls(self):
         self.canvas.show_walls = bool(self.show_walls_var.get())
@@ -1150,6 +1320,15 @@ class TokenDialog(_Dialog):
         self.vision.pack(side="left", padx=6)
         if token.get("vision"):
             self.vision.insert(0, f"{token['vision']:g}")
+        row = ctk.CTkFrame(b, fg_color="transparent")
+        row.pack(fill="x", pady=(8, 0))
+        ctk.CTkLabel(row, text="Height above the ground (ft)", font=ui_font("small", bold=True)).pack(side="left")
+        self.height = ctk.CTkEntry(row, width=60, placeholder_text="0")
+        self.height.pack(side="left", padx=6)
+        if token.get("z"):
+            self.height.insert(0, f"{token['z']:g}")
+        HoverTooltip(self.height, "Flying or burrowing: negative is below the ground. On the map, Shift-drag a "
+                                  "token up or down to change it.")
         HoverTooltip(self.vision, "How far this token sees with line of sight on (e.g. 60 for darkvision in a dark "
                                   "dungeon). Leave it empty to see as far as the walls allow.")
 
@@ -1231,7 +1410,7 @@ class TokenDialog(_Dialog):
             "name": self.name.get().strip() or "Token", "size": T.TOKEN_SIZES[self.size.get()],
             "hp": number(self.hp), "hp_max": number(self.hp_max), "color": self.color, "owner": owner,
             "owner_name": shown_name, "hidden": bool(self.hidden.get()), "show_name": bool(self.show_name.get()),
-            "conditions": conditions, "vision": max(0, number(self.vision) or 0),
+            "conditions": conditions, "vision": max(0, number(self.vision) or 0), "z": number(self.height) or 0,
         }
         if self.token.get("image"):
             self.result["image"] = self.token["image"]

@@ -150,3 +150,12 @@ def test_bad_views_are_refused():
     assert not N.valid_view({"scene": {"id": "x", "tokens": "no", "drawings": []}})
     assert not N.valid_view({"scene": {"id": "x", "tokens": [{"id": "a", "name": "b", "x": "1", "y": 0, "size": 1}],
                                        "drawings": [], "grid": {}, "fog": {"ops": []}}})
+
+
+def test_views_with_damaged_areas_or_heights_are_refused():
+    base = {"id": "x", "tokens": [], "drawings": [], "grid": {}, "fog": {"ops": []}}
+    good = T.clean_area({"shape": "cone", "x": 1, "y": 2, "size": 15})
+    assert N.valid_view({"scene": dict(base, areas=[good], zones=[{"pts": [0, 0, 1, 0, 0, 1], "elev": 5}])})
+    assert not N.valid_view({"scene": dict(base, areas=[dict(good, shape="blob")])})
+    assert not N.valid_view({"scene": dict(base, areas=[dict(good, size="big")])})
+    assert not N.valid_view({"scene": dict(base, zones=[{"pts": [], "elev": "up"}])})

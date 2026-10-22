@@ -25,12 +25,15 @@ from ui.platform_compat import bind_right_click
 
 ZOOM_MIN, ZOOM_MAX = 0.1, 6.0
 TOOLS = ("select", "free", "line", "rect", "ellipse", "erase", "measure", "ping", "fog_reveal", "fog_hide",
-         "fog_lasso_reveal", "fog_lasso_hide", "wall", "door")
+         "fog_lasso_reveal", "fog_lasso_hide", "wall", "door", "area", "elevation")
 DRAW_TOOLS = {"free", "line", "rect", "ellipse"}
-DM_TOOLS = {"fog_reveal", "fog_hide", "fog_lasso_reveal", "fog_lasso_hide", "wall", "door"}
+DM_TOOLS = {"fog_reveal", "fog_hide", "fog_lasso_reveal", "fog_lasso_hide", "wall", "door", "elevation"}
 WALL_TOOLS = {"wall", "door"}
 WALL_SNAP_PX = 12             # a wall end clicked this close (on screen) to another wall's end joins it
 WALL_COLOR, DOOR_COLOR, OPEN_DOOR_COLOR = "#FF9800", "#3498DB", "#2ECC71"
+ZONE_COLOR = "#BCAAA4"
+AXIS_SNAP_DEG = 6.0           # a line this close to level or upright is made exactly so
+LIFT_PX = 14                  # Shift-dragging a token this far up raises it one step (the grid's feet)
 FOG_SCALE_MAX = 1024          # the fog mask is kept at most this many pixels across
 
 
@@ -62,6 +65,8 @@ class MapCanvas(tk.Canvas):
                  on_token_menu: Optional[Callable[[str, tk.Event], None]] = None,
                  on_token_open: Optional[Callable[[str], None]] = None,
                  on_wall_menu: Optional[Callable[[str, tk.Event], None]] = None,
+                 on_area_menu: Optional[Callable[[str, tk.Event], None]] = None,
+                 on_zone_menu: Optional[Callable[[str, tk.Event], None]] = None,
                  on_status: Optional[Callable[[str], None]] = None,
                  on_error: Optional[Callable[[str], None]] = None, bg: str = "#1E1E1E"):
         super().__init__(parent, highlightthickness=0, borderwidth=0, bg=bg, takefocus=1)
@@ -70,6 +75,8 @@ class MapCanvas(tk.Canvas):
         self.on_token_menu = on_token_menu
         self.on_token_open = on_token_open
         self.on_wall_menu = on_wall_menu
+        self.on_area_menu = on_area_menu
+        self.on_zone_menu = on_zone_menu
         self.on_status = on_status or (lambda _t: None)
         self.on_error = on_error or (lambda _t: None)
         self.empty_bg = bg
@@ -86,6 +93,12 @@ class MapCanvas(tk.Canvas):
         self.show_walls = True             # the DM sees the walls they drew
         self.preview_sight = False         # the DM sees the map dimmed as the players' tokens see it
         self._chain: Optional[Tuple[float, float]] = None   # the last corner of the wall being drawn
+        self.area_shape = "sphere"
+        self.area_color = T.AREA_COLORS[0]
+        self.zone_height = 10.0            # feet, for the next raised area the DM draws
+        self.show_zones = True
+        self._area_photos: list = []       # the area overlays on screen (Tk forgets an image nobody holds)
+        self._tints = _ImageCache(64)
 
         self._scene: Optional[dict] = None
         self._scene_id = ""
@@ -441,12 +454,28 @@ class MapCanvas(tk.Canvas):
         scene = self._scene
         if scene is None:
             return
+        self._area_photos = []
+        self._area_labels = []
+        if self.show_zones or self.tool == "elevation":
+            self._draw_zones(scene)
         for d in scene["drawings"]:
             self._draw_drawing(d)
+        areas = list(scene.get("areas") or [])
+        if self._drag and self._drag.get("kind") == "area" and self._drag.get("area"):
+            areas.append(self._drag["area"])
+        hits = {}
+        for a in areas:
+            for tid in self._draw_area(a):
+                hits.setdefault(tid, a.get("color", T.AREA_COLORS[0]))
         if self.is_dm and (self.show_walls or self.tool in WALL_TOOLS):
             self._draw_walls(scene)
         for t in scene["tokens"]:
             self._draw_token(t)
+            if t["id"] in hits:
+                self._tint_token(t, hits[t["id"]])
+        for x, y, text, tags in self._area_labels:
+            self.create_text(x + 1, y + 1, text=text, fill="#000000", font=("TkDefaultFont", 9, "bold"), tags=tags)
+            self.create_text(x, y, text=text, fill="white", font=("TkDefaultFont", 9, "bold"), tags=tags)
         self._draw_pings()
         if self._measure:
             self._draw_measure(*self._measure)
@@ -502,6 +531,8 @@ class MapCanvas(tk.Canvas):
             best = None
         if best is not None:
             return best
+        if self._chain is not None:
+            mx, my = axis_snap(self._chain[0], self._chain[1], mx, my)
         grid = self.grid
         if grid.kind == "square":
             gx = grid.ox + round((mx - grid.ox) / grid.cell) * grid.cell
@@ -539,6 +570,151 @@ class MapCanvas(tk.Canvas):
             self._chain = None
             self.delete("preview")
             self.on_status("")
+
+    # ---- raised and sunken ground
+    def _draw_zones(self, scene: dict):
+        for z in scene.get("zones") or []:
+            pts = []
+            for i in range(0, len(z["pts"]) - 1, 2):
+                pts.extend(self.to_screen(z["pts"][i], z["pts"][i + 1]))
+            if len(pts) < 6:
+                continue
+            tags = ("overlay", "zone", f"z:{z['id']}")
+            self.create_polygon(*pts, outline=ZONE_COLOR, fill="", width=2, dash=(8, 4), tags=tags)
+            # the height, just inside the area's top corner (clear of the tokens standing in the middle)
+            top = min(range(len(pts) // 2), key=lambda i: (pts[2 * i + 1], pts[2 * i]))
+            cx, cy = pts[2 * top] + 6, pts[2 * top + 1] + 6
+            text = "⛰ " + (height_text(z["elev"]) or "0 ft")
+            self.create_text(cx + 1, cy + 1, text=text, fill="#000000", font=("TkDefaultFont", 10, "bold"),
+                             anchor="nw", tags=tags)
+            self.create_text(cx, cy, text=text, fill=ZONE_COLOR, font=("TkDefaultFont", 10, "bold"), anchor="nw",
+                             tags=tags)
+
+    def zone_at(self, sx: float, sy: float) -> Optional[str]:
+        mx, my = self.to_map(sx, sy)
+        for z in reversed((self._scene or {}).get("zones") or []):
+            if T.point_in_polygon(mx, my, z["pts"]):
+                return z["id"]
+        return None
+
+    # ---- areas of effect
+    def _cell_outline(self, cx: float, cy: float) -> List[float]:
+        grid = self.grid
+        if grid.kind == "square":
+            h = grid.cell / 2
+            return [cx - h, cy - h, cx + h, cy - h, cx + h, cy + h, cx - h, cy + h]
+        return [v for p in grid.hex_corners(*grid.hex_at(cx, cy)) for v in p]
+
+    def _draw_area(self, area: dict) -> List[str]:
+        """Draw one area (its covered cells tinted, its outline and its starting point). Returns the ids of the
+        tokens it touches."""
+        from PIL import Image, ImageDraw, ImageTk
+        scene = self._scene
+        try:
+            outline = T.area_footprint(scene, area)
+            cells = T.area_cells(scene, area)
+            touched = T.area_tokens(scene, area)
+        except Exception as e:                     # a damaged area must never stop the map drawing
+            print(f"Tabletop: an area couldn't be drawn ({e})")
+            return []
+        W, H = self.winfo_width(), self.winfo_height()
+        polys = [self._cell_outline(cx, cy) for cx, cy in cells]
+        screen = [[c for i in range(0, len(p), 2) for c in self.to_screen(p[i], p[i + 1])] for p in polys]
+        foot = [c for i in range(0, len(outline), 2) for c in self.to_screen(outline[i], outline[i + 1])]
+        xs = foot[0::2] + [v for p in screen for v in p[0::2]]
+        ys = foot[1::2] + [v for p in screen for v in p[1::2]]
+        x0, y0 = max(0, int(min(xs)) - 2), max(0, int(min(ys)) - 2)
+        x1, y1 = min(W, int(max(xs)) + 3), min(H, int(max(ys)) + 3)
+        rgb = tuple(int(area.get("color", "#E67E22")[i:i + 2], 16) for i in (1, 3, 5))
+        tags = ("overlay", "area")
+        if x1 > x0 and y1 > y0:
+            layer = Image.new("RGBA", (x1 - x0, y1 - y0), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(layer)
+            for p in screen:
+                draw.polygon([v - (x0 if i % 2 == 0 else y0) for i, v in enumerate(p)], fill=rgb + (90,))
+            draw.polygon([v - (x0 if i % 2 == 0 else y0) for i, v in enumerate(foot)], fill=rgb + (35,))
+            photo = ImageTk.PhotoImage(layer)
+            self._area_photos.append(photo)
+            self.create_image(x0, y0, image=photo, anchor="nw", tags=tags)
+        aid = area.get("id") or "preview"
+        mine = ("overlay", "area", f"a:{aid}")
+        self.create_polygon(*foot, outline=area.get("color", "#E67E22"), fill="", width=2, tags=mine)
+        ox, oy = self.to_screen(area["x"], area["y"])
+        self.create_oval(ox - 5, oy - 5, ox + 5, oy + 5, fill=area.get("color", "#E67E22"), outline="white",
+                         width=2, tags=mine + ("handle",))
+        # the label goes on top of the tokens, above the creature it starts from
+        lift = 14
+        t = self.token(area.get("token"))
+        if t is not None:
+            lift = T.token_box(t, self.grid)[2] * self.zoom + 14
+        self._area_labels.append((ox, oy - lift, area_text(area, scene), mine))
+        return touched
+
+    def _tint_token(self, t: dict, color: str):
+        """Wash a token in an area's colour (it is in the area)."""
+        from PIL import Image, ImageDraw, ImageTk
+        cx, cy, r = T.token_box(t, self.grid)
+        sx, sy = self.to_screen(cx, cy)
+        d = max(6, int(r * self.zoom * 0.92 * 2))
+
+        def make():
+            rgb = tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
+            im = Image.new("RGBA", (d * 2, d * 2), (0, 0, 0, 0))
+            ImageDraw.Draw(im).ellipse((0, 0, d * 2 - 1, d * 2 - 1), fill=rgb + (120,))
+            return ImageTk.PhotoImage(im.resize((d, d), Image.LANCZOS))
+        photo = self._tints.get((color, d), make)
+        self.create_image(sx, sy, image=photo, tags=("overlay", "token", f"t:{t['id']}", "tint"))
+
+    def area_at(self, sx: float, sy: float) -> Optional[str]:
+        for item in reversed(self.find_overlapping(sx - 4, sy - 4, sx + 4, sy + 4)):
+            for tag in self.gettags(item):
+                if tag.startswith("a:") and tag != "a:preview":
+                    return tag[2:]
+        return None
+
+    def area(self, area_id: Optional[str]) -> Optional[dict]:
+        return next((a for a in (self._scene or {}).get("areas") or [] if a["id"] == area_id), None)
+
+    def can_edit_area(self, area: Optional[dict]) -> bool:
+        return area is not None and (self.is_dm or bool(area.get("mine")))
+
+    def _area_origin_point(self, sx: float, sy: float) -> Tuple[float, float, str]:
+        """Where a new area starts: a token's centre when the press is on one, else a grid corner (cubes and
+        squares) or the nearest corner or cell centre."""
+        t = self._token_at(sx, sy)
+        if t is not None:
+            return t["x"], t["y"], t["id"]
+        mx, my = self.to_map(sx, sy)
+        grid = self.grid
+        if grid.kind == "square":
+            step = grid.cell if self.area_shape in ("cube", "square") else grid.cell / 2
+            return (grid.ox + round((mx - grid.ox) / step) * step,
+                    grid.oy + round((my - grid.oy) / step) * step, "")
+        return mx, my, ""
+
+    def _area_from_drag(self, d: dict, mx: float, my: float) -> dict:
+        scene = self._scene
+        feet = float(scene["grid"].get("feet", 5) or 5)
+        fpp = T.feet_per_px(scene)
+        dx, dy = mx - d["x"], my - d["y"]
+        shape = self.area_shape
+        if shape in ("cube", "square"):
+            reach = max(abs(dx), abs(dy)) * fpp
+        else:
+            reach = math.hypot(dx, dy) * fpp
+        area = {"shape": shape, "x": d["x"], "y": d["y"], "dir": math.degrees(math.atan2(dy, dx)) if dx or dy else 0,
+                "color": self.area_color, "token": d.get("token", ""), "pitch": d.get("pitch", 0.0)}
+        if shape == "emanation" and d.get("token"):
+            t = self.token(d["token"])
+            if t is not None:
+                reach -= max(0.5, t.get("size", 1.0)) * feet / 2
+        area["size"] = max(feet, round(reach / feet) * feet)
+        area = T.clean_area(area) or area
+        area["id"] = "preview"
+        t = self.token(area.get("token"))
+        if t is not None:
+            area["base"] = T.token_elevation(scene, t)
+        return area
 
     def _token_photo(self, asset_id: str, diameter: int):
         """A token's picture cut to a circle, at the size it's drawn."""
@@ -624,13 +800,20 @@ class MapCanvas(tk.Canvas):
             self.create_rectangle(bx, by, bx + bw, by + bh, fill="#222222", outline="", tags=tags)
             color = "#27AE60" if frac > 0.5 else ("#F39C12" if frac > 0.25 else "#E74C3C")
             self.create_rectangle(bx, by, bx + bw * frac, by + bh, fill=color, outline="", tags=tags)
+        ny = sy + sr + (14 if hp is not None and hp_max else 8) + (max(3.0, sr * 0.14) if conditions else 0)
         if t.get("show_name", True) and sr >= 8:
-            ny = sy + sr + (14 if hp is not None and hp_max else 8) + (max(3.0, sr * 0.14) if conditions else 0)
             label = t["name"] + ("  (hidden)" if hidden else "")
             self.create_text(sx + 1, ny + 1, text=label, fill="#000000", font=("TkDefaultFont", 9, "bold"),
                              tags=tags + ("label",))
             self.create_text(sx, ny, text=label, fill="#FFFFFF", font=("TkDefaultFont", 9, "bold"),
                              tags=tags + ("label",))
+            ny += 13
+        height = height_text(T.token_elevation(self._scene, t)) if self._scene else ""
+        if height:
+            self.create_text(sx + 1, ny + 1, text=height, fill="#000000", font=("TkDefaultFont", 9, "bold"),
+                             tags=tags + ("height",))
+            self.create_text(sx, ny, text=height, fill="#9AD0F5", font=("TkDefaultFont", 9, "bold"),
+                             tags=tags + ("height",))
 
     def _token_at(self, sx: float, sy: float) -> Optional[dict]:
         """The top-most token under a canvas point."""
@@ -684,8 +867,8 @@ class MapCanvas(tk.Canvas):
         self.delete("measure")
         grid = self.grid
         g = (self._scene or {}).get("grid", {})
-        cells = grid.cells_between((x0, y0), (x1, y1))
-        feet = cells * float(g.get("feet", 5))
+        feet = T.distance_ft(self._scene, (x0, y0, self._height_at(x0, y0)), (x1, y1, self._height_at(x1, y1)))
+        cells = feet / float(g.get("feet", 5) or 5)
         a, b = self.to_screen(x0, y0), self.to_screen(x1, y1)
         self.create_line(*a, *b, fill="#F1C40F", width=3, arrow="last", tags=("overlay", "measure"))
         text = (f"{feet:g} ft" if grid.kind != "none" else f"{feet:.0f} ft") + \
@@ -696,6 +879,14 @@ class MapCanvas(tk.Canvas):
                               tags=("overlay", "measure"))
         self.create_text(mx, my, text=text, fill="white", font=("TkDefaultFont", 10, "bold"),
                          tags=("overlay", "measure"))
+
+    def _height_at(self, x: float, y: float) -> float:
+        """The height (feet) at a map point: a token's there, else the ground's."""
+        sx, sy = self.to_screen(x, y)
+        t = self._token_at(sx, sy)
+        if t is not None:
+            return T.token_elevation(self._scene, t)
+        return T.ground_at(self._scene, x, y)
 
     # ------------------------------------------------------------------ mouse
 
@@ -753,12 +944,24 @@ class MapCanvas(tk.Canvas):
             if t is not None:
                 self.select(t["id"])
                 if self.can_move(t):
+                    if e.state & 0x0001:                # Shift-drag raises or lowers it
+                        self._drag = {"kind": "lift", "id": t["id"], "sy0": e.y, "z0": float(t.get("z") or 0),
+                                      "z": float(t.get("z") or 0)}
+                        return
                     self._drag = {"kind": "token", "id": t["id"], "sx": e.x, "sy": e.y, "moved": False,
-                                  "ox": t["x"], "oy": t["y"]}
+                                  "ox": t["x"], "oy": t["y"], "oz": T.token_elevation(self._scene, t)}
                     self.tag_raise(f"t:{t['id']}")
+                return
+            area = self.area(self._handle_at(e.x, e.y))
+            if self.can_edit_area(area):                # drag an area by its starting point
+                self._drag = {"kind": "area_move", "id": area["id"], "sx": e.x, "sy": e.y, "moved": False}
                 return
             self.select(None)
             self._pan_start(e)
+            return
+        if tool == "area":
+            x, y, token = self._area_origin_point(e.x, e.y)
+            self._drag = {"kind": "area", "x": x, "y": y, "token": token, "area": None}
             return
         if tool == "measure":
             self._drag = {"kind": "measure", "x0": mx, "y0": my}
@@ -768,7 +971,10 @@ class MapCanvas(tk.Canvas):
             self._drag = {"kind": "erase"}
             return
         if tool in DRAW_TOOLS:
-            self._drag = {"kind": "draw", "pts": [mx, my], "last": (e.x, e.y)}
+            self._drag = {"kind": "draw", "pts": [mx, my], "last": (e.x, e.y), "start": (mx, my)}
+            return
+        if tool == "elevation" and self.is_dm:
+            self._drag = {"kind": "zone", "pts": [mx, my], "last": (e.x, e.y)}
             return
         if tool in WALL_TOOLS and self.is_dm:
             self._wall_click(e)
@@ -793,22 +999,56 @@ class MapCanvas(tk.Canvas):
             d["sx"], d["sy"] = e.x, e.y
             t = self.token(d["id"])
             if t is not None:
-                cells = self.grid.cells_between((d["ox"], d["oy"]), (mx, my))
-                feet = cells * float(self._scene["grid"].get("feet", 5))
+                z = T.ground_at(self._scene, mx, my) + float(t.get("z") or 0)
+                feet = T.distance_ft(self._scene, (d["ox"], d["oy"], d["oz"]), (mx, my, z))
                 self.on_status(f"Moving {t['name']}: {feet:g} ft")
+        elif kind == "lift":
+            t = self.token(d["id"])
+            if t is not None:
+                step = float(self._scene["grid"].get("feet", 5) or 5)
+                d["z"] = d["z0"] + round((d["sy0"] - e.y) / LIFT_PX) * step
+                self.delete("preview")
+                sx, sy = self.to_screen(t["x"], t["y"])
+                total = T.ground_at(self._scene, t["x"], t["y"]) + d["z"]
+                text = height_text(total) or "on the ground"
+                self.create_text(sx, sy - T.token_box(t, self.grid)[2] * self.zoom - 14, text=text, fill="#9AD0F5",
+                                 font=("TkDefaultFont", 11, "bold"), tags=("overlay", "preview"))
+                self.on_status(f"{t['name']}: {text}  (let go to set it)")
+        elif kind == "area":
+            if abs(e.x - self.to_screen(d["x"], d["y"])[0]) + abs(e.y - self.to_screen(d["x"], d["y"])[1]) < 4:
+                return
+            d["area"] = self._area_from_drag(d, mx, my)
+            touched = T.area_tokens(self._scene, d["area"])
+            self.on_status(f"{area_text(d['area'], self._scene)}: {len(touched)} creature"
+                           f"{'s' if len(touched) != 1 else ''} inside")
+            self._draw_overlay()
+        elif kind == "area_move":
+            if abs(e.x - d["sx"]) + abs(e.y - d["sy"]) > 2:
+                d["moved"] = True
+            dx, dy = e.x - d["sx"], e.y - d["sy"]
+            self.move(f"a:{d['id']}", dx, dy)
+            d["sx"], d["sy"] = e.x, e.y
         elif kind == "measure":
             self._measure = (d["x0"], d["y0"], mx, my)
             self._draw_measure(*self._measure)
         elif kind == "erase":
             self._erase_at(e.x, e.y)
-        elif kind in ("draw", "fog"):
+        elif kind in ("draw", "fog", "zone"):
             lx, ly = d["last"]
-            freehand = self.tool in ("free", "fog_lasso_reveal", "fog_lasso_hide")
+            freehand = self.tool in ("free", "fog_lasso_reveal", "fog_lasso_hide", "elevation")
             if freehand:
                 if (e.x - lx) ** 2 + (e.y - ly) ** 2 < 9 or len(d["pts"]) >= T.MAX_POINTS * 2:
                     return
                 d["pts"].extend([mx, my])
                 d["last"] = (e.x, e.y)
+            elif kind == "draw" and self.tool == "line":
+                x0, y0 = d["start"]
+                d["pts"] = [x0, y0, *axis_snap(x0, y0, mx, my)]
+            elif kind == "draw" and self.tool in ("rect", "ellipse") and e.state & 0x0001:
+                x0, y0 = d["start"]                     # Shift: grows out from where the drag began
+                d["pts"] = [2 * x0 - mx, 2 * y0 - my, mx, my]
+            elif kind == "draw":
+                d["pts"] = list(d["start"]) + [mx, my]
             else:
                 d["pts"] = d["pts"][:2] + [mx, my]
             self._draw_preview(d)
@@ -833,6 +1073,37 @@ class MapCanvas(tk.Canvas):
             self.on_status("")
             self.dispatch({"op": "token_move", "id": t["id"], "x": nx, "y": ny})
             self._draw_overlay()
+        elif kind == "lift":
+            self.delete("preview")
+            self.on_status("")
+            t = self.token(d["id"])
+            if t is not None and d["z"] != d["z0"]:
+                self.dispatch({"op": "token_move", "id": t["id"], "x": t["x"], "y": t["y"], "z": d["z"]})
+            self._draw_overlay()
+        elif kind == "area":
+            area = d.get("area")
+            self.on_status("")
+            if area is not None:
+                area = {k: v for k, v in area.items() if k not in ("id", "base", "author", "ox", "oy")}
+                self.dispatch({"op": "area_add", "area": area})
+            self._draw_overlay()
+        elif kind == "area_move":
+            area = self.area(d["id"])
+            if area is not None and d["moved"]:
+                items = self.find_withtag("handle")
+                for item in items:
+                    if f"a:{area['id']}" in self.gettags(item):
+                        x0, y0, x1, y1 = self.coords(item)
+                        nx, ny = self.to_map((x0 + x1) / 2, (y0 + y1) / 2)
+                        self.dispatch({"op": "area_update", "id": area["id"],
+                                       "fields": {"x": round(nx, 1), "y": round(ny, 1)}})
+                        break
+            self._draw_overlay()
+        elif kind == "zone":
+            self.delete("preview")
+            if len(d["pts"]) >= 6:
+                self.dispatch({"op": "zone_add", "zone": {"pts": [round(p, 1) for p in d["pts"]],
+                                                          "elev": self.zone_height}})
         elif kind == "measure":
             self._measure = None
             self.delete("measure")
@@ -868,6 +1139,14 @@ class MapCanvas(tk.Canvas):
         pts = d["pts"]
         if len(pts) < 4:
             return
+        if d["kind"] == "zone":
+            screen = []
+            for i in range(0, len(pts) - 1, 2):
+                screen.extend(self.to_screen(pts[i], pts[i + 1]))
+            if len(screen) >= 6:
+                self.create_polygon(*screen, outline=ZONE_COLOR, fill="", width=2, dash=(6, 4),
+                                    tags=("overlay", "preview"))
+            return
         if d["kind"] == "fog":
             color = "#5DADE2" if self.tool in ("fog_reveal", "fog_lasso_reveal") else "#E74C3C"
             screen = []
@@ -896,6 +1175,12 @@ class MapCanvas(tk.Canvas):
                     self.delete(tag)
                     self.dispatch({"op": "wall_delete", "id": tag[2:]})
                     return
+                if tag.startswith("a:") and self.can_edit_area(self.area(tag[2:])):
+                    self.dispatch({"op": "area_delete", "id": tag[2:]})
+                    return
+                if tag.startswith("z:") and self.is_dm:
+                    self.dispatch({"op": "zone_delete", "id": tag[2:]})
+                    return
 
     def _double(self, e):
         if self.tool in WALL_TOOLS:
@@ -919,9 +1204,17 @@ class MapCanvas(tk.Canvas):
             if self.on_token_menu:
                 self.on_token_menu(t["id"], e)
             return
+        area = self.area_at(e.x, e.y)
+        if area is not None and self.on_area_menu and self.can_edit_area(self.area(area)):
+            self.on_area_menu(area, e)
+            return
         wall = self.wall_at(e.x, e.y) if self.is_dm else None
         if wall is not None and self.on_wall_menu:
             self.on_wall_menu(wall, e)
+            return
+        zone = self.zone_at(e.x, e.y) if self.is_dm else None
+        if zone is not None and self.on_zone_menu:
+            self.on_zone_menu(zone, e)
 
     def _hover(self, e):
         if self._drag is not None or not self._scene:
@@ -931,7 +1224,19 @@ class MapCanvas(tk.Canvas):
             return
         t = self._token_at(e.x, e.y)
         if self.tool == "select" and self.place is None:
-            self.configure(cursor="fleur" if t is not None and self.can_move(t) else "")
+            grab = t is not None and self.can_move(t)
+            grab = grab or self.can_edit_area(self.area(self._handle_at(e.x, e.y)))
+            self.configure(cursor="fleur" if grab else "")
+
+    def _handle_at(self, sx: float, sy: float) -> Optional[str]:
+        """The area whose starting point (its dot) is under a canvas point."""
+        for item in reversed(self.find_overlapping(sx - 3, sy - 3, sx + 3, sy + 3)):
+            tags = self.gettags(item)
+            if "handle" in tags:
+                for tag in tags:
+                    if tag.startswith("a:") and tag != "a:preview":
+                        return tag[2:]
+        return None
 
     def _wheel(self, e):
         if getattr(e, "num", 0) == 4 or getattr(e, "delta", 0) > 0:
@@ -973,6 +1278,42 @@ class MapCanvas(tk.Canvas):
     def _delete_selected(self):
         if self.is_dm and self.selected:
             self.dispatch({"op": "token_delete", "id": self.selected})
+
+
+def axis_snap(x0: float, y0: float, x1: float, y1: float) -> Tuple[float, float]:
+    """A line's end, made level or upright when it's within a few degrees of that."""
+    dx, dy = x1 - x0, y1 - y0
+    if not dx and not dy:
+        return x1, y1
+    angle = abs(math.degrees(math.atan2(dy, dx))) % 180
+    if angle < AXIS_SNAP_DEG or angle > 180 - AXIS_SNAP_DEG:
+        return x1, y0
+    if abs(angle - 90) < AXIS_SNAP_DEG:
+        return x0, y1
+    return x1, y1
+
+
+def height_text(feet: float) -> str:
+    """"↑ 15 ft" / "↓ 10 ft" (nothing for the ground)."""
+    if abs(feet) < 0.05:
+        return ""
+    return f"{'↑' if feet > 0 else '↓'} {abs(feet):g} ft"
+
+
+def area_text(area: dict, scene: Optional[dict] = None) -> str:
+    """"Cone 30 ft, tilted up 20°" and the like."""
+    shape = area.get("shape", "")
+    text = f"{T.AREA_LABELS.get(shape, shape)} {area.get('size', 0):g} ft"
+    if shape == "line" and area.get("width", 5) != 5:
+        text += f" × {area['width']:g} ft"
+    pitch = area.get("pitch") or 0
+    if shape in ("cone", "line") and pitch:
+        text += f", {'up' if pitch > 0 else 'down'} {abs(pitch):g}°"
+    if scene is not None:
+        h = height_text(T.area_origin(scene, area)[2])
+        if h:
+            text += f"  ({h})"
+    return text
 
 
 def token_letter(name: str) -> str:

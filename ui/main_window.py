@@ -805,10 +805,20 @@ class MainWindow(ctk.CTkFrame):
                 self._tabletop_initiative()         # catch the tokens up with the tracker
             return TabletopView(self, state, service=self.session, remote_backend=lambda: self._remote_table,
                                 on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
-                                characters=self._tabletop_characters, initiative=self._tabletop_initiative)
+                                characters=self._tabletop_characters, initiative=self._tabletop_initiative,
+                                on_open_source=lambda kind, name, tid=tab_id: self._open_token_source(tid, kind, name))
         if page_type == "studio":
             return self._build_studio(tab_id)
         raise ValueError(f"Unknown page type: {page_type}")
+
+    def _open_token_source(self, tab_id: str, kind: str, name: str):
+        """A tabletop token's stat block (a monster) or character sheet, in a new tab beside the map."""
+        if kind == "character":
+            self._open_character(tab_id, name, new_tab=True)
+            return
+        index = self.tab_bar.get_tab_index(tab_id) + 1
+        new_id = self._open_page_in_new_tab("collections", index=index)
+        self._navigate_to_collection_in_tab(new_id, "monsters", name)
 
     def _tabletop_initiative(self):
         """The link between tabletop tokens and the initiative tracker, made the first time it's needed."""

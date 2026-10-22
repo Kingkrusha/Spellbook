@@ -272,6 +272,8 @@ class RemoteTable:
             for t in scene["tokens"]:
                 if t["id"] == cmd.get("id"):
                     t["x"], t["y"] = float(cmd["x"]), float(cmd["y"])
+                    if cmd.get("z") is not None:
+                        t["z"] = float(cmd["z"])
             self._listeners.call()
         self._seq += 1
         if not self.service.send_table_cmd(cmd, self._seq):
@@ -371,5 +373,16 @@ def valid_view(view) -> bool:
             return False
     for d in drawings:
         if not isinstance(d, dict) or not isinstance(d.get("pts"), list):
+            return False
+    areas, zones = scene.get("areas", []), scene.get("zones", [])
+    if not isinstance(areas, list) or not isinstance(zones, list):
+        return False
+    for a in areas:
+        if not isinstance(a, dict) or a.get("shape") not in T.AREA_SHAPES or not isinstance(a.get("id"), str):
+            return False
+        if not all(isinstance(a.get(k), (int, float)) for k in ("x", "y", "size", "dir", "pitch", "dz", "width")):
+            return False
+    for z in zones:
+        if not isinstance(z, dict) or not isinstance(z.get("pts"), list) or not isinstance(z.get("elev"), (int, float)):
             return False
     return True
