@@ -619,7 +619,10 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     def _on_background_right_click(self, background: Background, x: int, y: int):
         """Handle right-click on background - show context menu."""
         self._context_background = background
-        self.context_menu.tk_popup(x, y)
+        try:
+            self.context_menu.tk_popup(x, y)
+        finally:
+            self.context_menu.grab_release()
     
     def _context_set_background(self):
         """Set background for current character from context menu."""

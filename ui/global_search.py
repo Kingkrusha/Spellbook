@@ -9,6 +9,7 @@ from typography import ui_font
 from tkinter import ttk
 from typing import Optional, Callable, List, Dict
 from theme import get_theme_manager
+from ui.popup_window import PopupWindow, watch_popup
 from content_versions import collapse_search_results
 
 
@@ -170,10 +171,7 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
             return
         
         # Create dropdown as a toplevel window for overlay effect
-        self._dropdown = ctk.CTkToplevel(self)
-        self._dropdown.withdraw()  # Hide initially while configuring
-        self._dropdown.overrideredirect(True)  # No window decorations
-        self._dropdown.attributes('-topmost', True)
+        self._dropdown = PopupWindow(self)  # starts hidden while it is filled in
         
         # Create scrollable frame for results
         self._dropdown_inner = ctk.CTkScrollableFrame(
@@ -200,6 +198,8 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
         
         # Bind click outside to close
         self._dropdown.bind('<FocusOut>', self._check_focus_out)
+        # ...and also close when the window moves, the page changes or the app loses focus
+        self._dropdown_watch = watch_popup(self, self._dropdown, self._hide_dropdown)
     
     def _position_dropdown(self):
         """Position the dropdown below the search bar."""
@@ -291,8 +291,15 @@ class GlobalSearchBar(LazyDatabase, ctk.CTkFrame):
     
     def _hide_dropdown(self):
         """Hide the dropdown."""
+        watch = getattr(self, '_dropdown_watch', None)
+        if watch is not None:
+            watch.cancel()
+            self._dropdown_watch = None
         if self._dropdown_visible and hasattr(self, '_dropdown'):
-            self._dropdown.destroy()
+            try:
+                self._dropdown.destroy()
+            except Exception:
+                pass
             self._dropdown_visible = False
             self._result_widgets = []
     

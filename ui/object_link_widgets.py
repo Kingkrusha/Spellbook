@@ -22,6 +22,7 @@ from typography import ui_font
 from ui.label_text import LabeledLabel
 from theme import get_theme_manager
 from ui.platform_compat import bind_right_click
+from ui.popup_window import PopupWindow, remove_binding, watch_popup
 from object_links import (
     LINK_CATEGORIES,
     LINK_MARKUP_RE,
@@ -373,19 +374,14 @@ class LinkPopup(ctk.CTkToplevel):
 # Floating suggestion popup
 # --------------------------------------------------------------------------- #
 
-class LinkSuggestionPopup(ctk.CTkToplevel):
+class LinkSuggestionPopup(PopupWindow):
     """The small "link this word?" popup - up to 2 rows for as-you-type
     suggestions, or every match (scrollable) for "Find link suggestions"."""
 
     def __init__(self, parent, matches: List[LinkTarget], on_pick: Callable[[LinkTarget], None],
                  on_close: Callable[[], None], theme=None, scrollable: bool = False):
-        super().__init__(parent)
+        super().__init__(parent)          # borderless, on top, hidden until positioned
         self.theme = theme or get_theme_manager()
-        self.overrideredirect(True)
-        try:
-            self.attributes("-topmost", True)
-        except Exception:
-            pass
 
         border = self.theme.get_current_color('border')
         bg = self.theme.get_current_color('bg_secondary')
@@ -439,11 +435,12 @@ class LinkSuggestionPopup(ctk.CTkToplevel):
 
     def position_above(self, root_x: int, root_y: int):
         self.update_idletasks()
-        h = self.winfo_height()
+        h = self.winfo_reqheight()   # still hidden, so ask for the size it wants
         y = root_y - h - 6
         if y < 0:
             y = root_y + 20  # not enough room above - drop it below instead
         self.geometry(f"+{max(root_x - 10, 0)}+{max(y, 0)}")
+        self.deiconify()
 
 
 # --------------------------------------------------------------------------- #
@@ -774,13 +771,16 @@ class LinkAwareText:
         host = self.text_widget.winfo_toplevel()
         self._host_click_binding = host.bind("<Button-1>", lambda _e: self._hide_suggestions(), add="+")
         self._host_for_click_binding = host
+        # Also dismiss it when the page scrolls, the window moves or the app loses focus.
+        self._suggestion_watch = watch_popup(self.text_widget, popup, self._hide_suggestions)
 
     def _hide_suggestions(self):
+        watch, self._suggestion_watch = getattr(self, "_suggestion_watch", None), None
+        if watch is not None:
+            watch.cancel()
         if self._host_click_binding is not None:
-            try:
-                self._host_for_click_binding.unbind("<Button-1>", self._host_click_binding)
-            except Exception:
-                pass
+            # Remove only this binding (before Python 3.13 unbind() removed every <Button-1> on the window)
+            remove_binding(self._host_for_click_binding, "<Button-1>", self._host_click_binding)
             self._host_click_binding = None
         if self._suggestion_popup is not None:
             popup, self._suggestion_popup = self._suggestion_popup, None

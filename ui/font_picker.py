@@ -18,6 +18,7 @@ import customtkinter as ctk
 from theme import get_theme_manager
 from typography import installed_families
 from typography import ui_font
+from ui.popup_window import PopupWindow, watch_popup
 
 ROW_H = 32
 VISIBLE_ROWS = 9
@@ -39,6 +40,7 @@ class FontPicker(ctk.CTkFrame):
         self._command = command
         self._value = value
         self._popup = None
+        self._watch = None
         self._families: Optional[List[str]] = None
         self._preview_fonts = {}
         theme = get_theme_manager()
@@ -114,13 +116,7 @@ class FontPicker(ctk.CTkFrame):
         self._hover = -1
 
         top = self.winfo_toplevel()
-        popup = ctk.CTkToplevel(top)          # child of the window, not of this widget (see module docstring)
-        popup.withdraw()
-        popup.overrideredirect(True)
-        try:
-            popup.attributes("-topmost", True)
-        except Exception:
-            pass
+        popup = PopupWindow(top)              # child of the window, not of this widget (see module docstring)
         width = max(self.winfo_width(), 280)
         height = VISIBLE_ROWS * ROW_H + 50
         x = self.winfo_rootx()
@@ -176,6 +172,7 @@ class FontPicker(ctk.CTkFrame):
             pass
         popup.deiconify()
         popup.after(20, self._focus_filter)
+        self._watch = watch_popup(self, popup, self._close)
         self._redraw()
 
     def _focus_filter(self):
@@ -204,6 +201,9 @@ class FontPicker(ctk.CTkFrame):
 
     def _close(self):
         popup, self._popup = self._popup, None
+        watch, self._watch = getattr(self, "_watch", None), None
+        if watch is not None:
+            watch.cancel()
         if popup is not None:
             try:
                 popup.destroy()
