@@ -224,8 +224,8 @@ class SessionService:
         if self.saved("lan_web", False):
             try:
                 self.start_web()
-            except LanError as e:
-                self._add_line("system", e.message)
+            except Exception as e:              # the session itself is up: never let this stop it
+                self._add_line("system", getattr(e, "message", "") or f"Browsers can't join: {e}")
         self._wake()
         self._notify("state")
         return self.port

@@ -219,8 +219,8 @@ class LanHost:
         web = WebServer(self)
         try:
             port = self._runner.call(web.start(bind, port), 10)
-        except OSError as e:
-            raise LanError("web", f"Could not open the browser page on port {port}: {e}")
+        except Exception as e:              # a taken or blocked port, or the loop not answering
+            raise LanError("web", f"Could not open the browser page on port {port}: {e or type(e).__name__}")
         self._web = web
         return port
 

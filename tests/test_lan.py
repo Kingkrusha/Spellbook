@@ -431,3 +431,17 @@ def test_host_can_roll_and_bad_commands_are_reported(host):
         assert no_event(a.events, "chat")                  # commands are never posted as chat
     finally:
         a.close()
+
+
+def test_hosting_without_cryptography_says_what_to_install(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def no_cryptography(name, *args, **kwargs):
+        if name == "cryptography" or name.startswith("cryptography."):
+            raise ImportError("No module named 'cryptography'")
+        return real_import(name, *args, **kwargs)
+    monkeypatch.setattr(builtins, "__import__", no_cryptography)
+    with pytest.raises(LanError) as err:
+        security.generate_session_cert()
+    assert "pip install" in err.value.message
