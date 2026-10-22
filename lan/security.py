@@ -15,12 +15,16 @@ import ssl
 import tempfile
 from typing import Tuple
 
-from lan.protocol import fingerprint_of
+from lan.protocol import LanError, fingerprint_of
 
 
 def generate_session_cert() -> Tuple[bytes, bytes, str]:
     """Return ``(cert_pem, key_pem, fingerprint)`` for a fresh self-signed certificate."""
-    from cryptography import x509
+    try:
+        from cryptography import x509
+    except ImportError:
+        raise LanError("missing", "Hosting needs the 'cryptography' package, which isn't installed. "
+                                  "Run: pip install -r requirements.txt")
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.x509.oid import NameOID

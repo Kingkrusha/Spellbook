@@ -238,8 +238,9 @@ class SessionView(ctk.CTkFrame):
         self._cancel_scan_timer()
         if self.service.role != NONE:
             return
-        if self._found_status is not None and not self.service.discovered:
-            self._found_status.configure(text="Searching…")
+        status = self._found_status
+        if status is not None and status.winfo_exists() and not self.service.discovered:
+            status.configure(text="Searching…")
         self.service.scan()
         self._scan_after = self.after(6000, self._scan_now)
 
