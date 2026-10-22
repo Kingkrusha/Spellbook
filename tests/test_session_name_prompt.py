@@ -32,6 +32,7 @@ class FakeSettings:
         lan_discovery = False
         lan_client_id = ""
         lan_last_invite = ""
+        lan_character = ""
 
     def update(self, **kw):
         for k, v in kw.items():
@@ -120,3 +121,33 @@ def test_joining_asks_for_a_name_and_remembers_it_for_next_time(page):
     (dlg2,) = dialogs(root)
     assert dlg2.entry.get() == "Mira"
     dlg2.destroy()
+
+
+def test_joining_asks_which_character_you_play(page):
+    root, svc, view = page
+    view._get_characters = lambda: ["Aria", "Brakka"]
+    view._character_info = lambda name: {"name": name, "hp": 31, "ac": 15}
+    view._invite_entry.delete(0, "end")
+    view._invite_entry.insert(0, "127.0.0.1:1#" + "A" * 26)
+    view._on_join()
+    pump(root, 0.2)
+    (dlg,) = dialogs(root)
+    assert dlg.playing.get() == NameDialog.NOBODY
+    dlg.entry.insert(0, "Mira")
+    dlg.playing.set("Aria")
+    dlg._submit()
+    pump(root, 0.2)
+    assert svc.my_character == {"name": "Aria", "hp": 31, "hp_max": 31, "ac": 15, "summary": ""}
+    assert FakeSettings.settings.lan_character == "Aria"
+    svc.cancel_join()
+    # next time it starts on the same character; hosting never asks
+    view._on_join()
+    pump(root, 0.2)
+    (dlg2,) = dialogs(root)
+    assert dlg2.playing.get() == "Aria"
+    dlg2.destroy()
+    view._on_start_host()
+    pump(root, 0.2)
+    (dlg3,) = dialogs(root)
+    assert dlg3.playing is None
+    dlg3.destroy()

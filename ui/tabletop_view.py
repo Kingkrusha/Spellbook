@@ -90,6 +90,21 @@ class _Thumbs:
         return image
 
 
+def _small_picture(data: str):
+    """A player's portrait (base64 JPEG or PNG) as a PIL image, or None if it isn't a sensible picture."""
+    import base64
+    import io
+    from PIL import Image
+    try:
+        image = Image.open(io.BytesIO(base64.b64decode(data, validate=True)))
+        if image.format not in ("JPEG", "PNG") or max(image.size) > 2048:
+            return None
+        image.load()
+        return image
+    except Exception:
+        return None
+
+
 class TabletopView(ctk.CTkFrame):
     """The Tabletop page (see the module docstring)."""
 
@@ -1048,12 +1063,18 @@ class TabletopView(ctk.CTkFrame):
         if self._scene_or_warn() is None:
             return
         chars = self.characters() if self.characters else []
-        if not chars:
-            messagebox.showinfo("Add a character", "There are no characters yet.", parent=self)
+        theirs = self._player_characters()
+        if not chars and not theirs:
+            messagebox.showinfo("Add a character", "There are no characters yet. Players can say which character "
+                                                   "they're playing when they join a session.", parent=self)
             return
-        dialog = PickDialog(self.winfo_toplevel(), "Add a character", [c["name"] for c in chars])
+        labels = {f"{c['name']}  ({c['player']}'s character)": c for c in theirs}
+        dialog = PickDialog(self.winfo_toplevel(), "Add a character", list(labels) + [c["name"] for c in chars])
         self.wait_window(dialog)
         if not dialog.result:
+            return
+        if dialog.result in labels:
+            self.canvas.start_placing(self._player_token(labels[dialog.result]))
             return
         c = next(c for c in chars if c["name"] == dialog.result)
         token = {"name": c["name"], "kind": "pc", "hp": c.get("hp"), "hp_max": c.get("hp_max"),
@@ -1068,6 +1089,28 @@ class TabletopView(ctk.CTkFrame):
             except Exception:
                 pass
         self.canvas.start_placing(token)
+
+    def _player_characters(self) -> List[dict]:
+        """The characters connected players said they're playing (each with ``player`` and ``client_id``)."""
+        s = self.service
+        if s is None or not getattr(s, "is_host", False):
+            return []
+        return [dict(c) for pid, c in getattr(s, "player_characters", {}).items()
+                if c.get("name") and c.get("client_id") and pid in s.client_ids]
+
+    def _player_token(self, c: dict) -> dict:
+        """A token for a player's character: theirs to move, with their numbers and portrait."""
+        token = {"name": c["name"], "kind": "pc", "hp": c.get("hp"), "hp_max": c.get("hp_max"),
+                 "color": T.DEFAULT_COLORS[1], "owner": c["client_id"], "owner_name": c.get("player", ""),
+                 "source": f"player:{c['name']}"}
+        if c.get("portrait"):
+            image = _small_picture(c["portrait"])
+            if image is not None:
+                try:
+                    token["image"] = self.assets.add_image(image, token=True)[0]
+                except Exception as e:
+                    print(f"Tabletop: couldn't use {c['name']}'s portrait: {e}")
+        return token
 
     def _players(self) -> List[tuple]:
         """``[(name, install id)]`` of the players connected to the session being hosted."""
@@ -1108,6 +1151,8 @@ class TabletopView(ctk.CTkFrame):
         menu.add_command(label="Show to players" if t.get("hidden") else "Hide from players",
                          command=lambda: self._dispatch({"op": "token_update", "id": token_id,
                                                          "fields": {"hidden": not t.get("hidden")}}))
+        if t.get("kind") != "prop":
+            menu.add_cascade(label="Belongs to", menu=self._owner_menu(menu, t))
         menu.add_command(label="Bring to front", command=lambda: self._dispatch({"op": "token_front",
                                                                                  "id": token_id}))
         menu.add_command(label="Duplicate", command=lambda: self._duplicate_token(t))
@@ -1125,6 +1170,38 @@ class TabletopView(ctk.CTkFrame):
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def _owner_menu(self, parent: tk.Menu, token: dict) -> tk.Menu:
+        """Give a token to a connected player (they can then move it and see its hit points), or back to the DM."""
+        menu = tk.Menu(parent, tearoff=0)
+        players = self._players()
+        current = token.get("owner") or ""
+        choice = tk.StringVar(value=current)
+        menu._var = choice                                  # (keep the variable alive with the menu)
+        menu.add_radiobutton(label="Nobody (DM)", value="", variable=choice,
+                             command=lambda: self._give_token(token["id"], "", ""))
+        names = {cid: name for name, cid in players}
+        if current and current not in names and token.get("owner_name"):
+            names[current] = f"{token['owner_name']} (not here now)"
+        for cid, name in names.items():
+            playing = next((c["name"] for c in self._player_characters() if c["client_id"] == cid), "")
+            label = f"{name}  (as {playing})" if playing else name
+            menu.add_radiobutton(label=label, value=cid, variable=choice,
+                                 command=lambda c=cid, n=name: self._give_token(token["id"], c, n))
+        if not players:
+            menu.add_command(label="No players are connected", state="disabled")
+        return menu
+
+    def _give_token(self, token_id: str, owner: str, owner_name: str):
+        token = self.canvas.token(token_id)
+        if token is None:
+            return
+        if owner and token.get("owner") != owner:
+            owner_name = owner_name.replace(" (not here now)", "")
+        fields = {"owner": owner, "owner_name": owner_name if owner else ""}
+        if owner:
+            fields["kind"] = "pc"
+        self._dispatch({"op": "token_update", "id": token_id, "fields": fields})
 
     # ---- initiative tracker
     def _link(self):

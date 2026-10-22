@@ -70,6 +70,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   font-weight: 600;
 }
 .card button[disabled] { opacity: .6; cursor: default; }
+.join-char { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.join-char summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.join-char[open] { display: grid; gap: 6px; padding-bottom: 10px; }
+.char-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.char-row label { display: grid; gap: 4px; }
+.small { font-size: 12px; margin: 2px 0 0; }
 .status { min-height: 1.4em; margin: 14px 0 0; color: var(--muted); }
 .status.error { color: #ff8a80; }
 

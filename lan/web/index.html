@@ -23,6 +23,16 @@
         <label for="join-pw">Session password</label>
         <input id="join-pw" name="password" type="password" autocomplete="off">
       </div>
+      <details id="join-char" class="join-char">
+        <summary>Your character (optional)</summary>
+        <label for="char-name">Character name</label>
+        <input id="char-name" maxlength="40" autocomplete="off" placeholder="e.g. Aria">
+        <div class="char-row">
+          <label>Max HP <input id="char-hp" type="number" min="0" max="9999" inputmode="numeric"></label>
+          <label>AC <input id="char-ac" type="number" min="0" max="50" inputmode="numeric"></label>
+        </div>
+        <p class="muted small">The DM sees this and can give you your character's token.</p>
+      </details>
       <button id="join-btn" type="submit">Join the table</button>
     </form>
     <p id="join-status" class="status" role="status" aria-live="polite"></p>
@@ -131,6 +141,15 @@
     <section id="tab-people" class="pane" role="tabpanel" hidden>
       <h2>At the table</h2>
       <ul id="people" class="people"></ul>
+      <form id="play-as" class="add-me">
+        <h3>Playing as</h3>
+        <label>Character name <input id="play-name" maxlength="40" autocomplete="off" placeholder="No one yet"></label>
+        <div class="add-row">
+          <label>Max HP <input id="play-hp" type="number" min="0" max="9999" inputmode="numeric"></label>
+          <label>AC <input id="play-ac" type="number" min="0" max="50" inputmode="numeric"></label>
+        </div>
+        <button type="submit">Tell the DM</button>
+      </form>
     </section>
   </aside>
 </main>

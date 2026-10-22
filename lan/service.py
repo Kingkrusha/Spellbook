@@ -109,6 +109,8 @@ class SessionService:
         self.outbox: Dict[str, dict] = {}           # xfer_id -> what we sent and how it went
         self.discovery_visible = False              # hosting AND answering discovery probes
         self.security_code = ""                     # short form of the certificate fingerprint
+        self.my_character: dict = {}                # player: who we're playing (lan.protocol.clean_character)
+        self.player_characters: Dict[str, dict] = {}  # host: peer id -> their character (+ player, client_id)
 
         self._host: Optional[LanHost] = None
         self._client: Optional[LanClient] = None
@@ -301,6 +303,19 @@ class SessionService:
         self._client.send_tracker_cmd(cmd)
         return True
 
+    # ---------------------------------------------------------------- characters
+
+    def set_my_character(self, character: Optional[dict]) -> None:
+        """Player: tell the DM which character we're playing (None or {} for nobody). Kept for the next join."""
+        self.my_character = P.clean_character(character or {})
+        if self._client is not None and self.role == CLIENT:
+            self._client.send("character", self.my_character or {"name": ""})
+            self._notify("state")
+
+    def player_character(self, peer_id: str) -> dict:
+        """Host: the character a connected player said they're playing ({} if none)."""
+        return dict(self.player_characters.get(peer_id) or {})
+
     # ---------------------------------------------------------------- tabletop
 
     def send_table_state(self, peer_id: str, view: dict) -> None:
@@ -476,6 +491,7 @@ class SessionService:
         self.peers = []
         self.my_id = ""
         self.discovery_visible = False
+        self.player_characters = {}
         for obj in (host, client):
             if obj is not None:
                 try:
@@ -536,6 +552,8 @@ class SessionService:
             self.chat = []
             self.last_end_reason = ""
             self._add_line("system", f"Joined {self.host_name}'s session.")
+            if self.my_character:
+                self._client.send("character", self.my_character)
             self._notify("state")
         else:
             message = ev.get("message") or "Could not join the session."
@@ -566,6 +584,21 @@ class SessionService:
             self._add_line("system", f"{ev['peer']['name']} joined.")
             self._notify("state")
             self._notify("peer_joined", peer=ev["peer"], client_id=ev.get("client_id", ""))
+        elif kind == "peer_character":                  # host: a player picked (or dropped) a character
+            peer_id = ev["peer"]["peer_id"]
+            self._set_peer(ev["peer"])
+            if ev.get("character"):
+                self.player_characters[peer_id] = dict(ev["character"], player=ev["peer"]["name"],
+                                                       client_id=ev.get("client_id", ""))
+                self._add_line("system", f"{ev['peer']['name']} is playing {ev['character']['name']}. "
+                                         "Add their token from Tabletop > Character.")
+            else:
+                self.player_characters.pop(peer_id, None)
+            self._notify("state")
+            self._notify("peer_character", peer=ev["peer"], character=ev.get("character") or {})
+        elif kind == "peer_updated":                    # player: someone else's details changed
+            self._set_peer(ev["peer"])
+            self._notify("state")
         elif kind == "tracker_cmd":
             self._notify("tracker_cmd", peer_id=ev["peer_id"], name=ev["name"], cmd=ev["cmd"], seq=ev.get("seq"))
         elif kind == "tracker_state":
@@ -586,6 +619,7 @@ class SessionService:
             self._notify("table_ping", ping=ev.get("ping") or {})
         elif kind == "peer_left":
             self.client_ids.pop(ev["peer"]["peer_id"], None)
+            self.player_characters.pop(ev["peer"]["peer_id"], None)
             self._drop_peer(ev["peer"])
             why = f" ({ev['reason']})" if ev.get("reason") else ""
             self._add_line("system", f"{ev['peer']['name']} left{why}.")
@@ -643,7 +677,10 @@ class SessionService:
         self._add_line("system", text.get(ev["status"], f"{who}: {ev['status']}"))
 
     def _set_peer(self, peer: dict) -> None:
-        self.peers = [p for p in self.peers if p["peer_id"] != peer["peer_id"]] + [peer]
+        if any(p["peer_id"] == peer["peer_id"] for p in self.peers):
+            self.peers = [peer if p["peer_id"] == peer["peer_id"] else p for p in self.peers]
+        else:
+            self.peers = self.peers + [peer]
 
     def _drop_peer(self, peer: dict) -> None:
         self.peers = [p for p in self.peers if p["peer_id"] != peer["peer_id"]]

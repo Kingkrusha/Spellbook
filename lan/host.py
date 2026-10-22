@@ -42,7 +42,7 @@ APPROVAL_TIMEOUT = 60.0         # how long the DM has to say yes
 MAX_STRIKES = 20                # rate-limit violations before a peer is dropped
 
 # What a browser player may send (see lan/web.py): no characters or homebrew
-WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req"}
+WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req", "character"}
 
 Handler = Callable[["LanHost", "_Peer", dict], Awaitable[None]]
 
@@ -109,11 +109,14 @@ class _Peer:
         self.app_version = ""
         self.strikes = 0
         self.dropped = False
+        self.character: dict = {}               # who they say they're playing (lan.protocol.clean_character)
 
     def public(self) -> dict:
         out = {"peer_id": self.peer_id, "name": self.name, "is_host": False, "app": self.app_version}
         if self.web:
             out["web"] = True
+        if self.character:
+            out["character"] = self.character["name"]
         return out
 
     async def send(self, msg: dict) -> None:
@@ -162,6 +165,7 @@ class LanHost:
         self.register_handler("table_cmd", self._on_table_cmd)
         self.register_handler("table_asset_req", self._on_table_asset_req)
         self.register_handler("xfer_reply", self._on_xfer_reply)
+        self.register_handler("character", self._on_character)
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -552,6 +556,16 @@ class LanHost:
                              "body": {"code": "unknown_peer", "message": "That player is not in the session."}})
             return
         await peer.send(msg)            # echo, so the sender's log has it in order
+
+    # ------------------------------------------------------------------ characters
+
+    async def _on_character(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        """A player says which character they're playing (or, with no name, that they've stopped)."""
+        peer.character = P.clean_character(body)
+        self._refresh_public()
+        self._emit("peer_character", peer=peer.public(), client_id=peer.client_id, character=dict(peer.character))
+        await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
+                               "body": {"event": "update", "peer": peer.public()}})
 
     # ------------------------------------------------------------------ tracker
 

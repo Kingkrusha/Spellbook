@@ -252,6 +252,9 @@ class LanClient:
                 elif body.get("event") == "leave":
                     self._peers.pop(peer["peer_id"], None)
                     self.events.put("peer_left", peer=peer, reason="")
+                elif body.get("event") == "update" and peer["peer_id"] in self._peers:
+                    self._peers[peer["peer_id"]] = peer
+                    self.events.put("peer_updated", peer=peer)
         elif kind == "error":
             self.events.put("error", code=str(body.get("code") or ""), message=str(body.get("message") or ""))
         elif kind == "tracker_state":

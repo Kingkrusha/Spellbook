@@ -464,3 +464,64 @@ def test_a_monster_opens_in_a_pop_up_and_players_get_none(page, tk_root):
         assert not page.open_source({"name": "Aboleth"})
     finally:
         page.backend = real
+
+
+class FakeHost:
+    """Enough of a hosting SessionService: Robin is connected and playing Aria."""
+    is_host = True
+    role = "host"
+    my_id = "host"
+
+    def __init__(self, portrait=""):
+        self.peers = [{"peer_id": "host", "name": "DM"}, {"peer_id": "p1", "name": "Robin"}]
+        self.client_ids = {"p1": "robin-install"}
+        self.player_characters = {"p1": {"name": "Aria", "hp": 20, "hp_max": 31, "ac": 15, "player": "Robin",
+                                         "client_id": "robin-install", "portrait": portrait}}
+
+
+def test_the_dm_adds_a_token_for_a_players_character(page, tk_root, monkeypatch):
+    import base64
+    from PIL import Image
+    import ui.tabletop_view as V
+    with_map(page, tk_root)
+    picture = io.BytesIO()
+    Image.new("RGB", (60, 80), (30, 120, 200)).save(picture, "PNG")
+    page.service = FakeHost(base64.b64encode(picture.getvalue()).decode("ascii"))
+    picked = {}
+
+    class Pick:
+        def __init__(self, parent, title, names):
+            picked["names"] = names
+            self.result = next(n for n in names if "Robin" in n)
+    monkeypatch.setattr(V, "PickDialog", Pick)
+    placing = []
+    monkeypatch.setattr(page.canvas, "start_placing", placing.append)
+    page._add_character()
+    assert picked["names"] == ["Aria  (Robin's character)"]
+    token = placing[0]
+    assert token["name"] == "Aria" and token["owner"] == "robin-install" and token["owner_name"] == "Robin"
+    assert token["hp"] == 20 and token["hp_max"] == 31 and token["kind"] == "pc" and token["image"]
+    # a broken portrait is left out, not fatal
+    page.service = FakeHost("bm90IGEgcGljdHVyZQ==")
+    placing.clear()
+    page._add_character()
+    assert "image" not in placing[0]
+
+
+def test_the_dm_gives_a_token_to_a_player_and_takes_it_back(page, tk_root):
+    with_map(page, tk_root)
+    page.service = FakeHost()
+    tid = page.table_.apply({"op": "token_add", "scene": page.backend.view()["scene"]["id"],
+                             "token": {"name": "Wolf", "x": 105, "y": 105}})["token"]
+    pump(tk_root)
+    menu = page._owner_menu(__import__("tkinter").Menu(page), page.canvas.token(tid))
+    labels = [menu.entrycget(i, "label") for i in range(menu.index("end") + 1)]
+    assert labels == ["Nobody (DM)", "Robin  (as Aria)"]
+    menu.invoke(1)
+    pump(tk_root)
+    t = page.canvas.token(tid)
+    assert t["owner"] == "robin-install" and t["owner_name"] == "Robin" and t["kind"] == "pc"
+    menu = page._owner_menu(__import__("tkinter").Menu(page), t)
+    menu.invoke(0)
+    pump(tk_root)
+    assert page.canvas.token(tid)["owner"] == ""

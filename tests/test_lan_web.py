@@ -519,3 +519,17 @@ def test_hosting_starts_even_if_the_browser_page_cant(monkeypatch):
         assert any("no luck" in line.get("text", "") for line in s.chat)
     finally:
         s.leave()
+
+
+def test_a_browser_player_says_who_they_play(host):
+    b = Browser(host.web_port)
+    try:
+        b.hello("Robin", "deadbeef")
+        b.recv("welcome")
+        b.send("character", {"name": "Aria", "hp": 31, "hp_max": 31, "ac": 15})
+        ev = wait_for(host.events, "peer_character")
+        assert ev["character"]["name"] == "Aria" and ev["client_id"] == "web:deadbeef"
+        update = b.recv("presence", where=lambda m: m["body"]["event"] == "update")
+        assert update["body"]["peer"]["character"] == "Aria"
+    finally:
+        b.close()

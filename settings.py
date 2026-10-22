@@ -116,6 +116,7 @@ class AppSettings:
     lan_overlay_opacity: float = 0.72  # Backdrop opacity of the (Windows) translucent overlay
     lan_web: bool = False  # The host lets players join from a web browser (lan/web.py)
     lan_web_port: int = 8742
+    lan_character: str = ""  # The character this player last said they were playing in a session
     # Initiative tracker
     tracker_window_state: str = ""  # JSON: where each pop-up window was, whether it was pinned, ...
     tracker_turn_beep: bool = True  # Beep (and flash the taskbar) when it becomes your turn
@@ -165,7 +166,7 @@ class AppSettings:
             'show_spell_only_summons',
             'lan_player_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
-            'lan_overlay_opacity', 'lan_overlay_translucent', 'lan_web', 'lan_web_port',
+            'lan_overlay_opacity', 'lan_overlay_translucent', 'lan_web', 'lan_web_port', 'lan_character',
             'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
             'hotkeys', 'show_content_images', 'pdf_folders',
         }

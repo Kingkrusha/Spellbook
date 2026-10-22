@@ -308,5 +308,20 @@
               init_bonus: num("add-init", -20, 20, 0) });
   });
 
+  // ------------------------------------------------------------------ playing as
+  function fillPlayAs() {
+    const c = S.character || {};
+    $("play-name").value = c.name || "";
+    $("play-hp").value = c.hp_max !== undefined ? c.hp_max : "";
+    $("play-ac").value = c.ac !== undefined ? c.ac : "";
+  }
+  S.on("joined", fillPlayAs);
+  $("play-as").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const info = S.readCharacter("play");
+    if (S.setCharacter(info)) S.toast(info.name ? "The DM knows you're playing " + info.name + "." : "You're not playing a character.");
+    else S.toast("You're not connected to the DM right now.");
+  });
+
   window.SpellbookSide = { showTab: showTab, say: say };
 })();

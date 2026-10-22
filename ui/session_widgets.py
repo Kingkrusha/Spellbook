@@ -2,13 +2,14 @@
 shown under every tab while a session is running, and the "may this player join?"
 prompt the host sees (it can appear on any tab, so it is not part of the page)."""
 
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 import customtkinter as ctk
 
 from lan.service import CLIENT, HOSTING, JOINING
 from theme import get_theme_manager
 from typography import ui_font
+from ui.tooltip import HoverTooltip
 
 
 class SessionStatusBar(ctk.CTkFrame):
@@ -73,12 +74,16 @@ class NameDialog(ctk.CTkToplevel):
     from the computer to guess one. ``on_done(name)`` is called once with the trimmed name; closing or
     cancelling calls nothing."""
 
-    def __init__(self, parent, initial: str, on_done: Callable[[str], None], hosting: bool = False):
+    NOBODY = "No one yet"
+
+    def __init__(self, parent, initial: str, on_done: Callable[[str], None], hosting: bool = False,
+                 characters: Optional[List[str]] = None, character: str = ""):
         super().__init__(parent)
         theme = get_theme_manager()
         self._on_done = on_done
+        self.character = ""                       # what was picked under "Playing as" ("" = nobody)
         self.title("Your name")
-        self.geometry("400x210")
+        self.geometry("400x270" if characters else "400x210")
         self.resizable(False, False)
         self.transient(parent.winfo_toplevel())
 
@@ -96,6 +101,17 @@ class NameDialog(ctk.CTkToplevel):
         if initial:
             self.entry.insert(0, initial)
             self.entry.select_range(0, "end")
+        self.playing = None
+        if characters:
+            line = ctk.CTkFrame(box, fg_color="transparent")
+            line.pack(fill="x", pady=(10, 0))
+            ctk.CTkLabel(line, text="Playing as", font=ui_font("body")).pack(side="left")
+            values = [self.NOBODY] + list(characters)
+            self.playing = ctk.StringVar(value=character if character in characters else self.NOBODY)
+            ctk.CTkOptionMenu(line, values=values, variable=self.playing, width=220,
+                              dynamic_resizing=False).pack(side="left", padx=8)
+            HoverTooltip(line, "The DM sees this character's name, hit points, AC and portrait, "
+                               "and can give you its token on the tabletop.")
         self.error = ctk.CTkLabel(box, text="", font=ui_font("small"),
                                   text_color=theme.get_current_color('text_warning'))
         self.error.pack(anchor="w", pady=(4, 0))
@@ -126,6 +142,8 @@ class NameDialog(ctk.CTkToplevel):
         if not name:
             self.error.configure(text="Enter a name to continue.")
             return
+        if self.playing is not None and self.playing.get() != self.NOBODY:
+            self.character = self.playing.get()
         callback, self._on_done = self._on_done, None
         self.destroy()
         if callback is not None:
