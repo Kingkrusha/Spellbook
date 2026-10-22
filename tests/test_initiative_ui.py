@@ -18,6 +18,14 @@ def pump(root, seconds=0.1):
         time.sleep(0.01)
 
 
+def pump_until(root, cond, timeout=5.0):
+    """Let Tk run until ``cond()`` holds (a slow CI machine can need longer than a fixed pause)."""
+    end = time.time() + timeout
+    while not cond() and time.time() < end:
+        root.update()
+        time.sleep(0.01)
+
+
 @pytest.fixture()
 def hub(tmp_path):
     return TrackerHub(str(tmp_path / "state.json"))
@@ -62,7 +70,7 @@ def test_table_updates_rows_in_place(tk_root, hub):
         ids = {r.name: r.id for r in table.view.rows}
         before = table.widget_of(ids["Hero"])
         dm.dispatch({"type": "hp_delta", "id": ids["Hero"], "delta": -5})
-        pump(tk_root, 0.1)
+        pump_until(tk_root, lambda: "15 / 30" in before.hp_text.cget("text"))
         assert table.widget_of(ids["Hero"]) is before                      # same widget, new numbers
         assert "15 / 30" in before.hp_text.cget("text")
         dm.dispatch({"type": "remove", "id": ids["Ogre"]})
