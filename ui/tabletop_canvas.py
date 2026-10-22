@@ -33,7 +33,12 @@ WALL_SNAP_PX = 12             # a wall end clicked this close (on screen) to ano
 WALL_COLOR, DOOR_COLOR, OPEN_DOOR_COLOR = "#FF9800", "#3498DB", "#2ECC71"
 ZONE_COLOR = "#BCAAA4"
 AXIS_SNAP_DEG = 6.0           # a line this close to level or upright is made exactly so
-LIFT_PX = 14                  # Shift-dragging a token this far up raises it one step (the grid's feet)
+LIFT_PX = 14
+# What the shape tools make: a drawing, walls, or raised/sunken ground (the DM's choice; players only draw)
+SHAPE_MODES = ("draw", "wall", "height")
+MODE_TOOLS = {"free": ("draw", "wall", "height"), "line": ("draw", "wall"), "rect": SHAPE_MODES,
+              "ellipse": SHAPE_MODES}
+ELLIPSE_SIDES = 32                  # Shift-dragging a token this far up raises it one step (the grid's feet)
 FOG_SCALE_MAX = 1024          # the fog mask is kept at most this many pixels across
 
 
@@ -93,6 +98,7 @@ class MapCanvas(tk.Canvas):
         self.show_walls = True             # the DM sees the walls they drew
         self.preview_sight = False         # the DM sees the map dimmed as the players' tokens see it
         self._chain: Optional[Tuple[float, float]] = None   # the last corner of the wall being drawn
+        self.shape_mode = {t: "draw" for t in MODE_TOOLS}
         self.area_shape = "sphere"
         self.area_color = T.AREA_COLORS[0]
         self.zone_height = 10.0            # feet, for the next raised area the DM draws
@@ -1044,9 +1050,9 @@ class MapCanvas(tk.Canvas):
             elif kind == "draw" and self.tool == "line":
                 x0, y0 = d["start"]
                 d["pts"] = [x0, y0, *axis_snap(x0, y0, mx, my)]
-            elif kind == "draw" and self.tool in ("rect", "ellipse") and e.state & 0x0001:
-                x0, y0 = d["start"]                     # Shift: grows out from where the drag began
-                d["pts"] = [2 * x0 - mx, 2 * y0 - my, mx, my]
+            elif kind == "draw" and self.tool in ("rect", "ellipse"):
+                d["pts"] = shape_box(*d["start"], mx, my, square=bool(e.state & 0x0001),
+                                     centred=bool(e.state & 0x0004))
             elif kind == "draw":
                 d["pts"] = list(d["start"]) + [mx, my]
             else:
@@ -1107,6 +1113,9 @@ class MapCanvas(tk.Canvas):
         elif kind == "measure":
             self._measure = None
             self.delete("measure")
+        elif kind == "draw" and self.mode() != "draw":
+            self.delete("preview")
+            self._shape_to_map(self.tool, self.mode(), d["pts"])
         elif kind == "draw":
             self.delete("preview")
             pts = d["pts"]
@@ -1160,8 +1169,46 @@ class MapCanvas(tk.Canvas):
                 self.create_rectangle(*_box(screen[:4]), outline=color, width=2, dash=(6, 4),
                                       tags=("overlay", "preview"))
             return
+        mode = self.mode()
+        if mode != "draw":
+            outline = shape_outline(self.tool, pts)
+            screen = [c for i in range(0, len(outline) - 1, 2) for c in self.to_screen(outline[i], outline[i + 1])]
+            color = WALL_COLOR if mode == "wall" else ZONE_COLOR
+            if len(screen) >= 4:
+                closed = self.tool in ("rect", "ellipse") or (mode == "height" and len(screen) >= 6)
+                if closed:
+                    screen += screen[:2]
+                self.create_line(*screen, fill=color, width=3, dash=(6, 4) if mode == "height" else None,
+                                 tags=("overlay", "preview"))
+            return
         self._draw_drawing({"kind": self.tool, "pts": pts, "color": self.draw_color, "width": self.draw_width,
                             "private": self.draw_private and self.is_dm}, tags=("preview",))
+
+    def mode(self) -> str:
+        """What the current shape tool makes ("draw", "wall" or "height"). Players always draw."""
+        if not self.is_dm:
+            return "draw"
+        return self.shape_mode.get(self.tool, "draw")
+
+    def set_mode(self, tool: str, mode: str):
+        if tool in MODE_TOOLS and mode in MODE_TOOLS[tool]:
+            self.shape_mode[tool] = mode
+
+    def _shape_to_map(self, tool: str, mode: str, pts: List[float]):
+        """Turn a drawn shape into walls or a raised area."""
+        outline = shape_outline(tool, pts)
+        if len(outline) < 4:
+            return
+        if mode == "wall":
+            closed = tool in ("rect", "ellipse")
+            corners = outline + outline[:2] if closed else outline
+            walls = [{"pts": [round(v, 1) for v in corners[i:i + 4]]} for i in range(0, len(corners) - 2, 2)
+                     if abs(corners[i + 2] - corners[i]) + abs(corners[i + 3] - corners[i + 1]) > 1]
+            if walls:
+                self.dispatch({"op": "wall_add", "walls": walls[:T.MAX_WALLS]})
+        elif mode == "height" and len(outline) >= 6:
+            self.dispatch({"op": "zone_add", "zone": {"pts": [round(v, 1) for v in outline[:T.MAX_POINTS * 2]],
+                                                      "elev": self.zone_height}})
 
     def _erase_at(self, sx, sy):
         for item in reversed(self.find_overlapping(sx - 6, sy - 6, sx + 6, sy + 6)):
@@ -1278,6 +1325,44 @@ class MapCanvas(tk.Canvas):
     def _delete_selected(self):
         if self.is_dm and self.selected:
             self.dispatch({"op": "token_delete", "id": self.selected})
+
+
+def shape_box(x0: float, y0: float, x1: float, y1: float, *, square: bool = False,
+              centred: bool = False) -> List[float]:
+    """A box or circle's corners from a drag: ``square`` (Shift) makes it a square or circle, ``centred`` (Ctrl)
+    grows it out from where the drag began."""
+    dx, dy = x1 - x0, y1 - y0
+    if square:
+        side = max(abs(dx), abs(dy))
+        dx, dy = math.copysign(side, dx or 1), math.copysign(side, dy or 1)
+    if centred:
+        return [x0 - dx, y0 - dy, x0 + dx, y0 + dy]
+    return [x0, y0, x0 + dx, y0 + dy]
+
+
+def shape_outline(tool: str, pts: List[float]) -> List[float]:
+    """The corner points (flat, map pixels) of a drawn shape: a box's four corners, a circle's outline, a line's
+    two ends, or a freehand path thinned to its main turns."""
+    if len(pts) < 4:
+        return []
+    if tool == "rect":
+        x0, y0, x1, y1 = _box(pts[:4])
+        return [x0, y0, x1, y0, x1, y1, x0, y1]
+    if tool == "ellipse":
+        x0, y0, x1, y1 = _box(pts[:4])
+        cx, cy, rx, ry = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2, (y1 - y0) / 2
+        return [v for i in range(ELLIPSE_SIDES) for v in (cx + rx * math.cos(2 * math.pi * i / ELLIPSE_SIDES),
+                                                           cy + ry * math.sin(2 * math.pi * i / ELLIPSE_SIDES))]
+    if tool == "line":
+        return list(pts[:2]) + list(pts[-2:])
+    # freehand: keep a point once the path has moved on far enough from the last one kept
+    out = list(pts[:2])
+    for i in range(2, len(pts) - 1, 2):
+        if math.hypot(pts[i] - out[-2], pts[i + 1] - out[-1]) >= 12:
+            out += [pts[i], pts[i + 1]]
+    if (out[-2], out[-1]) != (pts[-2], pts[-1]):
+        out += [pts[-2], pts[-1]]
+    return out
 
 
 def axis_snap(x0: float, y0: float, x1: float, y1: float) -> Tuple[float, float]:
