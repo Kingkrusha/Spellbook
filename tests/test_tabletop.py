@@ -1,6 +1,7 @@
 """The virtual tabletop's model (tabletop.py): grids, commands and who may run them, views, assets."""
 
 import io
+import math
 import json
 import os
 import zipfile
@@ -300,3 +301,82 @@ def test_token_pictures_are_cut_square_keeping_a_portraits_top(tmp_path):
     with Image.open(store.path(asset)) as im:
         r, g, b = im.convert("RGB").getpixel((100, 60))
         assert r > 200 and b < 60
+
+
+# ---- areas of effect and elevation
+
+def _area_scene(table):
+    sid = make_scene(table, w=1400, h=1400)
+    table.apply({"op": "scene_show", "scene": sid})
+    hero = table.apply({"op": "token_add", "scene": sid, "token": {"name": "Hero", "x": 105, "y": 105,
+                                                                    "owner": "p1", "kind": "pc"}})["token"]
+    orc = table.apply({"op": "token_add", "scene": sid, "token": {"name": "Orc", "x": 385, "y": 105}})["token"]
+    return sid, hero, orc
+
+
+def test_every_area_shape_covers_cells(table):
+    sid, _hero, _orc = _area_scene(table)
+    scene = table.scene(sid)
+    counts = {}
+    for shape in T.AREA_SHAPES:
+        y = 700 if shape in ("cube", "square") else 735            # cubes from a grid corner, the rest mid-row
+        area = T.clean_area({"shape": shape, "x": 700, "y": y, "size": 15, "dir": 0})
+        counts[shape] = len(T.area_cells(scene, area))
+    assert counts["cube"] == counts["square"] == 9                 # 3 x 3 squares
+    assert counts["line"] == 3 and counts["cone"] >= 5
+    assert counts["sphere"] == counts["circle"] == counts["emanation"] > counts["cube"]
+
+
+def test_a_fireball_misses_a_creature_flying_over_it_and_counts_height(table):
+    sid, hero, orc = _area_scene(table)
+    aid = table.apply({"op": "area_add", "scene": sid, "area": {"shape": "sphere", "x": 385, "y": 105,
+                                                                "size": 10}}, actor="p1")["area"]
+    scene = table.scene(sid)
+    area = scene["areas"][0]
+    assert area["author"] == "p1" and orc in T.area_tokens(scene, area) and hero not in T.area_tokens(scene, area)
+    table.apply({"op": "token_move", "scene": sid, "id": orc, "x": 385, "y": 105, "z": 30})
+    assert T.area_tokens(scene, area) == []
+    # a circle (no height) still catches it; a cone tilted up from the hero reaches it
+    assert orc in T.area_tokens(scene, dict(area, shape="circle"))
+    cone = T.clean_area({"shape": "cone", "x": 105, "y": 105, "size": 60, "dir": 0, "pitch": 0})
+    assert orc not in T.area_tokens(scene, cone)
+    assert orc in T.area_tokens(scene, dict(cone, pitch=math.degrees(math.atan2(30, 20 * 1.0))))
+    # distance counts the climb: 20 ft across, 30 ft up
+    assert T.distance_ft(scene, (105, 105, 0), (385, 105, 30)) == 30
+    # players change only their own areas
+    with pytest.raises(T.CommandError):
+        table.apply({"op": "area_delete", "scene": sid, "id": aid}, actor="p2")
+    table.apply({"op": "area_delete", "scene": sid, "id": aid}, actor="p1")
+    assert scene["areas"] == []
+
+
+def test_an_area_moves_with_its_token_and_stays_when_the_token_goes(table):
+    sid, hero, _orc = _area_scene(table)
+    table.apply({"op": "area_add", "scene": sid, "area": {"shape": "emanation", "x": 105, "y": 105, "size": 10,
+                                                          "token": hero}}, actor="p1")
+    scene = table.scene(sid)
+    area = scene["areas"][0]
+    assert area["token"] == hero
+    assert hero not in T.area_tokens(scene, area)                  # an emanation leaves out its own creature
+    table.apply({"op": "token_move", "scene": sid, "id": hero, "x": 245, "y": 105, "z": 10}, actor="p1")
+    assert (area["x"], area["y"], area["base"]) == (245, 105, 10)
+    table.apply({"op": "token_delete", "scene": sid, "id": hero})
+    assert area["token"] == "" and T.area_origin(scene, area)[2] == 10
+
+
+def test_raised_ground_lifts_tokens_and_counts_in_distances(table):
+    sid, hero, orc = _area_scene(table)
+    table.apply({"op": "zone_add", "scene": sid, "zone": {"pts": [280, 0, 490, 0, 490, 210, 280, 210],
+                                                          "elev": 20}})
+    scene = table.scene(sid)
+    orc_t = T.Tabletop._token_or_fail(scene, orc)
+    assert T.ground_at(scene, 385, 105) == 20 and T.token_elevation(scene, orc_t) == 20
+    assert T.distance_ft(scene, (105, 105, 0), (385, 105, 20)) == 20
+    zid = scene["zones"][0]["id"]
+    table.apply({"op": "zone_update", "scene": sid, "id": zid, "elev": 35})
+    assert T.token_elevation(scene, orc_t) == 35
+    with pytest.raises(T.CommandError):
+        table.apply({"op": "zone_add", "scene": sid, "zone": {"pts": [0, 0, 70, 0, 0, 70]}}, actor="p1")
+    assert table.view_for("p1")["scene"]["zones"][0]["elev"] == 35  # players see the heights too
+    table.apply({"op": "zone_clear", "scene": sid})
+    assert T.token_elevation(scene, orc_t) == 0

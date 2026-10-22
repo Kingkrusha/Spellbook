@@ -51,6 +51,13 @@ MAX_TOKENS = 400
 MAX_DRAWINGS = 2000
 MAX_FOG_OPS = 600
 MAX_WALLS = 3000
+MAX_ZONES = 300
+MAX_AREAS = 200
+MAX_HEIGHT = 10000.0          # feet, up or down
+AREA_SHAPES = ("cube", "square", "circle", "sphere", "cone", "line", "emanation")
+AREA_LABELS = {"cube": "Cube", "square": "Square", "circle": "Circle", "sphere": "Sphere", "cone": "Cone",
+               "line": "Line", "emanation": "Emanation"}
+AREA_COLORS = ["#E67E22", "#E74C3C", "#3498DB", "#2ECC71", "#9B59B6", "#F1C40F"]
 MAX_POINTS = 600              # points in one freehand line or fog polygon
 MAX_TEXT = 60
 IMAGE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
@@ -257,7 +264,7 @@ def new_scene(name: str, map_asset: str = "", width: int = 0, height: int = 0, c
         "grid": {"type": grid if grid in GRID_TYPES else "square", "cell": float(cell), "ox": 0.0, "oy": 0.0,
                  "color": "#000000", "opacity": 0.35, "feet": 5},
         "fog": {"on": False, "ops": []},
-        "tokens": [], "drawings": [], "walls": [], "los": False,
+        "tokens": [], "drawings": [], "walls": [], "los": False, "zones": [], "areas": [],
         "players_move_all": False, "players_draw": True,
     }
 
@@ -271,12 +278,12 @@ def new_token(name: str, x: float, y: float, *, size: float = 1.0, color: str = 
         "color": _color(color, DEFAULT_COLORS[0]), "image": image if valid_asset_id(image) else "",
         "hp": hp, "hp_max": hp_max, "conditions": [], "owner": owner, "owner_name": _text(owner_name, 32),
         "hidden": bool(hidden), "kind": kind if kind in ("npc", "pc", "prop") else "npc", "show_name": True,
-        "vision": 0.0,
+        "vision": 0.0, "z": 0.0,
     }
 
 
 TOKEN_FIELDS = {"name", "size", "color", "image", "hp", "hp_max", "conditions", "owner", "owner_name", "hidden",
-                "kind", "show_name", "x", "y", "entry", "source", "vision"}
+                "kind", "show_name", "x", "y", "entry", "source", "vision", "z"}
 PRIVATE_TOKEN_FIELDS = ("entry", "source")    # the DM's bookkeeping, never sent to players
 SCENE_FIELDS = {"name", "bg", "players_move_all", "players_draw", "w", "h", "los"}
 GRID_FIELDS = {"type", "cell", "ox", "oy", "color", "opacity", "feet"}
@@ -318,6 +325,8 @@ def _clean_token_fields(fields: dict) -> dict:
             out[k] = _num(v)
         elif k == "vision":
             out[k] = 0.0 if v in (None, "") else _num(v, 0.0, 0.0, 5280.0)
+        elif k == "z":
+            out[k] = 0.0 if v in (None, "") else round(_num(v, 0.0, -MAX_HEIGHT, MAX_HEIGHT), 1)
     return out
 
 
@@ -357,6 +366,36 @@ def clean_wall(w: dict) -> Optional[dict]:
         return None
     return {"id": _text(w.get("id"), 16) or new_id(), "pts": [round(p, 1) for p in pts],
             "door": bool(w.get("door")), "open": bool(w.get("door")) and bool(w.get("open"))}
+
+
+def clean_zone(z: dict) -> Optional[dict]:
+    """A piece of the map raised or sunk: a polygon and its height in feet."""
+    if not isinstance(z, dict):
+        return None
+    pts = _clean_points(z.get("pts"))
+    if len(pts) < 6:
+        return None
+    return {"id": _text(z.get("id"), 16) or new_id(), "pts": [round(p, 1) for p in pts],
+            "elev": round(_num(z.get("elev"), 0.0, -MAX_HEIGHT, MAX_HEIGHT), 1)}
+
+
+def clean_area(a: dict, author: str = "") -> Optional[dict]:
+    """An area of effect: ``shape`` at the origin (x, y), ``size`` feet (a cube's side, a sphere's radius, a cone's
+    or line's length, how far an emanation reaches), pointing ``dir`` degrees across the map and ``pitch``
+    degrees up (cones and lines). ``dz`` lifts the origin above the ground (or the token it moves with)."""
+    if not isinstance(a, dict) or a.get("shape") not in AREA_SHAPES:
+        return None
+    return {"id": _text(a.get("id"), 16) or new_id(), "shape": a["shape"],
+            "x": round(_num(a.get("x")), 1), "y": round(_num(a.get("y")), 1),
+            "size": round(_num(a.get("size"), 5.0, 0.5, 5000.0), 1),
+            "width": round(_num(a.get("width"), 5.0, 0.5, 500.0), 1),
+            "dir": round(_num(a.get("dir"), 0.0, -720.0, 720.0) % 360.0, 2),
+            "pitch": round(_num(a.get("pitch"), 0.0, -90.0, 90.0), 1),
+            "dz": round(_num(a.get("dz"), 0.0, -MAX_HEIGHT, MAX_HEIGHT), 1),
+            "color": _color(a.get("color"), AREA_COLORS[0]),
+            "token": _text(a.get("token"), 16), "ox": round(_num(a.get("ox"), 0.0, -5000, 5000), 1),
+            "oy": round(_num(a.get("oy"), 0.0, -5000, 5000), 1), "base": round(_num(a.get("base")), 1),
+            "author": author}
 
 
 def token_box(token: dict, grid: Grid) -> Tuple[float, float, float]:
@@ -510,6 +549,203 @@ def token_in_sight(sight: List[dict], token: dict, grid: Grid) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# Elevation and areas of effect
+# --------------------------------------------------------------------------- #
+#
+# Heights are in feet. The ground is 0 except inside an elevation zone (the top-most one at a point counts), and
+# a token's ``z`` is how far it is above (or below) the ground it stands on, so a token flying 10 ft over a
+# 15 ft ledge is 25 ft up. Distances count height the way the 2024 rules count diagonals: on a grid, the most
+# cells along any one axis; with no grid, the straight line.
+
+def feet_per_px(scene: dict) -> float:
+    g = scene.get("grid") or {}
+    return float(g.get("feet", 5) or 5) / max(1e-6, float(g.get("cell", 70) or 70))
+
+
+def ground_at(scene: dict, x: float, y: float) -> float:
+    for z in reversed(scene.get("zones") or []):
+        if point_in_polygon(x, y, z["pts"]):
+            return float(z["elev"])
+    return 0.0
+
+
+def token_elevation(scene: dict, token: dict) -> float:
+    """How high a token is (its feet), in feet above the map's base level."""
+    return ground_at(scene, token["x"], token["y"]) + float(token.get("z") or 0.0)
+
+
+def token_height(scene: dict, token: dict) -> float:
+    g = scene.get("grid") or {}
+    return max(0.5, float(token.get("size", 1.0))) * float(g.get("feet", 5) or 5)
+
+
+def distance_ft(scene: dict, a: Tuple[float, float, float], b: Tuple[float, float, float]) -> float:
+    """Feet between two points (x, y in map pixels, z in feet), counting the climb."""
+    grid = Grid.of(scene)
+    feet = float((scene.get("grid") or {}).get("feet", 5) or 5)
+    flat = grid.cells_between((a[0], a[1]), (b[0], b[1]))
+    up = abs(b[2] - a[2]) / feet
+    if grid.kind == "none":
+        return math.hypot(flat, up) * feet
+    return max(flat, round(up)) * feet
+
+
+def area_origin(scene: dict, area: dict) -> Tuple[float, float, float]:
+    """Where an area starts: (x, y) in pixels and its height in feet."""
+    if area.get("token"):
+        base = area.get("base") or 0.0
+    else:
+        base = ground_at(scene, area["x"], area["y"])
+    return area["x"], area["y"], base + float(area.get("dz") or 0.0)
+
+
+def _area_axis(area: dict) -> Tuple[float, float, float]:
+    d, p = math.radians(area.get("dir", 0.0)), math.radians(area.get("pitch", 0.0))
+    return math.cos(p) * math.cos(d), math.cos(p) * math.sin(d), math.sin(p)
+
+
+def _token_reach_ft(scene: dict, area: dict) -> float:
+    """An emanation reaches from its creature's edge: half the creature's width, in feet."""
+    if area.get("shape") != "emanation" or not area.get("token"):
+        return 0.0
+    for t in scene.get("tokens") or []:
+        if t["id"] == area["token"]:
+            return max(0.5, float(t.get("size", 1.0))) * float((scene.get("grid") or {}).get("feet", 5) or 5) / 2
+    return 0.0
+
+
+def area_contains(scene: dict, area: dict, x: float, y: float, z: float, reach: Optional[float] = None) -> bool:
+    """Whether the point (x, y in map pixels, z in feet) is inside the area."""
+    fpp = feet_per_px(scene)
+    ox, oy, oz = area_origin(scene, area)
+    vx, vy, vz = (x - ox) * fpp, (y - oy) * fpp, z - oz
+    shape, size = area["shape"], float(area["size"])
+    eps = 1e-6
+    if shape in ("cube", "square"):
+        d = math.radians(area.get("dir", 45.0))
+        sx = 1.0 if math.cos(d) >= 0 else -1.0
+        sy = 1.0 if math.sin(d) >= 0 else -1.0
+        if not (-eps <= vx * sx <= size + eps and -eps <= vy * sy <= size + eps):
+            return False
+        return shape == "square" or -eps <= vz <= size + eps
+    if shape == "circle":
+        return math.hypot(vx, vy) <= size + eps
+    if shape in ("sphere", "emanation"):
+        r = size + (_token_reach_ft(scene, area) if reach is None else reach)
+        return math.sqrt(vx * vx + vy * vy + vz * vz) <= r + eps
+    ax, ay, az = _area_axis(area)
+    t = vx * ax + vy * ay + vz * az
+    if t <= eps or t > size + eps:                 # (the point it starts from isn't in it)
+        return False
+    px, py, pz = vx - t * ax, vy - t * ay, vz - t * az
+    off = math.sqrt(px * px + py * py + pz * pz)
+    if shape == "cone":
+        return off <= t / 2 + eps            # a cone is as wide as it is far from its point
+    return off <= float(area.get("width", 5.0)) / 2 + eps
+
+
+def area_footprint(scene: dict, area: dict) -> List[float]:
+    """The area's outline seen from above, as a flat point list in map pixels (a circle is a 48-gon)."""
+    ppf = 1.0 / feet_per_px(scene)
+    ox, oy, _oz = area_origin(scene, area)
+    shape, size = area["shape"], float(area["size"]) * ppf
+    if shape in ("cube", "square"):
+        d = math.radians(area.get("dir", 45.0))
+        sx = size if math.cos(d) >= 0 else -size
+        sy = size if math.sin(d) >= 0 else -size
+        return [ox, oy, ox + sx, oy, ox + sx, oy + sy, ox, oy + sy]
+    if shape in ("circle", "sphere", "emanation"):
+        r = size + _token_reach_ft(scene, area) * ppf
+        return [v for i in range(48) for v in (ox + r * math.cos(i * math.pi / 24), oy + r * math.sin(i * math.pi / 24))]
+    d = math.radians(area.get("dir", 0.0))
+    length = size * math.cos(math.radians(area.get("pitch", 0.0)))
+    ux, uy = math.cos(d), math.sin(d)
+    nx, ny = -uy, ux
+    if shape == "cone":
+        half = float(area["size"]) * ppf / 2
+        pts = [ox, oy]
+        for i in range(9):
+            k = -1 + i / 4
+            pts += [ox + ux * length + nx * half * k, oy + uy * length + ny * half * k]
+        return pts
+    w = float(area.get("width", 5.0)) * ppf / 2
+    ex, ey = ox + ux * length, oy + uy * length
+    return [ox + nx * w, oy + ny * w, ex + nx * w, ey + ny * w, ex - nx * w, ey - ny * w, ox - nx * w, oy - ny * w]
+
+
+def cells_in(grid: Grid, x0: float, y0: float, x1: float, y1: float, limit: int = 6000) -> List[Tuple[float, float]]:
+    """The centres of the grid cells (squares or hexes) whose centre lies in a box."""
+    out: List[Tuple[float, float]] = []
+    if grid.kind == "square":
+        s = grid.cell
+        i0, i1 = math.floor((x0 - grid.ox) / s), math.ceil((x1 - grid.ox) / s)
+        j0, j1 = math.floor((y0 - grid.oy) / s), math.ceil((y1 - grid.oy) / s)
+        for j in range(j0, j1 + 1):
+            for i in range(i0, i1 + 1):
+                cx, cy = grid.ox + (i + 0.5) * s, grid.oy + (j + 0.5) * s
+                if x0 <= cx <= x1 and y0 <= cy <= y1:
+                    out.append((cx, cy))
+                    if len(out) >= limit:
+                        return out
+        return out
+    if grid.kind in ("hex_rows", "hex_cols"):
+        corners = [grid.hex_at(x0, y0), grid.hex_at(x1, y1), grid.hex_at(x0, y1), grid.hex_at(x1, y0)]
+        qs, rs = [c[0] for c in corners], [c[1] for c in corners]
+        r_lo, r_hi = min(rs) - 1, max(rs) + 1
+        q_lo, q_hi = min(qs) - (r_hi - r_lo) - 1, max(qs) + (r_hi - r_lo) + 1
+        for r in range(r_lo, r_hi + 1):
+            for q in range(q_lo, q_hi + 1):
+                cx, cy = grid.hex_center(q, r)
+                if x0 <= cx <= x1 and y0 <= cy <= y1:
+                    out.append((cx, cy))
+                    if len(out) >= limit:
+                        return out
+    return out
+
+
+def area_cells(scene: dict, area: dict) -> List[Tuple[float, float]]:
+    """The centres of the cells the area covers (a cell counts when its centre, on the ground there, is in it)."""
+    grid = Grid.of(scene)
+    if grid.kind == "none":
+        return []
+    pts = area_footprint(scene, area)
+    xs, ys = pts[0::2], pts[1::2]
+    pad = grid.cell
+    reach = _token_reach_ft(scene, area)
+    return [(cx, cy) for cx, cy in cells_in(grid, min(xs) - pad, min(ys) - pad, max(xs) + pad, max(ys) + pad)
+            if area_contains(scene, area, cx, cy, ground_at(scene, cx, cy), reach)]
+
+
+def area_tokens(scene: dict, area: dict) -> List[str]:
+    """The tokens any part of which is in the area (their whole height counts, not just their feet)."""
+    grid = Grid.of(scene)
+    reach = _token_reach_ft(scene, area)
+    hit = []
+    for t in scene.get("tokens") or []:
+        if t["id"] == area.get("token") and area["shape"] in ("emanation", "cone", "line") \
+                and abs(area.get("ox", 0)) < 1 and abs(area.get("oy", 0)) < 1:
+            continue                                    # a creature's own cone, line or emanation leaves it out
+        cx, cy, r = token_box(t, grid)
+        base = token_elevation(scene, t)
+        top = base + token_height(scene, t)
+        k = r * 0.85
+        samples = [(cx, cy)] + [(cx + k * math.cos(i * math.pi / 4), cy + k * math.sin(i * math.pi / 4))
+                                for i in range(8)]
+        if any(area_contains(scene, area, x, y, z, reach) for x, y in samples
+               for z in (base, (base + top) / 2, top)):
+            hit.append(t["id"])
+    return hit
+
+
+def _follow(scene: dict, token: dict) -> None:
+    """Areas that move with a token keep up with it."""
+    for a in scene.get("areas") or []:
+        if a.get("token") == token["id"]:
+            a["x"], a["y"] = round(token["x"] + a.get("ox", 0.0), 1), round(token["y"] + a.get("oy", 0.0), 1)
+            a["base"] = round(token_elevation(scene, token), 1)
+
+
+# --------------------------------------------------------------------------- #
 # Views: what one person may see of a scene
 # --------------------------------------------------------------------------- #
 
@@ -558,6 +794,7 @@ def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0, turn=()) -
             t["mine"] = True
         s["tokens"].append(t)
     s["drawings"] = [dict(d) for d in scene["drawings"] if not d.get("private")]
+    s["areas"] = [dict(a, mine=a.get("author") == viewer) for a in scene.get("areas") or []]
     s["fog"] = {"on": scene["fog"]["on"], "ops": copy.deepcopy(scene["fog"]["ops"])}
     return {"rev": rev, "scene": s, "role": "player"}
 
@@ -729,7 +966,7 @@ class Tabletop:
         self._changed(result.get("scene", scene_id) or None)
         return result
 
-    PLAYER_OPS = {"token_move", "draw_add", "draw_delete"}
+    PLAYER_OPS = {"token_move", "draw_add", "draw_delete", "area_add", "area_update", "area_delete"}
     NO_UNDO = {"scene_show"}
 
     def _scene_or_fail(self, cmd: dict) -> dict:
@@ -830,11 +1067,16 @@ class Tabletop:
         scene = self._scene_or_fail(cmd)
         token = self._token_or_fail(scene, cmd.get("id"))
         token.update(_clean_token_fields(cmd.get("fields") or {}))
+        _follow(scene, token)
 
     def _op_token_delete(self, cmd, actor, actor_name):
         scene = self._scene_or_fail(cmd)
         token = self._token_or_fail(scene, cmd.get("id"))
         scene["tokens"].remove(token)
+        for a in scene.get("areas") or []:
+            if a.get("token") == token["id"]:
+                a["token"] = ""                 # it stays where the token was
+                a["dz"] = round(a.get("base", 0.0) + a.get("dz", 0.0) - ground_at(scene, a["x"], a["y"]), 1)
 
     def _op_token_front(self, cmd, actor, actor_name):
         scene = self._scene_or_fail(cmd)
@@ -866,6 +1108,9 @@ class Tabletop:
                 raise CommandError("That token isn't yours to move.")
         token["x"] = _num(cmd.get("x"), token["x"], -2000, scene["w"] + 2000)
         token["y"] = _num(cmd.get("y"), token["y"], -2000, scene["h"] + 2000)
+        if cmd.get("z") is not None:
+            token["z"] = round(_num(cmd.get("z"), 0.0, -MAX_HEIGHT, MAX_HEIGHT), 1)
+        _follow(scene, token)
 
     # drawings
     def _op_draw_add(self, cmd, actor, actor_name):
@@ -936,6 +1181,97 @@ class Tabletop:
     def _op_wall_clear(self, cmd, actor, actor_name):
         scene = self._scene_or_fail(cmd)
         scene["walls"] = []
+
+    # elevation
+    def _op_zone_add(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        zone = clean_zone(cmd.get("zone") or {})
+        if zone is None:
+            raise CommandError("That raised area couldn't be read.")
+        if len(scene["zones"]) >= MAX_ZONES:
+            raise CommandError(f"A map holds at most {MAX_ZONES} raised or sunken areas.")
+        if any(z["id"] == zone["id"] for z in scene["zones"]):
+            zone["id"] = new_id()
+        scene["zones"].append(zone)
+        self._refollow(scene)
+        return {"zone": zone["id"]}
+
+    def _op_zone_update(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        zone = next((z for z in scene["zones"] if z["id"] == cmd.get("id")), None)
+        if zone is None:
+            raise CommandError("That raised area is gone.")
+        zone["elev"] = round(_num(cmd.get("elev"), zone["elev"], -MAX_HEIGHT, MAX_HEIGHT), 1)
+        self._refollow(scene)
+
+    def _op_zone_delete(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        ids = cmd.get("ids") if isinstance(cmd.get("ids"), list) else [cmd.get("id")]
+        scene["zones"] = [z for z in scene["zones"] if z["id"] not in ids]
+        self._refollow(scene)
+
+    def _op_zone_clear(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        scene["zones"] = []
+        self._refollow(scene)
+
+    @staticmethod
+    def _refollow(scene: dict) -> None:
+        for t in scene["tokens"]:
+            _follow(scene, t)
+
+    # areas of effect (anyone may lay one down; only its author or the DM may change it)
+    def _area_or_fail(self, scene: dict, cmd: dict, actor: str) -> dict:
+        area = next((a for a in scene["areas"] if a["id"] == cmd.get("id")), None)
+        if area is None:
+            raise CommandError("That area is gone.")
+        if actor != DM and area.get("author") != actor:
+            raise CommandError("That area isn't yours.")
+        return area
+
+    def _attach(self, scene: dict, area: dict, token_id: str, actor: str) -> None:
+        token = next((t for t in scene["tokens"] if t["id"] == token_id), None) if token_id else None
+        if token is None or (actor != DM and token.get("hidden")):
+            area["token"] = ""
+            return
+        area["token"] = token["id"]
+        area["ox"], area["oy"] = round(area["x"] - token["x"], 1), round(area["y"] - token["y"], 1)
+        area["base"] = round(token_elevation(scene, token), 1)
+
+    def _op_area_add(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        area = clean_area(cmd.get("area") or {}, author=actor)
+        if area is None:
+            raise CommandError("That area couldn't be read.")
+        if len(scene["areas"]) >= MAX_AREAS:
+            scene["areas"].pop(0)
+        if any(a["id"] == area["id"] for a in scene["areas"]):
+            area["id"] = new_id()
+        self._attach(scene, area, area["token"], actor)
+        scene["areas"].append(area)
+        return {"area": area["id"]}
+
+    def _op_area_update(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        area = self._area_or_fail(scene, cmd, actor)
+        fields = cmd.get("fields") or {}
+        merged = clean_area(dict(area, **{k: v for k, v in fields.items()
+                                          if k in ("x", "y", "size", "width", "dir", "pitch", "dz", "color")}),
+                            author=area["author"])
+        if merged is None:
+            raise CommandError("That area couldn't be read.")
+        token_id = fields["token"] if "token" in fields else area.get("token")
+        area.update(merged)
+        self._attach(scene, area, token_id or "", actor)
+
+    def _op_area_delete(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        self._area_or_fail(scene, cmd, actor)
+        scene["areas"] = [a for a in scene["areas"] if a["id"] != cmd.get("id")]
+
+    def _op_area_clear(self, cmd, actor, actor_name):
+        scene = self._scene_or_fail(cmd)
+        scene["areas"] = []
 
     # fog
     def _op_fog(self, cmd, actor, actor_name):

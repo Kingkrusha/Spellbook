@@ -328,3 +328,89 @@ def test_the_game_tools_page_scrolls(window, tk_root):
     top, bottom = canvas.yview()
     assert bottom < 1.0                                  # the cards run past the window: there's more to scroll to
     view.destroy()
+
+
+def test_lines_snap_straight_and_shift_boxes_grow_from_the_middle(page, tk_root):
+    sid = with_map(page, tk_root)
+    c = page.canvas
+    page.set_tool("line")
+    a, b = c.to_screen(100, 100), c.to_screen(300, 108)        # 2.3° off level
+    drag(c, [a, b])
+    line = page.table_.scene(sid)["drawings"][-1]["pts"]
+    assert line[1] == line[3]
+    page.set_tool("rect")
+    a, b = c.to_screen(300, 300), c.to_screen(400, 350)
+    c.event_generate("<ButtonPress-1>", x=int(a[0]), y=int(a[1]))
+    c.event_generate("<B1-Motion>", x=int(b[0]), y=int(b[1]), state=0x0101)   # Shift + button 1
+    c.event_generate("<ButtonRelease-1>", x=int(b[0]), y=int(b[1]))
+    x0, y0, x1, y1 = page.table_.scene(sid)["drawings"][-1]["pts"]
+    assert abs((x0 + x1) / 2 - 300) < 2 and abs((y0 + y1) / 2 - 300) < 2
+
+
+def test_an_area_from_a_token_lights_up_creatures_and_follows(page, tk_root):
+    sid = with_map(page, tk_root)
+    c = page.canvas
+    hero = page._dispatch({"op": "token_add", "token": {"name": "Hero", "x": 105, "y": 245}})["token"]
+    orc = page._dispatch({"op": "token_add", "token": {"name": "Orc", "x": 315, "y": 245}})["token"]
+    pump(tk_root)
+    page._pick_area_shape("Cone")
+    a, b = c.to_screen(105, 245), c.to_screen(390, 245)
+    c.event_generate("<ButtonPress-1>", x=int(a[0]), y=int(a[1]))
+    c.event_generate("<B1-Motion>", x=int(b[0]), y=int(b[1]))
+    assert c.find_withtag("tint") and c.find_withtag("a:preview")     # the orc lights up while it's drawn
+    c.event_generate("<ButtonRelease-1>", x=int(b[0]), y=int(b[1]))
+    area = page.table_.scene(sid)["areas"][0]
+    assert area["shape"] == "cone" and area["token"] == hero and area["size"] == 20
+    assert T.area_tokens(page.table_.scene(sid), area) == [orc]
+    page._dispatch({"op": "token_move", "id": hero, "x": 105, "y": 385})
+    assert (area["x"], area["y"]) == (105, 385)
+    pump(tk_root)
+    assert c.area_at(*c.to_screen(105, 385)) == area["id"]
+
+
+def test_shift_dragging_a_token_raises_it_and_heights_show(page, tk_root):
+    sid = with_map(page, tk_root)
+    c = page.canvas
+    tid = page._dispatch({"op": "token_add", "token": {"name": "Bat", "x": 105, "y": 245}})["token"]
+    pump(tk_root)
+    x, y = c.to_screen(105, 245)
+    c.event_generate("<ButtonPress-1>", x=int(x), y=int(y), state=0x0001)
+    c.event_generate("<B1-Motion>", x=int(x), y=int(y - 3 * 14), state=0x0101)
+    c.event_generate("<ButtonRelease-1>", x=int(x), y=int(y - 3 * 14))
+    token = T.Tabletop._token_or_fail(page.table_.scene(sid), tid)
+    assert token["z"] == 15 and (token["x"], token["y"]) == (105, 245)
+    pump(tk_root)
+    texts = [c.itemcget(i, "text") for i in c.find_withtag("height")]
+    assert "↑ 15 ft" in texts
+
+    # raised ground drawn with the Height tool
+    page.zone_entry.delete(0, "end")
+    page.zone_entry.insert(0, "-10")
+    page._set_zone_height()
+    page.set_tool("elevation")
+    pts = [c.to_screen(*p) for p in ((0, 0), (210, 0), (210, 420), (0, 420), (0, 5))]
+    drag(c, pts)
+    zone = page.table_.scene(sid)["zones"][0]
+    assert zone["elev"] == -10 and T.token_elevation(page.table_.scene(sid), token) == 5
+
+
+def test_double_clicking_a_token_in_the_list_opens_its_stat_block(page, tk_root):
+    opened = []
+    page.on_open_source = lambda kind, name: opened.append((kind, name))
+    with_map(page, tk_root)
+    page._dispatch({"op": "token_add", "token": {"name": "Goblin 3", "x": 105, "y": 105}})
+    page._dispatch({"op": "token_add", "token": {"name": "Aria", "x": 175, "y": 105,
+                                                 "source": "character:Aria"}})
+    page._dispatch({"op": "token_add", "token": {"name": "Barrel", "x": 245, "y": 105}})
+    pump(tk_root)
+    buttons = page.token_list.winfo_children()
+    for b in buttons:
+        for _ in range(2):                                   # two quick clicks: a double-click
+            b._canvas.event_generate("<ButtonPress-1>", x=5, y=5)
+            b._canvas.event_generate("<ButtonRelease-1>", x=5, y=5)
+    pump(tk_root)
+    from monster import get_monster_manager
+    expected = [("character", "Aria")]
+    if get_monster_manager().get_monster("Goblin") is not None:
+        expected.insert(0, ("monster", "Goblin"))
+    assert opened == expected
