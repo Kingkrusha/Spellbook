@@ -77,8 +77,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .app {
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 260px;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: "bar bar" "stage side";
 }
 .bar {
@@ -110,8 +110,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   grid-area: side;
   background: var(--panel);
   border-left: 1px solid var(--line);
-  padding: 12px 14px;
-  overflow: auto;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 .side h2 { font-size: 14px; margin: 4px 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .people { list-style: none; margin: 0; padding: 0; }
@@ -133,7 +136,65 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* ---- the map and its tools */
 .map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
-.side-toggle { display: none; padding: 4px 10px; }
+.side-toggle { display: none; padding: 4px 10px; position: relative; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); margin-left: 5px; vertical-align: middle; }
+.side-toggle .dot { position: absolute; top: 3px; right: 3px; margin: 0; }
+
+/* ---- the side panel: chat and dice, turn order, people */
+.tabs { display: flex; gap: 4px; margin-bottom: 8px; flex: none; }
+.tab { flex: 1; padding: 6px 4px; font-size: 14px; background: transparent; }
+.tab.on { background: var(--panel-2); border-color: var(--accent); }
+.pane { flex: 1; min-height: 0; overflow: auto; }
+.chat-pane { display: flex; flex-direction: column; overflow: hidden; }
+.chat-log { list-style: none; margin: 0; padding: 0 2px; flex: 1; min-height: 0; overflow-y: auto; font-size: 14px; }
+.chat-log .line { padding: 3px 0; overflow-wrap: anywhere; }
+.chat-log .time { color: var(--muted); font-size: 11px; margin-right: 6px; }
+.chat-log .who { color: #9ecbff; font-weight: 600; }
+.chat-log .who.me { color: #b9f6ca; }
+.chat-log .whisper .who, .chat-log .whisper .text { color: #e1bee7; font-style: italic; }
+.chat-log .roll .text { color: #ffe082; }
+.chat-log .total { font-size: 15px; color: #fff; }
+.chat-log .total.nat20, .chat-log .nat20 { color: var(--good); }
+.chat-log .total.nat1, .chat-log .nat1 { color: var(--bad); }
+.chat-log .system .text { color: var(--muted); }
+.dice { flex: none; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 6px; display: grid; gap: 6px; }
+.dice-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.die { padding: 5px 0; flex: 1 0 36px; font-size: 13px; }
+.dice-opts { font-size: 13px; color: var(--muted); gap: 8px; }
+.dice-opts input[type=number] { width: 52px; padding: 4px; margin-left: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.dice-opts select { padding: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; }
+.dice-opts .check { display: flex; align-items: center; gap: 4px; }
+.chat-form { flex: none; display: grid; grid-template-columns: auto 1fr auto; gap: 4px; margin-top: 8px; }
+.chat-form select, .chat-form input { min-width: 0; padding: 7px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.chat-form select { max-width: 112px; }
+.chat-form button { padding: 7px 10px; background: var(--accent-2); border-color: var(--accent); }
+
+.turn-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.turn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.turn.active { border-color: #FFD54F; box-shadow: 0 0 0 1px #FFD54F inset; }
+.turn.mine .turn-name { color: #b9f6ca; }
+.turn.defeated { opacity: .55; }
+.turn.defeated .turn-name { text-decoration: line-through; }
+.turn-top { display: flex; align-items: center; gap: 8px; }
+.turn .init { min-width: 24px; text-align: center; font-weight: 700; color: var(--muted); }
+.turn-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn .ac, .turn .hp { font-size: 12px; color: var(--muted); }
+.turn .hp { margin: 3px 0 0 32px; }
+.hpbar { height: 5px; background: #222; border-radius: 3px; margin: 5px 0 0 32px; overflow: hidden; }
+.hpbar span { display: block; height: 100%; background: var(--good); }
+.hpbar span.low { background: var(--warn); }
+.conds { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0 0 32px; }
+.cond { font-size: 12px; padding: 2px 7px; border-radius: 999px; background: #3b2f5a; border: 1px solid #5b4a8a; }
+.own { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0 32px; }
+.own input { width: 60px; padding: 4px 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.own button { padding: 4px 8px; font-size: 13px; }
+.own .danger { border-color: #8b4040; background: #5a2626; }
+.own select { padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+.add-me { margin-top: 12px; display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.add-me h3 { margin: 0; font-size: 14px; color: var(--text); }
+.add-me input { width: 100%; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.add-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.add-me button { background: var(--accent-2); border-color: var(--accent); }
 
 .tools {
   position: absolute;

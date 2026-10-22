@@ -69,6 +69,7 @@
       return false;
     },
   };
+  session.toast = toast;
   window.SpellbookSession = session;          // the tabletop and chat code hook in here
 
   function connect(name, password) {
@@ -195,6 +196,7 @@
     }
     const others = session.peers.length;
     $("who").textContent = others === 1 ? "1 at the table" : others + " at the table";
+    session.emit("peers", session.peers);
   }
 
   function showJoin() {
@@ -228,7 +230,7 @@
   });
   document.addEventListener("pointerdown", (ev) => {
     const side = $("side");
-    if (side.classList.contains("open") && !side.contains(ev.target) && ev.target !== $("side-toggle")) {
+    if (side.classList.contains("open") && !side.contains(ev.target) && !$("side-toggle").contains(ev.target)) {
       side.classList.remove("open");
       $("side-toggle").setAttribute("aria-expanded", "false");
     }

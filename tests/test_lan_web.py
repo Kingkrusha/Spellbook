@@ -432,3 +432,73 @@ def test_the_session_page_offers_browsers_an_address_and_a_qr_code(tk_root):
     finally:
         view.destroy()
         svc.shutdown()
+
+
+# --------------------------------------------------------------------------- chat, dice and turn order
+
+def test_a_browser_player_rolls_and_uses_the_turn_order(tmp_path):
+    """What the side panel sends: /roll in chat, a whisper to the DM, and their own tracker commands."""
+    import threading
+    from lan.service import SessionService
+    from tracker_hub import TrackerHub
+    from tracker_net import TrackerHostLink
+    s = SessionService()
+    s.start_host("DM", require_approval=False, port=0, bind="127.0.0.1", discoverable=False)
+    port = s.start_web(port=0)
+    hub = TrackerHub(str(tmp_path / "tracker.json"))
+    TrackerHostLink(hub, s)
+    dm = hub.dm()
+    dm.dispatch({"type": "add_entry", "kind": "custom", "name": "Ogre", "hp": 59, "ac": 11, "initiative": 4})
+    dm.dispatch({"type": "set_settings", "monster_hp": "bar", "players_can_add": True})
+    stop = threading.Event()
+
+    def pump_events():                  # what the app's Tk loop does
+        while not stop.is_set():
+            s.pump()
+            time.sleep(0.02)
+
+    pump = threading.Thread(target=pump_events, daemon=True)
+    pump.start()
+    b = Browser(port)
+    try:
+        b.hello("Robin", "deadbeef")
+        b.recv("welcome")
+        first = b.recv("tracker_state")["body"]["view"]
+        ogre = first["entries"][0]
+        assert ogre["name"] == "Ogre" and "hp" not in ogre and ogre["hp_frac"] == 1.0   # only a bar for monsters
+        assert first["can_add"]
+        # dice are rolled by the DM's app
+        b.send("chat", {"text": "/roll d20+3 adv Stealth"})
+        roll = b.recv("roll")["body"]
+        assert roll["expr"] == "2d20kh1+3 adv" and roll["label"] == "Stealth" and 4 <= roll["total"] <= 23
+        b.send("dm", {"to": "host", "text": "psst"})
+        assert b.recv("dm")["body"]["text"] == "psst"
+        # joining the turn order, then taking damage and a condition on their own character
+        b.send("tracker_cmd", {"cmd": {"type": "add_me", "name": "Robin the Bold", "hp": 24, "hp_max": 24, "ac": 14},
+                               "seq": 1})
+        mine = lambda m: any(e.get("mine") for e in m["body"]["view"]["entries"])
+        me = next(e for e in b.recv("tracker_state", where=mine)["body"]["view"]["entries"] if e["mine"])
+        assert me["hp"] == 24 and me["ac"] == 14
+        b.send("tracker_cmd", {"cmd": {"type": "hp_delta", "id": me["id"], "delta": -5}, "seq": 2})
+        b.send("tracker_cmd", {"cmd": {"type": "add_condition", "id": me["id"], "name": "Blessed"}, "seq": 3})
+        b.recv("tracker_state", where=lambda m: any(c["name"] == "Blessed" for e in m["body"]["view"]["entries"]
+                                                    for c in e["conditions"]))
+        state = next(e for e in hub.tracker.state.entries if e.name == "Robin the Bold")
+        assert state.hp == 19 and state.owner == "web:deadbeef"
+        # but not the Ogre's
+        b.send("tracker_cmd", {"cmd": {"type": "hp_delta", "id": ogre["id"], "delta": -50}, "seq": 4})
+        assert "your own" in b.recv("tracker_error")["body"]["message"]
+        assert next(e for e in hub.tracker.state.entries if e.name == "Ogre").hp == 59
+    finally:
+        b.close()
+        stop.set()
+        pump.join(2)
+        s.leave()
+
+
+def test_the_side_panel_script_is_served(host):
+    status, headers, body = http_get(host.web_port, "/side.js")
+    assert status == 200 and headers["content-type"].startswith("text/javascript")
+    page = http_get(host.web_port, "/")[2]
+    for needed in (b'src="side.js"', b'id="chat-log"', b'id="turn-list"', b'id="dice-buttons"'):
+        assert needed in page
