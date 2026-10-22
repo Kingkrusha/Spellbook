@@ -16,7 +16,12 @@ def host(tk_root):
     import customtkinter as ctk
     win = ctk.CTkToplevel(tk_root)
     win.geometry("400x300+50+50")
-    win.update()
+    # On Windows a new CTkToplevel hides itself for a moment to recolour its title bar and shows
+    # itself again from a timer: let that run, or nothing in it counts as on screen yet.
+    pump(win, 150)
+    win.deiconify()
+    pump(win, 50)
+    assert win.winfo_viewable()
     yield win
     win.destroy()
 
