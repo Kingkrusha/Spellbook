@@ -368,6 +368,9 @@ class SessionView(ctk.CTkFrame):
                 self.service.start_host(name, password, approve, port, discoverable=discover)
             except LanError as e:
                 self._show_error(error_label, e.message)
+            except Exception as e:              # say what went wrong rather than doing nothing
+                self._show_error(error_label, f"The session couldn't start: {e or type(e).__name__}")
+                raise                           # (and leave it in crash.log)
         self._ask_name(go, hosting=True)
 
     def _on_join(self):
