@@ -53,7 +53,7 @@ process.stdout.write(JSON.stringify(out));
 
 def run_js(cases):
     proc = subprocess.run([NODE, "-e", RUNNER, GEOMETRY], input=json.dumps(cases), capture_output=True,
-                          text=True, timeout=120)
+                          text=True, encoding="utf-8", timeout=120)
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)
 
