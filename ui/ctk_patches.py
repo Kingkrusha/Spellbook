@@ -23,6 +23,10 @@ Call install() once, before any window is created.
 _installed = False
 
 
+def _no_flush():
+    return None
+
+
 def install():
     global _installed
     if _installed:
@@ -33,13 +37,18 @@ def install():
     except Exception:
         return                      # a different CustomTkinter layout: leave it alone
 
-    original_init = CTkScrollbar.__init__
+    original_draw = CTkScrollbar._draw
 
-    def patched_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        self._canvas.update_idletasks = lambda: None   # shadows the method on this canvas only
+    def patched_draw(self, *args, **kwargs):
+        # Shadow the method on this scrollbar's canvas only. Done here rather than after __init__,
+        # because __init__ already draws once: that first flush cost every new text box
+        # (each has two scrollbars) a full layout pass of everything built before it.
+        canvas = getattr(self, "_canvas", None)
+        if canvas is not None and "update_idletasks" not in canvas.__dict__:
+            canvas.update_idletasks = _no_flush
+        return original_draw(self, *args, **kwargs)
 
-    CTkScrollbar.__init__ = patched_init
+    CTkScrollbar._draw = patched_draw
 
     _guard_toplevel_titlebar_revert()
     _cancel_timers_on_destroy()

@@ -28,7 +28,7 @@ from legacy_content import apply_legacy_filter
 from theme import get_theme_manager
 from character_class import get_class_manager, ClassAbility
 from feat import get_feat_manager
-from atomic_io import SaveErrorListeners, atomic_write_json
+from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json
 from paths import user_data_path
 from ui.platform_compat import bind_right_click
 from ui.object_link_widgets import attach_object_linking, open_link_popup
@@ -38,7 +38,7 @@ import json
 import os
 
 
-class CharacterSheetManager(SaveErrorListeners):
+class CharacterSheetManager(HeldSaves, SaveErrorListeners):
     """Manages character sheet persistence."""
     
     DEFAULT_FILE = "character_sheets.json"
@@ -69,6 +69,8 @@ class CharacterSheetManager(SaveErrorListeners):
 
     def save(self) -> bool:
         """Save character sheets to file."""
+        if self._hold_save():
+            return True
         try:
             data = {
                 "sheets": {
@@ -165,6 +167,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
         
         self.ability = ability
         self.on_change = on_change
+        self._shown_score = score
         
         # Ability name
         ctk.CTkLabel(
@@ -200,6 +203,9 @@ class AbilityScoreWidget(ctk.CTkFrame):
             score = int(self.score_var.get())
             score = max(1, min(30, score))
             self.score_var.set(str(score))
+            if score == self._shown_score:
+                return                  # left the box without changing it: nothing to work out again
+            self._shown_score = score
             
             # Update modifier display
             modifier = (score - 10) // 2
@@ -213,6 +219,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
     
     def set_score(self, score: int):
         """Set the ability score."""
+        self._shown_score = score
         self.score_var.set(str(score))
         modifier = (score - 10) // 2
         mod_text = f"+{modifier}" if modifier >= 0 else str(modifier)
@@ -260,7 +267,8 @@ class SavingThrowWidget(ctk.CTkFrame):
     def update_modifier(self, modifier: int):
         """Update the displayed modifier."""
         mod_text = f"+{modifier}" if modifier >= 0 else str(modifier)
-        self.mod_label.configure(text=mod_text)
+        if self.mod_label.cget("text") != mod_text:     # configure redraws the label even when nothing changed
+            self.mod_label.configure(text=mod_text)
     
     def set_proficient(self, proficient: bool):
         self.prof_var.set(proficient)
@@ -328,7 +336,8 @@ class SkillWidget(ctk.CTkFrame):
     
     def update_modifier(self, modifier: int):
         mod_text = f"+{modifier}" if modifier >= 0 else str(modifier)
-        self.mod_label.configure(text=mod_text)
+        if self.mod_label.cget("text") != mod_text:
+            self.mod_label.configure(text=mod_text)
     
     def set_prof_level(self, level: int):
         self.prof_level = level
@@ -1108,10 +1117,6 @@ class CharacterSheetView(ctk.CTkFrame):
                 default_profs = "Languages: Common"
             sheet.other_proficiencies = default_profs
         
-        # Auto-calculate proficiency bonus from total level
-        total_level = sum(cl.level for cl in self.current_character.classes)
-        sheet.proficiency_bonus = calculate_proficiency_bonus(total_level)
-        
         # Auto-calculate HP maximum if new sheet or changed
         if settings.auto_calculate_hp:
             class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
@@ -1121,27 +1126,8 @@ class CharacterSheetView(ctk.CTkFrame):
             if sheet.hit_points.maximum in (0, 1, 10):
                 sheet.hit_points.maximum = calculated_hp
                 sheet.hit_points.current = calculated_hp
-        
-        # Auto-apply unarmored defense from class - check all classes with unarmored defense
-        if self.current_character.classes:
-            class_manager = get_class_manager()
-            # Check all classes for unarmored defense (first one found wins)
-            for cl in self.current_character.classes:
-                class_def = class_manager.get_class(cl.get_class_name())
-                if class_def and class_def.unarmored_defense:
-                    sheet.unarmored_defense = class_def.unarmored_defense
-                    break
-                # Also check subclass for unarmored defense (e.g., Noble Genie Paladin, College of Dance Bard)
-                if cl.subclass and class_def:
-                    for subclass_def in class_def.selectable_subclasses:
-                        if subclass_def.name == cl.subclass and subclass_def.unarmored_defense:
-                            sheet.unarmored_defense = subclass_def.unarmored_defense
-                            break
-        
-        # Recalculate AC and speed if auto-calculate is enabled (handles unarmored defense/movement)
-        if settings.auto_calculate_ac:
-            self._recalculate_ac()
-            self._recalculate_speed()
+
+        self._apply_class_rules(sheet)
         
         self.sheet_manager.update_sheet(self.current_character.name, sheet)
         
@@ -1182,6 +1168,7 @@ class CharacterSheetView(ctk.CTkFrame):
             middle_col, fg_color="transparent"
         )
         middle_scrollable.pack(fill="x", pady=2)
+        self._class_features_host = middle_scrollable
 
         self._named(middle_scrollable, lambda: self._create_class_features_section(middle_scrollable, sheet),
                     "class_features")
@@ -1202,6 +1189,110 @@ class CharacterSheetView(ctk.CTkFrame):
                     "notes_header", "notes")
         self._named(right_col, lambda: self._create_personality_section(right_col, sheet),
                     "personality_header", "personality")
+
+    def _apply_class_rules(self, sheet: CharacterSheet):
+        """Work out the numbers that follow from the classes: proficiency bonus, Unarmored Defense, and with it
+        AC and speed. Used when the sheet is built and when a class, level or subclass changes."""
+        character = self.current_character
+        total_level = sum(cl.level for cl in character.classes)
+        sheet.proficiency_bonus = calculate_proficiency_bonus(total_level)
+
+        # Unarmored defense from a class or subclass (first one found wins)
+        if character.classes:
+            class_manager = get_class_manager()
+            for cl in character.classes:
+                class_def = class_manager.get_class(cl.get_class_name())
+                if class_def and class_def.unarmored_defense:
+                    sheet.unarmored_defense = class_def.unarmored_defense
+                    break
+                # Also check subclass for unarmored defense (e.g., Noble Genie Paladin, College of Dance Bard)
+                if cl.subclass and class_def:
+                    for subclass_def in class_def.selectable_subclasses:
+                        if subclass_def.name == cl.subclass and subclass_def.unarmored_defense:
+                            sheet.unarmored_defense = subclass_def.unarmored_defense
+                            break
+
+        # Recalculate AC and speed if auto-calculate is enabled (handles unarmored defense/movement)
+        if get_settings_manager().settings.auto_calculate_ac:
+            self._recalculate_ac()
+            self._recalculate_speed()
+
+    def _refresh_class_dependent(self):
+        """A class, level, subclass or feat changed: update only the parts of the sheet that follow from it (class
+        and level boxes, hit dice, class features, features and feats, proficiency, saves, skills and the combat
+        numbers) instead of building the whole sheet again."""
+        if not self.current_sheet or not self.current_character:
+            return
+        host = getattr(self, "_class_features_host", None)
+        parts = (host, getattr(self, "_classes_container", None), getattr(self, "_hit_dice_container", None),
+                 getattr(self, "_features_frame", None))
+        if any(w is None or not w.winfo_exists() for w in parts):
+            self._show_character_sheet()            # the sheet is not built (yet): build all of it
+            return
+        sheet = self.current_sheet
+        rebuilt = []
+        self._rebuilding_ui = True
+        try:
+            with self._saves_held():
+                self._apply_class_rules(sheet)
+                if self._class_rows_signature() != self._shown_class_rows:
+                    self._populate_classes(self._classes_container)
+                    rebuilt.append(self._classes_container)
+                else:                               # same boxes: just show the (possibly capped) levels
+                    for (_, level_var), cl in zip(self.class_level_widgets, self.current_character.classes):
+                        if level_var.get() != str(cl.level):
+                            level_var.set(str(cl.level))
+                self._populate_hit_dice(self._hit_dice_container, sheet)
+                rebuilt.append(self._hit_dice_container)
+
+                for widget in host.winfo_children():
+                    widget.destroy()
+                self._named(host, lambda: self._create_class_features_section(host, sheet), "class_features")
+                rebuilt.append(host)
+
+                self._populate_features_frame(self._features_frame, sheet)
+                rebuilt.append(self._features_frame)
+
+                self._sync_proficiency_widgets()
+                self.prof_label.configure(text=f"+{sheet.proficiency_bonus}")
+                self.prof_var.set(str(sheet.proficiency_bonus))
+                for var, value in ((self.max_hp_var, sheet.hit_points.maximum),
+                                   (self.current_hp_var, sheet.hit_points.current)):
+                    if var.get() != str(value):
+                        var.set(str(value))
+                self._update_derived_stats()
+                self.sheet_manager.update_sheet(self.current_character.name, sheet)
+        finally:
+            self._rebuilding_ui = False
+        restyler = self._styler.restyler
+        for widget in rebuilt:
+            try:
+                restyler.apply(subtree=widget)       # new widgets take on this sheet's own style
+            except Exception as e:
+                print(f"Could not restyle the sheet: {e}")
+
+    def _saves_held(self):
+        """Write characters.json and character_sheets.json once at the end of a change, instead of after each
+        of its steps (a level change used to write them ten times)."""
+        from contextlib import ExitStack
+        stack = ExitStack()
+        for manager in (self.sheet_manager, self.character_manager):
+            hold = getattr(manager, "saves_held", None)
+            if hold is not None:
+                stack.enter_context(hold())
+        return stack
+
+    def _sync_proficiency_widgets(self):
+        """Show the saving throw and skill proficiencies the sheet has (a class or level can change them)."""
+        sheet = self.current_sheet
+        for ability, widget in getattr(self, "save_widgets", {}).items():
+            proficient = sheet.saving_throws.is_proficient(ability)
+            if widget.prof_var.get() != proficient:
+                widget.set_proficient(proficient)
+        for skill, widget in getattr(self, "skill_widgets", {}).items():
+            level = sheet.skills.get(skill)
+            if widget.prof_level != level:
+                widget.set_prof_level(level)
 
     @staticmethod
     def _named(parent, build, *names):
@@ -1294,60 +1385,8 @@ class CharacterSheetView(ctk.CTkFrame):
         
         classes_container = ctk.CTkFrame(class_frame, fg_color="transparent")
         classes_container.pack(anchor="w")
-        
-        self.class_level_widgets = []
-        self.subclass_widgets = []
-        class_manager = get_class_manager()
-        
-        for i, cl in enumerate(character.classes):
-            cl_row = ctk.CTkFrame(classes_container, fg_color="transparent")
-            cl_row.pack(side="left", padx=(0, 8))
-            
-            # Class name label
-            ctk.CTkLabel(cl_row, text=cl.get_class_name(), 
-                        font=ui_font("small")).pack(side="left")
-            
-            # Level entry
-            level_var = ctk.StringVar(value=str(cl.level))
-            level_entry = ctk.CTkEntry(
-                cl_row, textvariable=level_var,
-                width=35, height=22, justify="center"
-            )
-            level_entry.pack(side="left", padx=2)
-            level_entry.bind("<FocusOut>", lambda e, idx=i, var=level_var: self._on_class_level_change(idx, var.get()))
-            level_entry.bind("<Return>", lambda e, idx=i, var=level_var: self._on_class_level_change(idx, var.get()))
-            
-            self.class_level_widgets.append((cl.character_class, level_var))
-            
-            # Check if subclass selection should be shown
-            class_def = class_manager.get_class(cl.get_class_name())
-            if class_def and class_def.selectable_subclasses and cl.level >= class_def.subclass_level:
-                # Get filtered subclass options based on legacy setting
-                subclass_names = self._get_filtered_subclasses(class_def)
-                current_subclass = cl.subclass if cl.subclass else "(None)"
-                
-                # Only show dropdown if there are subclasses (more than just "(None)")
-                if len(subclass_names) > 1:
-                    # Subclass dropdown
-                    subclass_var = ctk.StringVar(value=current_subclass)
-                    subclass_combo = ScrollableComboBox(
-                        cl_row, width=120, height=22,
-                        values=subclass_names,
-                        variable=subclass_var,
-                        font=ui_font("small", 10),
-                        command=lambda val, idx=i: self._on_subclass_change(idx, val)
-                    )
-                    subclass_combo.pack(side="left", padx=2)
-                    self.subclass_widgets.append((i, subclass_var, subclass_combo))
-        
-        # Add class button
-        add_class_btn = ctk.CTkButton(
-            classes_container, text="+", width=22, height=22,
-            fg_color=self.theme.get_current_color('button_normal'),
-            hover_color=self.theme.get_current_color('button_hover'),
-            command=self._show_add_class_dialog
-        )
-        add_class_btn.pack(side="left", padx=2)
+        self._classes_container = classes_container
+        self._populate_classes(classes_container)
         
         # Lineage dropdown (auto-populated from lineage manager)
         lineage_frame = ctk.CTkFrame(row1, fg_color="transparent")
@@ -1453,6 +1492,79 @@ class CharacterSheetView(ctk.CTkFrame):
         )
         long_rest_btn.pack(side="right", padx=8)
     
+    def _class_rows_signature(self):
+        """What the class row shows apart from the numbers in it: the classes and which have a subclass box
+        (a subclass box already shows what was picked in it)."""
+        class_manager = get_class_manager()
+        rows = []
+        for cl in self.current_character.classes:
+            class_def = class_manager.get_class(cl.get_class_name())
+            has_subclass_box = bool(class_def and class_def.selectable_subclasses
+                                    and cl.level >= class_def.subclass_level)
+            rows.append((cl.get_class_name(), has_subclass_box))
+        return tuple(rows)
+
+    def _populate_classes(self, classes_container):
+        """Fill the Class & Level box: a level box (and subclass choice) for each class, and the + button."""
+        for widget in classes_container.winfo_children():
+            widget.destroy()
+        character = self.current_character
+        self._shown_class_rows = self._class_rows_signature()
+        
+        self.class_level_widgets = []
+        self.subclass_widgets = []
+        class_manager = get_class_manager()
+        
+        for i, cl in enumerate(character.classes):
+            cl_row = ctk.CTkFrame(classes_container, fg_color="transparent")
+            cl_row.pack(side="left", padx=(0, 8))
+            
+            # Class name label
+            ctk.CTkLabel(cl_row, text=cl.get_class_name(), 
+                        font=ui_font("small")).pack(side="left")
+            
+            # Level entry
+            level_var = ctk.StringVar(value=str(cl.level))
+            level_entry = ctk.CTkEntry(
+                cl_row, textvariable=level_var,
+                width=35, height=22, justify="center"
+            )
+            level_entry.pack(side="left", padx=2)
+            level_entry.bind("<FocusOut>", lambda e, idx=i, var=level_var: self._on_class_level_change(idx, var.get()))
+            level_entry.bind("<Return>", lambda e, idx=i, var=level_var: self._on_class_level_change(idx, var.get()))
+            
+            self.class_level_widgets.append((cl.character_class, level_var))
+            
+            # Check if subclass selection should be shown
+            class_def = class_manager.get_class(cl.get_class_name())
+            if class_def and class_def.selectable_subclasses and cl.level >= class_def.subclass_level:
+                # Get filtered subclass options based on legacy setting
+                subclass_names = self._get_filtered_subclasses(class_def)
+                current_subclass = cl.subclass if cl.subclass else "(None)"
+                
+                # Only show dropdown if there are subclasses (more than just "(None)")
+                if len(subclass_names) > 1:
+                    # Subclass dropdown
+                    subclass_var = ctk.StringVar(value=current_subclass)
+                    subclass_combo = ScrollableComboBox(
+                        cl_row, width=120, height=22,
+                        values=subclass_names,
+                        variable=subclass_var,
+                        font=ui_font("small", 10),
+                        command=lambda val, idx=i: self._on_subclass_change(idx, val)
+                    )
+                    subclass_combo.pack(side="left", padx=2)
+                    self.subclass_widgets.append((i, subclass_var, subclass_combo))
+        
+        # Add class button
+        add_class_btn = ctk.CTkButton(
+            classes_container, text="+", width=22, height=22,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._show_add_class_dialog
+        )
+        add_class_btn.pack(side="left", padx=2)
+
     def _on_subclass_change(self, class_index: int, subclass_name: str):
         """Handle subclass selection change."""
         character = self._require_character()
@@ -1463,6 +1575,8 @@ class CharacterSheetView(ctk.CTkFrame):
         
         class_manager = get_class_manager()
         class_level = character.classes[class_index]
+        if (class_level.subclass or "(None)") == (subclass_name or "(None)"):
+            return                                  # picked the one it already had
         class_def = class_manager.get_class(class_level.get_class_name())
         
         # Get old subclass definition to potentially remove its grants
@@ -1495,19 +1609,20 @@ class CharacterSheetView(ctk.CTkFrame):
             if new_subclass_def.unarmored_defense and not sheet.unarmored_defense:
                 sheet.unarmored_defense = new_subclass_def.unarmored_defense
         
-        # Update subclass spells
-        from character import update_subclass_spells
-        update_subclass_spells(character)
-        
-        # Save changes
-        self.character_manager.save_characters()
-        self._save_sheet()
-        
-        # Update spell tab visibility (for Eldritch Knight and other spellcasting subclasses)
-        self._update_spell_tab_visibility()
-        
-        # Refresh the sheet to update features
-        self._show_character_sheet()
+        with self._saves_held():
+            # Update subclass spells
+            from character import update_subclass_spells
+            update_subclass_spells(character)
+
+            # Save changes
+            self.character_manager.save_characters()
+            self._save_sheet()
+
+            # Update spell tab visibility (for Eldritch Knight and other spellcasting subclasses)
+            self._update_spell_tab_visibility()
+
+            # Subclass features, Unarmored Defense, AC... (not the whole sheet)
+            self._refresh_class_dependent()
     
     def _on_lineage_change(self, value: str):
         """Handle lineage selection change."""
@@ -1553,6 +1668,8 @@ class CharacterSheetView(ctk.CTkFrame):
     
     def _on_class_level_change(self, class_index: int, level_str: str):
         """Handle class level change."""
+        if self._rebuilding_ui:
+            return
         character = self._require_character()
         sheet = self._require_sheet()
         
@@ -1587,30 +1704,32 @@ class CharacterSheetView(ctk.CTkFrame):
                 self._remove_multiclass(class_index)
                 return
             
-            # Don't allow primary class to go below 1
-            if class_index == 0:
-                new_level = max(1, new_level)
-            else:
-                new_level = max(1, new_level)  # Non-primary also min 1 (0 is handled above)
-            
-            character.classes[class_index].level = new_level
-            
-            # Update subclass spells (may lose spells if level dropped below requirement)
-            from character import update_subclass_spells
-            update_subclass_spells(character)
-            
-            # Handle Slippery Mind (Rogue level 15) - auto-apply WIS and CHA saving throw proficiencies
-            sheet = self._require_sheet()
-            if sheet:
+            # Don't allow a class to go below 1 (0 on a multiclass is handled above)
+            new_level = max(1, new_level)
+
+            if new_level == character.classes[class_index].level:
+                # Leaving the box without changing it (or typing a level that is capped back to the same one)
+                self.class_level_widgets[class_index][1].set(str(new_level))
+                return
+
+            with self._saves_held():
+                character.classes[class_index].level = new_level
+
+                # Update subclass spells (may lose spells if level dropped below requirement)
+                from character import update_subclass_spells
+                update_subclass_spells(character)
+
+                # Handle Slippery Mind (Rogue level 15) - auto-apply WIS and CHA saving throw proficiencies
                 self._update_slippery_mind(character, sheet, class_index, new_level)
-            
-            self.character_manager.save_characters()
-            
-            # Update proficiency bonus and HP
-            self._recalculate_from_level_change()
-            
-            # Refresh the sheet to update class features widget
-            self._show_character_sheet()
+
+                self.character_manager.save_characters()
+
+                # Update proficiency bonus and HP
+                self._recalculate_from_level_change()
+
+                # Class features, hit dice, saves and skills follow the level (not the whole sheet)
+                self._update_spell_tab_visibility()
+                self._refresh_class_dependent()
         except ValueError:
             pass
     
@@ -1658,21 +1777,22 @@ class CharacterSheetView(ctk.CTkFrame):
         for key in keys_to_remove:
             del sheet.class_feature_uses[key]
         
-        # Update hit dice tracking
-        self._update_hit_dice_for_classes()
-        
-        # Recalculate HP if auto-calc is enabled
-        settings = get_settings_manager().settings
-        if settings.auto_calculate_hp:
-            self._auto_update_hp()
-        
-        # Save changes
-        self.character_manager.save_characters()
-        self.sheet_manager.update_sheet(character.name, sheet)
-        
-        # Refresh the entire sheet
-        self._update_spell_tab_visibility()
-        self._show_character_sheet()
+        with self._saves_held():
+            # Update hit dice tracking
+            self._update_hit_dice_for_classes()
+
+            # Recalculate HP if auto-calc is enabled
+            settings = get_settings_manager().settings
+            if settings.auto_calculate_hp:
+                self._auto_update_hp()
+
+            # Save changes
+            self.character_manager.save_characters()
+            self.sheet_manager.update_sheet(character.name, sheet)
+
+            self._update_spell_tab_visibility()
+            self._recalculate_from_level_change()           # proficiency bonus, hit dice, HP
+            self._refresh_class_dependent()
         
         messagebox.showinfo("Class Removed", f"{class_name} has been removed from {character.name}.")
     
@@ -1732,19 +1852,21 @@ class CharacterSheetView(ctk.CTkFrame):
                 level=1,
                 custom_class_name=custom_name
             )
-            character.classes.append(new_class_level)
-            
-            # Apply class feature spells (e.g., Mending for Artificer)
-            from character import update_subclass_spells
-            update_subclass_spells(character)
-            
-            # If this is the first class and auto-apply saving throws is enabled
-            if is_first_class and get_settings_manager().settings.auto_apply_saving_throws:
-                self._apply_class_features(dialog.result)
-            
-            self.character_manager.save_characters()
-            self._update_spell_tab_visibility()
-            self._show_character_sheet()
+            with self._saves_held():
+                character.classes.append(new_class_level)
+
+                # Apply class feature spells (e.g., Mending for Artificer)
+                from character import update_subclass_spells
+                update_subclass_spells(character)
+
+                # If this is the first class and auto-apply saving throws is enabled
+                if is_first_class and get_settings_manager().settings.auto_apply_saving_throws:
+                    self._apply_class_features(dialog.result)
+
+                self.character_manager.save_characters()
+                self._update_spell_tab_visibility()
+                self._recalculate_from_level_change()       # proficiency bonus, hit dice, HP
+                self._refresh_class_dependent()
     
     def _apply_class_features(self, class_name: str):
         """Apply class features like saving throws and unarmored defense for a starting class."""
@@ -2443,6 +2565,13 @@ class CharacterSheetView(ctk.CTkFrame):
         dice_header.pack(fill="x", padx=8, pady=(5, 2))
         ctk.CTkLabel(dice_header, text="Hit Dice:", font=ui_font("small", 10, bold=True)).pack(side="left")
         
+        dice_container = ctk.CTkFrame(hp_frame, fg_color="transparent")
+        dice_container.pack(fill="x", padx=8, pady=(0, 8))
+        self._hit_dice_container = dice_container
+        self._populate_hit_dice(dice_container, sheet)
+
+    def _populate_hit_dice(self, dice_container, sheet: CharacterSheet):
+        """Fill the Hit Dice row: remaining / total for each die type the classes give."""
         # Get hit dice from character classes
         class_levels = [(cl.get_class_name(), cl.level) for cl in self.current_character.classes]
         hit_dice = get_hit_dice_for_classes(class_levels)
@@ -2456,10 +2585,10 @@ class CharacterSheetView(ctk.CTkFrame):
         self._hit_dice_breakdown = hit_dice
         self._total_hit_dice = sum(hit_dice.values())
         
-        # Create a row for each die type
-        dice_container = ctk.CTkFrame(hp_frame, fg_color="transparent")
-        dice_container.pack(fill="x", padx=8, pady=(0, 8))
-        
+        for widget in dice_container.winfo_children():
+            widget.destroy()
+
+        # A box for each die type
         # Sort by die size for consistent display (d6, d8, d10, d12)
         die_order = {"d6": 1, "d8": 2, "d10": 3, "d12": 4}
         sorted_dice = sorted(hit_dice.items(), key=lambda x: die_order.get(x[0], 5))
@@ -2495,7 +2624,7 @@ class CharacterSheetView(ctk.CTkFrame):
             ctk.CTkLabel(value_row, text=f"/{total_count}", font=ui_font("small", 10)).pack(side="left")
             
             self._hit_dice_vars[die_type] = (die_var, total_count)
-    
+
     def _on_hit_die_change(self, die_type: str, value_str: str, max_value: int):
         """Handle change to a specific hit die type."""
         if not self.current_sheet:
@@ -3868,12 +3997,13 @@ class CharacterSheetView(ctk.CTkFrame):
     def _feats_changed(self):
         """Feats were added or removed: spells, AC / HP / initiative, saving and the sheet follow."""
         character = self.current_character
-        self._refresh_granted_spells(character)                    # feats can give spells
-        self._after_item_change()                                  # Tough, Alert, Defense...
-        self.character_manager.update_character(character.name, character)
-        self.character_manager.save_characters()
-        self.refresh()
-        self._update_spell_tab_for_feats()
+        with self._saves_held():
+            self._refresh_granted_spells(character)                # feats can give spells
+            self._after_item_change()                              # Tough, Alert, Defense...
+            self.character_manager.update_character(character.name, character)
+            self.character_manager.save_characters()
+            self._refresh_class_dependent()                        # the feat list (not the whole sheet)
+            self._update_spell_tab_for_feats()
 
     def _refresh_granted_spells(self, character):
         """Add (or take away) the spells the character's species, feats and features give."""
@@ -4101,6 +4231,11 @@ class CharacterSheetView(ctk.CTkFrame):
     def _on_ability_change(self, ability: AbilityScore, score: int):
         """Handle ability score change."""
         if self.current_sheet:
+            with self._saves_held():
+                self._apply_ability_change(ability, score)
+
+    def _apply_ability_change(self, ability: AbilityScore, score: int):
+        if self.current_sheet:
             self.current_sheet.ability_scores.set(ability, score)
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
             self._update_derived_stats()
@@ -4251,13 +4386,7 @@ class CharacterSheetView(ctk.CTkFrame):
             
             if changed:
                 self.sheet_manager.update_sheet(character.name, sheet)
-                # Refresh the saving throws section if it exists
-                if hasattr(self, 'save_widgets'):
-                    for ability in [AbilityScore.WISDOM, AbilityScore.CHARISMA]:
-                        if ability in self.save_widgets:
-                            modifier = sheet.get_saving_throw_bonus(ability)
-                            self.save_widgets[ability].set_proficiency(True)
-                            self.save_widgets[ability].set_modifier(modifier)
+                # (the save boxes are updated by _refresh_class_dependent)
         else:
             # Remove WIS and CHA saving throw proficiencies if we applied them
             if previously_applied:
@@ -4274,13 +4403,6 @@ class CharacterSheetView(ctk.CTkFrame):
                 
                 if changed:
                     self.sheet_manager.update_sheet(character.name, sheet)
-                    # Refresh the saving throws section if it exists
-                    if hasattr(self, 'save_widgets'):
-                        for ability in [AbilityScore.WISDOM, AbilityScore.CHARISMA]:
-                            if ability in self.save_widgets:
-                                modifier = sheet.get_saving_throw_bonus(ability)
-                                self.save_widgets[ability].set_proficiency(False)
-                                self.save_widgets[ability].set_modifier(modifier)
 
     def _refresh_ability_score_widgets(self):
         """Refresh ability score widgets to show effective scores."""
@@ -4560,6 +4682,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
         items_frame = ctk.CTkFrame(equip_frame, fg_color="transparent")
         items_frame.pack(fill="x", padx=10, pady=(2, 8))
+        self._equipment_rows = {}
         for i, item in enumerate(self.current_sheet.equipment_items):
             self._create_equipment_item_row(items_frame, i, item)
 
@@ -4612,10 +4735,12 @@ class CharacterSheetView(ctk.CTkFrame):
 
         weight = float(item.get("weight", 0) or 0)
         qty = int(item.get("quantity", 1) or 1)
-        ctk.CTkLabel(
+        weight_label = ctk.CTkLabel(
             content, text=f"{weight:g} lb each ({weight * qty:g} lb total)",
             font=ui_font("small", 10), text_color=self.theme.get_text_secondary()
-        ).pack(side="left", padx=(0, 10), fill="x", expand=True)
+        )
+        weight_label.pack(side="left", padx=(0, 10), fill="x", expand=True)
+        self._equipment_rows[index] = (qty_var, weight_label)
 
         ctk.CTkButton(
             content, text="✕", width=26, height=26,
@@ -4657,11 +4782,22 @@ class CharacterSheetView(ctk.CTkFrame):
             qty = max(1, int(value))
         except ValueError:
             qty = 1
-        self.current_sheet.equipment_items[index]["quantity"] = qty
-        self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
-        self._recalculate_speed()
-        self._refresh_carry_weight_indicator()
-        self._create_inventory_content()
+        item = self.current_sheet.equipment_items[index]
+        row = getattr(self, "_equipment_rows", {}).get(index)
+        if row is not None and row[0].get() != str(qty):
+            row[0].set(str(qty))                     # show what was kept (a typo or 0 becomes 1)
+        if qty == int(item.get("quantity", 1) or 1):
+            return                                   # left the box without changing it
+        item["quantity"] = qty
+        with self._saves_held():
+            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+            self._recalculate_speed()
+            self._refresh_carry_weight_indicator()
+        if row is not None:                          # only this row's total changes: no need to rebuild the tab
+            weight = float(item.get("weight", 0) or 0)
+            row[1].configure(text=f"{weight:g} lb each ({weight * qty:g} lb total)")
+        else:
+            self._create_inventory_content()
 
     def _delete_equipment_item(self, index: int):
         """Delete a linked equipment row."""
@@ -4697,6 +4833,7 @@ class CharacterSheetView(ctk.CTkFrame):
             self.current_sheet.magic_items = []
 
         self._magic_item_widgets = []
+        self._attuned_vars = {}
         self._magic_items_container = items_frame
         for i, item in enumerate(self.current_sheet.magic_items):
             self._create_magic_item_row(items_frame, i, item)
@@ -4741,6 +4878,7 @@ class CharacterSheetView(ctk.CTkFrame):
         # Attuned checkbox - only meaningful (and shown) for items that need it
         if item.get("requires_attunement", False):
             attuned_var = ctk.BooleanVar(value=item.get("attuned", False))
+            self._attuned_vars[index] = attuned_var
             attuned_check = ctk.CTkCheckBox(
                 content, text="Attuned",
                 variable=attuned_var,
@@ -4800,12 +4938,17 @@ class CharacterSheetView(ctk.CTkFrame):
                 if current_attuned >= attunement_limit:
                     messagebox.showwarning("Attunement Limit", f"You can only attune to {attunement_limit} magic items at a time.")
                     # Reset the checkbox
-                    self._create_inventory_content()
+                    var = getattr(self, "_attuned_vars", {}).get(index)
+                    if var is not None:
+                        var.set(False)
+                    else:
+                        self._create_inventory_content()
                     return
 
             self.current_sheet.magic_items[index]["attuned"] = attuned
-            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
-            self._after_item_change()
+            with self._saves_held():
+                self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+                self._after_item_change()
 
             # Update attunement count
             attunement_count = sum(1 for item in self.current_sheet.magic_items if item.get("attuned", False))
