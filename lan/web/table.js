@@ -135,8 +135,12 @@
     switch (msg.type) {
       case "presence":
         if (body.peer && body.peer.peer_id) {
-          session.peers = session.peers.filter((p) => p.peer_id !== body.peer.peer_id);
-          if (body.event === "join") session.peers.push(body.peer);
+          const at = session.peers.findIndex((p) => p.peer_id === body.peer.peer_id);
+          if (body.event === "update" && at >= 0) session.peers[at] = body.peer;
+          else {
+            session.peers = session.peers.filter((p) => p.peer_id !== body.peer.peer_id);
+            if (body.event === "join") session.peers.push(body.peer);
+          }
           renderPeople();
         }
         break;
@@ -152,6 +156,27 @@
         session.emit(msg.type, body, msg);
     }
   }
+
+  // the character this player says they're playing: {name, hp, hp_max, ac} (the DM's app checks it)
+  function readCharacter(prefix) {
+    const name = $(prefix + "-name").value.replace(/\s+/g, " ").trim();
+    if (!name) return { name: "" };
+    const num = (id, hi) => {
+      const v = parseInt($(id).value, 10);
+      return Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : undefined;
+    };
+    const hp = num(prefix + "-hp", 9999);
+    const out = { name: name, ac: num(prefix + "-ac", 50) };
+    if (hp !== undefined) { out.hp = hp; out.hp_max = hp; }
+    return out;
+  }
+  session.character = { name: "" };
+  session.setCharacter = function (info) {
+    session.character = info && info.name ? info : { name: "" };
+    try { store("character", JSON.stringify(session.character)); } catch (e) { /* ignore */ }
+    return session.send("character", session.character);
+  };
+  session.readCharacter = readCharacter;
 
   function welcome(body) {
     session.joined = true;
@@ -172,6 +197,7 @@
     session.pingTimer = setInterval(() => {
       if (session.ws && session.ws.readyState === 1) session.ws.send('{"type":"ping","body":{}}');
     }, PING_MS);
+    if (session.character.name) session.send("character", session.character);
     session.emit("joined", body);
   }
 
@@ -186,6 +212,7 @@
       const tags = [];
       if (p.peer_id === session.me) tags.push("you");
       if (p.web) tags.push("browser");
+      if (p.character) tags.unshift("as " + p.character);
       if (tags.length) {
         const tag = document.createElement("span");
         tag.className = "tag";
@@ -237,6 +264,15 @@
   });
 
   $("join-name").value = stored("name", "");
+  try {
+    const saved = JSON.parse(stored("character", "{}"));
+    if (saved && saved.name) {
+      $("char-name").value = saved.name;
+      if (saved.hp_max !== undefined) $("char-hp").value = saved.hp_max;
+      if (saved.ac !== undefined) $("char-ac").value = saved.ac;
+      $("join-char").open = true;
+    }
+  } catch (e) { /* nothing saved */ }
   $("join-form").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const name = $("join-name").value.replace(/\s+/g, " ").trim();
@@ -244,6 +280,8 @@
       setStatus("Enter the name you want the table to see.", true);
       return;
     }
+    session.character = readCharacter("char");
+    try { store("character", JSON.stringify(session.character)); } catch (e) { /* ignore */ }
     $("join-btn").disabled = true;
     setStatus("Connecting…");
     connect(name, $("join-pw").value);

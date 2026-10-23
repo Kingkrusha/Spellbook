@@ -207,3 +207,41 @@ def test_a_blank_name_is_refused_for_hosting_and_joining():
             svc.join("127.0.0.1:5150#" + "A" * 26, blank)
         assert e.value.code == "name"
     assert svc.role == NONE and not svc.active
+
+
+def test_players_tell_the_dm_who_they_play(pair):
+    import base64
+    import io
+    from PIL import Image
+    host, guest, invite = pair
+    other = SessionService()
+    try:
+        picture = io.BytesIO()
+        Image.new("RGB", (40, 40), (200, 30, 30)).save(picture, "JPEG")
+        guest.set_my_character({"name": "Aria", "hp": 31, "ac": 15, "summary": "Level 5 Elf Wizard",
+                                "portrait": base64.b64encode(picture.getvalue()).decode("ascii")})
+        guest.join(invite, "Alice")                    # the character is sent as soon as we're in
+        other.join(invite, "Bob")
+        pump_until(lambda: guest.role == CLIENT and other.role == CLIENT, host, guest, other)
+        pump_until(lambda: host.player_character(guest.my_id).get("name") == "Aria", host, guest, other)
+        aria = host.player_character(guest.my_id)
+        assert aria["hp"] == aria["hp_max"] == 31 and aria["ac"] == 15 and aria["player"] == "Alice"
+        assert aria["client_id"] == host.client_ids[guest.my_id] and aria["portrait"]
+        assert any("Alice is playing Aria" in line["text"] for line in host.chat)
+        # the other players see the name (not the picture or the numbers)
+        pump_until(lambda: any(p.get("character") == "Aria" for p in other.peers), host, guest, other)
+        # changing character, then playing nobody
+        guest.set_my_character({"name": "Brakka"})
+        pump_until(lambda: host.player_character(guest.my_id).get("name") == "Brakka", host, guest, other)
+        guest.set_my_character(None)
+        pump_until(lambda: not host.player_character(guest.my_id), host, guest, other)
+        guest.leave()
+        pump_until(lambda: guest.my_id not in host.player_characters and len(host.peers) == 2, host, other)
+    finally:
+        other.shutdown()
+
+
+def test_a_character_is_cleaned_up():
+    assert P.clean_character({"name": "  "}) == {}
+    c = P.clean_character({"name": "A\x00ria " * 20, "hp": 1e9, "ac": True, "portrait": "bm90IGEgcGljdHVyZQ=="})
+    assert len(c["name"]) <= 40 and c["hp"] == 9999 and c["ac"] is None and "portrait" not in c

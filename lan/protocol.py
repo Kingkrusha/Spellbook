@@ -97,6 +97,40 @@ def clean_name(value, fallback: str = "Player") -> str:
     return name or fallback
 
 
+MAX_PORTRAIT = 64 * 1024           # bytes of a character's portrait (a small JPEG or PNG)
+
+
+def clean_character(body) -> dict:
+    """The character a player says they are playing: ``{name, hp, hp_max, ac, summary, portrait}``.
+
+    Everything is optional except the name; an empty name means "nobody yet" (returns ``{}``). The portrait
+    is base64 of a small JPEG or PNG and is dropped if it is too big or isn't one."""
+    if not isinstance(body, dict):
+        return {}
+    name = " ".join(clean_text(body.get("name"), 80).split())[:40].strip()
+    if not name:
+        return {}
+
+    def number(key, low, high):
+        value = body.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+            return None
+        return max(low, min(high, int(value)))
+    out = {"name": name, "hp": number("hp", 0, 9999), "hp_max": number("hp_max", 0, 9999),
+           "ac": number("ac", 0, 50), "summary": " ".join(clean_text(body.get("summary"), 120).split())[:80]}
+    if out["hp"] is not None and out["hp_max"] is None:
+        out["hp_max"] = out["hp"]
+    portrait = body.get("portrait")
+    if isinstance(portrait, str) and len(portrait) <= MAX_PORTRAIT * 4 // 3 + 4:
+        try:
+            raw = base64.b64decode(portrait, validate=True)
+        except (ValueError, TypeError):
+            raw = b""
+        if raw.startswith(b"\xff\xd8\xff") or raw.startswith(b"\x89PNG\r\n\x1a\n"):
+            out["portrait"] = portrait
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Invite codes
 # ---------------------------------------------------------------------------

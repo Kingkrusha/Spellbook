@@ -24,8 +24,12 @@ EVERYONE = "Everyone"
 class SessionView(ctk.CTkFrame):
     def __init__(self, parent, service, on_back: Optional[Callable[[], None]] = None, overlay=None,
                  get_managers: Optional[Callable[[], object]] = None,
-                 on_initiative: Optional[Callable[[], None]] = None):
+                 on_initiative: Optional[Callable[[], None]] = None,
+                 get_characters: Optional[Callable[[], List[str]]] = None,
+                 character_info: Optional[Callable[[str], dict]] = None):
         super().__init__(parent, fg_color="transparent")
+        self._get_characters = get_characters      # -> this user's character names ("Playing as")
+        self._character_info = character_info      # name -> what the DM is told about that character
         self.theme = get_theme_manager()
         self.service = service
         self.on_back = on_back
@@ -276,7 +280,34 @@ class SessionView(ctk.CTkFrame):
         """Prompt for the name to use in the session, then call ``then(name)``. It is asked every time
         (starting from what was typed last), and never guessed from the computer."""
         from ui.session_widgets import NameDialog
-        NameDialog(self.winfo_toplevel(), self.service.default_name(), then, hosting=hosting)
+        characters = self._character_names() if not hosting else []
+        holder = []
+
+        def done(name):
+            if characters:
+                self._play_as(holder[0].character)
+            then(name)
+        holder.append(NameDialog(self.winfo_toplevel(), self.service.default_name(), done, hosting=hosting,
+                                 characters=characters, character=self.service.saved("lan_character", "") or ""))
+
+    def _character_names(self) -> List[str]:
+        try:
+            return list(self._get_characters()) if self._get_characters else []
+        except Exception as e:
+            print(f"Session: couldn't list characters: {e}")
+            return []
+
+    def _play_as(self, name: str):
+        """Tell the DM which of our characters we're playing ("" = nobody); remembered for next time."""
+        info = {}
+        if name:
+            try:
+                info = self._character_info(name) if self._character_info else {"name": name}
+            except Exception as e:
+                print(f"Session: couldn't read {name}: {e}")
+                info = {"name": name}
+        self.service._remember(lan_character=name)
+        self.service.set_my_character(info)
 
     def _on_join_found(self, found):
         from ui.session_widgets import VerifyDialog
@@ -440,6 +471,8 @@ class SessionView(ctk.CTkFrame):
         self._peers_frame.pack(fill="x", padx=12)
         ctk.CTkLabel(side, text=f"Security code  {s.security_code}", font=ui_font("small"),
                      text_color=self.theme.get_text_secondary()).pack(anchor="w", padx=16, pady=(6, 0))
+        if s.role == CLIENT:
+            self._build_playing_as(side)
         if self._on_initiative is not None:
             ctk.CTkButton(side, text="⚔ Initiative tracker", height=30,
                           fg_color=self.theme.get_current_color('accent_primary'),
@@ -461,6 +494,20 @@ class SessionView(ctk.CTkFrame):
             self._build_overlay_options(side)
         self._refresh_peers()
         self._input.focus()
+
+    def _build_playing_as(self, parent):
+        """A player's "Playing as" menu: the DM can then give them this character's token."""
+        from ui.session_widgets import NameDialog
+        names = self._character_names()
+        current = (self.service.my_character or {}).get("name", "")
+        values = [NameDialog.NOBODY] + names + ([current] if current and current not in names else [])
+        line = ctk.CTkFrame(parent, fg_color="transparent")
+        line.pack(fill="x", padx=14, pady=(10, 0))
+        ctk.CTkLabel(line, text="Playing as", font=ui_font("small", bold=True)).pack(anchor="w", padx=2)
+        var = ctk.StringVar(value=current or NameDialog.NOBODY)
+        ctk.CTkOptionMenu(line, values=values, variable=var, dynamic_resizing=False, width=230,
+                          command=lambda v: self._play_as("" if v == NameDialog.NOBODY else v)
+                          ).pack(fill="x", pady=(2, 0))
 
     def _build_invite_panel(self, parent):
         s = self.service
@@ -586,6 +633,9 @@ class SessionView(ctk.CTkFrame):
             crown = "👑 " if p.get("is_host") else ""
             ctk.CTkLabel(row, text=f"{crown}{p['name']}{you}", font=ui_font("body"), anchor="w"
                          ).pack(side="left", padx=(4, 0))
+            if p.get("character"):
+                ctk.CTkLabel(row, text=f"as {p['character']}", font=ui_font("small"),
+                             text_color=self.theme.get_text_secondary()).pack(side="left", padx=(6, 0))
             theirs, mine = p.get("app"), s.app_version
             if p.get("web"):
                 ctk.CTkLabel(row, text="🌐 browser", font=ui_font("small"),

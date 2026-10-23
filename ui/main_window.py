@@ -771,7 +771,8 @@ class MainWindow(ctk.CTkFrame):
             from ui.session_view import SessionView
             return SessionView(self, self.session, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
                                overlay=self.chat_overlay, get_managers=self._transfer_managers,
-                               on_initiative=self.open_initiative)
+                               on_initiative=self.open_initiative, get_characters=self._session_character_names,
+                               character_info=self._session_character_info)
         if page_type == "initiative":
             from ui.initiative_view import InitiativeView
             return InitiativeView(
@@ -841,7 +842,49 @@ class MainWindow(ctk.CTkFrame):
             from ui.character_sheet_view import get_sheet_manager
             sheet = get_sheet_manager().get_sheet(name)
             return S.from_sheet(sheet, owner=token.get("owner", "")) if sheet is not None else None
+        if kind == "player":                            # a character a connected player is playing
+            import initiative_state as T
+            c = next((c for c in self.session.player_characters.values()
+                      if c.get("client_id") == token.get("owner") and c.get("name") == name), None)
+            if c is None:
+                return None
+            return {"type": "add_entry", "kind": T.KIND_PLAYER, "name": c["name"], "hp": c.get("hp") or 0,
+                    "hp_max": c.get("hp_max") or c.get("hp") or 0, "ac": c.get("ac") if c.get("ac") is not None else 10,
+                    "owner": token.get("owner", "")}
         return None
+
+    def _session_character_names(self) -> list:
+        """This user's characters, for "Playing as" when joining a session."""
+        return [c.name for c in self.character_manager.characters]
+
+    def _session_character_info(self, name: str) -> dict:
+        """What the DM is told about the character this player plays: numbers, a short line and a small portrait."""
+        import base64
+        import io
+        import portraits
+        from ui.character_sheet_view import get_sheet_manager
+        info = {"name": name}
+        character = self.character_manager.get_character(name)
+        if character is not None:
+            bits = [f"Level {character.total_level}" if character.total_level else "",
+                    character.lineage or "", character.display_classes() if character.classes else ""]
+            info["summary"] = " ".join(b for b in bits if b)
+        sheet = get_sheet_manager().get_sheet(name)
+        if sheet is not None:
+            info.update(hp=sheet.hit_points.current, hp_max=sheet.hit_points.maximum, ac=sheet.armor_class)
+            path = portraits.portrait_path(getattr(sheet, "portrait", "") or "")
+            if path:
+                try:
+                    from PIL import Image, ImageOps
+                    with Image.open(path) as image:
+                        image = ImageOps.exif_transpose(image).convert("RGB")
+                        image.thumbnail((160, 160))
+                        data = io.BytesIO()
+                        image.save(data, "JPEG", quality=82)
+                    info["portrait"] = base64.b64encode(data.getvalue()).decode("ascii")
+                except Exception as e:                  # the portrait is a nicety; the rest still goes
+                    print(f"Session: couldn't shrink the portrait of {name}: {e}")
+        return info
 
     def _tabletop_characters(self):
         """``[{name, portrait, hp, hp_max}]`` for the Tabletop's "Character…" button."""
