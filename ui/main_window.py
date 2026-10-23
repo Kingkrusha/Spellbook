@@ -1525,6 +1525,28 @@ class MainWindow(ctk.CTkFrame):
             if key == "spells":
                 view.refresh_class_filter()
 
+    def refresh_pages_after_import(self, changed):
+        """A backup import changed ``changed`` (backup.py category keys): redraw the open pages that
+        show them (the Characters list, Random Tables, Calendar), shown or kept in a tab's cache."""
+        from ui.calendar_view import CalendarView
+        from ui.characters_view import CharactersView
+        from ui.random_tables_view import RandomTablesView
+        wanted = tuple(cls for key, cls in (("characters", CharactersView), ("random_tables", RandomTablesView),
+                                            ("calendars", CalendarView)) if key in changed)
+        if not wanted:
+            return
+        views = []
+        for info in self._tab_views.values():
+            views.append(info.get('view'))
+            views.extend(entry.get('view') for entry in (info.get('cache') or {}).values())
+        for view in views:
+            if isinstance(view, wanted):
+                try:
+                    if view.winfo_exists():
+                        view.refresh()
+                except Exception as e:
+                    print(f"Could not refresh {type(view).__name__}: {e}")
+
     def refresh_all_collection_views(self):
         """Reload every already-open collection list so freshly imported content shows up
         without restarting the app. Pages are built on demand, so only the ones that exist are
