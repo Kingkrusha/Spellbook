@@ -7,12 +7,14 @@ import os
 import json
 from typing import List, Optional, Callable, Tuple
 from character import CharacterSpellList
-from atomic_io import SaveErrorListeners, atomic_write_json
+from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json
 from paths import user_data_path
 
 
-class CharacterManager(SaveErrorListeners):
+class CharacterManager(HeldSaves, SaveErrorListeners):
     """Manages character spell lists with file persistence."""
+
+    _HELD_SAVE = "save_characters"
     
     DEFAULT_FILE = "characters.json"
     
@@ -66,6 +68,8 @@ class CharacterManager(SaveErrorListeners):
 
     def save_characters(self) -> bool:
         """Save all characters to the JSON file. Returns True if successful."""
+        if self._hold_save():
+            return True
         try:
             data = {
                 "characters": [char.to_dict() for char in self._characters]

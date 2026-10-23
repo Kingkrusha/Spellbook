@@ -15,6 +15,7 @@ new one - never a half-written file.
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from typing import Any, Callable, List
 
 
@@ -82,3 +83,33 @@ class SaveErrorListeners:
                 listener(message)
             except Exception:
                 pass
+
+
+class HeldSaves:
+    """For a manager that writes its whole file on every save: lets a burst of changes be written once.
+
+    Inside ``with manager.saves_held():`` a save only notes that there is something to write; when the
+    outermost ``with`` ends, the file is written a single time. The manager names its save method in
+    ``_HELD_SAVE`` and starts its save method with ``if self._hold_save(): return True``."""
+
+    _HELD_SAVE = "save"
+    _save_hold = 0
+    _save_pending = False
+
+    def _hold_save(self) -> bool:
+        """True while saves are held (the save is remembered for later)."""
+        if self._save_hold:
+            self._save_pending = True
+            return True
+        return False
+
+    @contextmanager
+    def saves_held(self):
+        self._save_hold += 1
+        try:
+            yield self
+        finally:
+            self._save_hold -= 1
+            if not self._save_hold and self._save_pending:
+                self._save_pending = False
+                getattr(self, self._HELD_SAVE)()
