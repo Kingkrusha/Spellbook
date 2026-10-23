@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 from typography import ui_font
 from theme import get_theme_manager
+from ui.popup_window import PopupWindow, pointer_over, watch_hover
 
 
 class HoverTooltip:
@@ -22,6 +23,7 @@ class HoverTooltip:
         self.wraplength = wraplength
         self._after_id = None
         self._tip = None
+        self._watch = None
 
         widget.bind("<Enter>", self._schedule, add="+")
         widget.bind("<Leave>", self._hide, add="+")
@@ -30,6 +32,8 @@ class HoverTooltip:
 
     def update_text(self, text: str):
         self.text = text or ""
+        if not self.text:
+            self._hide()
 
     def _schedule(self, _event=None):
         self._cancel()
@@ -45,8 +49,16 @@ class HoverTooltip:
             self._after_id = None
 
     def _show(self):
-        if self._tip is not None or not self.widget.winfo_exists():
+        self._after_id = None
+        if self._tip is not None or not self.text:
             return
+        try:
+            if not self.widget.winfo_viewable():
+                return
+        except Exception:
+            return
+        if not pointer_over(self.widget):
+            return                         # the pointer left without a <Leave> reaching us
 
         theme = get_theme_manager()
         # Use real theme keys (there is no 'card' colour in the palette - asking
@@ -59,13 +71,7 @@ class HoverTooltip:
         x = self.widget.winfo_rootx() + 12
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
 
-        self._tip = ctk.CTkToplevel(self.widget, fg_color=fg)
-        self._tip.withdraw()
-        self._tip.overrideredirect(True)
-        try:
-            self._tip.attributes("-topmost", True)
-        except Exception:
-            pass
+        self._tip = PopupWindow(self.widget, fg_color=fg)
         # Paint the bare Toplevel too, so no default-white edge shows through
         # behind the rounded frame.
         try:
@@ -84,9 +90,13 @@ class HoverTooltip:
 
         self._tip.geometry(f"+{x}+{y}")
         self._tip.deiconify()
+        self._watch = watch_hover(self.widget, self._tip, self._hide)
 
     def _hide(self, _event=None):
         self._cancel()
+        if self._watch is not None:
+            self._watch.cancel()
+            self._watch = None
         if self._tip is not None:
             try:
                 self._tip.destroy()

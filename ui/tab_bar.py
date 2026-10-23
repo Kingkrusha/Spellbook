@@ -12,6 +12,7 @@ from tkinter import Menu
 from typing import Optional, Callable, List
 from theme import get_theme_manager
 from ui.platform_compat import bind_right_click
+from ui.popup_window import PopupWindow, pointer_over, watch_hover
 import uuid
 
 
@@ -80,6 +81,7 @@ class TabWidget(ctk.CTkFrame):
         # Tooltip
         self._tooltip = None
         self._tooltip_id = None
+        self._tooltip_watch = None
         
         self._create_widgets()
         self._bind_events()
@@ -136,29 +138,35 @@ class TabWidget(ctk.CTkFrame):
     
     def _on_enter(self, event=None):
         """Show tooltip on hover."""
+        # The tab is three nested widgets, so one pointer move can bring several
+        # <Enter>s in a row: drop the previous timer instead of losing track of it.
+        self._cancel_tooltip_timer()
         # Only show tooltip if text is truncated
         if self.display_text != self.full_text:
             self._tooltip_id = self.after(500, self._show_tooltip)
     
     def _on_leave(self, event=None):
         """Hide tooltip on leave."""
-        if self._tooltip_id:
-            self.after_cancel(self._tooltip_id)
-            self._tooltip_id = None
         self._hide_tooltip()
+
+    def _cancel_tooltip_timer(self):
+        if self._tooltip_id:
+            try:
+                self.after_cancel(self._tooltip_id)
+            except Exception:
+                pass
+            self._tooltip_id = None
     
     def _show_tooltip(self):
         """Display tooltip with full text."""
-        if self._tooltip:
+        self._tooltip_id = None
+        if self._tooltip or not pointer_over(self):
             return
         
         x = self.winfo_rootx()
         y = self.winfo_rooty() + self.winfo_height() + 5
         
-        self._tooltip = ctk.CTkToplevel(self)
-        self._tooltip.withdraw()
-        self._tooltip.overrideredirect(True)
-        self._tooltip.attributes('-topmost', True)
+        self._tooltip = PopupWindow(self)
         
         label = ctk.CTkLabel(
             self._tooltip,
@@ -172,13 +180,18 @@ class TabWidget(ctk.CTkFrame):
         
         self._tooltip.geometry(f"+{x}+{y}")
         self._tooltip.deiconify()
+        self._tooltip_watch = watch_hover(self, self._tooltip, self._hide_tooltip)
     
     def _hide_tooltip(self):
         """Hide and destroy tooltip."""
+        self._cancel_tooltip_timer()
+        if self._tooltip_watch is not None:
+            self._tooltip_watch.cancel()
+            self._tooltip_watch = None
         if self._tooltip:
             try:
                 self._tooltip.destroy()
-            except:
+            except Exception:
                 pass
             self._tooltip = None
     
@@ -603,7 +616,10 @@ class DraggableTabBar(ctk.CTkFrame):
         )
 
         self._update_context_menu_colors()
-        self.context_menu.tk_popup(x, y)
+        try:
+            self.context_menu.tk_popup(x, y)
+        finally:
+            self.context_menu.grab_release()
 
     def _close_others(self, keep: TabWidget):
         """Close every closable tab except ``keep``."""

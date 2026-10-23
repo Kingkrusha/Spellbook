@@ -416,7 +416,10 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     def _on_lineage_right_click(self, lineage: Lineage, x: int, y: int):
         """Handle right-click on lineage - show context menu."""
         self._context_lineage = lineage
-        self.context_menu.tk_popup(x, y)
+        try:
+            self.context_menu.tk_popup(x, y)
+        finally:
+            self.context_menu.grab_release()
     
     def _context_set_lineage(self):
         """Set lineage for current character from context menu."""

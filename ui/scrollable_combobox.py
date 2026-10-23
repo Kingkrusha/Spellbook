@@ -21,6 +21,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from theme import get_theme_manager
+from ui.popup_window import PopupWindow, watch_popup
 
 # Below this many values, the popup skips the search box - typing a filter
 # isn't worth the extra row when everything already fits on screen at once.
@@ -38,6 +39,7 @@ class ScrollableComboBox(ctk.CTkComboBox):
         self._popup_scroll_frame = None
         self._popup_search_var = None
         self._popup_rows = None
+        self._popup_watch = None
 
     def _open_dropdown_menu(self):
         if self._state == tk.DISABLED or not self._values:
@@ -50,12 +52,7 @@ class ScrollableComboBox(ctk.CTkComboBox):
         # Parent the popup to the window, not to this widget: CTkScrollableFrame scrolls its
         # page for wheel events over any *descendant* of it, and a popup that is a child of a
         # control inside a scrolled page counts - so the page moved under the dropdown.
-        popup = ctk.CTkToplevel(self.winfo_toplevel())
-        popup.overrideredirect(True)
-        try:
-            popup.attributes("-topmost", True)
-        except Exception:
-            pass
+        popup = PopupWindow(self.winfo_toplevel())
 
         show_search = len(self._values) >= _SEARCH_BOX_THRESHOLD
         visible_rows = min(len(self._values), _MAX_VISIBLE_ROWS)
@@ -120,7 +117,9 @@ class ScrollableComboBox(ctk.CTkComboBox):
         popup.bind("<Escape>", lambda _e: self._close_scrollable_dropdown())
         popup.bind("<FocusOut>", self._on_popup_focus_out)
         self._scrollable_popup = popup
+        popup.deiconify()
         popup.after(10, popup.focus_force)
+        self._popup_watch = watch_popup(self, popup, self._close_scrollable_dropdown)
 
     def _on_popup_focus_out(self, event=None):
         # A click on one of the row buttons (or the search entry) fires
@@ -160,6 +159,9 @@ class ScrollableComboBox(ctk.CTkComboBox):
         self._popup_scroll_frame = None
         self._popup_search_var = None
         self._popup_rows = None
+        if self._popup_watch is not None:
+            self._popup_watch.cancel()
+            self._popup_watch = None
         if popup is not None:
             try:
                 popup.destroy()
