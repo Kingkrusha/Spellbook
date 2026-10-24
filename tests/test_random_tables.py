@@ -182,3 +182,35 @@ def test_page_search_select_and_roll(tk_root, fresh_fonts, manager, monkeypatch)
     hits = view.table_view.text.tag_ranges("hit")
     assert hits
     view.destroy()
+
+
+def test_page_scrolls_when_short_and_rolls_panel_is_resizable(tk_root, fresh_fonts, manager, monkeypatch):
+    monkeypatch.setattr(rt.RandomTablesManager, "_instance", manager)
+    from ui.random_tables_view import RandomTablesView, MIN_PAGE_HEIGHT, HISTORY_MIN
+
+    state = {"history_height": 150}
+    import tkinter as tk
+    holder = tk.Frame(tk_root)
+    holder.place(x=0, y=0, width=900, height=400)
+    view = RandomTablesView(holder, state)
+    view.pack(fill="both", expand=True)
+    tk_root.update()
+    view._fit_page()
+    assert view._bar_shown                      # shorter than the page: it scrolls
+    assert int(float(view._canvas.cget("scrollregion").split()[3])) == MIN_PAGE_HEIGHT
+
+    class Wheel:
+        delta, num = -120, None
+    assert view._on_wheel(Wheel()) == "break"
+    assert view._canvas.yview()[0] > 0
+    assert len(view.split.panes()) == 2         # table and Recent rolls, with a divider between them
+
+    holder.place_configure(height=900)
+    tk_root.update()
+    view._fit_page()
+    assert not view._bar_shown and view._canvas.yview()[0] == 0
+    view.split.sash_place(0, 0, 200)
+    tk_root.update()
+    view._remember_split()
+    assert state["history_height"] >= HISTORY_MIN
+    holder.destroy()
