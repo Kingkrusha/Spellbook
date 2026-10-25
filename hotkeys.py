@@ -122,6 +122,7 @@ ACTIONS: List[Action] = [
     Action("toggle.chat_overlay", "Show / hide chat overlay", "Settings", ""),
     # Help
     Action("help.tour", "Start the guided tour", "Help", "F1"),
+    Action("help.feedback", "Send feedback or a bug report", "Help", "Shift+F1"),
 ]
 
 ACTIONS_BY_ID: Dict[str, Action] = {a.id: a for a in ACTIONS}

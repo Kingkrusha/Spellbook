@@ -1746,11 +1746,17 @@ class MainWindow(ctk.CTkFrame):
                 self, self.settings_manager,
                 on_appearance_changed=self._on_appearance_changed,
                 spell_manager=self.spell_manager,
-                on_start_tutorial=self.start_tutorial
+                on_start_tutorial=self.start_tutorial,
+                on_send_feedback=self.open_feedback
             )
         self.settings_view = LazyView(build)
     
     # ---- the guided tour (ui/tutorial.py, ui/tutorial_steps.py) -----------------------------------
+
+    def open_feedback(self):
+        """Open the Send feedback window (Settings > Help, or Shift+F1)."""
+        from ui.feedback_dialog import open_feedback
+        open_feedback(self)
 
     def start_tutorial(self):
         """Start the guided tour (Settings > Help, F1, or the offer on first start)."""
