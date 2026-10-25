@@ -24,6 +24,10 @@ from ui.window_utils import add_cancel_save, center_on_parent
 ALL_CATEGORIES = "All Categories"
 ROLL_COUNTS = ["×1", "×2", "×3", "×5", "×10"]
 HISTORY_LIMIT = 30
+# The page scrolls when the window is shorter than this, so Recent rolls is never cut off.
+MIN_PAGE_HEIGHT = 620
+HISTORY_HEIGHT = 190      # Recent rolls height before the divider is dragged
+HISTORY_MIN, TABLE_MIN = 70, 120
 
 
 def _color(theme, role: str) -> str:
@@ -114,7 +118,7 @@ class TableTextView(ThemeListenerMixin, tk.Frame):
                 t.see(ranges[0])
 
 
-class RandomTablesView(ctk.CTkFrame):
+class RandomTablesView(ThemeListenerMixin, ctk.CTkFrame):
     """The Random Tables page."""
 
     def __init__(self, parent, state: Optional[dict] = None, service=None, on_back=None):
@@ -128,6 +132,7 @@ class RandomTablesView(ctk.CTkFrame):
         self._table: Optional[RandomTable] = None
         self._filter_job: Optional[str] = None
         self._create_widgets()
+        self.theme.add_listener(self._on_theme_changed)
         self.refresh()
         wanted = self.state.get("selected")
         if wanted:
@@ -154,9 +159,75 @@ class RandomTablesView(ctk.CTkFrame):
                                  'text_primary' if kind == "normal" else 'text_on_accent'),
                              text_color_disabled=self.theme.get_text_secondary())
 
+    def _create_scroll_area(self):
+        """A page that fills the window, or scrolls when the window is shorter than MIN_PAGE_HEIGHT."""
+        self._canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0)
+        self._vbar = ctk.CTkScrollbar(self, orientation="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._vbar.set)
+        self._canvas.pack(side="left", fill="both", expand=True)
+        self.page = ctk.CTkFrame(self._canvas, fg_color="transparent", corner_radius=0)
+        self._page_id = self._canvas.create_window(0, 0, window=self.page, anchor="nw")
+        self._canvas.bind("<Configure>", self._fit_page, add="+")
+        self._bar_shown = False
+        self._color_canvas()
+
+    def _color_canvas(self):
+        try:
+            color = self._apply_appearance_mode(self._detect_color_of_master())
+            self._canvas.configure(bg=color)
+            self.page.configure(fg_color=color)
+        except Exception:
+            pass
+
+    def _on_theme_changed(self):
+        self._color_canvas()
+        try:
+            self.split.configure(bg=_color(self.theme, 'pane_sash'))
+        except Exception:
+            pass
+
+    def _fit_page(self, event=None):
+        canvas = self._canvas
+        width, height = canvas.winfo_width(), canvas.winfo_height()
+        page_h = max(height, MIN_PAGE_HEIGHT)
+        canvas.itemconfigure(self._page_id, width=width, height=page_h)
+        canvas.configure(scrollregion=(0, 0, width, page_h))
+        need = page_h > height + 1
+        if need != self._bar_shown:
+            self._bar_shown = need
+            if need:
+                self._vbar.pack(side="right", fill="y", before=canvas)
+            else:
+                self._vbar.pack_forget()
+                canvas.yview_moveto(0)
+
+    def _on_wheel(self, event):
+        if not self._bar_shown:
+            return None
+        if getattr(event, "num", None) == 4:
+            step = -1
+        elif getattr(event, "num", None) == 5:
+            step = 1
+        else:
+            step = -1 if event.delta > 0 else 1
+        self._canvas.yview_scroll(step * 3, "units")
+        return "break"
+
+    def _bind_wheel(self, widget, skip):
+        """Let the mouse wheel scroll the page over everything except the widgets that scroll themselves."""
+        if widget in skip:
+            return
+        tags = widget.bindtags()
+        if "RandomTablesPageWheel" not in tags:
+            widget.bindtags(("RandomTablesPageWheel",) + tags)
+        for child in widget.winfo_children():
+            self._bind_wheel(child, skip)
+
     def _create_widgets(self):
         theme = self.theme
-        header = ctk.CTkFrame(self, fg_color="transparent")
+        self._create_scroll_area()
+        root = self.page
+        header = ctk.CTkFrame(root, fg_color="transparent")
         header.pack(fill="x", padx=20, pady=(20, 10))
         if self.on_back:
             self._button(header, "← Game Tools", self.on_back, width=120).pack(side="left", padx=(0, 15))
@@ -165,7 +236,7 @@ class RandomTablesView(ctk.CTkFrame):
         self._button(header, "Import", self._on_import, width=80).pack(side="right", padx=(0, 8))
         self._button(header, "+ New Table", self._on_new, kind="accent").pack(side="right", padx=(0, 8))
 
-        body = ctk.CTkFrame(self, fg_color="transparent")
+        body = ctk.CTkFrame(root, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         body.grid_columnconfigure(1, weight=1)
         body.grid_rowconfigure(0, weight=1)
@@ -235,19 +306,42 @@ class RandomTablesView(ctk.CTkFrame):
         self.result_frame.bind("<Configure>",
                                lambda e: self.result_text.configure(wraplength=max(200, e.width - 120)), add="+")
 
-        self.table_view = TableTextView(right)
-        self.table_view.pack(fill="both", expand=True, padx=15, pady=(0, 8))
+        # The table and Recent rolls share the rest of the panel; drag the divider between them to resize.
+        self.split = tk.PanedWindow(right, orient=tk.VERTICAL, sashwidth=8, sashrelief=tk.FLAT, handlesize=0,
+                                    borderwidth=0, opaqueresize=True, sashcursor="sb_v_double_arrow",
+                                    bg=_color(theme, 'pane_sash'))
+        self.split.pack(fill="both", expand=True, padx=15, pady=(0, 12))
+        self.table_view = TableTextView(self.split)
+        self.split.add(self.table_view, minsize=TABLE_MIN, stretch="always")
 
-        hist = ctk.CTkFrame(right, fg_color="transparent")
-        hist.pack(fill="x", padx=15, pady=(0, 12))
-        ctk.CTkLabel(hist, text="Recent rolls", font=ui_font("small", bold=True)).pack(side="left", anchor="n")
-        ctk.CTkButton(hist, text="Clear", width=50, height=22, font=ui_font("small"),
+        hist = ctk.CTkFrame(self.split, fg_color=theme.get_current_color('bg_primary'), corner_radius=0)
+        self.split.add(hist, minsize=HISTORY_MIN, stretch="never",
+                       height=int(self.state.get("history_height", HISTORY_HEIGHT)))
+        hist_top = ctk.CTkFrame(hist, fg_color="transparent")
+        hist_top.pack(fill="x", pady=(6, 4))
+        ctk.CTkLabel(hist_top, text="Recent rolls", font=ui_font("small", bold=True)).pack(side="left")
+        ctk.CTkButton(hist_top, text="Clear", width=50, height=22, font=ui_font("small"),
                       fg_color="transparent", border_width=1,
-                          text_color=self.theme.get_current_color('text_primary'), command=self._clear_history).pack(side="right", anchor="n")
-        self.history_box = ctk.CTkTextbox(hist, height=86, font=ui_font("small"), wrap="word")
-        self.history_box.pack(side="left", fill="x", expand=True, padx=8)
+                      text_color=self.theme.get_current_color('text_primary'),
+                      command=self._clear_history).pack(side="right")
+        self.history_box = ctk.CTkTextbox(hist, font=ui_font("small"), wrap="word")
+        self.history_box.pack(fill="both", expand=True)
+        self.split.bind("<ButtonRelease-1>", self._remember_split, add="+")
         self.history_box.configure(state="disabled")
+        self._bind_wheel(self, {self.table_view, self.history_box, self.list_panel})
+        self.bind_class("RandomTablesPageWheel", "<MouseWheel>", self._on_wheel)
+        self.bind_class("RandomTablesPageWheel", "<Button-4>", self._on_wheel)
+        self.bind_class("RandomTablesPageWheel", "<Button-5>", self._on_wheel)
         self._update_buttons()
+
+    def _remember_split(self, _event=None):
+        """Keep the Recent rolls height for the next visit to this page."""
+        try:
+            total = self.split.winfo_height()
+            y = self.split.sash_coord(0)[1]
+            self.state["history_height"] = max(HISTORY_MIN, total - y - 8)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ list
 
