@@ -210,6 +210,7 @@ def build_handlers(mw) -> Dict[str, Callable[[], Optional[bool]]]:
 
     # -- help
     handlers["help.tour"] = lambda: mw.start_tutorial()
+    handlers["help.feedback"] = lambda: mw.open_feedback()
 
     # -- this page
     def refresh():

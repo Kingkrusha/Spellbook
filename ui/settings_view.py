@@ -21,7 +21,8 @@ class SettingsView(ctk.CTkFrame):
     
     def __init__(self, parent, settings_manager: SettingsManager,
                  on_appearance_changed: Optional[Callable[[str], None]] = None,
-                 spell_manager=None, on_start_tutorial: Optional[Callable[[], None]] = None):
+                 spell_manager=None, on_start_tutorial: Optional[Callable[[], None]] = None,
+                 on_send_feedback: Optional[Callable[[], None]] = None):
         super().__init__(parent, fg_color="transparent")
         
         self.settings_manager = settings_manager
@@ -29,6 +30,7 @@ class SettingsView(ctk.CTkFrame):
         self.theme_manager = get_theme_manager()
         self.on_appearance_changed = on_appearance_changed
         self.on_start_tutorial = on_start_tutorial
+        self.on_send_feedback = on_send_feedback
         
         # Variables for settings
         self._appearance_var = ctk.StringVar(value=settings_manager.settings.appearance_mode)
@@ -266,7 +268,7 @@ class SettingsView(ctk.CTkFrame):
             self._loading_note.destroy()
 
     def _build_help_section(self):
-        """Help: start the guided tour again."""
+        """Help: start the guided tour again, and send feedback."""
         if self.on_start_tutorial is None:
             return
         self._create_section(self.container, "Help")
@@ -291,6 +293,22 @@ class SettingsView(ctk.CTkFrame):
                  "goes. Skip it at any time with Skip tour or Esc. Shortcut: F1.",
             font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
             wraplength=640, anchor="w", justify="left").pack(fill="x", pady=(8, 0))
+        if self.on_send_feedback is not None:
+            row = ctk.CTkFrame(content, fg_color="transparent")
+            row.pack(fill="x", pady=(16, 0))
+            ctk.CTkLabel(row, text="Feedback and bug reports", font=ui_font("subheading")).pack(side="left")
+            self.feedback_btn = ctk.CTkButton(
+                row, text="Send feedback", width=140,
+                fg_color=self.theme_manager.get_current_color('accent_primary'),
+                hover_color=self.theme_manager.get_current_color('accent_hover'),
+                command=self.on_send_feedback)
+            self.feedback_btn.pack(side="right")
+            ctk.CTkLabel(
+                content,
+                text="Report a bug or suggest an idea, straight to the developer. You choose whether to include "
+                     "your app version and recent errors, and can see exactly what is sent. Shortcut: Shift+F1.",
+                font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
+                wraplength=640, anchor="w", justify="left").pack(fill="x", pady=(8, 0))
 
     def _build_typography_section(self):
         """Build the Typography section (built after the window is up: see _build_remaining)."""
