@@ -68,8 +68,10 @@ class GameToolsView(ctk.CTkFrame):
         self._row = ctk.CTkFrame(self.scroll, fg_color="transparent")
         self._row.pack(anchor="n")
         self._cards = []
+        self.cards_by_key = {}   # tool key -> its card (the guided tour points at them)
         for tool in self.TOOLS:
             self._cards.append(self._card(self._row, 0, *tool))
+            self.cards_by_key[tool[0]] = self._cards[-1]
         self._columns = 0
         outer.bind("<Configure>", self._on_resize)
         self._layout(3)

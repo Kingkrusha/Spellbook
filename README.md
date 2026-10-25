@@ -56,6 +56,8 @@ Look things up, search them, and add your own.
 
 **Windows and macOS**: download the latest build from the [Releases page](https://github.com/Kingkrusha/Spellbook/releases) and run it. Your characters, homebrew and settings are saved next to the app (on macOS, in `~/Library/Application Support/Spellbook/`), so back that folder up if you want to keep them safe, or use Settings > Backup and Transfer to save it all in one file.
 
+The first time you start it, Spellbook offers a short guided tour: a box of text that points at each part of the window in turn (the collections, the character sheet, then the Game Tools). Skip it whenever you like and take it again from Settings > Help, or press F1.
+
 On macOS the app isn't notarized (that needs a paid Apple account), so the first time, right-click `Spellbook.app`, choose **Open**, then **Open** again. After that it opens normally.
 
 **From source** (Python 3.10 or newer):

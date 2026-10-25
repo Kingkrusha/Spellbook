@@ -208,6 +208,9 @@ def build_handlers(mw) -> Dict[str, Callable[[], Optional[bool]]]:
         tab_bar.select_tab(tab.tab_id)
     handlers["page.settings"] = settings
 
+    # -- help
+    handlers["help.tour"] = lambda: mw.start_tutorial()
+
     # -- this page
     def refresh():
         view, kind = visible_page(mw)

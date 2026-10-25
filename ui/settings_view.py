@@ -21,13 +21,14 @@ class SettingsView(ctk.CTkFrame):
     
     def __init__(self, parent, settings_manager: SettingsManager,
                  on_appearance_changed: Optional[Callable[[str], None]] = None,
-                 spell_manager=None):
+                 spell_manager=None, on_start_tutorial: Optional[Callable[[], None]] = None):
         super().__init__(parent, fg_color="transparent")
         
         self.settings_manager = settings_manager
         self.spell_manager = spell_manager
         self.theme_manager = get_theme_manager()
         self.on_appearance_changed = on_appearance_changed
+        self.on_start_tutorial = on_start_tutorial
         
         # Variables for settings
         self._appearance_var = ctk.StringVar(value=settings_manager.settings.appearance_mode)
@@ -215,6 +216,7 @@ class SettingsView(ctk.CTkFrame):
             text_color=self.theme_manager.get_text_secondary())
         self._loading_note.pack(pady=10)
         self._pending_sections = [
+            self._build_help_section,
             self._build_typography_section,
             self._build_notifications_section,
             self._build_spell_warnings_section,
@@ -262,6 +264,33 @@ class SettingsView(ctk.CTkFrame):
         build()
         if not self._pending_sections:
             self._loading_note.destroy()
+
+    def _build_help_section(self):
+        """Help: start the guided tour again."""
+        if self.on_start_tutorial is None:
+            return
+        self._create_section(self.container, "Help")
+        frame = ctk.CTkFrame(self.container, corner_radius=10,
+                             fg_color=self.theme_manager.get_current_color('bg_secondary'))
+        self._card_frames.append(frame)
+        frame.pack(fill="x", pady=(0, 20))
+        content = ctk.CTkFrame(frame, fg_color="transparent")
+        content.pack(fill="x", padx=20, pady=15)
+        row = ctk.CTkFrame(content, fg_color="transparent")
+        row.pack(fill="x")
+        ctk.CTkLabel(row, text="Guided tour", font=ui_font("subheading")).pack(side="left")
+        self.tutorial_btn = ctk.CTkButton(
+            row, text="Start the tour", width=140,
+            fg_color=self.theme_manager.get_current_color('accent_primary'),
+            hover_color=self.theme_manager.get_current_color('accent_hover'),
+            command=self.on_start_tutorial)
+        self.tutorial_btn.pack(side="right")
+        ctk.CTkLabel(
+            content,
+            text="A walk through the collections, character sheets and Game Tools, pointing at each part as it "
+                 "goes. Skip it at any time with Skip tour or Esc. Shortcut: F1.",
+            font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
+            wraplength=640, anchor="w", justify="left").pack(fill="x", pady=(8, 0))
 
     def _build_typography_section(self):
         """Build the Typography section (built after the window is up: see _build_remaining)."""

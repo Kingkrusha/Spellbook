@@ -188,7 +188,7 @@ class TabletopView(ctk.CTkFrame):
         outer.pack(fill="both", expand=True, padx=14, pady=10)
 
         # ---- top bar
-        head = ctk.CTkFrame(outer, fg_color="transparent")
+        head = self.head = ctk.CTkFrame(outer, fg_color="transparent")   # (the guided tour points at these)
         head.pack(fill="x", pady=(0, 8))
         if self.on_back:
             self._button(head, "← Game Tools", self.on_back, width=110).pack(side="left", padx=(0, 12))
@@ -221,7 +221,8 @@ class TabletopView(ctk.CTkFrame):
         body.pack(fill="both", expand=True)
 
         # ---- tools
-        tools = ctk.CTkScrollableFrame(body, fg_color=self._c("bg_secondary"), width=96, corner_radius=8)
+        tools = self.tools_panel = ctk.CTkScrollableFrame(body, fg_color=self._c("bg_secondary"), width=96,
+                                                          corner_radius=8)
         tools.pack(side="left", fill="y", padx=(0, 8))
         for tool, label, tip, dm_only in TOOL_BUTTONS:
             if dm_only and not dm:
@@ -293,7 +294,7 @@ class TabletopView(ctk.CTkFrame):
             self._build_map_tab(self.side.add("Map"))
 
         # ---- the map
-        holder = ctk.CTkFrame(body, fg_color=self._c("bg_tertiary"), corner_radius=8)
+        holder = self.map_holder = ctk.CTkFrame(body, fg_color=self._c("bg_tertiary"), corner_radius=8)
         holder.pack(side="left", fill="both", expand=True)
         self.canvas = MapCanvas(holder, self.backend, on_select=self._on_select, on_token_menu=self._token_menu,
                                 on_token_open=self._edit_token, on_wall_menu=self._wall_menu,
