@@ -255,6 +255,10 @@ class SpellDatabase(CollectionStoreMixin):
                 print("Populating content tables from bundled JSON files...")
                 self._migrate_json_to_database(cursor)
 
+            # An entry's added-field values follow it when it is renamed (custom_collections.py)
+            import custom_collections
+            custom_collections.ensure_triggers(cursor)
+
             # Full-text index over every collection (built once, then kept current by triggers)
             self._search_index_ready = search_index.ensure(conn)
     
@@ -837,6 +841,10 @@ class SpellDatabase(CollectionStoreMixin):
                         "UPDATE magic_items SET requires_attunement = 1 "
                         "WHERE TRIM(COALESCE(attunement_requirement, '')) != ''")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_monsters_spell_id ON monsters(spell_id)")
+
+        # Added fields and new collections (custom_collections.py)
+        import custom_collections
+        custom_collections.create_tables(cursor)
 
     def _bundled_json_path(self, filename):
         """Absolute path to a bundled JSON seed file (PyInstaller-aware)."""
@@ -2777,8 +2785,8 @@ class SpellDatabase(CollectionStoreMixin):
         with self.get_connection() as conn:
             if self._search_index_available(conn):
                 hits = search_index.search(conn, query, limit=limit)
-                return self._label_subclass_hits(conn, hits)
-            return self._global_search_by_name(conn, query, limit)
+                return self._label_custom_hits(conn, self._label_subclass_hits(conn, hits))
+            return self._label_custom_hits(conn, self._global_search_by_name(conn, query, limit))
 
     def _search_index_available(self, conn) -> bool:
         """Whether the full-text index can be used (checked once per database object)."""
@@ -2806,6 +2814,26 @@ class SpellDatabase(CollectionStoreMixin):
             if h['section'] == 'Subclasses' and h['id'] in class_of:
                 h['name'] = f"{h['name']} ({class_of[h['id']]})"
         return hits
+
+    @staticmethod
+    def _label_custom_hits(conn, hits: List[dict]) -> List[dict]:
+        """Entries of a collection someone made are shown "in <that collection>" (custom_collections.py)."""
+        ids = [h['id'] for h in hits if h['section'] == 'Custom']
+        if not ids:
+            return hits
+        rows = conn.execute(
+            "SELECT e.id, t.name FROM custom_entries e JOIN collection_types t ON t.key = 'custom:' || e.collection "
+            f"WHERE e.id IN ({','.join('?' * len(ids))})", ids).fetchall()
+        collection_of = {r[0]: r[1] for r in rows}
+        out = []
+        for h in hits:
+            if h['section'] == 'Custom':
+                if h['id'] not in collection_of:
+                    continue
+                h['section'] = collection_of[h['id']]
+                h['custom'] = True
+            out.append(h)
+        return out
 
     def _global_search_by_name(self, conn, query: str, limit: int) -> List[dict]:
         """Name-only search, for SQLite builds without the full-text index."""

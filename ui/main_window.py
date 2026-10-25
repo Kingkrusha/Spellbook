@@ -660,11 +660,22 @@ class MainWindow(ctk.CTkFrame):
 
         tab_id = self._open_page_in_new_tab(page, select=False, character=character)
         collection = entry.get('collection')
-        if page == "collections" and collection in COLLECTION_KEYS:
+        if page == "collections" and (collection in COLLECTION_KEYS or self._custom_collection_exists(collection)):
             # Just remember which collection it was on; it is built when the tab is first shown
             self._tab_views[tab_id]['current_collection'] = collection
             self._update_tab_name_for_collection(tab_id, collection)
         return tab_id
+
+    @staticmethod
+    def _custom_collection_exists(key) -> bool:
+        """Whether ``key`` is the page of a collection the user made that still exists ("custom:deities")."""
+        if not isinstance(key, str) or not key.startswith("custom:"):
+            return False
+        try:
+            from custom_collections import get_collection_manager
+            return get_collection_manager().get_type(key) is not None
+        except Exception:
+            return False
 
     def _capture_tabs(self):
         """The open tabs, in order, as saved entries, plus the active tab's index."""
@@ -1504,6 +1515,10 @@ class MainWindow(ctk.CTkFrame):
             from ui.spells_view import SpellsView
             return SpellsView(self, self.spell_manager, self.character_manager,
                               self.settings_manager, on_back=self._back_to_collections)
+        if key.startswith("custom:"):
+            from ui.custom_collection_view import CustomCollectionView
+            return CustomCollectionView(self, key[len("custom:"):], character_manager=self.character_manager,
+                                        on_back=self._back_to_collections)
         view_class = self._sub_view_class(key)
         if key == "classes":
             return view_class(self, on_back=self._back_to_collections)
@@ -1547,7 +1562,7 @@ class MainWindow(ctk.CTkFrame):
         """Select an item by name in a collection page (if it is still there)."""
         try:
             if view.winfo_exists():
-                getattr(view, self.SUB_VIEW_SELECTORS[collection_key])(name)
+                getattr(view, self.SUB_VIEW_SELECTORS.get(collection_key, "select_entry"))(name)
         except Exception:
             pass
 
@@ -1695,7 +1710,10 @@ class MainWindow(ctk.CTkFrame):
             # For specific class, use the class name
             tab_name = item_name
         else:
-            tab_name = name_map.get(collection_key, 'Collections')
+            tab_name = name_map.get(collection_key)
+            if tab_name is None:
+                from custom_collections import page_title
+                tab_name = page_title(collection_key)
 
         self.tab_bar.update_tab_text(tab_id, tab_name)
 

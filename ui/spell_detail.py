@@ -576,6 +576,13 @@ class SpellDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
             self.on_version_change(spell)
 
     def set_spell(self, spell: Optional[Spell], versions: Optional[List[Spell]] = None):
+        """Show a spell, then the fields the user added to Spells (custom_collections.py)."""
+        self._set_spell(spell, versions)
+        if spell is not None:
+            from ui.extra_fields import show_extra_fields
+            show_extra_fields(self, "spells", spell.name, parent=self.content_frame)
+
+    def _set_spell(self, spell: Optional[Spell], versions: Optional[List[Spell]] = None):
         """Set the spell to display, or None to show placeholder.
 
         ``versions``: every version of the spell to offer in the Source drop-down.

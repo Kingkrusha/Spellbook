@@ -3,7 +3,7 @@ Export collection entries to a printable PDF in the style of a 5e book page: par
 columns, dark red headings with a gold rule, and monster stat blocks in a tan box.
 
 ``export_pdf(path, entries, options)`` takes the entries a collection page has ticked (spells, feats, species,
-backgrounds, equipment, magic items, monsters) and writes the PDF with reportlab, using the PDF's built-in
+backgrounds, equipment, magic items, monsters, entries of the collections people make) and writes the PDF with reportlab, using the PDF's built-in
 Times fonts so nothing has to be bundled. Description markup is the app's own (``# headings``, ``**bold**``,
 ``*italic*``, list lines, ``| tables |`` and ``[[links]]``, which print as their text).
 """
@@ -56,8 +56,42 @@ class Block:
 # --------------------------------------------------------------------------- #
 
 def block_for(entry) -> Block:
+    """The printable form of one collection entry, with the fields the user added to its collection."""
+    block = _block_for(entry)
+    try:
+        import custom_collections as cc
+        key = cc.BUILTIN_CLASS_KEYS.get(type(entry).__name__)
+        if key:
+            block.stats.extend(cc.get_collection_manager().extra_lines(key, getattr(entry, "name", "")))
+    except Exception as e:                                   # pragma: no cover - a nicety, never a failure
+        print(f"Added fields left out of the PDF: {e}")
+    return block
+
+
+def _custom_block(entry) -> Block:
+    """An entry of a collection the user made: its short fields as stats, long text fields under the description."""
+    import custom_collections as cc
+    ctype = cc.get_collection_manager().custom_type(entry.collection)
+    fields = ctype.fields if ctype else []
+    stats = [(label, text) for label, text in cc.value_lines([f for f in fields if f.kind != "long_text"],
+                                                             entry.values)]
+    if entry.tags:
+        stats.append(("Tags", ", ".join(entry.tags)))
+    body = entry.description or ""
+    for f in fields:
+        if f.kind == "long_text" and not f.is_empty(entry.values.get(f.id)):
+            body += f"\n\n***{f.label}.*** {entry.values[f.id]}"
+    subtitle = ctype.name if ctype else ""
+    if entry.source:
+        subtitle += (", " if subtitle else "") + entry.source
+    return Block(entry.name, subtitle, stats, body.strip())
+
+
+def _block_for(entry) -> Block:
     """The printable form of one collection entry (dispatches on its class name)."""
     kind = type(entry).__name__
+    if kind == "CustomEntry":
+        return _custom_block(entry)
     name = getattr(entry, "name", "")
     if kind == "Spell":
         stats = [("Casting Time", entry.display_casting_time()), ("Range", entry.display_range()),
@@ -295,7 +329,9 @@ def rule(color: str, thickness: float = 1.2, space: float = 3):
 def entry_flowables(block: Block, styles) -> list:
     from reportlab.platypus import KeepTogether, Paragraph
     if block.monster is not None:
-        return [monster_flowable(block.monster, styles)]
+        extra = [Paragraph(f"<b>{html.escape(label)}:</b> {inline(value)}", styles["stat"])
+                 for label, value in block.stats]           # fields the user added to Monsters
+        return [monster_flowable(block.monster, styles)] + extra
     head = [Paragraph(inline(block.title), styles["title"]), rule(RULE, 1.4, 2)]
     if block.subtitle:
         head.append(Paragraph(inline(block.subtitle), styles["subtitle"]))
