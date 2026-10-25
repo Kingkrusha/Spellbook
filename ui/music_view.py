@@ -89,6 +89,12 @@ class TrackList(VirtualListPanel):
             for widget in [row] + list(row.winfo_children()):
                 widget.bind("<Double-Button-1>", lambda _e, r=row: self._activate(r._vl_index), add="+")
 
+    def _bind_row(self, row, index: int):
+        super()._bind_row(row, index)
+        label = getattr(row, "_text_label", None)       # made once the row first has text
+        if label is not None and label.cget("justify") != "left":
+            label.configure(justify="left")
+
     def _activate(self, index: int):
         if 0 <= index < len(self._items):
             self.on_activate(self._items[index])
@@ -313,16 +319,21 @@ class MusicView(ctk.CTkFrame):
         self.search_entry.bind("<KeyRelease>", lambda _e: self.refresh_list(), add="+")
         tag_row = ctk.CTkFrame(left, fg_color="transparent")
         tag_row.pack(fill="x", pady=(0, 6))
-        self.tag_var = ctk.StringVar(value=self.state.get("tag") or ALL_TRACKS)
-        self.tag_menu = ctk.CTkOptionMenu(tag_row, variable=self.tag_var, values=[ALL_TRACKS], height=32,
-                                          command=lambda _v: self.refresh_list())
-        self.tag_menu.pack(side="left", fill="x", expand=True)
+        saved = self.state.get("tags")
+        self.selected_tags: List[str] = list(saved) if isinstance(saved, list) else []
+        self.tag_btn = ctk.CTkButton(tag_row, text=ALL_TRACKS + "  ▾", height=32, anchor="w",
+                                     command=self._show_tag_menu,
+                                     fg_color=self.theme.get_current_color('button_normal'),
+                                     hover_color=self.theme.get_current_color('button_hover'),
+                                     text_color=self.theme.get_current_color('text_primary'))
+        self.tag_btn.pack(side="left", fill="x", expand=True)
         self.play_all_btn = self._button(tag_row, "▶ Play All", self._play_all, width=100, kind="accent")
         self.play_all_btn.pack(side="left", padx=(6, 0))
         self.tracks = TrackList(left, on_select=self._on_select, on_activate=self._play_track,
                                 playing=lambda: self._last_track_id)
         self.tracks.pack(fill="both", expand=True)
-        ctk.CTkLabel(left, text="Double-click a track to play it. A tag is a playlist: pick it, then Play All.",
+        ctk.CTkLabel(left, text="Double-click a track to play it. Tags are playlists: tick one or more "
+                                "(Combat + Undead), then Play All.",
                      font=ui_font("small"), text_color=th.get_text_secondary(), wraplength=360, justify="left"
                      ).pack(anchor="w", pady=(6, 0))
 
@@ -374,7 +385,7 @@ class MusicView(ctk.CTkFrame):
         self.title_entry = ctk.CTkEntry(grid)
         self.title_entry.grid(row=0, column=1, sticky="ew", pady=2)
         ctk.CTkLabel(grid, text="Tags", font=ui_font("body", bold=True)).grid(row=1, column=0, sticky="w", padx=(0, 10))
-        self.tags_entry = ctk.CTkEntry(grid, placeholder_text="comma separated: Combat, Boss")
+        self.tags_entry = ctk.CTkEntry(grid, placeholder_text="as many as you like, comma separated: Combat, Undead, Horde")
         self.tags_entry.grid(row=1, column=1, sticky="ew", pady=2)
         for entry in (self.title_entry, self.tags_entry):
             entry.bind("<Return>", lambda _e: self._save_track(), add="+")
@@ -514,17 +525,44 @@ class MusicView(ctk.CTkFrame):
     # ------------------------------------------------------------------ the list
 
     def visible_tracks(self) -> List[Track]:
-        tag = self.tag_var.get()
-        return self.library.find(self.search_entry.get().strip(), "" if tag == ALL_TRACKS else tag)
+        return self.library.find(self.search_entry.get().strip(), tags=self.selected_tags)
+
+    def set_tags(self, tags: List[str]):
+        """Show only tracks with all of these tags (none: every track)."""
+        self.selected_tags = list(tags)
+        self.refresh_list()
+
+    def _toggle_tag(self, tag: str):
+        low = tag.lower()
+        if any(t.lower() == low for t in self.selected_tags):
+            self.set_tags([t for t in self.selected_tags if t.lower() != low])
+        else:
+            self.set_tags(self.selected_tags + [tag])
+
+    def _show_tag_menu(self):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label=ALL_TRACKS, command=lambda: self.set_tags([]))
+        tags = self.library.all_tags()
+        if tags:
+            menu.add_separator()
+        chosen = {t.lower() for t in self.selected_tags}
+        menu._vars = []                          # keep the tick variables alive while the menu is up
+        for tag in tags:
+            var = tk.BooleanVar(master=menu, value=tag.lower() in chosen)
+            menu._vars.append(var)
+            menu.add_checkbutton(label=tag, variable=var, command=lambda t=tag: self._toggle_tag(t))
+        btn = self.tag_btn
+        try:
+            menu.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
+        finally:
+            menu.grab_release()
 
     def refresh_list(self):
-        tags = self.library.all_tags()
-        values = [ALL_TRACKS] + tags
-        self.tag_menu.configure(values=values)
-        if self.tag_var.get() not in values:
-            self.tag_var.set(ALL_TRACKS)
+        known = {t.lower(): t for t in self.library.all_tags()}
+        self.selected_tags = [known[t.lower()] for t in self.selected_tags if t.lower() in known]
+        self.tag_btn.configure(text=(" + ".join(self.selected_tags) if self.selected_tags else ALL_TRACKS) + "  ▾")
         self.state["query"] = self.search_entry.get().strip()
-        self.state["tag"] = "" if self.tag_var.get() == ALL_TRACKS else self.tag_var.get()
+        self.state["tags"] = list(self.selected_tags)
         items = self.visible_tracks()
         self.tracks.set_items(items, reset_scroll=False, keep=self._selected.id if self._selected else None)
         if self._selected is not None and self.library.get(self._selected.id) is None:
@@ -617,8 +655,7 @@ class MusicView(ctk.CTkFrame):
             self._read_durations()
 
     def _current_tag(self) -> List[str]:
-        tag = self.tag_var.get()
-        return [] if tag == ALL_TRACKS else [tag]
+        return list(self.selected_tags)
 
     def _on_add_link(self):
         dialog = LinkDialog(self.winfo_toplevel(), ", ".join(self._current_tag()))

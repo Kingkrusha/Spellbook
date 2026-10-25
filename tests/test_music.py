@@ -287,15 +287,21 @@ def test_real_file_decodes_resampled_to_stereo(tmp_path):
 def test_library_scans_folders_with_sub_folder_tags_and_saves(tmp_path):
     music = tmp_path / "Music"
     (music / "Tavern").mkdir(parents=True)
+    (music / "Combat" / "Undead").mkdir(parents=True)
+    write_wav(music / "Combat" / "Undead" / "zombie_horde.wav")
     write_wav(music / "Tavern" / "jolly_jig.wav")
     write_wav(music / "theme.wav")
     (music / "notes.txt").write_text("not music")
     lib = ml.MusicLibrary(str(tmp_path / "music.json"))
     assert lib.add_folder(str(music)) and not lib.add_folder(str(music))
     report = lib.scan()
-    assert report.added == 2 and lib.scan().added == 0
+    assert report.added == 3 and lib.scan().added == 0
+    horde = next(t for t in lib.tracks if t.title == "zombie horde")
+    assert horde.tags == ["Combat", "Undead"]                # every sub-folder is a tag
+    assert lib.find(tags=["combat", "undead"]) == [horde] and lib.find(tags=["Undead", "Tavern"]) == []
     jig = next(t for t in lib.tracks if t.title == "jolly jig")
     assert jig.tags == ["Tavern"]
+    lib.remove([horde.id])
     assert lib.read_durations(lambda p: 0.5) == 2 and lib.read_durations(lambda p: 0.5) == 0
     link = lib.add_link("youtu.be/abc", "", ["Tavern", "tavern", " Calm "])
     assert link.url == "https://youtu.be/abc" and link.kind == "YouTube" and link.tags == ["Tavern", "Calm"]
@@ -367,8 +373,7 @@ def test_music_page_lists_filters_and_plays(tk_root, fresh_fonts, tmp_path, monk
     view.pack(fill="both", expand=True)
     tk_root.update()
     assert len(view.tracks._items) == 4
-    view.tag_var.set("Combat")
-    view.refresh_list()
+    view.set_tags(["Combat"])
     assert [t.title for t in view.tracks._items] == ["battle", "boss", "Tavern playlist"]
 
     link = view.tracks._items[2]
@@ -389,6 +394,9 @@ def test_music_page_lists_filters_and_plays(tk_root, fresh_fonts, tmp_path, monk
     view.tags_entry.insert(0, "Boss, Combat")
     view._save_track()
     assert "Boss" in lib.all_tags()
+    view.set_tags(["combat", "Boss"])                       # tracks with both tags
+    assert [t.title for t in view.tracks._items] == ["boss"] and view.tag_btn.cget("text").startswith("Combat + Boss")
+    view.set_tags(["Combat"])
     assert ml.MusicLibrary(str(tmp_path / "music.json")).find(tag="boss")[0].title == "boss"
 
     view._on_volume(50)

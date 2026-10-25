@@ -5,7 +5,8 @@ The library lists music files that stay where they are (in the folders the perso
 one), and links to music elsewhere (a YouTube video, a Spotify playlist), which open in the browser. Each
 track has a title, tags and its own volume. Tags double as playlists: "play everything tagged Combat".
 
-Tracks found in a sub-folder start with that folder's name as a tag (Music/Tavern/song.mp3 -> "Tavern").
+Tracks found in sub-folders start with those folders' names as tags (Music/Combat/Undead/x.mp3 -> "Combat",
+"Undead"). A track can have any number of tags, and the list can be narrowed to tracks having several at once.
 
 Everything is saved in ``music.json`` in the user data folder, with the player's settings (volume, effects,
 fades, loop and shuffle).
@@ -209,8 +210,10 @@ class MusicLibrary:
                 tags.setdefault(tag.lower(), tag)
         return sorted(tags.values(), key=str.lower)
 
-    def find(self, query: str = "", tag: str = "") -> List[Track]:
-        found = [t for t in self.tracks if (not tag or t.has_tag(tag)) and (not query or t.matches(query))]
+    def find(self, query: str = "", tag: str = "", tags: Iterable[str] = ()) -> List[Track]:
+        """Tracks matching the search that have every one of the tags ("Combat" + "Undead")."""
+        wanted = [x for x in ([tag] if tag else []) + list(tags) if x]
+        found = [t for t in self.tracks if all(t.has_tag(x) for x in wanted) and (not query or t.matches(query))]
         return sorted(found, key=lambda t: t.title.lower())
 
     def add_file(self, path: str, tags: Iterable[str] = ()) -> Optional[Track]:
@@ -280,7 +283,8 @@ class MusicLibrary:
                     return report
                 dirs[:] = sorted(d for d in dirs if not d.startswith("."))
                 rel = os.path.relpath(root, folder)
-                tags = [] if rel in (".", "") else [os.path.basename(root)]
+                # every sub-folder on the way is a tag: Music/Combat/Undead/x.mp3 -> Combat, Undead
+                tags = [] if rel in (".", "") else [p for p in rel.split(os.sep) if p and p != "."]
                 for name in sorted(files):
                     if self.add_file(os.path.join(root, name), tags):
                         report.added += 1
