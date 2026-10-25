@@ -104,7 +104,7 @@ def _settle(root, tour, timeout=6.0):
     root.update()
 
 
-def test_every_step_finds_what_it_points_at_and_the_tour_tidies_up(app, tk_root):
+def test_every_step_has_what_it_points_at_and_the_tour_tidies_up(app, tk_root):
     errors = []
     tk_root.report_callback_exception = lambda *exc: errors.append(exc)
     names_before = {c.name for c in app.character_manager.characters}
@@ -118,8 +118,16 @@ def test_every_step_finds_what_it_points_at_and_the_tour_tidies_up(app, tk_root)
     for i, step in enumerate(tour.steps):
         _settle(tk_root, tour)
         assert tour.index == i
-        if step.target is not None and tour._target is None:
-            missing.append(step.title)
+        if step.target is not None:
+            # (asked directly rather than read from tour._target: a CI runner's window may never count as
+            # on screen, and then the tour rightly shows the step without a highlight)
+            widget = step.target()
+            try:
+                found = widget is not None and bool(widget.winfo_exists())
+            except Exception:
+                found = False
+            if not found:
+                missing.append(step.title)
         if i == 9:
             # the example character exists while the tour shows the sheet
             example = app._tour_host.example
