@@ -33,6 +33,9 @@ class GameToolsView(ctk.CTkFrame):
         ("pdf_library", "📚 PDF Library",
          "Search the text of all your PDFs at once and jump to the page. Pull an entry's text from a page "
          "into a collection's importer.", True),
+        ("music", "🎵 Music",
+         "Your own music with tags for every scene: crossfades, fade outs, and pitch, distortion or muffle "
+         "effects. Links to YouTube or Spotify sit beside it.", True),
         ("tabletop", "🗺️ Tabletop",
          "Battle maps with square or hex grids: tokens with condition rings, drawing, a ruler and fog of war. "
          "In a session, players see the map you show and move their own tokens.", True),

@@ -311,6 +311,13 @@ class MainWindow(ctk.CTkFrame):
             pass
 
         try:
+            import music_player
+            if music_player.peek_player() is not None:
+                music_player.peek_player().close()
+        except Exception:
+            pass
+
+        try:
             import tabletop
             if self._table_link is not None:
                 self._table_link.close()
@@ -595,6 +602,7 @@ class MainWindow(ctk.CTkFrame):
             "random_tables": "Random Tables",
             "calendar": "Calendar",
             "pdf_library": "PDF Library",
+            "music": "Music",
             "tabletop": "Tabletop",
             "studio": "Homebrew Studio",
         }.get(page_type, "Spellbook")
@@ -652,7 +660,7 @@ class MainWindow(ctk.CTkFrame):
             page = "game_tools"       # the Studio is heavy to build: a restored tab opens on the tool list instead
         if page not in ("home", "collections", "characters", "character_sheet", "game_tools", "session",
                     "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library",
-                    "tabletop"):
+                    "music", "tabletop"):
             return None
         if page == "character_sheet" and (
                 not character or self.character_manager.get_character(character) is None):
@@ -809,6 +817,10 @@ class MainWindow(ctk.CTkFrame):
             state = self._tab_views[tab_id].setdefault('pdf_state', {}) if tab_id in self._tab_views else {}
             return PdfLibraryView(self, state, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"),
                                   on_import_text=self.import_text_into)
+        if page_type == "music":
+            from ui.music_view import MusicView
+            state = self._tab_views[tab_id].setdefault('music_state', {}) if tab_id in self._tab_views else {}
+            return MusicView(self, state, on_back=lambda tid=tab_id: self._navigate_tab(tid, "game_tools"))
         if page_type == "tabletop":
             from ui.tabletop_view import TabletopView
             state = self._tab_views[tab_id].setdefault('tabletop_state', {}) if tab_id in self._tab_views else {}
@@ -1154,7 +1166,7 @@ class MainWindow(ctk.CTkFrame):
                 self._navigate_tab(tab_id, "initiative")
         elif key == "dice_analyzer":
             self._navigate_tab(tab_id, "dice_analyzer")
-        elif key in ("matchup", "random_tables", "calendar", "pdf_library", "tabletop"):
+        elif key in ("matchup", "random_tables", "calendar", "pdf_library", "music", "tabletop"):
             self._navigate_tab(tab_id, key)
         elif key == "studio":
             self._navigate_tab(tab_id, "studio")

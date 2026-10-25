@@ -21,7 +21,7 @@ _RICH_EDITORS: "weakref.WeakValueDictionary[str, object]" = weakref.WeakValueDic
 
 COLLECTION_PAGES = ("spells", "feats", "lineages", "backgrounds", "classes",
                     "equipment", "magic_items", "monsters", "rules")
-TOOL_PAGES = ("session", "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library", "tabletop")
+TOOL_PAGES = ("session", "initiative", "dice_analyzer", "matchup", "random_tables", "calendar", "pdf_library", "music", "tabletop")
 LEGACY_CYCLE = [
     ("show_all", "Show All Content"),
     ("show_unupdated", "Show Unupdated"),
@@ -207,6 +207,18 @@ def build_handlers(mw) -> Dict[str, Callable[[], Optional[bool]]]:
             return False
         tab_bar.select_tab(tab.tab_id)
     handlers["page.settings"] = settings
+
+    # -- music (works from any page while something plays)
+    def music(name):
+        def go():
+            import music_player
+            player = music_player.peek_player()
+            if player is None or player.status()["track"] is None:
+                return False
+            getattr(player, name)()
+        return go
+    for name in ("toggle_pause", "next", "previous", "stop"):
+        handlers[f"music.{name}"] = music(name)
 
     # -- help
     handlers["help.tour"] = lambda: mw.start_tutorial()
