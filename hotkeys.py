@@ -120,6 +120,8 @@ ACTIONS: List[Action] = [
     Action("toggle.appearance", "Switch light / dark mode", "Settings", "Ctrl+Shift+D"),
     Action("toggle.legacy", "Cycle legacy content filter", "Settings", ""),
     Action("toggle.chat_overlay", "Show / hide chat overlay", "Settings", ""),
+    # Help
+    Action("help.tour", "Start the guided tour", "Help", "F1"),
 ]
 
 ACTIONS_BY_ID: Dict[str, Action] = {a.id: a for a in ACTIONS}

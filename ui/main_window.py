@@ -102,6 +102,12 @@ class MainWindow(ctk.CTkFrame):
         self._spare_sub_views: Dict[str, ctk.CTkFrame] = {}
         self._use_clock = 0   # "last used" stamps for the handle budget (see _touch)
         
+        # A guided tour that was running when the app closed left its example character behind
+        from ui.tutorial_steps import remove_leftover_example
+        remove_leftover_example(self)
+        self._tour = None
+        self._tour_host = None
+
         # Build UI. Settings and a first spell browser are set up front (so the first visit
         # to Spells is instant); every other page is built when a tab navigates to it.
         # The tab bar packs itself at the top since no view is packed yet.
@@ -128,6 +134,9 @@ class MainWindow(ctk.CTkFrame):
         # Check GitHub for a newer release (silent, background, best-effort;
         # only opens a browser link - never downloads or installs anything).
         self.after(4000, self._maybe_check_for_updates)
+
+        # New users are offered the guided tour (once)
+        self.after(1500, self._maybe_offer_tutorial)
     
     def _update_progress(self, message: str, value: float):
         """Update startup progress if callback is available."""
@@ -279,6 +288,8 @@ class MainWindow(ctk.CTkFrame):
 
     def destroy(self):
         """Clean up listeners to avoid leaks when the main window is destroyed."""
+        if self._tour is not None and self._tour.running:
+            self._tour.end(finished=False)      # deletes its example character, closes its tab
         self.commit_pending_edits()
         self._flush_tab_save()
 
@@ -1734,10 +1745,36 @@ class MainWindow(ctk.CTkFrame):
             return SettingsView(
                 self, self.settings_manager,
                 on_appearance_changed=self._on_appearance_changed,
-                spell_manager=self.spell_manager
+                spell_manager=self.spell_manager,
+                on_start_tutorial=self.start_tutorial
             )
         self.settings_view = LazyView(build)
     
+    # ---- the guided tour (ui/tutorial.py, ui/tutorial_steps.py) -----------------------------------
+
+    def start_tutorial(self):
+        """Start the guided tour (Settings > Help, F1, or the offer on first start)."""
+        if self._tour is not None and self._tour.running:
+            self._tour.lift()
+            return
+        from ui.tutorial import Tour
+        from ui.tutorial_steps import TourHost, build_steps
+        if not self.settings_manager.settings.tutorial_offered:
+            self.settings_manager.update(tutorial_offered=True)
+        host = self._tour_host = TourHost(self)
+        self._tour = Tour(self.winfo_toplevel(), build_steps(host), on_end=host.finish)
+        self._tour.start()
+
+    def _maybe_offer_tutorial(self):
+        if self.settings_manager.settings.tutorial_offered or (self._tour is not None and self._tour.running):
+            return
+        self.settings_manager.update(tutorial_offered=True)
+        from ui.tutorial import TourOffer
+        try:
+            TourOffer(self.winfo_toplevel(), on_start=self.start_tutorial)
+        except Exception as e:
+            print(f"Could not offer the guided tour: {e}")
+
     def _on_appearance_changed(self, mode: str):
         """Handle appearance mode change from settings."""
         # Light/dark switched: re-resolve every role-tagged colour on screen

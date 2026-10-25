@@ -133,6 +133,9 @@ class AppSettings:
     pdf_folders: list = field(default_factory=list)
 
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
+    # Guided tour (Settings > Help): offered once, at the first start after it was added
+    tutorial_offered: bool = False
+    tutorial_example_character: str = ""  # the example character a running tour made (deleted when it ends)
     
     def to_dict(self) -> dict:
         """Convert settings to dictionary."""
@@ -169,6 +172,7 @@ class AppSettings:
             'lan_overlay_opacity', 'lan_overlay_translucent', 'lan_web', 'lan_web_port', 'lan_character',
             'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
             'hotkeys', 'show_content_images', 'pdf_folders',
+            'tutorial_offered', 'tutorial_example_character',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         if not isinstance(filtered_data.get('hotkeys', {}), dict):
@@ -247,9 +251,13 @@ class SettingsManager:
             self._notify_listeners()
         return success
     
+    # Not preferences: what the app has already done, which a reset must not undo
+    KEPT_ON_RESET = ("initial_official_tag_applied", "tutorial_offered", "tutorial_example_character")
+
     def reset_to_defaults(self):
         """Reset all settings to defaults."""
-        self._settings = AppSettings()
+        kept = {name: getattr(self._settings, name) for name in self.KEPT_ON_RESET}
+        self._settings = AppSettings(**kept)
         self.save()
         self._notify_listeners()
 

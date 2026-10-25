@@ -174,6 +174,7 @@ class SessionView(ctk.CTkFrame):
                           "You are the DM. Players join with an invite you share with them. "
                           "Everything is encrypted, and you approve each player.")
         host.master.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self.host_card = host.master   # (the guided tour points at it)
         self._port_entry = self._field(host, "Port", str(s.saved("lan_port", P.DEFAULT_PORT)))
         self._pw_entry = self._field(host, "Session password (optional)", show="•")
         self._approve_var = ctk.BooleanVar(value=bool(s.saved("lan_require_approval", True)))
@@ -195,6 +196,7 @@ class SessionView(ctk.CTkFrame):
                           "Sessions on your network are listed here. Over a VPN, or if none show up, "
                           "paste the invite your DM sent you.")
         join.master.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        self.join_card = join.master
         found_head = ctk.CTkFrame(join, fg_color="transparent")
         found_head.pack(fill="x")
         ctk.CTkLabel(found_head, text="On this network", font=ui_font("small", bold=True),

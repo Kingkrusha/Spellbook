@@ -153,6 +153,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         # Left side - Back button, Search and filters
         left_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
         left_frame.pack(side="left", fill="x", expand=True)
+        self.filter_bar = left_frame   # (the guided tour points at it)
         
         # Back to Collections button
         theme = get_theme_manager()

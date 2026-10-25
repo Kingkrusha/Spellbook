@@ -264,6 +264,7 @@ class CollectionsView(ctk.CTkFrame):
         # Collection buttons grid
         collections_frame = ctk.CTkFrame(self.container, fg_color="transparent")
         collections_frame.pack(fill="both", expand=True)
+        self.cards_frame = collections_frame   # (the guided tour points at it)
         
         # Configure grid
         for i in range(3):

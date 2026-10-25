@@ -1379,7 +1379,7 @@ class CharacterSheetView(ctk.CTkFrame):
         name_entry.bind("<FocusOut>", lambda e: self._save_field("character_name", self.name_var.get()))
         
         # Classes section with editable levels and subclass selection
-        class_frame = ctk.CTkFrame(row1, fg_color="transparent")
+        class_frame = self.class_frame = ctk.CTkFrame(row1, fg_color="transparent")
         class_frame.pack(side="left", padx=8)
         ctk.CTkLabel(class_frame, text="Class & Level", font=ui_font("small", 9)).pack(anchor="w")
         
@@ -1484,7 +1484,7 @@ class CharacterSheetView(ctk.CTkFrame):
         weight_entry.bind("<FocusOut>", lambda e: self._save_field("weight", self.weight_var.get()))
         
         # Long Rest button
-        long_rest_btn = ctk.CTkButton(
+        long_rest_btn = self.long_rest_btn = ctk.CTkButton(
             row2, text="🌙 Long Rest", width=100, height=28,
             fg_color=self.theme.get_current_color('button_success'),
             hover_color=self.theme.get_current_color('button_success_hover'),
@@ -3598,7 +3598,7 @@ class CharacterSheetView(ctk.CTkFrame):
         ).pack(side="left")
         
         # Add feats button (feats are removed by right-clicking them)
-        ctk.CTkButton(
+        self.add_feat_btn = ctk.CTkButton(
             feats_header, text="+ Add Feat",
             font=ui_font("small", 10),
             width=70, height=20,
@@ -3606,7 +3606,8 @@ class CharacterSheetView(ctk.CTkFrame):
             hover_color=self.theme.get_current_color('accent'),
             text_color=self.theme.get_current_color('text_primary'),
             command=self._add_feats
-        ).pack(side="right")
+        )
+        self.add_feat_btn.pack(side="right")
         
         if has_feats:
             self._populate_feat_buttons(feats_frame, character_feats)
