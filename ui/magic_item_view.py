@@ -14,6 +14,7 @@ from ui.item_editor_base import ItemEditorBody
 from ui.item_view_base import ItemDetailBase, ItemViewBase
 from ui.virtual_list import VirtualListPanel
 from ui.editor_host import DialogWindow, EmbeddedWindow
+from ui.extra_fields import show_extra_fields
 
 # Conventional rarity colors, independent of the app's colour theme so
 # rarity reads consistently at a glance regardless of theme choice.
@@ -106,6 +107,11 @@ class MagicItemDetailPanel(ItemDetailBase):
         self.tags_label.configure(text_color=self.theme.get_current_color('accent_primary'))
 
     def show_item(self, item: Optional[MagicItem]):
+        """Display an item, then the fields the user added to Magic Items (custom_collections.py)."""
+        self._show_item_details(item)
+        show_extra_fields(self, "magic_items", item.name if item else None)
+
+    def _show_item_details(self, item: Optional[MagicItem]):
         self._current_item = item
 
         # Detach every dynamic row first, then re-pack what we need in a fixed

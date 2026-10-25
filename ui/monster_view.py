@@ -124,10 +124,18 @@ class MonsterDetailPanel(ctk.CTkFrame):
             self._stat_block.pack_forget()
             self.content_image.pack_forget()
             self.content_image.show(None)
+            box = getattr(self, "_extra_fields_box", None)
+            if box is not None:
+                box.show(None)
             self._placeholder.pack(anchor="w")
         else:
             self._placeholder.pack_forget()
             self._stat_block.pack_forget()
+            self.content_image.pack_forget()
+            # the fields the user added to Monsters, full width under the stat block (custom_collections.py);
+            # packed before the picture and the stat block so it gets the whole bottom edge
+            from ui.extra_fields import show_extra_fields
+            show_extra_fields(self, "monsters", monster.name, side="bottom")
             self.content_image.show(monster.name)
             self.content_image.pack(side="right", anchor="n", padx=(10, 0))
             self._stat_block.show_monster(monster)

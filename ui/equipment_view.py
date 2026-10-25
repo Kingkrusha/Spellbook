@@ -14,6 +14,7 @@ from ui.item_editor_base import ItemEditorBody
 from ui.item_view_base import ItemDetailBase, ItemViewBase
 from ui.virtual_list import VirtualListPanel
 from ui.editor_host import DialogWindow, EmbeddedWindow
+from ui.extra_fields import show_extra_fields
 
 
 class EquipmentListPanel(VirtualListPanel):
@@ -97,6 +98,11 @@ class EquipmentDetailPanel(ItemDetailBase):
         return " or ".join(link(p) for p in parts)
 
     def show_item(self, item: Optional[Equipment]):
+        """Display an item, then the fields the user added to Equipment (custom_collections.py)."""
+        self._show_item_details(item)
+        show_extra_fields(self, "equipment", item.name if item else None)
+
+    def _show_item_details(self, item: Optional[Equipment]):
         self._current_item = item
 
         # Detach every dynamic row first, then re-pack the ones we need in a

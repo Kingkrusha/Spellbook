@@ -22,6 +22,7 @@ from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
 from ui.bulk_actions import BulkActionsMixin
 from ui.collection_page import CollectionPageMixin
 from ui.review_banner import add_review_banner, outline_fields
+from ui.extra_fields import show_extra_fields
 
 
 def _list_name(name: str) -> str:
@@ -85,7 +86,9 @@ class FeatDetailPanel(VersionedDetailBase):
         self._add_version_bar()
         
         # Prerequisites
-        self.prereq_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        # height=1: an empty CTkFrame is 200 px high, which left a gap under the Source line of feats
+        # without a prerequisite
+        self.prereq_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=1)
         self.prereq_frame.pack(fill="x", pady=(0, 10))
         
         self.prereq_label = LabeledLabel(
@@ -178,6 +181,7 @@ class FeatDetailPanel(VersionedDetailBase):
             self.prereq_label.pack_forget()
             self.spell_frame.pack_forget()
             self._clear_description()
+            show_extra_fields(self, "feats", None)
             return
         
         # Name (with custom indicator)
@@ -212,6 +216,7 @@ class FeatDetailPanel(VersionedDetailBase):
             self.prereq_label.pack(anchor="w")
         else:
             self.prereq_label.pack_forget()
+            self.prereq_frame.configure(height=1)
         
         # Spellcasting info
         if feat.is_spellcasting:
@@ -226,6 +231,9 @@ class FeatDetailPanel(VersionedDetailBase):
         
         # Description - render with bold text support
         self._render_description(feat.description)
+
+        # The fields the user added to Feats (custom_collections.py)
+        show_extra_fields(self, "feats", feat.name)
 
 
 class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):

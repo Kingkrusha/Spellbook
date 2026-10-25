@@ -531,6 +531,12 @@ class ClassesCollectionView(ctk.CTkFrame):
             text_color=self.theme.get_current_color('text_secondary')
         ).pack(side="left", padx=15)
         
+        # The fields the user added to Classes (custom_collections.py)
+        from ui.extra_fields import ExtraFieldsBox
+        extra = ExtraFieldsBox(self.content, "classes", wraplength=700)
+        extra.pack(fill="x", after=header_frame)
+        extra.show(class_def.name)
+
         if class_def.source:
             # The source is a drop-down when the class has several versions (2024, 2014)
             source_bar = VersionBar(

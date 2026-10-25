@@ -21,6 +21,7 @@ from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
 from ui.bulk_actions import BulkActionsMixin
 from ui.collection_page import CollectionPageMixin
 from ui.review_banner import add_review_banner, outline_fields
+from ui.extra_fields import show_extra_fields
 
 
 def _list_name(name: str) -> str:
@@ -171,6 +172,11 @@ class LineageDetailPanel(VersionedDetailBase):
         self.show_lineage(item, versions)
 
     def show_lineage(self, lineage: Optional[Lineage], versions: Optional[List[Lineage]] = None):
+        """Display a lineage, then the fields the user added to Lineages (custom_collections.py)."""
+        self._show_lineage(lineage, versions)
+        show_extra_fields(self, "lineages", lineage.name if lineage else None)
+
+    def _show_lineage(self, lineage: Optional[Lineage], versions: Optional[List[Lineage]] = None):
         """Display details for a lineage (``versions``: every version offered in the Source drop-down)."""
         self._current_lineage = lineage
         self._versions = list(versions or [])

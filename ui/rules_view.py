@@ -77,6 +77,7 @@ class RuleDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
         theme = self.theme
         head = ctk.CTkFrame(self, fg_color="transparent")
         head.pack(fill="x", padx=15, pady=(15, 0))
+        self._head = head
 
         self.name_label = ctk.CTkLabel(head, text="Select a rules page", font=ui_font("title", bold=True),
                                        wraplength=520, justify="left", anchor="w")
@@ -137,6 +138,13 @@ class RuleDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
 
     def show_page(self, page: Optional[RulePage], hit: Optional[RuleHit] = None, query: str = "",
                   section: Optional[int] = None):
+        """Show ``page`` (see ``_show_page``), with the fields the user added to Rules under its name."""
+        self._show_page(page, hit, query, section)
+        from ui.extra_fields import show_extra_fields
+        show_extra_fields(self, "rules", page.name if page else None, parent=self._head, pady=(2, 0))
+
+    def _show_page(self, page: Optional[RulePage], hit: Optional[RuleHit] = None, query: str = "",
+                   section: Optional[int] = None):
         """Show ``page``. With a search ``query`` its words are lit up and the view opens at the
         best match; ``section`` (an index into the page's sections) opens it there instead."""
         self._page = page

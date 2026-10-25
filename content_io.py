@@ -54,6 +54,7 @@ FORMAT_VERSION = 1
 # class names exist when spells and subclasses refer to them), spells before
 # the things that reference spells.
 KINDS: "OrderedDict[str, str]" = OrderedDict([
+    ("collection_types", "Custom collections"),      # first: entries and field values need their collection
     ("classes", "Classes"),
     ("subclasses", "Subclasses"),
     ("spells", "Spells"),
@@ -64,11 +65,17 @@ KINDS: "OrderedDict[str, str]" = OrderedDict([
     ("magic_items", "Magic Items"),
     ("monsters", "Monsters"),
     ("rules", "Rules"),
+    ("custom_entries", "Entries of custom collections"),
+    ("field_values", "Added field values"),
 ])
+
+# kinds that belong to custom_collections.py (definitions, the entries of new collections, values of added fields)
+CUSTOM_KINDS = ("collection_types", "custom_entries", "field_values")
 
 # Order shown to users (dialogs, summaries).
 DISPLAY_ORDER = ["spells", "feats", "classes", "subclasses", "lineages",
-                 "backgrounds", "equipment", "magic_items", "monsters", "rules"]
+                 "backgrounds", "equipment", "magic_items", "monsters", "rules",
+                 "collection_types", "custom_entries", "field_values"]
 
 # sweep category used for each kind (object_link_sweep / object_links). Rules pages are not
 # here: their text is not swept for mentions (it is full of ordinary words).
@@ -89,6 +96,7 @@ _SINGULAR = {
     "spells": "Spell", "feats": "Feat", "lineages": "Lineage", "backgrounds": "Background",
     "classes": "Class", "subclasses": "Subclass", "equipment": "Equipment item",
     "magic_items": "Magic item", "monsters": "Monster", "rules": "Rules page",
+    "collection_types": "Collection", "custom_entries": "Entry", "field_values": "Field values of",
 }
 
 
@@ -197,6 +205,9 @@ def _mgr(kind: str):
     if kind == "rules":
         from rules import get_rules_manager
         return get_rules_manager()
+    if kind in CUSTOM_KINDS:
+        from custom_collections import get_collection_manager
+        return get_collection_manager()
     raise KeyError(kind)
 
 
@@ -226,6 +237,13 @@ def unofficial_objects(kind: str, spell_manager=None) -> list:
         return m.get_unofficial_monsters()
     if kind == "rules":
         return m.get_unofficial_rules()
+    if kind in CUSTOM_KINDS:
+        import custom_collections as cc
+        if kind == "collection_types":
+            return cc.exportable_types()
+        if kind == "custom_entries":
+            return m.all_entries()
+        return cc.exportable_values()
     return m.get_unofficial_items()          # equipment, magic_items
 
 
@@ -303,12 +321,52 @@ def bundle_of(objects: "Dict[str, list]", spell_manager=None) -> Tuple[dict, "Or
         "app_version": app_version,
     }
     counts: "OrderedDict[str, int]" = OrderedDict()
+    objects = _with_custom_dependencies(objects)
     for kind in DISPLAY_ORDER:
         objs = objects.get(kind)
         if objs:
             data[kind] = [_record(kind, o, spell_manager) for o in objs]
             counts[kind] = len(objs)
     return data, counts
+
+
+def _with_custom_dependencies(objects: "Dict[str, list]") -> "Dict[str, list]":
+    """``objects`` plus what custom collections need to make sense on the other side: the added-field values of
+    the built-in entries being sent, and the definition of every collection an entry or a value belongs to."""
+    try:
+        import custom_collections as cc
+        mgr = cc.get_collection_manager()
+        out = {k: list(v) for k, v in objects.items()}
+        values = list(out.get("field_values") or [])
+        have = {(v.collection, v.name.lower()) for v in values}
+        for kind, objs in objects.items():
+            if kind in cc.BUILTIN_TYPES and mgr.builtin_fields(kind):
+                for obj in objs:
+                    name = getattr(obj, "name", "")
+                    if (kind, name.lower()) in have:
+                        continue
+                    found = mgr.extra_values(kind, name)
+                    if found:
+                        values.append(cc.FieldValues(kind, name, found))
+                        have.add((kind, name.lower()))
+        if values:
+            out["field_values"] = values
+        types = list(out.get("collection_types") or [])
+        have_types = {t.page_key for t in types}
+        needed = [cc.CUSTOM_PREFIX + e.collection for e in out.get("custom_entries") or []]
+        needed += [v.collection for v in values]
+        for page_key in needed:
+            if page_key not in have_types:
+                ctype = mgr.get_type(page_key)
+                if ctype is not None:
+                    types.append(ctype)
+                    have_types.add(page_key)
+        if types:
+            out["collection_types"] = types
+        return out
+    except Exception as e:                                   # pragma: no cover - defensive
+        print(f"Custom collections were left out of the export: {e}")
+        return objects
 
 
 def export_bundle(spell_manager=None, kinds: Optional[Iterable[str]] = None,
@@ -539,6 +597,50 @@ _SIMPLE = {
     "monsters": ("monster", "Monster", "get_monster", "add_monster"),
     "rules": ("rules", "RulePage", "get_rule", "add_rule"),
 }
+
+
+def _import_custom(kind: str, recs: List[dict], report: ImportReport, tick: Callable[[str], None], state):
+    """Collection definitions, entries of new collections and added-field values (custom_collections.py).
+
+    ``state`` is the import's :class:`custom_collections.Importer`, shared by the three kinds so entries and values
+    land in the collection and fields their definitions were merged into."""
+    import custom_collections as cc
+    importer = state.get("importer") if isinstance(state, dict) else None
+    if importer is None:
+        importer = cc.Importer()
+        if isinstance(state, dict):
+            state["importer"] = importer
+    with importer.mgr.muted():
+        _import_custom_records(kind, recs, report, tick, importer)
+    for w in importer.warnings:
+        if w not in report.warnings:
+            report.warnings.append(w)
+    importer.warnings = []
+    importer.mgr.reload()                   # open pages show what came in (told once, not per record)
+
+
+def _import_custom_records(kind: str, recs: List[dict], report: ImportReport, tick: Callable[[str], None], importer):
+    import custom_collections as cc
+    for rec in recs:
+        name = _clean_name(rec) or "(unnamed)"
+        tick(name)
+        if not isinstance(rec, dict):
+            report.failed.append((kind, name, "not a JSON object"))
+            continue
+        try:
+            if kind == "collection_types":
+                result = importer.import_type(rec)
+            elif kind == "custom_entries":
+                result = importer.import_entry(rec)
+            else:
+                result = importer.import_values(rec)
+        except cc.CollectionError as e:
+            report.skipped.append((kind, name, str(e)))
+            continue
+        except Exception as e:
+            report.failed.append((kind, name, str(e)))
+            continue
+        (report.updated if result == "updated" else report.added)[kind] += 1
 
 
 def _import_simple(kind: str, recs: List[dict], report: ImportReport, tick: Callable[[str], None]):
@@ -792,6 +894,7 @@ def import_bundle(data: dict, spell_manager=None, *, link_mentions: bool = True,
             report.warnings.append(f"Mentions could not be linked automatically: {e}")
 
     # 2. import, kind by kind
+    custom_state: dict = {}
     for kind in KINDS:
         recs = bundle.get(kind)
         if not recs:
@@ -802,7 +905,9 @@ def import_bundle(data: dict, spell_manager=None, *, link_mentions: bool = True,
             done += 1
             emit(f"Importing {label(_kind).lower()}: {name}")
 
-        if kind == "classes":
+        if kind in CUSTOM_KINDS:
+            _import_custom(kind, recs, report, tick, custom_state)
+        elif kind == "classes":
             _import_classes(recs, report, tick)
         elif kind == "subclasses":
             _import_subclasses(recs, report, tick)
@@ -982,6 +1087,11 @@ class BundlePreview:
 
 def _existing(kind: str, name: str, spell_manager=None):
     """The installed object of ``kind`` called ``name`` (case-insensitive), or None."""
+    if kind in CUSTOM_KINDS:
+        # entries and values are found by their record (see _custom_identity); a definition by its name
+        if kind == "collection_types":
+            return _mgr(kind).type_by_name(name)
+        return None
     if kind == "spells":
         return spell_manager.get_spell(name) if spell_manager is not None else None
     m = _mgr(kind)
@@ -997,12 +1107,42 @@ def _existing(kind: str, name: str, spell_manager=None):
     return getattr(m, _SIMPLE[kind][2])(name)
 
 
+def _incoming_type_names(bundle: "Dict[str, List[dict]]") -> Dict[str, str]:
+    """incoming collection key -> its name, from the definitions a bundle carries."""
+    out = {}
+    for rec in bundle.get("collection_types") or []:
+        if isinstance(rec, dict) and not rec.get("builtin") and rec.get("key"):
+            out[str(rec["key"])] = _clean_name(rec)
+    return out
+
+
+def _custom_identity(kind: str, rec: dict, type_names: Dict[str, str]):
+    """(the name an import preview shows, the installed object it would replace or None) for the custom kinds.
+
+    An entry of a new collection is only unique within its collection, so it is shown as "Collection › Name". A
+    built-in collection's definition and added-field values are merged into what is here, never a clash."""
+    import custom_collections as cc
+    mgr = _mgr(kind)
+    name = _clean_name(rec)
+    if kind == "collection_types":
+        return name, (None if rec.get("builtin") else mgr.type_by_name(name))
+    if kind == "custom_entries":
+        key = str(rec.get("collection") or "")
+        type_name = type_names.get(key, "")
+        ctype = mgr.type_by_name(type_name) if type_name else mgr.custom_type(key)
+        shown = cc.entry_label(type_name or (ctype.name if ctype else ""), name)
+        return shown, (mgr.get_entry(ctype.key, name) if ctype else None)
+    return name, None
+
+
 def preview_bundle(data: dict, spell_manager=None,
                    kinds: Optional[Iterable[str]] = None) -> BundlePreview:
     """What importing ``data`` would do to each record, without changing anything."""
     preview = BundlePreview()
     wanted = set(kinds) if kinds else None
-    for kind, recs in normalize_bundle(data).items():
+    bundle = normalize_bundle(data)
+    type_names = _incoming_type_names(bundle)
+    for kind, recs in bundle.items():
         if wanted is not None and kind not in wanted:
             continue
         for rec in recs:
@@ -1010,7 +1150,10 @@ def preview_bundle(data: dict, spell_manager=None,
             if not name:
                 continue
             try:
-                existing = _existing(kind, name, spell_manager)
+                if kind in CUSTOM_KINDS:
+                    name, existing = _custom_identity(kind, rec, type_names)
+                else:
+                    existing = _existing(kind, name, spell_manager)
             except Exception:
                 existing = None
             if existing is None:
@@ -1031,6 +1174,17 @@ def _free_name(kind: str, name: str, taken: set, spell_manager=None) -> str:
         n += 1
 
 
+def _free_entry_name(rec: dict, name: str, taken: set, type_names: Dict[str, str]) -> str:
+    """"Name (2)" ... that neither the incoming records nor the entry's collection here use yet."""
+    n = 2
+    while True:
+        candidate = f"{name} ({n})"
+        trial = dict(rec, name=candidate)
+        if candidate.lower() not in taken and _custom_identity("custom_entries", trial, type_names)[1] is None:
+            return candidate
+        n += 1
+
+
 def resolve_bundle(data: dict, decisions: Optional[Dict[Tuple[str, str], str]] = None,
                    default: str = CLASH_REPLACE, spell_manager=None) -> dict:
     """A copy of ``data`` with the user's clash decisions applied.
@@ -1045,12 +1199,21 @@ def resolve_bundle(data: dict, decisions: Optional[Dict[Tuple[str, str], str]] =
     decisions = decisions or {}
     clashing = {(k, n.lower()) for k, n in preview_bundle(data, spell_manager).replaces}
     out = {k: v for k, v in data.items() if k not in KINDS}
-    for kind, recs in normalize_bundle(data).items():
+    bundle = normalize_bundle(data)
+    type_names = _incoming_type_names(bundle)
+    for kind, recs in bundle.items():
         taken = {_clean_name(r).lower() for r in recs}
         kept = []
         for rec in recs:
             name = _clean_name(rec)
-            key = (kind, name.lower())
+            if kind in CUSTOM_KINDS and isinstance(rec, dict):
+                try:
+                    shown, _existing_obj = _custom_identity(kind, rec, type_names)
+                except Exception:
+                    shown = name
+            else:
+                shown = name
+            key = (kind, shown.lower())
             if key not in clashing:
                 kept.append(rec)
                 continue
@@ -1059,7 +1222,10 @@ def resolve_bundle(data: dict, decisions: Optional[Dict[Tuple[str, str], str]] =
                 continue
             if choice == CLASH_RENAME:
                 rec = dict(rec)
-                rec["name"] = _free_name(kind, name, taken, spell_manager)
+                if kind == "custom_entries":
+                    rec["name"] = _free_entry_name(rec, name, taken, type_names)
+                else:
+                    rec["name"] = _free_name(kind, name, taken, spell_manager)
                 taken.add(rec["name"].lower())
             kept.append(rec)
         if kept:

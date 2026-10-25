@@ -265,35 +265,108 @@ class CollectionsView(ctk.CTkFrame):
         collections_frame = ctk.CTkFrame(self.container, fg_color="transparent")
         collections_frame.pack(fill="both", expand=True)
         self.cards_frame = collections_frame   # (the guided tour points at it)
-        
+
         # Configure grid
         for i in range(3):
             collections_frame.columnconfigure(i, weight=1, uniform="col")
-        
-        # Define collections with their status
-        collections = [
-            ("📜 Spells", "spells", True, "Browse and manage your spell database"),
-            ("⚔️ Feats", "feats", True, "Character feats and abilities"),
-            ("🧬 Lineages", "lineages", True, "Races and species options"),
-            ("✨ Magic Items", "magic_items", True, "Magical equipment and artifacts"),
-            ("🎭 Classes", "classes", True, "Character class definitions"),
-            ("📖 Backgrounds", "backgrounds", True, "Character background options"),
-            ("🛡️ Equipment", "equipment", True, "Mundane items and gear"),
-            ("👹 Monsters", "monsters", True, "Creature stat blocks"),
-            ("📚 Rules", "rules", True, "Game rules and references, searchable by their text"),
-        ]
-        
-        row = 0
-        col = 0
-        for title, key, is_active, description in collections:
-            self._create_collection_card(
-                collections_frame, title, key, is_active, description, row, col
-            )
-            col += 1
-            if col >= 3:
-                col = 0
-                row += 1
-    
+        self._build_cards()
+
+        # New collections and added fields redraw the cards (custom_collections.py)
+        from custom_collections import get_collection_manager
+        self._collections = get_collection_manager()
+        self._collections.add_listener(self._on_collections_changed)
+
+    # The built-in collections: (title, key, description)
+    BUILTIN_CARDS = [
+        ("📜 Spells", "spells", "Browse and manage your spell database"),
+        ("⚔️ Feats", "feats", "Character feats and abilities"),
+        ("🧬 Lineages", "lineages", "Races and species options"),
+        ("✨ Magic Items", "magic_items", "Magical equipment and artifacts"),
+        ("🎭 Classes", "classes", "Character class definitions"),
+        ("📖 Backgrounds", "backgrounds", "Character background options"),
+        ("🛡️ Equipment", "equipment", "Mundane items and gear"),
+        ("👹 Monsters", "monsters", "Creature stat blocks"),
+        ("📚 Rules", "rules", "Game rules and references, searchable by their text"),
+    ]
+
+    def destroy(self):
+        collections = getattr(self, "_collections", None)
+        if collections is not None:
+            collections.remove_listener(self._on_collections_changed)
+        super().destroy()
+
+    def _on_collections_changed(self):
+        try:
+            if self.winfo_exists():
+                self._build_cards()
+        except Exception:
+            pass
+
+    def _build_cards(self):
+        """The cards: the built-in collections, the ones the user made, then "New collection"."""
+        from custom_collections import get_collection_manager
+        frame = self.cards_frame
+        for child in frame.winfo_children():
+            child.destroy()
+        mgr = get_collection_manager()
+        cards = []
+        for title, key, description in self.BUILTIN_CARDS:
+            try:
+                added = len(mgr.builtin_fields(key))
+            except Exception:
+                added = 0
+            if added:
+                description += f"  ·  {added} field{'s' if added != 1 else ''} of yours"
+            cards.append((title, key, description))
+        try:
+            custom = mgr.custom_types()
+        except Exception as e:
+            print(f"Could not read your collections: {e}")
+            custom = []
+        for ctype in custom:
+            count = mgr.entry_count(ctype.key)
+            text = ctype.description or "Your own collection"
+            text += f"  ·  {count} entr{'y' if count == 1 else 'ies'}"
+            cards.append((ctype.title, ctype.page_key, text))
+        for index, (title, key, description) in enumerate(cards):
+            self._create_collection_card(frame, title, key, True, description, index // 3, index % 3)
+        self._create_new_collection_card(frame, len(cards) // 3, len(cards) % 3)
+
+    def _create_new_collection_card(self, parent, row: int, col: int):
+        card = ctk.CTkFrame(parent, fg_color="transparent", corner_radius=12, border_width=2,
+                            border_color=self.theme.get_current_color('bg_tertiary'))
+        card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=20, pady=20)
+        ctk.CTkLabel(inner, text="＋ New collection", font=ui_font("heading", bold=True)).pack(anchor="w")
+        ctk.CTkLabel(inner, text="Make a collection of your own (deities, factions, places...) with the "
+                                 "fields you choose", font=ui_font("body"),
+                     text_color=self.theme.get_text_secondary(), wraplength=200, justify="left").pack(
+            anchor="w", pady=(5, 15))
+        self.new_collection_btn = ctk.CTkButton(
+            inner, text="Create…", width=120,
+            fg_color=self.theme.get_current_color('button_normal'),
+            hover_color=self.theme.get_current_color('button_hover'),
+            command=self._new_collection)
+        self.new_collection_btn.pack(anchor="w")
+
+    def _new_collection(self):
+        from ui.collection_type_editor import CollectionTypeEditor
+        dialog = CollectionTypeEditor(self.winfo_toplevel(), None)
+        self.wait_window(dialog)
+        if dialog.result is not None:
+            self._navigate_to(dialog.result.page_key)
+
+    def _edit_fields(self, key: str):
+        """The ⚙ on a card: the added fields of a built-in collection, or all of a new collection."""
+        from custom_collections import get_collection_manager
+        from ui.collection_type_editor import CollectionTypeEditor
+        ctype = get_collection_manager().get_type(key)
+        if ctype is None:
+            return
+        dialog = CollectionTypeEditor(self.winfo_toplevel(), ctype)
+        self.wait_window(dialog)
+
     def _create_collection_card(self, parent, title: str, key: str, is_active: bool, 
                                  description: str, row: int, col: int):
         """Create a collection card button."""
@@ -328,14 +401,25 @@ class CollectionsView(ctk.CTkFrame):
         
         # Status or button
         if is_active:
+            buttons = ctk.CTkFrame(inner, fg_color="transparent")
+            buttons.pack(anchor="w")
             btn = ctk.CTkButton(
-                inner, text="Browse →",
+                buttons, text="Browse →",
                 width=120,
                 fg_color=self.theme.get_current_color('accent_primary'),
                 hover_color=self.theme.get_current_color('accent_secondary'),
                 command=lambda k=key: self._navigate_to(k)
             )
-            btn.pack(anchor="w")
+            btn.pack(side="left")
+            gear = ctk.CTkButton(
+                buttons, text="⚙", width=34,
+                fg_color=self.theme.get_current_color('button_normal'),
+                hover_color=self.theme.get_current_color('button_hover'),
+                command=lambda k=key: self._edit_fields(k))
+            gear.pack(side="left", padx=(6, 0))
+            from ui.tooltip import HoverTooltip
+            HoverTooltip(gear, "Edit this collection's fields" if key.startswith("custom:")
+                         else "Add your own fields to this collection")
         else:
             # Inactive status
             status_frame = ctk.CTkFrame(inner, fg_color="transparent")
@@ -384,7 +468,12 @@ class CollectionsView(ctk.CTkFrame):
             'Random Tables': 'random_tables',
         }
         
-        nav_key = section_map.get(section, section.lower())
+        nav_key = section_map.get(section)
+        if nav_key is None:
+            # an entry of a collection the user made: the section is that collection's name
+            from custom_collections import get_collection_manager
+            ctype = get_collection_manager().type_by_name(section)
+            nav_key = ctype.page_key if ctype else section.lower()
         
         # Navigate with the item name to open
         if self.on_navigate:
