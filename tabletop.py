@@ -22,6 +22,7 @@ Players get them from the DM once and keep them in ``tabletop/cache``.
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import io
@@ -266,6 +267,8 @@ def new_scene(name: str, map_asset: str = "", width: int = 0, height: int = 0, c
         "fog": {"on": False, "ops": []},
         "tokens": [], "drawings": [], "walls": [], "los": False, "zones": [], "areas": [],
         "players_move_all": False, "players_draw": True,
+        "remember": True,          # with line of sight on, players keep a dim view of where they've been
+        "explored": {},            # player id -> explored cells (see explore())
     }
 
 
@@ -285,7 +288,7 @@ def new_token(name: str, x: float, y: float, *, size: float = 1.0, color: str = 
 TOKEN_FIELDS = {"name", "size", "color", "image", "hp", "hp_max", "conditions", "owner", "owner_name", "hidden",
                 "kind", "show_name", "x", "y", "entry", "source", "vision", "z"}
 PRIVATE_TOKEN_FIELDS = ("entry", "source")    # the DM's bookkeeping, never sent to players
-SCENE_FIELDS = {"name", "bg", "players_move_all", "players_draw", "w", "h", "los"}
+SCENE_FIELDS = {"name", "bg", "players_move_all", "players_draw", "w", "h", "los", "remember"}
 GRID_FIELDS = {"type", "cell", "ox", "oy", "color", "opacity", "feet"}
 
 
@@ -364,8 +367,9 @@ def clean_wall(w: dict) -> Optional[dict]:
     pts = _clean_points(w.get("pts"), 2)
     if len(pts) != 4 or (abs(pts[2] - pts[0]) < 0.5 and abs(pts[3] - pts[1]) < 0.5):
         return None
+    door = bool(w.get("door"))
     return {"id": _text(w.get("id"), 16) or new_id(), "pts": [round(p, 1) for p in pts],
-            "door": bool(w.get("door")), "open": bool(w.get("door")) and bool(w.get("open"))}
+            "door": door, "open": door and bool(w.get("open")), "locked": door and bool(w.get("locked"))}
 
 
 def clean_zone(z: dict) -> Optional[dict]:
@@ -546,6 +550,130 @@ def token_in_sight(sight: List[dict], token: dict, grid: Grid) -> bool:
         if in_sight(sight, cx + k * math.cos(a), cy + k * math.sin(a)):
             return True
     return False
+
+
+def doors_in_view(scene: dict, sight: List[dict]) -> List[dict]:
+    """The doors a player can see (and so open or close): a door counts as seen when a point just in front of
+    it, on either side, is in sight. Locked doors are listed too, so the player knows they're there."""
+    cell = float((scene.get("grid") or {}).get("cell", 70))
+    off = max(2.0, min(10.0, cell * 0.12))
+    out = []
+    for w in scene.get("walls") or []:
+        if not w.get("door"):
+            continue
+        x0, y0, x1, y1 = w["pts"]
+        length = math.hypot(x1 - x0, y1 - y0) or 1.0
+        nx, ny = -(y1 - y0) / length * off, (x1 - x0) / length * off
+        seen = False
+        for u in (0.5, 0.2, 0.8):
+            px, py = x0 + (x1 - x0) * u, y0 + (y1 - y0) * u
+            if in_sight(sight, px + nx, py + ny) or in_sight(sight, px - nx, py - ny):
+                seen = True
+                break
+        if seen:
+            out.append({"id": w["id"], "pts": list(w["pts"]), "open": bool(w.get("open")),
+                        "locked": bool(w.get("locked"))})
+    return out
+
+
+# Explored areas: with line of sight on (and the map's "remember" switch on), every part of the map a player's
+# tokens have seen stays on their map, dimmed, after the tokens move on. It is kept per player as a bitmap of
+# small cells (half a grid cell), filled row by row from the sight polygons, so it stays quick in plain Python.
+
+EXPLORE_MAX_CELLS = 40000
+
+
+def explore_grid(scene: dict) -> Tuple[float, int, int]:
+    """``(cell size in map pixels, columns, rows)`` of a scene's explored-area bitmap."""
+    cell = max(10.0, float((scene.get("grid") or {}).get("cell", 70)) / 2.0)
+    w, h = max(1, int(scene.get("w") or 1)), max(1, int(scene.get("h") or 1))
+    while math.ceil(w / cell) * math.ceil(h / cell) > EXPLORE_MAX_CELLS:
+        cell *= 1.5
+    return round(cell, 3), int(math.ceil(w / cell)), int(math.ceil(h / cell))
+
+
+def explored_bits(record) -> Optional[bytearray]:
+    try:
+        return bytearray(base64.b64decode(record["bits"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _mark_seen(pts: List[float], cx: float, cy: float, r: float, cell: float, cols: int, rows: int,
+               bits: bytearray) -> bool:
+    """Set the cells whose centre lies inside the polygon ``pts`` (and within ``r`` of the eye, if ``r``)."""
+    n = len(pts) // 2
+    if n < 3:
+        return False
+    ys = pts[1::2]
+    y_lo, y_hi = min(ys), max(ys)
+    if r:
+        y_lo, y_hi = max(y_lo, cy - r), min(y_hi, cy + r)
+    changed = False
+    for row in range(max(0, int(y_lo // cell)), min(rows - 1, int(y_hi // cell)) + 1):
+        y = (row + 0.5) * cell
+        xs = []
+        j = n - 1
+        for i in range(n):
+            xi, yi, xj, yj = pts[2 * i], pts[2 * i + 1], pts[2 * j], pts[2 * j + 1]
+            if (yi > y) != (yj > y):
+                xs.append(xi + (y - yi) * (xj - xi) / (yj - yi))
+            j = i
+        if len(xs) < 2:
+            continue
+        xs.sort()
+        lo, hi = -math.inf, math.inf
+        if r:
+            dy = y - cy
+            if abs(dy) > r:
+                continue
+            half = math.sqrt(r * r - dy * dy)
+            lo, hi = cx - half, cx + half
+        base = row * cols
+        for k in range(0, len(xs) - 1, 2):
+            a, b = max(xs[k], lo), min(xs[k + 1], hi)
+            if b < a:
+                continue
+            for c in range(max(0, math.ceil(a / cell - 0.5)), min(cols - 1, math.floor(b / cell - 0.5)) + 1):
+                i = base + c
+                if not bits[i >> 3] & (1 << (i & 7)):
+                    bits[i >> 3] |= 1 << (i & 7)
+                    changed = True
+    return changed
+
+
+def explore(scene: dict, viewer: str, sight: List[dict]) -> bool:
+    """Add what ``sight`` shows to ``viewer``'s explored area. Returns whether anything new was seen."""
+    cell, cols, rows = explore_grid(scene)
+    store = scene.setdefault("explored", {})
+    record = store.get(viewer)
+    bits = None
+    if isinstance(record, dict) and record.get("cell") == cell and record.get("cols") == cols \
+            and record.get("rows") == rows:
+        bits = explored_bits(record)
+    size = (cols * rows + 7) // 8
+    fresh = bits is None or len(bits) != size
+    if fresh:
+        bits = bytearray(size)
+    changed = False
+    for s in sight:
+        changed = _mark_seen(s["pts"], s["x"], s["y"], s.get("r") or 0.0, cell, cols, rows, bits) or changed
+    if changed or fresh:
+        store[viewer] = {"cell": cell, "cols": cols, "rows": rows, "bits": base64.b64encode(bytes(bits)).decode()}
+    return changed
+
+
+def is_explored(record, x: float, y: float) -> bool:
+    """Whether map point (x, y) is in an explored cell of ``record``."""
+    if not isinstance(record, dict):
+        return False
+    bits = explored_bits(record)
+    cell, cols, rows = record.get("cell") or 1, record.get("cols") or 0, record.get("rows") or 0
+    c, r = int(x // cell), int(y // cell)
+    if bits is None or not (0 <= c < cols and 0 <= r < rows):
+        return False
+    i = r * cols + c
+    return bool(bits[i >> 3] & (1 << (i & 7)))
 
 
 # --------------------------------------------------------------------------- #
@@ -762,13 +890,19 @@ def project(scene: Optional[dict], viewer: str = DM, *, rev: int = 0, turn=()) -
         for t in view["tokens"]:
             t["turn"] = bool(t.get("entry")) and t["entry"] in turn
         return {"rev": rev, "scene": view, "role": "dm"}
-    s = {k: copy.deepcopy(v) for k, v in scene.items() if k not in ("tokens", "drawings", "fog", "walls")}
+    s = {k: copy.deepcopy(v) for k, v in scene.items()
+         if k not in ("tokens", "drawings", "fog", "walls", "explored")}
     s["tokens"] = []
     sight = None
     if scene.get("los"):
-        # the walls themselves stay with the DM (a secret door is a wall too); the player gets what they see
+        # the walls themselves stay with the DM (a secret door is a wall too); the player gets what they see,
+        # the doors they can see (to open them), and where they have been
         sight = sight_for(scene, eyes_for(scene, viewer))
         s["sight"] = sight
+        s["doors"] = doors_in_view(scene, sight)
+        mine = (scene.get("explored") or {}).get(viewer)
+        if scene.get("remember", True) and isinstance(mine, dict):
+            s["explored"] = dict(mine)
     grid = Grid.of(scene)
     for t in scene["tokens"]:
         if t.get("hidden"):
@@ -830,6 +964,7 @@ class Tabletop:
         self._listeners: List[Callable[[Optional[str]], None]] = []
         self._undo: List[Tuple[str, Optional[dict], List[str], str]] = []
         self._lock = threading.RLock()
+        self.explored_dirty = False        # a player saw more of a map since the last save
         self.load()
 
     # ---- storage
@@ -865,6 +1000,7 @@ class Tabletop:
             try:
                 os.makedirs(os.path.dirname(self.path), exist_ok=True)
                 atomic_write_json(self.path, data)
+                self.explored_dirty = False
                 return True
             except OSError as e:
                 print(f"Tabletop: could not save: {e}")
@@ -900,8 +1036,14 @@ class Tabletop:
         return self.scenes.get(self.shown)
 
     def view_for(self, viewer: str) -> dict:
-        """A player's view of the scene they're shown."""
-        return project(self.shown_scene(), viewer, rev=self.rev, turn=self.turn)
+        """A player's view of the scene they're shown (what their tokens see now is added to the map's
+        explored area for them first)."""
+        with self._lock:
+            scene = self.shown_scene()
+            if scene is not None and viewer != DM and scene.get("los") and scene.get("remember", True):
+                if explore(scene, viewer, sight_for(scene, eyes_for(scene, viewer))):
+                    self.explored_dirty = True
+            return project(scene, viewer, rev=self.rev, turn=self.turn)
 
     # ---- the initiative tracker's side (see tabletop_initiative): no undo, these follow the tracker
 
@@ -974,7 +1116,7 @@ class Tabletop:
         self._changed(result.get("scene", scene_id) or None)
         return result
 
-    PLAYER_OPS = {"token_move", "draw_add", "draw_delete", "area_add", "area_update", "area_delete"}
+    PLAYER_OPS = {"token_move", "draw_add", "draw_delete", "area_add", "area_update", "area_delete", "door_toggle"}
     NO_UNDO = {"scene_show"}
 
     def _scene_or_fail(self, cmd: dict) -> dict:
@@ -1015,8 +1157,8 @@ class Tabletop:
                 scene[k] = int(_num(v, scene[k], 100, 20000))
             elif k == "fog_on":
                 scene["fog"]["on"] = bool(v)
-            elif k == "los":
-                scene["los"] = bool(v)
+            elif k in ("los", "remember"):
+                scene[k] = bool(v)
         grid = cmd.get("grid") or {}
         g = scene["grid"]
         for k, v in grid.items():
@@ -1178,8 +1320,30 @@ class Tabletop:
             wall["door"] = bool(fields["door"])
         if "open" in fields:
             wall["open"] = bool(fields["open"])
+        if "locked" in fields:
+            wall["locked"] = bool(fields["locked"])
         if not wall["door"]:
-            wall["open"] = False
+            wall["open"] = wall["locked"] = False
+
+    def _op_door_toggle(self, cmd, actor, actor_name):
+        """Open or close a door. A player may only use a door they can see that isn't locked."""
+        scene = self._scene_or_fail(cmd)
+        wall = next((w for w in scene["walls"] if w["id"] == cmd.get("id") and w.get("door")), None)
+        if actor != DM:
+            if wall is None or not scene.get("los") or \
+                    wall["id"] not in {d["id"] for d in doors_in_view(scene, sight_for(scene, eyes_for(scene, actor)))}:
+                raise CommandError("That door isn't in sight.")
+            if wall.get("locked"):
+                raise CommandError("That door is locked.")
+        if wall is None:
+            raise CommandError("That door is gone.")
+        wall["open"] = not wall.get("open") if cmd.get("open") is None else bool(cmd.get("open"))
+        return {"open": wall["open"]}
+
+    def _op_explored_reset(self, cmd, actor, actor_name):
+        """Players forget where they've been on this map."""
+        scene = self._scene_or_fail(cmd)
+        scene["explored"] = {}
 
     def _op_wall_delete(self, cmd, actor, actor_name):
         scene = self._scene_or_fail(cmd)

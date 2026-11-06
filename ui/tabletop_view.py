@@ -530,7 +530,18 @@ class TabletopView(ctk.CTkFrame):
                             command=lambda: self._scene_fields(los=bool(self.los_var.get())))
         los.pack(anchor="w", pady=2)
         HoverTooltip(los, "Players see only what their tokens can see past the walls (a player with no token "
-                          "of their own sees through the party's). Creatures out of sight are left off their map.")
+                          "of their own sees through the party's). Creatures out of sight are left off their map. "
+                          "Players open and close the doors they can see by clicking them, unless you lock them "
+                          "(right-click a door).")
+        row = ctk.CTkFrame(f, fg_color="transparent")
+        row.pack(fill="x", pady=2)
+        self.remember_var = ctk.BooleanVar(value=True)
+        remember = ctk.CTkCheckBox(row, text="Remember explored areas", variable=self.remember_var,
+                                   command=lambda: self._scene_fields(remember=bool(self.remember_var.get())))
+        remember.pack(side="left")
+        HoverTooltip(remember, "With line of sight on, places a player's tokens have seen stay on their map, "
+                               "dimmed, after they move on (creatures there are only shown while in sight).")
+        self._button(row, "Forget", self._forget_explored, width=60).pack(side="left", padx=(6, 0))
         self.show_walls_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(f, text="Show walls", variable=self.show_walls_var,
                         command=self._toggle_show_walls).pack(anchor="w", pady=2)
@@ -657,6 +668,7 @@ class TabletopView(ctk.CTkFrame):
         self.players_move_var.set(bool(scene.get("players_move_all")))
         self.fog_var.set(bool(scene["fog"].get("on")))
         self.los_var.set(bool(scene.get("los")))
+        self.remember_var.set(bool(scene.get("remember", True)))
         walls = scene.get("walls") or []
         doors = sum(1 for w in walls if w.get("door"))
         self.walls_label.configure(text=f"{len(walls) - doors} wall{'s' if len(walls) - doors != 1 else ''}, "
@@ -927,6 +939,12 @@ class TabletopView(ctk.CTkFrame):
         self.canvas.preview_sight = bool(self.preview_var.get())
         self.canvas.render()
 
+    def _forget_explored(self):
+        scene = self.backend.view().get("scene")
+        if scene and scene.get("explored") and messagebox.askyesno(
+                "Forget explored areas", "Players forget where they've been on this map. Go on?", parent=self):
+            self._dispatch({"op": "explored_reset"})
+
     def _clear_walls(self):
         scene = self.backend.view().get("scene")
         if not scene or not scene.get("walls"):
@@ -945,6 +963,10 @@ class TabletopView(ctk.CTkFrame):
             menu.add_command(label="Close door" if wall.get("open") else "Open door",
                              command=lambda: self._dispatch({"op": "wall_update", "id": wall_id,
                                                              "fields": {"open": not wall.get("open")}}))
+            menu.add_command(label="Unlock (players can open it)" if wall.get("locked")
+                             else "Lock (players can't open it)",
+                             command=lambda: self._dispatch({"op": "wall_update", "id": wall_id,
+                                                             "fields": {"locked": not wall.get("locked")}}))
             menu.add_command(label="Make it a wall", command=lambda: self._dispatch(
                 {"op": "wall_update", "id": wall_id, "fields": {"door": False}}))
         else:
