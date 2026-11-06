@@ -171,12 +171,20 @@ class CharacterBuilderView(ctk.CTkFrame):
         if d.subclass and (not cb.needs_subclass(d, src) or
                            d.subclass not in [s.name for s in src.subclasses(src.class_def(d.class_name))]):
             d.subclass = ""
+        d.extra_classes = [e for e in d.extra_classes if e.name or self.step == "class"]
+        for e in d.extra_classes:
+            if e.subclass and (not cb.extra_needs_subclass(e, src) or
+                               e.subclass not in [x.name for x in src.subclasses(src.class_def(e.name))]):
+                e.subclass = ""
+        if d.level <= 1:
+            d.extra_classes = []
         cb.sync_feat_slots(d, src)
         background = src.background(d.background)
         feats = self._origin_feats(background)
         if d.origin_feat not in feats:
             d.origin_feat = feats[0] if feats else ""
         cb.tidy_skills(d, src)
+        cb.tidy_features(d, src)
         cb.tidy_grants(d)
         cb.tidy_spells(d, src, self._spells())
         letters = [o[0] for o in cb.class_equipment_options(src.class_def(d.class_name))]
@@ -373,8 +381,84 @@ class CharacterBuilderView(ctk.CTkFrame):
 
         def pick(name):
             self.draft.class_name = name
+            self._fill_multiclass()
+        self._multiclass_frame = None
         self._chooser(parent, [c.name for c in self.src.classes()], self.draft.class_name, pick,
                       self._describe_class)
+        if self.draft.level > 1:
+            self._multiclass_frame = ctk.CTkFrame(parent, fg_color="transparent")
+            self._multiclass_frame.pack(fill="x", padx=18, pady=(0, 10))
+            self._fill_multiclass()
+
+    def _fill_multiclass(self):
+        """The "more classes" rows under the class list (multiclassing; only offered above level 1)."""
+        frame, d = self._multiclass_frame, self.draft
+        if frame is None or not frame.winfo_exists():
+            return
+        for child in frame.winfo_children():
+            child.destroy()
+        head = ctk.CTkFrame(frame, fg_color="transparent")
+        head.pack(fill="x")
+        main = f"{d.class_name} {d.main_level}" if d.class_name else "your first class"
+        text = (f"Multiclassing: {main}" + "".join(f", {c.name or '?'} {c.level}" for c in d.extra_classes)
+                + f" (level {d.level} in all)") if d.extra_classes else \
+            "Want levels in more than one class? Add another class and give it some of your levels."
+        ctk.CTkLabel(head, text=text, font=ui_font("body", bold=bool(d.extra_classes)), anchor="w").pack(
+            side="left")
+        if len(d.extra_classes) < 3 and d.main_level > 1:
+            ctk.CTkButton(head, text="+ Add a class", width=110, height=28, fg_color=self._color('button_normal'),
+                          hover_color=self._color('button_hover'), command=self._add_extra_class).pack(
+                side="right")
+        names = [c.name for c in self.src.classes()]
+        for i, extra in enumerate(d.extra_classes):
+            row = ctk.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", pady=(4, 0))
+
+            def chose_class(value, e=extra):
+                e.name, e.subclass = value, ""
+                self._fill_multiclass()
+            self._combo(row, [n for n in names if n != d.class_name], extra.name or "Pick a class", chose_class,
+                        width=200).pack(side="left", padx=(0, 8))
+            label = ctk.CTkLabel(row, text=str(extra.level), width=30, font=ui_font("body", bold=True))
+
+            def change(delta, e=extra):
+                new = e.level + delta
+                if new < 1 or (delta > 0 and d.main_level <= 1):
+                    return
+                e.level = new
+                if not cb.extra_needs_subclass(e, self.src):
+                    e.subclass = ""
+                self._fill_multiclass()
+            for text, delta in (("−", -1), ("+", 1)):
+                if text == "+":
+                    label.pack(side="left", padx=4)
+                ctk.CTkButton(row, text=text, width=30, height=28, fg_color=self._color('button_normal'),
+                              hover_color=self._color('button_hover'),
+                              command=lambda dl=delta, e=extra: change(dl, e)).pack(side="left")
+            class_def = self.src.class_def(extra.name)
+            if cb.extra_needs_subclass(extra, self.src):
+                subs = [x.name for x in self.src.subclasses(class_def)]
+
+                def chose_sub(value, e=extra):
+                    e.subclass = value
+                self._combo(row, subs, extra.subclass or f"Pick a {(class_def.subclass_name or 'subclass').lower()}",
+                            chose_sub, width=220).pack(side="left", padx=(12, 0))
+            ctk.CTkButton(row, text="Remove", width=70, height=28, fg_color=self._color('button_danger'),
+                          hover_color=self._color('button_danger_hover'),
+                          command=lambda idx=i: self._remove_extra_class(idx)).pack(side="right")
+        for warning in cb.multiclass_warnings(d, self.src):
+            ctk.CTkLabel(frame, text=warning, font=ui_font("small"), anchor="w",
+                         text_color=self.theme.get_text_secondary()).pack(fill="x")
+
+    def _add_extra_class(self):
+        if self.draft.main_level > 1:
+            self.draft.extra_classes.append(cb.ExtraClass(""))
+            self._fill_multiclass()
+
+    def _remove_extra_class(self, index: int):
+        if 0 <= index < len(self.draft.extra_classes):
+            del self.draft.extra_classes[index]
+            self._fill_multiclass()
 
     # ------------------------------------------------------------------ 3. subclass
 
@@ -700,8 +784,9 @@ class CharacterBuilderView(ctk.CTkFrame):
         for slot in self.draft.feat_slots:
             line = ctk.CTkFrame(scroll, fg_color="transparent")
             line.pack(fill="x", pady=4)
-            ctk.CTkLabel(line, text=f"Level {slot.level}", width=70, anchor="w",
-                         font=ui_font("body", bold=True)).pack(side="left")
+            who = slot.class_name or (self.draft.class_name if self.draft.extra_classes else "")
+            ctk.CTkLabel(line, text=f"{who} {slot.level}" if who else f"Level {slot.level}",
+                         width=110 if who else 70, anchor="w", font=ui_font("body", bold=True)).pack(side="left")
 
             def chose_feat(value, s=slot):
                 s.feat = value
@@ -757,6 +842,75 @@ class CharacterBuilderView(ctk.CTkFrame):
 
     def _update_skill_count(self, count: int):
         self._skill_count.configure(text=f"Chosen: {len(self.draft.class_skills)} of {count}")
+
+    # ------------------------------------------------------------------ class features
+
+    def _step_features(self, parent):
+        d, src = self.draft, self.src
+        counts = cb.feature_counts(d, src)
+        self._intro(parent, "Choose your class features",
+                    "Some of your class features ask you to choose: a fighting style, eldritch invocations, skills "
+                    "to gain expertise in, or the weapons whose mastery properties you can use.")
+        scroll = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+        self._feature_labels = {}
+        sections = [
+            ("fighting_styles", cb.fighting_style_options(src), lambda n: self._feat_text(n)),
+            ("invocations", cb.invocation_options(d, src), lambda n: self._feat_text(n)),
+            ("expertise", cb.proficient_skills(d, src), None),
+            ("masteries", cb.mastery_weapons(src), None),
+        ]
+        for key, options, describe in sections:
+            count = counts[key]
+            if not count:
+                continue
+            one, many = cb.FEATURE_LABELS[key]
+            box = ctk.CTkFrame(scroll, fg_color=self._color('bg_tertiary'), corner_radius=8)
+            box.pack(fill="x", pady=(0, 10))
+            label = ctk.CTkLabel(box, text="", font=ui_font("body", bold=True), anchor="w")
+            label.pack(fill="x", padx=12, pady=(8, 4))
+            self._feature_labels[key] = (label, one if count == 1 else many, count)
+            grid = ctk.CTkFrame(box, fg_color="transparent")
+            grid.pack(fill="x", padx=12, pady=(0, 8))
+            columns = 2 if describe else 4
+            for i, name in enumerate(options):
+                var = tk.BooleanVar(value=name in getattr(d, key))
+                check = ctk.CTkCheckBox(grid, text=name, variable=var,
+                                        command=lambda k=key, n=name, v=var: self._toggle_feature(k, n, v))
+                check.grid(row=i // columns, column=i % columns, sticky="w", padx=(0, 18), pady=2)
+                if describe is not None:
+                    from ui.tooltip import HoverTooltip
+                    HoverTooltip(check, describe(name)[:600])
+            if not options:
+                ctk.CTkLabel(grid, text="Nothing to choose from in your collections.", font=ui_font("small"),
+                             text_color=self.theme.get_text_secondary()).grid(row=0, column=0, sticky="w")
+            self._update_feature_label(key)
+
+    def _feat_text(self, name: str) -> str:
+        feat = self.src.feat(name)
+        if feat is None:
+            return name
+        text = clean(getattr(feat, "description", "") or "")
+        prereq = getattr(feat, "prereq", "") or ""
+        return (f"Prerequisite: {prereq}\n\n" if prereq else "") + text
+
+    def _toggle_feature(self, key: str, name: str, var):
+        chosen = getattr(self.draft, key)
+        _label, _word, count = self._feature_labels[key]
+        if var.get():
+            if len(chosen) >= count:
+                var.set(False)
+                self.problem_label.configure(text=f"You can choose {count}. Untick one first.")
+                return
+            chosen.append(name)
+        elif name in chosen:
+            chosen.remove(name)
+        self.problem_label.configure(text="")
+        self._update_feature_label(key)
+
+    def _update_feature_label(self, key: str):
+        label, word, count = self._feature_labels[key]
+        label.configure(text=f"{word}: {len(getattr(self.draft, key))} of {count} chosen")
 
     # ------------------------------------------------------------------ 9. spells
 
@@ -968,8 +1122,8 @@ class CharacterBuilderView(ctk.CTkFrame):
 
     def summary(self) -> str:
         d, src = self.draft, self.src
-        lines = [f"Name: {d.name.strip()}", f"Class: {d.class_name} {d.level}"
-                 + (f" ({d.subclass})" if d.subclass else "")]
+        classes = [f"{n} {lvl}" + (f" ({sub})" if sub else "") for n, lvl, sub in d.class_levels()]
+        lines = [f"Name: {d.name.strip()}", ("Classes: " if len(classes) > 1 else "Class: ") + " / ".join(classes)]
         species = d.lineage
         for key, value in d.grant_options.items():
             if key == f"lineage:{d.lineage}":
@@ -985,10 +1139,15 @@ class CharacterBuilderView(ctk.CTkFrame):
             f"{cb.ABILITY_SHORT[a]} {scores[a]} ({cb.signed(cb.modifier(scores[a]))})" for a in cb.ABILITIES))
         skills = sorted(set(cb.background_skills(d, src)) | set(d.class_skills))
         lines.append("Skills: " + (", ".join(skills) or "none"))
+        for key in ("fighting_styles", "invocations", "expertise", "masteries"):
+            chosen = getattr(d, key)
+            if chosen:
+                lines.append(f"{cb.FEATURE_LABELS[key][1 if len(chosen) > 1 else 0]}: " + ", ".join(chosen))
         class_def = src.class_def(d.class_name)
         if class_def is not None:
             from character_sheet import calculate_hp_maximum
-            hp = calculate_hp_maximum([(d.class_name, d.level)], cb.modifier(scores["constitution"] or 10),
+            hp = calculate_hp_maximum([(n, lvl) for n, lvl, _s in d.class_levels()],
+                                      cb.modifier(scores["constitution"] or 10),
                                       feats=[d.origin_feat] + [s.feat for s in d.feat_slots])
             lines.append(f"Hit points: {hp}  ·  Proficiency bonus: +{2 + (d.level - 1) // 4}")
         if d.cantrips:
