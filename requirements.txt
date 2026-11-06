@@ -11,3 +11,5 @@ cryptography>=42.0.0
 pypdfium2>=4.30
 # PDF export (styled PDFs of collection entries).
 reportlab>=4.0
+# Music player (Game Tools > Music): plays MP3, FLAC, WAV and Ogg Vorbis through the sound card.
+miniaudio>=1.59

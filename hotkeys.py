@@ -104,6 +104,7 @@ ACTIONS: List[Action] = [
     Action("page.random_tables", "Random Tables", "Pages", ""),
     Action("page.calendar", "Calendar", "Pages", ""),
     Action("page.pdf_library", "PDF Library", "Pages", ""),
+    Action("page.music", "Music", "Pages", ""),
     Action("page.tabletop", "Tabletop", "Pages", ""),
     Action("page.settings", "Settings", "Pages", "Ctrl+,"),
     # This page
@@ -120,6 +121,11 @@ ACTIONS: List[Action] = [
     Action("toggle.appearance", "Switch light / dark mode", "Settings", "Ctrl+Shift+D"),
     Action("toggle.legacy", "Cycle legacy content filter", "Settings", ""),
     Action("toggle.chat_overlay", "Show / hide chat overlay", "Settings", ""),
+    # Music
+    Action("music.toggle_pause", "Play / pause music", "Music", ""),
+    Action("music.next", "Next track", "Music", ""),
+    Action("music.previous", "Previous track", "Music", ""),
+    Action("music.stop", "Fade out and stop music", "Music", ""),
     # Help
     Action("help.tour", "Start the guided tour", "Help", "F1"),
     Action("help.feedback", "Send feedback or a bug report", "Help", "Shift+F1"),

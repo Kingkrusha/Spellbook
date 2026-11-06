@@ -67,7 +67,7 @@ a = Analysis(
         if os.path.exists(os.path.join(SPECPATH, f))
     ],
     hiddenimports=['tools', 'tools.update_spell_descriptions', 'tools.spell_data', 'tools.stat_block_data',
-                      'rules', 'ui.rules_view', 'ui.rule_text']
+                      'rules', 'ui.rules_view', 'ui.rule_text', 'ui.music_view', '_miniaudio']
                   + _LAN_IMPORTS,
     hookspath=[],
     hooksconfig={},
