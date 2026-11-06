@@ -706,12 +706,30 @@ class SpellDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
         # Wrap to the frame's width (the lines re-wrap by themselves if the panel is resized)
         wraplength = max(100, logical_width(self.description_frame) - 40)
         
+        # In compare mode, a line with the damage the spell's dice add up to comes first, and the dice are
+        # coloured (better or worse than the other spell). Higher-level and cantrip upgrade paragraphs don't count.
+        highlight = None
+        if self._comparison_active and self._current_spell is not None:
+            summary = SpellComparison.damage_summary(self._current_spell.description)
+            if summary and "damage" in (t.lower() for t in self._current_spell.tags):
+                theme = get_theme_manager()
+                label = ctk.CTkLabel(self._description_content, text=f"Damage: {summary}",
+                                     font=ui_font("body", bold=True), anchor="w", justify="left",
+                                     wraplength=wraplength,
+                                     text_color=damage_color or theme.get_current_color("text_primary"))
+                label.pack(anchor="w", pady=(2, 6))
+                follow_width(self._description_content, label)
+                if damage_color:
+                    highlight = (r"\d+\s*d\s*\d+", damage_color)
+
         # Render formatted text with markdown support
         self._rich_renderer.render_formatted_text(
             self._description_content,
             text,
             on_spell_click=self._on_spell_link_click,
-            wraplength=wraplength
+            wraplength=wraplength,
+            highlight=highlight,
+            highlight_line=lambda line: not SpellComparison._is_upgrade_paragraph(line),
         )
     
     def _on_spell_link_click(self, spell_name: str):
