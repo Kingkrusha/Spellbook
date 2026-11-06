@@ -16,6 +16,8 @@ widgets. The file is an ordinary .zip with a ``manifest.json`` saying what is in
     tabletop/tabletop.json     tabletop scenes, and tabletop/assets/... their maps and token art
     tokens/...                 the token library
     pdfs/...                   the PDF library (the library folder, then one folder per extra folder)
+    music/music.json           the music library: tracks, tags, links and player settings
+    music/files/<id>/<name>    the music files themselves (a separate, optional category)
 
 Each category can be left out when exporting and when importing. Importing adds to what is already
 installed: something with the same name (or id) is either replaced by the backup's or kept, as the person
@@ -57,6 +59,9 @@ CATEGORIES: "OrderedDict[str, Tuple[str, str]]" = OrderedDict([
     ("tabletop", ("Tabletop maps", "Tabletop scenes with their maps, tokens, walls and fog")),
     ("tokens", ("Token library", "The pictures in your token library")),
     ("pdfs", ("PDF library", "The PDFs in your library folders (can be large)")),
+    ("music", ("Music library", "Your tracks, tags, links and player settings (not the music files)")),
+    ("music_files", ("Music files", "The music files themselves, so the tracks play on another computer "
+                                    "(can be large)")),
 ])
 
 # settings.json keys that belong to this computer, not to the person: never exported or imported
@@ -96,7 +101,7 @@ class Sources:
                  data_dir: Optional[str] = None, studio_store=None, calendar_store=None,
                  image_store=None, tabletop=None, assets=None, token_folder: Optional[str] = None,
                  pdf_folders: Optional[List[str]] = None, pdf_target: Optional[str] = None,
-                 settings_manager=None, random_tables=None):
+                 settings_manager=None, random_tables=None, music_library=None):
         self.spell_manager = spell_manager
         self.character_manager = character_manager
         self.sheet_manager = sheet_manager
@@ -111,6 +116,7 @@ class Sources:
         self._pdf_target = pdf_target
         self._settings = settings_manager
         self._random_tables = random_tables
+        self._music = music_library
 
     def path(self, name: str) -> str:
         if self._data_dir:
@@ -203,6 +209,22 @@ class Sources:
                 from pdf_library import library_folders
                 self._pdf_folders = library_folders()
         return self._pdf_folders
+
+    @property
+    def music_library(self):
+        if self._music is None:
+            if self._data_dir:
+                from music_library import MusicLibrary
+                self._music = MusicLibrary(self.path("music.json"))
+            else:
+                from music_library import get_music_library
+                self._music = get_music_library()
+        return self._music
+
+    @property
+    def music_folder(self) -> str:
+        """Where imported music files go."""
+        return self.path("Music")
 
     @property
     def pdf_target(self) -> str:
@@ -342,6 +364,15 @@ def _pdf_files(src: Sources) -> List[Tuple[str, str]]:
     return out
 
 
+def _music_files(src: Sources) -> List[Tuple[str, str]]:
+    """``[(path, "<track id>/<file name>")]`` of the library's music files that are on this computer."""
+    out = []
+    for t in list(src.music_library.tracks):
+        if t.path and os.path.isfile(t.path):
+            out.append((t.path, f"{t.id}/{os.path.basename(t.path)}"))
+    return out
+
+
 def _sizes(files: Iterable[Tuple[str, str]]) -> int:
     total = 0
     for p, _ in files:
@@ -363,7 +394,7 @@ class CategoryInfo:
             return f"could not be read ({self.error})"
         unit = {"settings": "file", "content": "entry", "random_tables": "table", "characters": "character",
                 "studio": "draft", "calendars": "calendar", "images": "picture", "tabletop": "scene",
-                "tokens": "token", "pdfs": "PDF"}.get(key, "item")
+                "tokens": "token", "pdfs": "PDF", "music": "track", "music_files": "file"}.get(key, "item")
         plural = {"entry": "entries"}.get(unit, unit + "s")
         text = f"{self.count} {unit if self.count == 1 else plural}"
         if self.bytes >= 1024 * 1024:
@@ -401,6 +432,11 @@ def summarize(src: Sources, keys: Optional[Iterable[str]] = None) -> "OrderedDic
                 info.count, info.bytes = len(files), _sizes(files)
             elif key == "pdfs":
                 files = _pdf_files(src)
+                info.count, info.bytes = len(files), _sizes(files)
+            elif key == "music":
+                info.count = len(src.music_library.tracks)
+            elif key == "music_files":
+                files = _music_files(src)
                 info.count, info.bytes = len(files), _sizes(files)
         except Exception as e:                    # one broken store must not hide the others
             info.error = str(e) or type(e).__name__
@@ -529,6 +565,14 @@ def _export_category(key, src: Sources, put_json, put_files, result: ExportResul
     if key == "pdfs":
         files = _pdf_files(src)
         return len(files), put_files("pdfs/", files)
+    if key == "music":
+        lib = src.music_library
+        with lib._lock:
+            data = {"version": 1, "settings": dict(lib.settings), "tracks": [t.to_dict() for t in lib.tracks]}
+        return len(data["tracks"]), put_json("music/music.json", data)
+    if key == "music_files":
+        files = _music_files(src)
+        return len(files), put_files("music/files/", files)
     return 0, 0
 
 
@@ -990,8 +1034,110 @@ def _import_pdfs(z, src: Sources, replace: bool, result: ImportResult) -> str:
     return _counted(added, replaced, kept)
 
 
+def _backup_tracks(z) -> "OrderedDict[str, object]":
+    """The backup's music tracks by id (empty when it has no music library)."""
+    from music_library import Track
+    data = _load_json(z, "music/music.json")
+    raws = data.get("tracks", []) if isinstance(data, dict) else []
+    out: "OrderedDict[str, object]" = OrderedDict()
+    for raw in raws if isinstance(raws, list) else []:
+        if isinstance(raw, dict) and raw.get("id"):
+            try:
+                track = Track.from_dict(raw)
+            except (TypeError, ValueError):
+                continue
+            out[track.id] = track
+    return out
+
+
+def _import_music(z, src: Sources, replace: bool, result: ImportResult) -> str:
+    """Tracks are matched by id. A file track keeps its path: on another computer it shows as missing until
+    the music files are imported too (or its folder is added again)."""
+    from music_library import DEFAULT_SETTINGS
+    data = _load_json(z, "music/music.json")
+    if not isinstance(data, dict):
+        return "nothing to import"
+    lib = src.music_library
+    added = replaced = kept = 0
+    with lib._lock:
+        index = {t.id: i for i, t in enumerate(lib.tracks)}
+        for track in _backup_tracks(z).values():
+            i = index.get(track.id)
+            if i is not None:
+                if not replace:
+                    kept += 1
+                    continue
+                if lib.tracks[i].path and os.path.isfile(lib.tracks[i].path) and not os.path.isfile(track.path):
+                    track.path = lib.tracks[i].path        # don't trade a file that plays for one that doesn't
+                lib.tracks[i] = track
+                replaced += 1
+            else:
+                index[track.id] = len(lib.tracks)
+                lib.tracks.append(track)
+                added += 1
+        settings = data.get("settings")
+        if replace and isinstance(settings, dict):
+            for key, default in DEFAULT_SETTINGS.items():
+                value = settings.get(key)
+                if isinstance(default, bool) or isinstance(default, str):
+                    ok = type(value) is type(default)
+                else:
+                    ok = isinstance(value, (int, float)) and not isinstance(value, bool)
+                if ok:
+                    lib.settings[key] = value
+    if added or replaced:
+        lib.save()
+        result.changed.add("music")
+    return _counted(added, replaced, kept)
+
+
+def _import_music_files(z, src: Sources, replace: bool, result: ImportResult) -> str:
+    """Unpack the music files into the Music folder and point their tracks at them (a track the library
+    doesn't have yet is added from the backup's list)."""
+    from music_library import AUDIO_EXTENSIONS, Track, title_from_path
+    lib = src.music_library
+    tracks = _backup_tracks(z)
+    folder = src.music_folder
+    added = replaced = kept = 0
+    for info, rel in _members(z, "music/files/"):
+        parts = rel.split("/")
+        if len(parts) != 2 or not parts[1].lower().endswith(AUDIO_EXTENSIONS):
+            continue
+        track_id, name = parts
+        with lib._lock:
+            mine = lib.get(track_id)
+        if mine is not None and mine.path and os.path.isfile(mine.path) and not replace:
+            kept += 1
+            continue
+        dest = os.path.join(folder, name)
+        if os.path.exists(dest) and os.path.getsize(dest) != info.file_size:
+            stem, ext = os.path.splitext(name)
+            n = 2
+            while os.path.exists(dest) and os.path.getsize(dest) != info.file_size:
+                dest = os.path.join(folder, f"{stem} ({n}){ext}")
+                n += 1
+        if not os.path.exists(dest):
+            _extract(z, info, dest)
+        with lib._lock:
+            mine = lib.get(track_id)
+            if mine is None:
+                track = tracks.get(track_id) or Track(track_id, title_from_path(name))
+                track.path = os.path.abspath(dest)
+                lib.tracks.append(track)
+                added += 1
+            else:
+                mine.path = os.path.abspath(dest)
+                replaced += 1
+    if added or replaced:
+        lib.add_folder(folder)
+        lib.save()
+        result.changed.add("music")
+    return _counted(added, replaced, kept)
+
+
 _IMPORTERS = {
     "settings": _import_settings, "content": _import_content, "random_tables": _import_random_tables,
     "characters": _import_characters, "studio": _import_studio, "calendars": _import_calendars,
     "images": _import_images, "tabletop": _import_tabletop, "tokens": _import_tokens, "pdfs": _import_pdfs,
+    "music": _import_music, "music_files": _import_music_files,
 }

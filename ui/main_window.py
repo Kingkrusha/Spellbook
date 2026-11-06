@@ -1611,9 +1611,10 @@ class MainWindow(ctk.CTkFrame):
         show them (the Characters list, Random Tables, Calendar), shown or kept in a tab's cache."""
         from ui.calendar_view import CalendarView
         from ui.characters_view import CharactersView
+        from ui.music_view import MusicView
         from ui.random_tables_view import RandomTablesView
         wanted = tuple(cls for key, cls in (("characters", CharactersView), ("random_tables", RandomTablesView),
-                                            ("calendars", CalendarView)) if key in changed)
+                                            ("calendars", CalendarView), ("music", MusicView)) if key in changed)
         if not wanted:
             return
         views = []
@@ -1624,7 +1625,7 @@ class MainWindow(ctk.CTkFrame):
             if isinstance(view, wanted):
                 try:
                     if view.winfo_exists():
-                        view.refresh()
+                        (view.refresh_list if isinstance(view, MusicView) else view.refresh)()
                 except Exception as e:
                     print(f"Could not refresh {type(view).__name__}: {e}")
 

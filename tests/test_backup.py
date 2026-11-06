@@ -256,3 +256,68 @@ def test_dialogs_list_the_categories_and_import(home, tmp_path, spells, tk_root,
     assert os.path.isfile(os.path.join(away.token_folder, "Orcs", "Orc Chief.png"))
     assert away.character_manager.get_character("Bkp Hero") is None
     assert "Calendars: 1 added" in shown[-1]
+
+
+# ---------------------------------------------------------------------------------------------- music
+
+def test_music_library_and_files_travel_to_another_install(tmp_path):
+    away_music = tmp_path / "away music"
+    away_music.mkdir()
+    song = away_music / "Tavern Song.mp3"
+    song.write_bytes(b"ID3 not really music" * 50)
+
+    home = _sources(tmp_path, "home")
+    lib = home.music_library
+    track = lib.add_file(str(song), ["Tavern"])
+    link = lib.add_link("https://www.youtube.com/watch?v=abc", "Boss theme", ["Combat"])
+    lib.settings["volume"] = 0.4
+    lib.save()
+
+    info = B.summarize(home, ["music", "music_files"])
+    assert info["music"].count == 2 and info["music_files"].count == 1      # the link has no file
+
+    path = str(tmp_path / "music.zip")
+    B.export_backup(path, home, ["music", "music_files"])
+    with zipfile.ZipFile(path) as z:
+        assert f"music/files/{track.id}/Tavern Song.mp3" in z.namelist()
+
+    # another computer: the original file isn't there
+    song.unlink()
+    away = _sources(tmp_path, "away")
+    result = B.import_backup(path, away, ["music", "music_files"])
+    assert not result.warnings, result.warnings
+    assert "music" in result.changed
+    got = away.music_library
+    copied = got.get(track.id)
+    assert copied.tags == ["Tavern"]
+    assert os.path.isfile(copied.path) and os.path.dirname(copied.path) == away.music_folder
+    assert got.get(link.id).url == "https://www.youtube.com/watch?v=abc"
+    assert got.settings["volume"] == 0.4
+    assert away.music_folder in got.folders
+    on_disk = B.Sources(data_dir=away._data_dir).music_library            # it was saved
+    assert len(on_disk.tracks) == 2
+
+    # importing again with "keep mine" changes nothing
+    again = B.import_backup(path, away, ["music", "music_files"], replace=False)
+    assert again.lines["music"] == "2 kept as they were"
+    assert again.lines["music_files"] == "1 kept as they were"
+    assert len(got.tracks) == 2
+
+
+def test_music_list_alone_keeps_a_track_that_already_plays(tmp_path):
+    song = tmp_path / "song.ogg"
+    song.write_bytes(b"OggS" * 100)
+    home = _sources(tmp_path, "home")
+    track = home.music_library.add_file(str(song))
+    home.music_library.save()
+    path = str(tmp_path / "list.zip")
+    B.export_backup(path, home, ["music"])
+
+    away = _sources(tmp_path, "away")
+    moved = tmp_path / "moved.ogg"
+    moved.write_bytes(b"OggS" * 100)
+    mine = away.music_library.add_file(str(moved))
+    mine.id = track.id                               # the same track, somewhere else on this computer
+    song.unlink()
+    B.import_backup(path, away, ["music"])
+    assert away.music_library.get(track.id).path == os.path.abspath(str(moved))
