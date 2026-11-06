@@ -40,7 +40,9 @@ def test_search_text_reads_json_values_and_link_text():
 def test_index_covers_every_collection(db):
     with db.get_connection() as conn:
         sections = {r[0] for r in conn.execute("SELECT DISTINCT section FROM search_index")}
-    assert sections == set(search_index.SOURCES)
+    # the entries of collections people make ("Custom") are empty until someone makes one
+    # (tests/test_custom_collections.py searches them)
+    assert sections == set(search_index.SOURCES) - {"Custom"}
 
 
 @needs_trigram

@@ -19,6 +19,7 @@ from ui.virtual_list import VirtualListPanel
 from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
 from ui.bulk_actions import BulkActionsMixin
 from ui.collection_page import CollectionPageMixin
+from ui.extra_fields import show_extra_fields
 
 
 def _list_name(name: str) -> str:
@@ -326,6 +327,11 @@ class BackgroundDetailPanel(VersionedDetailBase):
         self.show_background(item, versions)
 
     def show_background(self, background: Optional[Background], versions: Optional[List[Background]] = None):
+        """Display a background, then the fields the user added to Backgrounds (custom_collections.py)."""
+        self._show_background(background, versions)
+        show_extra_fields(self, "backgrounds", background.name if background else None)
+
+    def _show_background(self, background: Optional[Background], versions: Optional[List[Background]] = None):
         """Display details for a background (``versions``: every version offered in the Source drop-down)."""
         self._current_background = background
         self._versions = list(versions or [])

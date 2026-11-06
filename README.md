@@ -22,6 +22,7 @@ Look things up, search them, and add your own.
 - **Search everywhere**: Every collection has a search box with a **Titles only** option. The global search on the Collections page covers all of them at once and reads their text as well as their names (name matches come first, and words can be in any order, so *ball fire* finds Fireball), and descriptions link to each other (click a spell name inside a feat to open it)
 - **Select several at once**: Press **Select** above a list to tick many entries, then add them all to a character, or change their tags, classes (spells) or source in one go
 - **Your own content**: Add spells, feats, items, monsters, classes and more by hand, or paste text from a book and let the app fill in the form. Homebrew is marked with a `*`
+- **Your own fields and collections**: Press ⚙ on any collection's card to give it fields of your own (short or long text, a number, yes/no, a choice from a list, a list of words), for example a "Region" on feats or "Seen in play" on spells. Every entry gets them, official ones too, and they show in a "Your fields" box on its page. Or make a whole new collection (Deities, Factions, Places...) with the **New collection** card: it gets its own page with search, filters for its fields, and Export PDF. A collection's own properties can't be removed
 - **Import and export**: Share homebrew as a file. Importing never overwrites official content, and mentions of other content are linked automatically, even across several files imported together
 
 ## Characters

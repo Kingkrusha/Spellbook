@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Sequence
 
 # Bump when the indexed text or the table layout changes: the index is then
 # rebuilt the next time the app starts.
-INDEX_VERSION = 2
+INDEX_VERSION = 3
 
 TABLE = "search_index"
 META_TABLE = "search_index_meta"
@@ -46,6 +46,9 @@ SOURCES: Dict[str, tuple] = {
     "Magic Items": ("magic_items", ("type", "rarity", "description", "properties_json"), None),
     "Rules": ("rules", ("category", "description"), None),
     "Random Tables": ("random_tables", ("category", "description", "entries_json"), None),
+    # Entries of the collections people make themselves (custom_collections.py); the results are labelled with
+    # their collection's name by SpellDatabase.global_search.
+    "Custom": ("custom_entries", ("description", "tags_json", "values_json"), None),
     # Summoned creatures (spell_only) only exist inside their spell, so they are not searchable.
     "Monsters": ("monsters", ("creature_type", "description", "traits_json", "actions_json",
                               "bonus_actions_json", "reactions_json", "legendary_actions_json"),
