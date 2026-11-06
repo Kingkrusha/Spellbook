@@ -16,9 +16,13 @@ if ROOT not in sys.path:
 
 _DATA = tempfile.mkdtemp(prefix="spellbook-tests-")
 os.environ["SPELLBOOK_DATA_DIR"] = _DATA
-# The committed database (it is migrated in place, so never point tests at the real one)
-if os.path.exists(os.path.join(ROOT, "spellbook.db")):
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), os.path.join(_DATA, "spellbook.db"))
+
+# The tests' database: an older install (schema 31), so every run also checks the
+# upgrade path. Tests never use the spellbook.db next to the code: that one is the developer's own, with
+# their homebrew in it, and it isn't in the repository. Tests that want a database of their own copy this.
+SEED_DB = os.path.join(ROOT, "tests", "data", "spellbook-schema31.db")
+os.environ["SPELLBOOK_TEST_SEED_DB"] = SEED_DB
+shutil.copy(SEED_DB, os.path.join(_DATA, "spellbook.db"))
 
 
 def pytest_sessionfinish(session, exitstatus):

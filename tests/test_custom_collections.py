@@ -19,7 +19,7 @@ def _fresh_db(tmp_path_factory, name="db"):
     from database import SpellDatabase
     folder = tmp_path_factory.mktemp(name)
     path = os.path.join(str(folder), "spellbook.db")
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), path)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], path)
     db = SpellDatabase(path)
     db.initialize()
     return db
