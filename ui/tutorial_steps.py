@@ -234,6 +234,25 @@ def build_steps(host: TourHost) -> List[Step]:
         if getattr(view, '_compare_mode', False):
             view._close_compare_panel()
 
+    def characters_page():
+        view = h.page("characters")
+        if getattr(view, 'builder', None) is not None:
+            view.close_builder()
+        return view
+
+    def open_builder():
+        view = h.page("characters")
+        return view.open_builder() if hasattr(view, 'open_builder') else None
+
+    def close_builder():
+        view = h.view()
+        if getattr(view, 'builder', None) is not None:
+            view.close_builder()
+
+    def builder_part():
+        builder = getattr(h.view(), 'builder', None)
+        return getattr(builder, 'steps_panel', None)
+
     def tool_card(key):
         return lambda: (h.view().cards_by_key.get(key) if hasattr(h.view(), 'cards_by_key') else None)
 
@@ -293,10 +312,23 @@ def build_steps(host: TourHost) -> List[Step]:
              target=lambda: getattr(h.sub_view(), 'main_paned', None)),
 
         # ------------------------------------------------------------------ character sheets
+        Step(SHEETS, "Your characters",
+             "The Characters page (on Home) lists all your characters, with search, filters and sorting. "
+             "Click one to open its sheet.\n\n"
+             "New to making characters? The Character Builder walks you through it step by step. "
+             "+ New Character makes a blank one to fill in yourself.",
+             prepare=characters_page, target=lambda: getattr(h.view(), 'builder_btn', None)),
+        Step(SHEETS, "The Character Builder",
+             "One choice at a time: your class, a subclass if your level is high enough, species, "
+             "background, ability scores (standard array, point buy or your own rolls), skills, spells "
+             "and starting equipment. Each step explains the choice and shows the details from your "
+             "collections, homebrew included.\n\n"
+             "Nothing is saved until you press Create Character, and then the new character's sheet "
+             "opens with everything filled in.",
+             prepare=open_builder, leave=close_builder, wait_ms=150, target=builder_part),
         Step(SHEETS, "A character to look at",
              f"For this part the tour has made an example character, \"{EXAMPLE_NAME}\": a dwarf Life "
-             "Domain Cleric 3 / Fighter 1. It's deleted again when the tour ends.\n\n"
-             "Your own characters live on the Characters page (on Home); + New Character makes one.",
+             "Domain Cleric 3 / Fighter 1. It's deleted again when the tour ends.",
              prepare=lambda: h.sheet("front"), wait_ms=200,
              target=lambda: h.sheet_part("basic_info")),
         Step(SHEETS, "Multiclassing",

@@ -115,6 +115,7 @@ def test_every_step_has_what_it_points_at_and_the_tour_tidies_up(app, tk_root):
     tour = app._tour
     assert tour.running
     missing = []
+    first_sheet_step = [s.title for s in tour.steps].index("A character to look at")
     for i, step in enumerate(tour.steps):
         _settle(tk_root, tour)
         assert tour.index == i
@@ -128,7 +129,7 @@ def test_every_step_has_what_it_points_at_and_the_tour_tidies_up(app, tk_root):
                 found = False
             if not found:
                 missing.append(step.title)
-        if i == 9:
+        if i == first_sheet_step:
             # the example character exists while the tour shows the sheet
             example = app._tour_host.example
             assert app.character_manager.get_character(example) is not None
@@ -143,6 +144,20 @@ def test_every_step_has_what_it_points_at_and_the_tour_tidies_up(app, tk_root):
     assert app.settings_manager.settings.tutorial_example_character == ""
     assert app.tab_bar.get_tab_ids() == tabs_before            # the tour's tab is closed again
     assert app._current_tab_id == shown_before
+
+
+def test_the_builder_step_opens_the_builder_and_leaving_it_closes_it(app, tk_root):
+    app.start_tutorial()
+    tour = app._tour
+    titles = [s.title for s in tour.steps]
+    tour._go(titles.index("The Character Builder"))
+    _settle(tk_root, tour)
+    view = app._tab_views[app._tour_host.tab_id]['view']
+    assert view.builder is not None and view.builder.winfo_exists()
+    tour.back()
+    _settle(tk_root, tour)
+    assert view.builder is None                               # the step before shows the list again
+    tour.skip()
 
 
 def test_back_undoes_what_a_step_opened(app, tk_root):

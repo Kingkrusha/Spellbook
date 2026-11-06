@@ -1,6 +1,7 @@
 """
 Characters page: every character in one list that can be searched, filtered and
 sorted, with character import / export. Clicking a character opens its sheet.
+The Character Builder (ui/character_builder_view.py) opens in place of the list.
 """
 
 import tkinter as tk
@@ -73,6 +74,7 @@ class CharactersView(ctk.CTkFrame):
         # card is rebuilt only when that character's data changed (building one costs ~20 ms)
         self._cards: dict = {}   # name -> (signature, card)
         self._message = None     # the "no characters" / "no matches" notice, if shown
+        self.builder = None      # the Character Builder, while it's open
 
         self._create_widgets()
         self._update_filter_choices()
@@ -83,6 +85,7 @@ class CharactersView(ctk.CTkFrame):
     def _create_widgets(self):
         outer = ctk.CTkFrame(self, fg_color="transparent")
         outer.pack(fill="both", expand=True, padx=20, pady=20)
+        self.outer = outer
 
         # Header: back button, title, actions
         header = ctk.CTkFrame(outer, fg_color="transparent")
@@ -103,6 +106,13 @@ class CharactersView(ctk.CTkFrame):
         actions = ctk.CTkFrame(header, fg_color="transparent")
         actions.pack(side="right")
 
+        self.builder_btn = ctk.CTkButton(
+            actions, text="🧙 Character Builder", width=160, height=34,
+            fg_color=self.theme.get_current_color('accent_primary'),
+            hover_color=self.theme.get_current_color('accent_hover'),
+            command=self.open_builder
+        )
+        self.builder_btn.pack(side="left", padx=5)
         ctk.CTkButton(
             actions, text="+ New Character", width=130, height=34,
             fg_color=self.theme.get_current_color('accent_primary'),
@@ -282,7 +292,8 @@ class CharactersView(ctk.CTkFrame):
 
         if not entries:
             self._show_message("No characters yet.",
-                               "Click “+ New Character” to create one, or import characters from a file.")
+                               "Click “Character Builder” to make one step by step, “+ New Character” for a "
+                               "blank one, or import characters from a file.")
         elif not shown:
             self._show_message("No characters match your search or filters.", None, clear_button=True)
         else:
@@ -404,6 +415,27 @@ class CharactersView(ctk.CTkFrame):
         self.wait_window(dialog)
         if dialog.result:
             self._open(dialog.result.name, False)
+
+    def open_builder(self):
+        """Show the step-by-step Character Builder in place of the list."""
+        if self.builder is not None:
+            return self.builder
+        from ui.character_builder_view import CharacterBuilderView
+        self.outer.pack_forget()
+        self.builder = CharacterBuilderView(self, self.character_manager, spell_manager=self.spell_manager,
+                                            on_close=self.close_builder)
+        self.builder.pack(fill="both", expand=True, padx=20, pady=20)
+        return self.builder
+
+    def close_builder(self, created: Optional[str] = None):
+        """Back to the list; ``created`` is the name of the character the builder made (its sheet opens)."""
+        if self.builder is not None:
+            self.builder.destroy()
+            self.builder = None
+        self.outer.pack(fill="both", expand=True, padx=20, pady=20)
+        self.refresh()
+        if created:
+            self._open(created, False)
 
     def _on_import(self):
         from ui.character_transfer import import_characters
