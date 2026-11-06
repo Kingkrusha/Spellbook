@@ -104,7 +104,28 @@ def _settle(root, tour, timeout=6.0):
     root.update()
 
 
-def test_every_step_has_what_it_points_at_and_the_tour_tidies_up(app, tk_root):
+def _shown_in_its_window(widget) -> bool:
+    """Like ui.tutorial.viewable, but leaves the top-level window itself out.
+
+    A CI runner's window may never count as viewable (seen on windows-latest), and then every step that picks
+    "the first of these that is on screen" finds nothing. This still tells a shown widget from one on a hidden tab."""
+    try:
+        if widget is None or not widget.winfo_exists():
+            return False
+        w = widget
+        while w is not None and str(w) != str(w.winfo_toplevel()):
+            if not w.winfo_manager():          # packed, gridded or placed (a hidden tab's page isn't)
+                return False
+            w = w.master
+        return True
+    except Exception:
+        return False
+
+
+def test_every_step_has_what_it_points_at_and_the_tour_tidies_up(app, tk_root, monkeypatch):
+    import ui.tutorial_steps as tutorial_steps
+    if not tk_root.winfo_viewable():
+        monkeypatch.setattr(tutorial_steps, "viewable", _shown_in_its_window)
     errors = []
     tk_root.report_callback_exception = lambda *exc: errors.append(exc)
     names_before = {c.name for c in app.character_manager.characters}
