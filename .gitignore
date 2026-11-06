@@ -36,9 +36,17 @@ fix_quotes.py
 update_spell_tables.py
 
 # --- Per-user runtime data (created next to the code when running from source) ---
+/spellbook.db
+/settings.json
+/characters.json
+/character_sheets.json
+/initiative_state.json
+/studio.json
 open_tabs.json
 font_settings.json
 custom_themes.json
+/music.json
+/Music/
 portraits/
 crash.log
 calendars.json
@@ -46,13 +54,6 @@ calendars.json
 /PDFs/
 pdf_index.db
 /tabletop/
-__pycache__/atomic_io.cpython-313.pyc
-__pycache__/atomic_io.cpython-313.pyc
-character_sheets.json
-initiative_state.json
-spellbook.db
-studio.json
-settings.json
-character_sheets.json
-characters.json
-initiative_state.json
+
+# --- Release builds ---
+/Spellbook.zip

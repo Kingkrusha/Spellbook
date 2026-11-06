@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 @pytest.fixture()
 def db(tmp_path):
     path = tmp_path / "spellbook.db"
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), path)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], path)
     database = SpellDatabase(str(path))
     database.initialize()
     return database

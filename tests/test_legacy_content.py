@@ -144,7 +144,7 @@ def _counts(path):
 def test_upgrade_and_fresh_install_get_the_same_legacy_content(tmp_path, bundle):
     # upgrade: the committed database predates the legacy content (schema < 30)
     upgraded = str(tmp_path / "upgraded.db")
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), upgraded)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], upgraded)
     before = _counts(upgraded)
     SpellDatabase(upgraded).initialize()
     SpellDatabase(upgraded).initialize()            # a second launch changes nothing
@@ -170,7 +170,7 @@ def test_upgrade_and_fresh_install_get_the_same_legacy_content(tmp_path, bundle)
 
 def test_seeding_never_overwrites_an_existing_row(tmp_path):
     path = str(tmp_path / "keep.db")
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), path)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], path)
     db = SpellDatabase(path)
     db.initialize()
     with db.get_connection() as conn:
@@ -184,7 +184,7 @@ def test_seeding_never_overwrites_an_existing_row(tmp_path):
 
 def test_a_legacy_spell_keeps_its_data(tmp_path):
     path = str(tmp_path / "spell.db")
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), path)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], path)
     db = SpellDatabase(path)
     db.initialize()
     spell = db.get_spell_by_name("Fireball (Legacy)")
@@ -197,7 +197,7 @@ def test_a_legacy_spell_keeps_its_data(tmp_path):
 
 def test_legacy_class_is_complete(tmp_path):
     path = str(tmp_path / "class.db")
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), path)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], path)
     db = SpellDatabase(path)
     db.initialize()
     cls = db.get_class_by_name("Wizard (Legacy)")
@@ -327,7 +327,7 @@ def test_any_subclass_with_too_early_features_is_clamped(classes):
 def test_everything_the_database_is_seeded_with_is_official(tmp_path):
     """Upgraded and fresh installs alike: the bundled legacy rows are official content, never homebrew."""
     upgraded = str(tmp_path / "up.db")
-    shutil.copy(os.path.join(ROOT, "spellbook.db"), upgraded)
+    shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], upgraded)
     SpellDatabase(upgraded).initialize()
     fresh = str(tmp_path / "fresh.db")
     fdb = SpellDatabase(fresh)

@@ -238,6 +238,22 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
         self._add_filter_combo(bar, "official", "Content:", "Any Content",
                                ["Any Content", "Official Only", "Homebrew Only"], 140, padx)
 
+    def _add_field_filter(self, bar, key: str, padx=(0, 20)):
+        """The "Your fields" button: filters on the fields the person added to this collection (it stays hidden
+        until there is one to filter on)."""
+        from ui.extra_field_filter import ExtraFieldFilter
+        self.field_filter = ExtraFieldFilter(self, key, lambda: self._on_filter_changed(immediate=True))
+        self.field_filter.button(bar, side="left", padx=padx)
+
+    def _passes_field_filter(self, name: str) -> bool:
+        f = getattr(self, "field_filter", None)
+        return f is None or f.passes(name)
+
+    def _clear_field_filter(self):
+        f = getattr(self, "field_filter", None)
+        if f is not None:
+            f.clear()
+
     def _add_clear_button(self, bar):
         ctk.CTkButton(
             bar, text="Clear Filters", width=110, height=35,

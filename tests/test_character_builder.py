@@ -125,8 +125,10 @@ def test_create_character_fills_in_the_sheet(src, tmp_path):
 
     draft = cb.Draft(name="Brakka", level=1, class_name="Fighter", lineage="Dwarf", background="Soldier",
                      bonus_plus2="strength", bonus_plus1="constitution", class_equipment="A",
-                     background_equipment="A", class_skills=["Perception", "Survival"])
+                     background_equipment="A", class_skills=["Perception", "Survival"],
+                     fighting_styles=["Great Weapon Fighting"], masteries=["Greatsword", "Javelin", "Longsword"])
     draft.base_scores = dict(zip(cb.ABILITIES, [15, 13, 14, 8, 12, 10]))
+    assert "features" in cb.steps_for(draft, src)
     for step in cb.steps_for(draft, src):
         assert cb.problems(draft, step, src) == [], step
     character = cb.create_character(draft, src, characters, sheets)
@@ -145,7 +147,67 @@ def test_create_character_fills_in_the_sheet(src, tmp_path):
     assert sheet.gold > 0
     assert sheet.hit_points.maximum == sheet.hit_points.current >= 12   # d10 + CON + Dwarven Toughness
     assert sheet.proficiency_bonus == 2
+    assert "Great Weapon Fighting" in character.feats
+    assert "Weapon Mastery: Greatsword, Javelin, Longsword" in sheet.other_proficiencies
     assert os.path.exists(tmp_path / "characters.json") and os.path.exists(tmp_path / "sheets.json")
+
+
+def test_class_features_ask_for_their_choices(src):
+    rogue = cb.Draft(level=6, class_name="Rogue", background="Criminal", class_skills=["Acrobatics", "Insight"])
+    counts = cb.feature_counts(rogue, src)
+    assert counts == {"fighting_styles": 0, "invocations": 0, "expertise": 4, "masteries": 2}
+    assert "Stealth" in cb.proficient_skills(rogue, src) and "Arcana" not in cb.proficient_skills(rogue, src)
+    assert cb.problems(rogue, "features", src)
+    rogue.expertise = ["Stealth", "Acrobatics", "Insight", "Arcana"]          # Arcana isn't one of its skills
+    cb.tidy_features(rogue, src)
+    assert rogue.expertise == ["Stealth", "Acrobatics", "Insight"]
+
+    warlock = cb.Draft(level=2, class_name="Warlock")
+    assert cb.feature_counts(warlock, src)["invocations"] == 3
+    options = cb.invocation_options(warlock, src)
+    assert "Agonizing Blast" in options and "Ascendant Step" not in options      # that one needs level 5
+    assert cb.prerequisite_level("Warlock, 7th level") == 7 and cb.prerequisite_level("Warlock") == 0
+    assert "Archery" in cb.fighting_style_options(src)
+    assert "Greataxe" in cb.mastery_weapons(src) and "Club" in cb.mastery_weapons(src)
+    wizard = cb.Draft(level=5, class_name="Wizard")
+    assert "features" not in cb.steps_for(wizard, src)
+
+
+def test_multiclassing_splits_the_levels(src, tmp_path):
+    from character_manager import CharacterManager
+    from ui.character_sheet_view import CharacterSheetManager
+    draft = cb.Draft(name="Duo", level=6, class_name="Fighter", lineage="Human", background="Soldier",
+                     bonus_plus2="strength", bonus_plus1="constitution", class_skills=["Perception", "Survival"],
+                     class_equipment="A", background_equipment="A")
+    draft.base_scores = dict(zip(cb.ABILITIES, [15, 13, 14, 8, 12, 10]))
+    draft.extra_classes = [cb.ExtraClass("Rogue", 2)]
+    assert draft.main_level == 4
+    assert draft.class_levels() == [("Fighter", 4, ""), ("Rogue", 2, "")]
+    assert cb.needs_subclass(draft, src)                                         # Fighter 4 has one
+    cb.sync_feat_slots(draft, src)
+    assert [(s.class_name, s.level) for s in draft.feat_slots] == [("", 4)]     # Rogue 2 has no improvement
+    counts = cb.feature_counts(draft, src)
+    assert counts["expertise"] == 2 and counts["fighting_styles"] == 1 and counts["masteries"] == 4
+    assert not cb.multiclass_warnings(draft, src)                                # DEX 13 is enough for Rogue
+    draft.base_scores["dexterity"] = 10
+    assert any("Rogue" in w for w in cb.multiclass_warnings(draft, src))
+    # too many levels elsewhere, a class twice, a missing subclass
+    draft.extra_classes = [cb.ExtraClass("Rogue", 6)]
+    assert any("add up" in p for p in cb.problems(draft, "class", src))
+    draft.extra_classes = [cb.ExtraClass("Fighter", 1)]
+    assert any("twice" in p for p in cb.problems(draft, "class", src))
+    draft.extra_classes = [cb.ExtraClass("Cleric", 3)]
+    assert any("subclass for Cleric" in p for p in cb.problems(draft, "class", src))
+    draft.extra_classes = [cb.ExtraClass("Rogue", 2)]
+    draft.subclass, draft.fighting_styles, draft.expertise = "Champion", ["Archery"], ["Perception", "Athletics"]
+    draft.masteries = ["Longsword", "Shortbow", "Dagger", "Greataxe"]
+    draft.feat_slots[0].plus = ["strength", "constitution"]
+    for step in cb.steps_for(draft, src):
+        assert cb.problems(draft, step, src) == [], step
+    character = cb.create_character(draft, src, CharacterManager(str(tmp_path / "c.json")),
+                                    CharacterSheetManager(str(tmp_path / "s.json")))
+    assert [(c.get_class_name(), c.level) for c in character.classes] == [("Fighter", 4), ("Rogue", 2)]
+    assert any("Multiclassing" in n for n in cb.leftovers(draft, src))
 
 
 def test_spells_are_known_and_prepared(src, tmp_path):
@@ -254,4 +316,39 @@ def test_create_goes_back_to_a_step_that_came_undone(tk_root):
     builder.next()                                            # Create: the Rogue's skills were never chosen
     assert builder.step == "skills" and "skill" in builder.problem_label.cget("text")
     assert manager.get_character("Undone") is None
+    builder.destroy()
+
+
+def test_the_page_offers_more_classes_and_the_class_features(tk_root):
+    from character_manager import CharacterManager
+    from ui.character_builder_view import CharacterBuilderView
+    errors = []
+    tk_root.report_callback_exception = lambda *exc: errors.append(exc)
+    builder = CharacterBuilderView(tk_root, CharacterManager())
+    builder.pack(fill="both", expand=True)
+    d = builder.draft
+    d.name, d.level, d.class_name = "Mixer", 1, "Fighter"
+    builder.show_step("class")
+    assert builder._multiclass_frame is None                  # level 1: nothing to split
+    d.level = 5
+    builder.show_step("class")
+    tk_root.update()
+    builder._add_extra_class()
+    assert len(d.extra_classes) == 1
+    d.extra_classes[0].name = "Warlock"
+    d.extra_classes[0].level = 2
+    builder._fill_multiclass()
+    tk_root.update()
+    assert d.main_level == 3
+    builder.show_step("features")
+    tk_root.update()
+    labels = {k: v[0].cget("text") for k, v in builder._feature_labels.items()}
+    assert set(labels) == {"fighting_styles", "invocations", "masteries"}
+    assert labels["invocations"].startswith("Eldritch Invocations: 0 of 3")
+    builder.next()
+    assert builder.step == "features" and "Choose" in builder.problem_label.cget("text")
+    assert "Fighter 3 / Warlock 2" in builder.summary()
+    builder._remove_extra_class(0)
+    assert d.extra_classes == []
+    assert not errors, errors
     builder.destroy()

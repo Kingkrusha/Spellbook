@@ -207,6 +207,61 @@ def test_a_player_sees_no_dm_tools_and_no_hidden_tokens(window, tk_root, tmp_pat
     view.destroy()
 
 
+def test_a_player_clicks_a_door_open_and_keeps_what_they_explored(window, tk_root, tmp_path):
+    import tabletop_net as N
+    from lan.service import CLIENT
+    from ui.tabletop_view import TabletopView
+    table = T.Tabletop(str(tmp_path / "t.json"))
+    sid = table.apply({"op": "scene_new", "scene_data": {"name": "Halls", "w": 700, "h": 490, "cell": 70}})["scene"]
+    table.apply({"op": "scene_update", "scene": sid, "fields": {"los": True}})
+    table.apply({"op": "wall_add", "scene": sid, "walls": [{"pts": [350, 0, 350, 350]}]})
+    door = table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [350, 350, 350, 490], "door": True}})
+    door = door["walls"][0]
+    table.apply({"op": "token_add", "scene": sid, "token": {"name": "Me", "x": 105, "y": 105, "owner": "me",
+                                                             "kind": "pc"}})
+    table.apply({"op": "scene_show", "scene": sid})
+    sent = []
+
+    class Service:
+        role = CLIENT
+        active = True
+
+        def add_listener(self, fn):
+            pass
+
+        def remove_listener(self, fn):
+            pass
+
+    class Remote(N.LocalTable):
+        role = "player"
+
+        def view(self):
+            return self.table.view_for("me")
+
+        def dispatch(self, cmd):
+            sent.append(cmd)
+            return self.table.apply(dict(cmd, scene=sid), actor="me")
+
+        def on_error(self, fn):
+            pass
+
+    remote = Remote(table, T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c")))
+    view = TabletopView(window, {}, table=table, service=Service(), remote_backend=lambda: remote)
+    view.pack(fill="both", expand=True)
+    pump(tk_root, 10)
+    c = view.canvas
+    c.fit()
+    pump(tk_root)
+    assert c.find_withtag(f"w:{door}")                       # the door is drawn on the player's map
+    assert c._fog_cache[0] is not None and c._fog_cache[0][-1] is not None   # with what they've explored
+    x, y = c.to_screen(350, 420)
+    c.event_generate("<ButtonPress-1>", x=int(x), y=int(y))
+    c.event_generate("<ButtonRelease-1>", x=int(x), y=int(y))
+    assert sent and sent[-1]["op"] == "door_toggle"
+    assert table.scene(sid)["walls"][1]["open"] is True
+    view.destroy()
+
+
 def test_tokens_join_initiative_and_the_active_one_glows(window, tk_root, tmp_path):
     import initiative_state as I
     from tabletop_initiative import InitiativeLink

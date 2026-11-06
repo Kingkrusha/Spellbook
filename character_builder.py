@@ -36,6 +36,7 @@ STEPS = [
     ("abilities", "Ability scores"),
     ("feats", "Feats"),
     ("skills", "Skills"),
+    ("features", "Class features"),
     ("spells", "Spells"),
     ("equipment", "Equipment"),
     ("review", "Review"),
@@ -126,6 +127,15 @@ class FeatSlot:
     level: int                                   # the class level that gives it
     feat: str = ASI                              # ASI, or the name of a feat taken instead
     plus: List[str] = field(default_factory=lambda: ["", ""])   # abilities raised by 1 each (twice = +2)
+    class_name: str = ""                         # the class that gives it ("" = the first class)
+
+
+@dataclass
+class ExtraClass:
+    """A class taken on top of the first one (multiclassing)."""
+    name: str
+    level: int = 1
+    subclass: str = ""
 
 
 @dataclass
@@ -151,6 +161,22 @@ class Draft:
     background_equipment: str = ""
     grant_options: Dict[str, str] = field(default_factory=dict)        # species variant: {"lineage:Elf": "Drow"}
     grant_choices: Dict[str, List[str]] = field(default_factory=dict)  # spells chosen for a feat / species pick
+    extra_classes: List[ExtraClass] = field(default_factory=list)      # multiclassing: ``level`` is the total
+    fighting_styles: List[str] = field(default_factory=list)
+    invocations: List[str] = field(default_factory=list)
+    expertise: List[str] = field(default_factory=list)                 # skills with expertise
+    masteries: List[str] = field(default_factory=list)                 # weapons whose mastery the character uses
+
+    @property
+    def main_level(self) -> int:
+        """The first class's level: the total less the other classes' levels."""
+        return max(1, self.level - sum(max(1, c.level) for c in self.extra_classes))
+
+    def class_levels(self) -> List[Tuple[str, int, str]]:
+        """``(class, level, subclass)`` for every class, the first one first."""
+        out = [(self.class_name, self.main_level, self.subclass)] if self.class_name else []
+        out += [(c.name, max(1, c.level), c.subclass) for c in self.extra_classes if c.name]
+        return out
 
     def set_score_method(self, method: str):
         """Switch how scores are made; each method starts from its own blank state."""
@@ -165,7 +191,40 @@ class Draft:
 
 def needs_subclass(draft: Draft, src: Sources) -> bool:
     class_def = src.class_def(draft.class_name)
-    return bool(class_def and src.subclasses(class_def) and draft.level >= class_def.subclass_level)
+    return bool(class_def and src.subclasses(class_def) and draft.main_level >= class_def.subclass_level)
+
+
+def extra_needs_subclass(extra: ExtraClass, src: Sources) -> bool:
+    class_def = src.class_def(extra.name)
+    return bool(class_def and src.subclasses(class_def) and extra.level >= class_def.subclass_level)
+
+
+MULTICLASS_MINIMUM = 13
+
+
+def multiclass_abilities(class_def) -> List[str]:
+    """The abilities (lower case) a class needs 13 in to multiclass into or out of it (its primary ability)."""
+    text = (getattr(class_def, "primary_ability", "") or "").lower()
+    return [a for a in ABILITIES if a in text]
+
+
+def multiclass_warnings(draft: Draft, src: Sources) -> List[str]:
+    """Classes whose multiclassing minimum (13 in the primary ability) the scores don't meet (a reminder only)."""
+    if not draft.extra_classes:
+        return []
+    scores = final_scores(draft, src)
+    if not any(scores.values()):
+        return []
+    out = []
+    for name, _lvl, _sub in draft.class_levels():
+        class_def = src.class_def(name)
+        needed = multiclass_abilities(class_def)
+        both = " and " in (getattr(class_def, "primary_ability", "") or "").lower()
+        low = [scores.get(a, 0) < MULTICLASS_MINIMUM for a in needed]
+        if needed and (any(low) if both else all(low)):
+            out.append(f"Multiclassing {name} normally needs {MULTICLASS_MINIMUM} in "
+                       + (" and " if both else " or ").join(ABILITY_LABELS[a] for a in needed) + ".")
+    return out
 
 
 def feat_slot_levels(class_def, level: int) -> List[int]:
@@ -182,10 +241,14 @@ def feat_slot_levels(class_def, level: int) -> List[int]:
 
 
 def sync_feat_slots(draft: Draft, src: Sources) -> None:
-    """Keep one feat slot per Ability Score Improvement level, keeping the choices already made."""
-    levels = feat_slot_levels(src.class_def(draft.class_name), draft.level)
-    old = {s.level: s for s in draft.feat_slots}
-    draft.feat_slots = [old.get(lvl) or FeatSlot(lvl) for lvl in levels]
+    """Keep one feat slot per Ability Score Improvement level of every class, keeping the choices already made."""
+    old = {(s.class_name, s.level): s for s in draft.feat_slots}
+    slots = []
+    for i, (name, lvl, _sub) in enumerate(draft.class_levels()):
+        key = "" if i == 0 else name
+        for at in feat_slot_levels(src.class_def(name), lvl):
+            slots.append(old.get((key, at)) or FeatSlot(at, class_name=key))
+    draft.feat_slots = slots
 
 
 def spell_counts(draft: Draft, src: Sources) -> Tuple[int, int]:
@@ -194,7 +257,7 @@ def spell_counts(draft: Draft, src: Sources) -> Tuple[int, int]:
     if class_def is None:
         return 0, 0
     cantrips = prepared = 0
-    data = class_def.levels.get(draft.level) if isinstance(class_def.levels, dict) else None
+    data = class_def.levels.get(draft.main_level) if isinstance(class_def.levels, dict) else None
     if data is not None:
         table = getattr(data, "class_specific", {}) or {}
         cantrips = _number(table.get("Cantrips")) or int(getattr(data, "cantrips_known", 0) or 0)
@@ -209,6 +272,17 @@ def spell_counts(draft: Draft, src: Sources) -> Tuple[int, int]:
     return cantrips, prepared
 
 
+def spell_counts_for(class_name: str, level: int, src: Sources) -> Tuple[int, int]:
+    """(cantrips, prepared spells) one class's table gives at ``level``."""
+    class_def = src.class_def(class_name)
+    data = class_def.levels.get(level) if class_def is not None and isinstance(class_def.levels, dict) else None
+    if data is None:
+        return 0, 0
+    table = getattr(data, "class_specific", {}) or {}
+    return (_number(table.get("Cantrips")) or int(getattr(data, "cantrips_known", 0) or 0),
+            _number(table.get("Prepared Spells")) or int(getattr(data, "spells_known", 0) or 0))
+
+
 def _number(text) -> int:
     match = re.match(r"\s*(\d+)", str(text or ""))
     return int(match.group(1)) if match else 0
@@ -220,7 +294,10 @@ def steps_for(draft: Draft, src: Sources) -> List[str]:
     for key, _title in STEPS:
         if key == "subclass" and not needs_subclass(draft, src):
             continue
-        if key == "feats" and not feat_slot_levels(src.class_def(draft.class_name), draft.level):
+        if key == "feats" and not draft.feat_slots and not any(
+                feat_slot_levels(src.class_def(n), lvl) for n, lvl, _s in draft.class_levels()):
+            continue
+        if key == "features" and not any(feature_counts(draft, src).values()):
             continue
         if key == "spells" and draft.class_name and spell_counts(draft, src) == (0, 0):
             continue
@@ -322,6 +399,108 @@ def tidy_skills(draft: Draft, src: Sources) -> None:
     draft.class_skills = kept[:count]
 
 
+# ----------------------------------------------------------------------------------------------- class features
+#
+# Choices a class's features ask for that the sheet would otherwise leave to the player: Fighting Styles and
+# Eldritch Invocations (feats of those types in the Feats collection), Expertise (skills the character is
+# proficient in) and Weapon Mastery (kinds of weapon with a mastery property). How many comes from the class
+# tables, so homebrew classes that use the same feature names get them too.
+
+def _abilities_up_to(class_def, level: int):
+    if class_def is None or not isinstance(class_def.levels, dict):
+        return
+    for lvl in range(1, level + 1):
+        data = class_def.levels.get(lvl)
+        for ability in getattr(data, "abilities", []) or []:
+            yield lvl, ability
+
+
+def feature_counts(draft: Draft, src: Sources) -> Dict[str, int]:
+    """How many fighting styles, invocations, expertise skills and weapon masteries the classes give."""
+    out = {"fighting_styles": 0, "invocations": 0, "expertise": 0, "masteries": 0}
+    for name, lvl, _sub in draft.class_levels():
+        class_def = src.class_def(name)
+        if class_def is None:
+            continue
+        for _at, ability in _abilities_up_to(class_def, lvl):
+            title = (ability.title or "").strip().lower()
+            if title == "fighting style":
+                out["fighting_styles"] += 1
+            elif title == "expertise":
+                out["expertise"] += 2
+        data = class_def.levels.get(lvl) if isinstance(class_def.levels, dict) else None
+        if data is not None:
+            out["invocations"] += _number((getattr(data, "class_specific", {}) or {}).get("Eldritch Invocations"))
+            out["masteries"] = max(out["masteries"], int(getattr(data, "weapon_masteries", 0) or 0))
+    return out
+
+
+def _feats_of_type(src: Sources, kind: str) -> list:
+    if src.feat_manager is None:
+        return []
+    return sorted((f for f in src._filtered(src.feat_manager.feats) if (getattr(f, "type", "") or "") == kind),
+                  key=lambda f: f.name.lower())
+
+
+def fighting_style_options(src: Sources) -> List[str]:
+    return [f.name for f in _feats_of_type(src, "Fighting Style")]
+
+
+def prerequisite_level(prereq: str) -> int:
+    """The class level a prerequisite asks for ("Level 5+ Warlock", "Warlock, 7th level"), 0 if none."""
+    text = prereq or ""
+    match = re.search(r"level\s*(\d+)\s*\+", text, re.I) or re.search(r"(\d+)(?:st|nd|rd|th)[- ]level", text, re.I)
+    return int(match.group(1)) if match else 0
+
+
+def warlock_level(draft: Draft) -> int:
+    return sum(lvl for name, lvl, _s in draft.class_levels() if name.lower().startswith("warlock"))
+
+
+def invocation_options(draft: Draft, src: Sources) -> List[str]:
+    """Invocations whose level prerequisite the character's Warlock level meets (other prerequisites, such as a
+    pact, are shown with each one but left to the player)."""
+    level = warlock_level(draft) or max((lvl for _n, lvl, _s in draft.class_levels()), default=1)
+    return [f.name for f in _feats_of_type(src, "Eldritch Invocation") if prerequisite_level(f.prereq) <= level]
+
+
+def proficient_skills(draft: Draft, src: Sources) -> List[str]:
+    chosen = set(background_skills(draft, src)) | set(draft.class_skills)
+    return [s for s in all_skills() if s in chosen]
+
+
+def mastery_weapons(src: Sources) -> List[str]:
+    """Kinds of weapon with a mastery property, from the Equipment collection."""
+    manager = src.equipment_manager
+    if manager is None:
+        return []
+    names = set()
+    for item in src._filtered(getattr(manager, "items", None) or getattr(manager, "equipment", None) or []):
+        props = getattr(item, "properties", []) or []
+        if any(str(p.get("name", "")).lower().startswith("mastery") for p in props if isinstance(p, dict)):
+            names.add(item.name)
+    return sorted(names, key=str.lower)
+
+
+def tidy_features(draft: Draft, src: Sources) -> None:
+    """Drop feature picks that no longer fit (fewer allowed, a skill no longer proficient...)."""
+    counts = feature_counts(draft, src)
+    styles = set(fighting_style_options(src))
+    draft.fighting_styles = [f for f in draft.fighting_styles if f in styles][:counts["fighting_styles"]]
+    allowed = set(invocation_options(draft, src))
+    draft.invocations = [f for f in draft.invocations if f in allowed][:counts["invocations"]]
+    skills = set(proficient_skills(draft, src))
+    draft.expertise = [s for s in draft.expertise if s in skills][:counts["expertise"]]
+    weapons = set(mastery_weapons(src))
+    draft.masteries = [w for w in draft.masteries if w in weapons][:counts["masteries"]]
+
+
+FEATURE_LABELS = {"fighting_styles": ("Fighting Style", "Fighting Styles"),
+                  "invocations": ("Eldritch Invocation", "Eldritch Invocations"),
+                  "expertise": ("Expertise skill", "Expertise skills"),
+                  "masteries": ("Weapon Mastery", "Weapon Masteries")}
+
+
 # ----------------------------------------------------------------------------------------------- spells
 
 def draft_character(draft: Draft):
@@ -329,13 +508,14 @@ def draft_character(draft: Draft):
     from character import CharacterSpellList, ClassLevel
     from spell import CharacterClass
     character = CharacterSpellList(name=draft.name or "New Character")
-    if draft.class_name:
-        enum = CharacterClass.from_string(draft.class_name)
-        custom = draft.class_name if enum == CharacterClass.CUSTOM else ""
-        character.classes.append(ClassLevel(enum, draft.level, subclass=draft.subclass, custom_class_name=custom))
+    for name, lvl, sub in draft.class_levels():
+        enum = CharacterClass.from_string(name)
+        custom = name if enum == CharacterClass.CUSTOM else ""
+        character.classes.append(ClassLevel(enum, lvl, subclass=sub, custom_class_name=custom))
     character.lineage = draft.lineage
     feats = [draft.origin_feat] if draft.origin_feat else []
     feats += [s.feat for s in draft.feat_slots if s.feat and s.feat != ASI]
+    feats += list(draft.fighting_styles) + list(draft.invocations)
     character.feats = list(dict.fromkeys(feats))
     character.grant_options = dict(draft.grant_options)
     character.grant_choices = {k: list(v) for k, v in draft.grant_choices.items()}
@@ -559,6 +739,17 @@ def problems(draft: Draft, step: str, src: Sources, existing_names=()) -> List[s
     elif step == "class":
         if not src.class_def(draft.class_name):
             out.append("Pick a class.")
+        names = [draft.class_name]
+        for extra in draft.extra_classes:
+            if not src.class_def(extra.name):
+                out.append("Pick a class for each extra class, or remove it.")
+            elif extra.name in names:
+                out.append(f"{extra.name} is listed twice.")
+            elif extra_needs_subclass(extra, src) and not extra.subclass:
+                out.append(f"Pick a subclass for {extra.name}.")
+            names.append(extra.name)
+        if draft.extra_classes and draft.level - sum(max(1, c.level) for c in draft.extra_classes) < 1:
+            out.append(f"The classes' levels add up to more than level {draft.level}.")
     elif step == "subclass":
         if needs_subclass(draft, src) and not draft.subclass:
             out.append("Pick a subclass.")
@@ -591,6 +782,13 @@ def problems(draft: Draft, step: str, src: Sources, existing_names=()) -> List[s
         if len(draft.class_skills) < count:
             out.append(f"Choose {count - len(draft.class_skills)} more skill"
                        f"{'s' if count - len(draft.class_skills) != 1 else ''}.")
+    elif step == "features":
+        counts = feature_counts(draft, src)
+        for key in ("fighting_styles", "invocations", "expertise", "masteries"):
+            left = counts[key] - len(getattr(draft, key))
+            if left > 0:
+                one, many = FEATURE_LABELS[key]
+                out.append(f"Choose {left} more {one if left == 1 else many}.")
     elif step == "equipment":
         if class_equipment_options(src.class_def(draft.class_name)) and not draft.class_equipment:
             out.append("Choose your class's starting equipment.")
@@ -606,15 +804,25 @@ def leftovers(draft: Draft, src: Sources) -> List[str]:
     cantrips, prepared = spell_counts(draft, src)
     if len(draft.cantrips) < cantrips or len(draft.spells) < prepared:
         notes.append("Some spells are still to choose: add them on the sheet's Spells tab.")
-    class_def = src.class_def(draft.class_name)
-    if class_def is not None:
-        for lvl in range(1, draft.level + 1):
-            data = class_def.levels.get(lvl) if isinstance(class_def.levels, dict) else None
-            for ability in getattr(data, "abilities", []) or []:
-                title = ability.title.lower()
-                if any(word in title for word in ("fighting style", "eldritch invocation", "expertise",
-                                                  "weapon mastery", "metamagic")):
-                    notes.append(f"{class_def.name} {lvl}: choose your {ability.title} on the sheet.")
+    # what the Class features step chooses is done; anything it doesn't know (Metamagic, a subclass's extra
+    # fighting style, a homebrew feature with another name) is left to the sheet
+    handled = {"fighting style", "eldritch invocations", "eldritch invocation", "expertise", "weapon mastery"}
+    for name, level, _sub in draft.class_levels():
+        class_def = src.class_def(name)
+        for lvl, ability in _abilities_up_to(class_def, level):
+            title = ability.title.lower()
+            if title.strip() in handled:
+                continue
+            if any(word in title for word in ("fighting style", "eldritch invocation", "expertise", "weapon mastery",
+                                              "metamagic")):
+                notes.append(f"{class_def.name} {lvl}: choose your {ability.title} on the sheet.")
+    for extra in draft.extra_classes:
+        if spell_counts_for(extra.name, extra.level, src) != (0, 0):
+            notes.append(f"Choose your {extra.name} spells on the sheet's Spells tab.")
+    if draft.extra_classes:
+        notes.append("Multiclassing gives only some of a class's proficiencies (and one skill for some classes): "
+                     "check them on the sheet.")
+    notes += multiclass_warnings(draft, src)
     report = grant_report(draft)
     if report is not None and report.unresolved():
         notes.append("Your species or a feat still has a choice to make: finish it on the sheet's Spells tab.")
@@ -669,9 +877,9 @@ def create_character(draft: Draft, src: Sources, character_manager, sheet_manage
         chosen = set(background_skills(draft, src)) | set(draft.class_skills)
         for skill in Skill:
             if skill.display_name in chosen:
-                sheet.skills.set(skill, 1)
+                sheet.skills.set(skill, 2 if skill.display_name in draft.expertise else 1)
 
-        class_levels = [(draft.class_name, draft.level)] if draft.class_name else []
+        class_levels = [(name, lvl) for name, lvl, _sub in draft.class_levels()]
         sheet.proficiency_bonus = calculate_proficiency_bonus(draft.level)
         dice = get_hit_dice_for_classes(class_levels)
         sheet.hit_points.hit_dice_total = sum(dice.values())
@@ -689,6 +897,8 @@ def create_character(draft: Draft, src: Sources, character_manager, sheet_manage
         tools = [_plain_text(t) for t in getattr(background, "other_proficiencies", []) or []]
         if tools:
             lines.append("Background: " + ", ".join(tools))
+        if draft.masteries:
+            lines.append("Weapon Mastery: " + ", ".join(draft.masteries))
         lines.append("Languages: Common")
         sheet.other_proficiencies = "\n\n".join(lines)
 

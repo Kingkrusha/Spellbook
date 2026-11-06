@@ -12,6 +12,7 @@
 
   const ZOOM_MIN = 0.1, ZOOM_MAX = 6;
   const FOG_SCALE_MAX = 1024;
+  const EXPLORED_SHADE = 150;          // how dark a place I have been to but cannot see now stays (of 255)
   const LIFT_PX = 14;
   const DRAW_TOOLS = new Set(["free", "line", "rect", "ellipse"]);
   const DRAW_COLORS = ["#E74C3C", "#F1C40F", "#2ECC71", "#3498DB", "#9B59B6", "#FFFFFF", "#111111"];
@@ -312,6 +313,7 @@
     drawGrid(scene, W, H);
     drawFog(scene, W, H);
     drawZones(scene);
+    drawDoors(scene);
     for (const d of scene.drawings) if (!state.erased.has(d.id)) drawDrawing(d);
     for (const d of state.pending) drawDrawing(d);
     const areas = (scene.areas || []).filter((a) => !state.erased.has(a.id));
@@ -384,8 +386,10 @@
     const ops = scene.fog.ops || [];
     const sight = scene.sight || null;
     const fogOn = !!scene.fog.on;
+    const explored = sight && scene.explored ? scene.explored : null;
     const key = JSON.stringify([scene.id, scene.w, scene.h, fogOn, ops.length, ops.length ? ops[ops.length - 1] : "",
-      sight ? sight.map((s) => [s.x, s.y, s.r, s.pts.length, s.pts[0], s.pts[s.pts.length - 1]]) : null]);
+      sight ? sight.map((s) => [s.x, s.y, s.r, s.pts.length, s.pts[0], s.pts[s.pts.length - 1]]) : null,
+      explored ? [explored.cell, explored.bits] : null]);
     if (state.fog.key === key) return state.fog;
     const scale = Math.min(1, FOG_SCALE_MAX / Math.max(scene.w, scene.h, 1));
     const w = Math.max(1, Math.round(scene.w * scale)), h = Math.max(1, Math.round(scene.h * scale));
@@ -414,6 +418,12 @@
       dc.fillStyle = "#000";
       dc.fillRect(0, 0, w, h);
       dc.globalCompositeOperation = "destination-out";
+      const seen = exploredCanvas(explored);
+      if (seen) {
+        // where I've been stays on the map, dimmed
+        dc.imageSmoothingEnabled = true;
+        dc.drawImage(seen, 0, 0, seen.width * explored.cell * scale, seen.height * explored.cell * scale);
+      }
       for (const s of sight) {
         if (!s.pts || s.pts.length < 6) continue;
         dc.save();
@@ -431,6 +441,26 @@
     }
     state.fog = { key: key, canvas: c, scale: scale };
     return state.fog;
+  }
+
+  // The explored-area bitmap as a small canvas, one pixel per cell: partly opaque where explored, so cutting
+  // it out of the dark leaves those places dim rather than clear.
+  function exploredCanvas(ex) {
+    if (!ex || !ex.cols || !ex.rows || !ex.bits) return null;
+    let raw;
+    try { raw = atob(ex.bits); } catch (e) { return null; }
+    if (raw.length * 8 < ex.cols * ex.rows) return null;
+    const c = document.createElement("canvas");
+    c.width = ex.cols;
+    c.height = ex.rows;
+    const cc = c.getContext("2d");
+    const img = cc.createImageData(ex.cols, ex.rows);
+    const keep = 255 - EXPLORED_SHADE;            // how much of the dark is taken away
+    for (let i = 0, n = ex.cols * ex.rows; i < n; i++) {
+      if (raw.charCodeAt(i >> 3) & (1 << (i & 7))) img.data[i * 4 + 3] = keep;
+    }
+    cc.putImageData(img, 0, 0);
+    return c;
   }
 
   function shapePath(c, shape, pts) {
@@ -477,6 +507,35 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(layer, 0, 0);
     ctx.restore();
+  }
+
+  // The doors I can see (line of sight on): tap one to open or close it, unless the DM locked it.
+  function drawDoors(scene) {
+    const z = state.zoom;
+    const width = Math.max(4, Math.min(10, 6 * z));
+    for (const d of scene.doors || []) {
+      const [ax, ay] = toScreen(d.pts[0], d.pts[1]);
+      const [bx, by] = toScreen(d.pts[2], d.pts[3]);
+      ctx.save();
+      ctx.lineWidth = width;
+      ctx.lineCap = "butt";
+      ctx.strokeStyle = d.open ? "#2ECC71" : d.locked ? "#C0392B" : "#3498DB";
+      if (d.open) ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function doorAt(sx, sy) {
+    const [mx, my] = toMap(sx, sy);
+    const reach = 10 / state.zoom;
+    for (const d of (state.scene && state.scene.doors) || []) {
+      if (distToSeg(mx, my, d.pts[0], d.pts[1], d.pts[2], d.pts[3]) <= reach) return d;
+    }
+    return null;
   }
 
   function drawZones(scene) {
@@ -958,6 +1017,12 @@
           state.drag = { kind: "token", id: t.id, sx: sx, sy: sy, moved: false, at: [t.x, t.y],
             off: [t.x - mx, t.y - my], oz: G.tokenElevation(state.scene, t) };
         }
+        return;
+      }
+      const door = doorAt(sx, sy);
+      if (door) {
+        if (door.locked) status("That door is locked.");
+        else send({ op: "door_toggle", id: door.id });
         return;
       }
       const a = handleAt(sx, sy, true);

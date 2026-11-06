@@ -293,6 +293,7 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._add_source_filter(filter_bar2)
         self._add_content_filter(filter_bar2)
         self._add_filter_combo(filter_bar2, "min_speed", "Min Speed:", "Any", ["Any"], 90, (0, 20))
+        self._add_field_filter(filter_bar2, "lineages")
         self._add_clear_button(filter_bar2)
 
     def _create_context_menu(self):
@@ -359,6 +360,7 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.type_var.set("All Types")
         self.official_var.set("Any Content")
         self.min_speed_var.set("Any")
+        self._clear_field_filter()
         self._selected_sources = []
         self._source_filter_mode = SourceFilterMode.INCLUDE
         self._update_source_label()
@@ -398,6 +400,9 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
 
             # Min speed filter
             if min_speed != "Any" and lineage.speed < int(min_speed):
+                continue
+
+            if not self._passes_field_filter(lineage.name):
                 continue
 
             filtered.append(lineage)

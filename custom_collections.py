@@ -163,6 +163,17 @@ class FieldDef:
         return str(value or "")
 
 
+def value_matches(fdef: FieldDef, value: Any, wanted: str) -> bool:
+    """Whether an entry's value of ``fdef`` passes a filter set to ``wanted`` (a drop-down's text)."""
+    if fdef.kind == "yes_no":
+        return bool(value) == (wanted == "Yes")
+    if isinstance(value, list):
+        return any(str(v).lower() == wanted.lower() for v in value)
+    if fdef.kind == "number":
+        return value is not None and format_number(value) == wanted
+    return str(value or "").lower() == wanted.lower()
+
+
 def parse_number(value: Any) -> Optional[float]:
     if value is None or isinstance(value, bool):
         return None
@@ -697,6 +708,35 @@ class CollectionTypeManager(LazyDatabase):
         return list(fdef.choices) + extra
 
     # ---- values of added fields on built-in entries
+
+    def extra_values_by_name(self, collection: str) -> Dict[str, dict]:
+        """Every entry of a built-in collection that has added-field values: lower-case name -> values."""
+        if not self.builtin_fields(collection):
+            return {}
+        with self.db.get_connection() as conn:
+            rows = conn.execute("SELECT name, values_json FROM custom_field_values WHERE collection = ?",
+                                (collection,)).fetchall()
+        out = {}
+        for name, raw in rows:
+            try:
+                values = json.loads(raw or "{}")
+            except ValueError:
+                continue
+            if isinstance(values, dict):
+                out[str(name).lower()] = values
+        return out
+
+    def extra_field_options(self, collection: str, fdef: FieldDef) -> List[str]:
+        """What a filter on an added field of a built-in collection can offer (choices first, then the rest)."""
+        if fdef.kind == "yes_no":
+            return ["Yes", "No"]
+        found = []
+        for values in self.extra_values_by_name(collection).values():
+            value = values.get(fdef.id)
+            found.extend(value if isinstance(value, list) else [value] if value not in (None, "") else [])
+        extra = sorted({format_number(v) if fdef.kind == "number" else str(v) for v in found}
+                       - set(fdef.choices), key=str.lower)
+        return list(fdef.choices) + extra
 
     def extra_values(self, collection: str, name: str) -> dict:
         if not name or not self.builtin_fields(collection):

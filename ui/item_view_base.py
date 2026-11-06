@@ -306,6 +306,7 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             bar, width=70, height=35, placeholder_text="Max", textvariable=self.max_price_var
         ).pack(side="left", padx=(0, 20))
 
+        self._add_field_filter(bar, self.STUDIO_KIND)
         self._add_clear_button(bar)
 
     # ---- context menu ----------------------------------------------------------------
@@ -426,6 +427,7 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.type_var.set("All Types")
         self.official_var.set("Any Content")
         self._clear_extra_filters()
+        self._clear_field_filter()
         self.min_price_var.set("")
         self.max_price_var.set("")
         self._selected_sources = []
@@ -482,6 +484,9 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
                 continue
 
             if extra is not None and not extra(item):
+                continue
+
+            if not self._passes_field_filter(item.name):
                 continue
 
             if not self._matches_tag_filter(item.tags, self._selected_tags, self._tag_filter_mode):

@@ -31,6 +31,8 @@ DM_TOOLS = {"fog_reveal", "fog_hide", "fog_lasso_reveal", "fog_lasso_hide", "wal
 WALL_TOOLS = {"wall", "door"}
 WALL_SNAP_PX = 12             # a wall end clicked this close (on screen) to another wall's end joins it
 WALL_COLOR, DOOR_COLOR, OPEN_DOOR_COLOR = "#FF9800", "#3498DB", "#2ECC71"
+LOCKED_DOOR_COLOR = "#C0392B"
+EXPLORED_SHADE = 150          # how dark a place a player has been to, but can't see now, stays (of 255)
 ZONE_COLOR = "#BCAAA4"
 AXIS_SNAP_DEG = 6.0           # a line this close to level or upright is made exactly so
 LIFT_PX = 14
@@ -397,7 +399,10 @@ class MapCanvas(tk.Canvas):
         fog_on = bool(scene["fog"].get("on"))
         sight_key = None if sight is None else tuple(
             (s["x"], s["y"], s["r"], len(s["pts"]), hash(tuple(s["pts"]))) for s in sight)
-        key = (scene["id"], scene["w"], scene["h"], fog_on, len(ops), repr(ops[-1]) if ops else "", sight_key)
+        explored = scene.get("explored") if sight is not None and not self.is_dm else None
+        explored_key = None if not isinstance(explored, dict) else (explored.get("cell"), explored.get("bits"))
+        key = (scene["id"], scene["w"], scene["h"], fog_on, len(ops), repr(ops[-1]) if ops else "", sight_key,
+               explored_key)
         if self._fog_cache[0] == key:
             return self._fog_cache[1]
         scale = min(1.0, FOG_SCALE_MAX / max(scene["w"], scene["h"], 1))
@@ -415,6 +420,9 @@ class MapCanvas(tk.Canvas):
                 draw.polygon(pts, fill=fill)
         if sight is not None:
             dark = Image.new("L", size, 255)
+            remembered = self._explored_mask(explored, size, scale)
+            if remembered is not None:
+                dark = ImageChops.darker(dark, remembered)
             for s in sight:
                 seen = Image.new("L", size, 0)
                 if len(s["pts"]) >= 6:
@@ -429,6 +437,23 @@ class MapCanvas(tk.Canvas):
         result = (mask, scale)
         self._fog_cache = (key, result)
         return result
+
+    @staticmethod
+    def _explored_mask(explored, size, scale):
+        """The places a player has been to as a mask of ``size``: EXPLORED_SHADE there, 255 elsewhere."""
+        from PIL import Image
+        if not isinstance(explored, dict):
+            return None
+        bits = T.explored_bits(explored)
+        cols, rows, cell = int(explored.get("cols") or 0), int(explored.get("rows") or 0), float(explored.get("cell") or 0)
+        if bits is None or cols <= 0 or rows <= 0 or cell <= 0 or len(bits) * 8 < cols * rows:
+            return None
+        shade = bytes(EXPLORED_SHADE if bits[i >> 3] & (1 << (i & 7)) else 255 for i in range(cols * rows))
+        small = Image.frombytes("L", (cols, rows), shade)
+        full = (max(1, int(round(cols * cell * scale))), max(1, int(round(rows * cell * scale))))
+        out = Image.new("L", size, 255)
+        out.paste(small.resize(full, Image.BILINEAR), (0, 0))
+        return out
 
     def _paint_fog(self, out, scene, W, H, sight: Optional[List[dict]] = None):
         from PIL import Image
@@ -475,6 +500,8 @@ class MapCanvas(tk.Canvas):
                 hits.setdefault(tid, a.get("color", T.AREA_COLORS[0]))
         if self.is_dm and (self.show_walls or self.tool in WALL_TOOLS):
             self._draw_walls(scene)
+        elif not self.is_dm and scene.get("doors"):
+            self._draw_walls({"walls": [dict(d, door=True) for d in scene["doors"]]})
         for t in scene["tokens"]:
             self._draw_token(t)
             if t["id"] in hits:
@@ -510,7 +537,8 @@ class MapCanvas(tk.Canvas):
             tags = ("overlay", "wall", f"w:{w['id']}")
             if w.get("door"):
                 is_open = bool(w.get("open"))
-                self.create_line(*a, *b, fill=OPEN_DOOR_COLOR if is_open else DOOR_COLOR, width=width * 2,
+                color = OPEN_DOOR_COLOR if is_open else LOCKED_DOOR_COLOR if w.get("locked") else DOOR_COLOR
+                self.create_line(*a, *b, fill=color, width=width * 2,
                                  dash=(6, 4) if is_open else None, capstyle="butt", tags=tags)
             else:
                 self.create_line(*a, *b, fill=WALL_COLOR, width=width, capstyle="round", tags=tags)
@@ -957,6 +985,10 @@ class MapCanvas(tk.Canvas):
                     self._drag = {"kind": "token", "id": t["id"], "sx": e.x, "sy": e.y, "moved": False,
                                   "ox": t["x"], "oy": t["y"], "oz": T.token_elevation(self._scene, t)}
                     self.tag_raise(f"t:{t['id']}")
+                return
+            door = None if self.is_dm else self.wall_at(e.x, e.y)
+            if door is not None:                        # a player clicks a door they can see to open or close it
+                self.dispatch({"op": "door_toggle", "id": door})
                 return
             area = self.area(self._handle_at(e.x, e.y))
             if self.can_edit_area(area):                # drag an area by its starting point

@@ -516,6 +516,7 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         filter_bar2 = self._filter_row()
         self._add_content_filter(filter_bar2)
         self._add_filter_combo(filter_bar2, "skill", "Grants Skill:", "All Skills", ["All Skills"], 160, (0, 20))
+        self._add_field_filter(filter_bar2, "backgrounds")
         self._add_clear_button(filter_bar2)
 
     def _create_context_menu(self):
@@ -570,6 +571,7 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.titles_var.set(False)
         self.official_var.set("Any Content")
         self.skill_var.set("All Skills")
+        self._clear_field_filter()
         self._selected_sources = []
         self._source_filter_mode = SourceFilterMode.INCLUDE
         self._update_source_label()
@@ -600,6 +602,9 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
 
             # Grants skill filter
             if skill_filter != "All Skills" and skill_filter not in background.skills:
+                continue
+
+            if not self._passes_field_filter(background.name):
                 continue
 
             filtered.append(background)

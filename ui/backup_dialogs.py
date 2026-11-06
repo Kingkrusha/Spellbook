@@ -20,11 +20,13 @@ from theme import get_theme_manager
 from typography import ui_font
 
 HELP = ("Make one file with your settings and everything you added or changed: homebrew in the collections, "
-        "characters, random tables, calendars, Studio drafts, pictures, tabletop maps, tokens and PDFs. "
+        "characters, random tables, calendars, Studio drafts, pictures, tabletop maps, tokens, PDFs and music. "
         "Import it on another computer (or after reinstalling) to bring it all across.")
 
-# a PDF library bigger than this starts unticked (it would make a very large file); the rest starts ticked
+# a PDF library or music files bigger than this start unticked (they would make a very large file); the rest
+# starts ticked
 LARGE_PDFS = 500 * 1024 * 1024
+LARGE_FILES = ("pdfs", "music_files")
 
 
 def _main_window(widget):
@@ -186,7 +188,7 @@ class ExportBackupDialog(_ChoiceDialog):
         for key, info in self.info.items():
             empty = not info.count and not info.error
             self.add_row(key, "nothing yet" if empty else info.describe(key),
-                         on=not (key == "pdfs" and info.bytes > LARGE_PDFS), enabled=not empty)
+                         on=not (key in LARGE_FILES and info.bytes > LARGE_PDFS), enabled=not empty)
 
     def _go(self):
         keys = self.chosen()

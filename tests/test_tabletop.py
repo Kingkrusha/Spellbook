@@ -270,6 +270,81 @@ def test_sight_range_and_the_partys_eyes(table):
     assert len(table.view_for("someone-else")["scene"]["sight"]) == 1
 
 
+def test_players_open_doors_they_can_see_unless_locked(table):
+    sid, door, me, _orc = _wall_scene(table)
+    # far from the door the player sees it from their side of the wall
+    view = table.view_for("me")["scene"]
+    assert [d["id"] for d in view["doors"]] == [door] and view["doors"][0]["open"] is False
+    table.apply({"op": "door_toggle", "scene": sid, "id": door}, actor="me")
+    assert table.scene(sid)["walls"][1]["open"] is True
+    table.apply({"op": "door_toggle", "scene": sid, "id": door}, actor="me")
+    assert table.scene(sid)["walls"][1]["open"] is False
+
+    # a locked door is shown but won't open for a player; the DM still can
+    table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"locked": True}})
+    assert table.view_for("me")["scene"]["doors"][0]["locked"] is True
+    with pytest.raises(T.CommandError, match="locked"):
+        table.apply({"op": "door_toggle", "scene": sid, "id": door}, actor="me")
+    table.apply({"op": "door_toggle", "scene": sid, "id": door})
+    assert table.scene(sid)["walls"][1]["open"] is True
+
+    # a door out of sight (a wall in the way) can't be used, and isn't sent
+    table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"locked": False}})
+    table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [280, 420, 280, 700]}})
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 105, "y": 630}, actor="me")
+    assert table.view_for("me")["scene"]["doors"] == []
+    with pytest.raises(T.CommandError, match="sight"):
+        table.apply({"op": "door_toggle", "scene": sid, "id": door}, actor="me")
+    # an ordinary wall is no door
+    wall = table.scene(sid)["walls"][0]["id"]
+    with pytest.raises(T.CommandError):
+        table.apply({"op": "door_toggle", "scene": sid, "id": wall}, actor="me")
+
+
+def test_explored_areas_stay_on_a_players_map(table):
+    sid, door, me, _orc = _wall_scene(table)
+    view = table.view_for("me")["scene"]
+    ex = view["explored"]
+    assert T.is_explored(ex, 200, 300) and not T.is_explored(ex, 500, 300)
+
+    # walk through the open door to the other side: the first room stays explored
+    table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"open": True}})
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 420, "y": 630}, actor="me")
+    table.view_for("me")
+    table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"open": False}})
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 595, "y": 300})
+    view = table.view_for("me")["scene"]
+    assert not T.in_sight(view["sight"], 100, 300)                  # out of sight now...
+    assert T.is_explored(view["explored"], 100, 300)                 # ...but remembered
+    assert T.is_explored(view["explored"], 500, 300)
+
+    # each player has their own; the DM's view carries all of them, a player's only their own
+    assert "explored" not in table.view_for("someone-else")["scene"] or \
+        not T.is_explored(table.view_for("someone-else")["scene"]["explored"], 100, 300)
+    assert "me" in table.scene(sid)["explored"]
+    assert table.explored_dirty and table.save() and not table.explored_dirty
+    assert "me" in T.Tabletop(table.path).scene(sid)["explored"]
+
+    # the DM can switch it off, and reset it
+    table.apply({"op": "scene_update", "scene": sid, "fields": {"remember": False}})
+    assert "explored" not in table.view_for("me")["scene"]
+    table.apply({"op": "scene_update", "scene": sid, "fields": {"remember": True}})
+    table.apply({"op": "explored_reset", "scene": sid})
+    with pytest.raises(T.CommandError):
+        table.apply({"op": "explored_reset", "scene": sid}, actor="me")
+    assert not T.is_explored(table.view_for("me")["scene"]["explored"], 100, 300)
+
+
+def test_explored_bitmap_stays_small_on_a_huge_map():
+    scene = T.new_scene("Huge", width=20000, height=20000, cell=20)
+    cell, cols, rows = T.explore_grid(scene)
+    assert cols * rows <= T.EXPLORE_MAX_CELLS
+    sight = [{"x": 100.0, "y": 100.0, "r": 0.0, "pts": [0, 0, 20000, 0, 20000, 20000, 0, 20000]}]
+    assert T.explore(scene, "p", sight)
+    assert not T.explore(scene, "p", sight)                          # nothing new the second time
+    assert len(scene["explored"]["p"]["bits"]) < 8000
+
+
 def test_wall_commands_are_dm_only_clean_and_undoable(table):
     sid = make_scene(table)
     table.apply({"op": "scene_show", "scene": sid})

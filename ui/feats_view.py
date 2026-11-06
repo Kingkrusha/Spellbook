@@ -302,6 +302,7 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._add_content_filter(filter_bar2)
         self._add_filter_combo(filter_bar2, "prereq", "Prerequisite:", "Any",
                                ["Any", "Has Prerequisite", "No Prerequisite"], 110, (0, 20))
+        self._add_field_filter(filter_bar2, "feats")
         self._add_clear_button(filter_bar2)
 
     def _create_context_menu(self):
@@ -449,6 +450,7 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.spellcasting_var.set(False)
         self.official_var.set("Any Content")
         self.prereq_var.set("Any")
+        self._clear_field_filter()
         self._selected_sources = []
         self._source_filter_mode = SourceFilterMode.INCLUDE
         self._update_source_label()
@@ -491,6 +493,9 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             if prereq_filter == "Has Prerequisite" and not feat.has_prereq:
                 continue
             if prereq_filter == "No Prerequisite" and feat.has_prereq:
+                continue
+
+            if not self._passes_field_filter(feat.name):
                 continue
 
             filtered.append(feat)

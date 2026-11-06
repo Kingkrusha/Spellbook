@@ -26,7 +26,7 @@ def last_json(text):
 def test_character_travels_between_two_installs(tmp_path):
     for name in ("host", "client"):
         (tmp_path / name).mkdir()
-        shutil.copy(os.path.join(ROOT, "spellbook.db"), tmp_path / name / "spellbook.db")
+        shutil.copy(os.environ["SPELLBOOK_TEST_SEED_DB"], tmp_path / name / "spellbook.db")
 
     host = spawn(["host"], tmp_path / "host")
     client = None

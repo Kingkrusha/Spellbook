@@ -481,7 +481,8 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
         self.tags_btn.pack(side="left", padx=(0, 8))
         self.tags_label = ctk.CTkLabel(bar2, text="None selected", font=ui_font("small"),
                                        text_color=theme.get_text_secondary())
-        self.tags_label.pack(side="left")
+        self.tags_label.pack(side="left", padx=(0, 15))
+        self._add_field_filter(bar2, "rules")
 
         self._button(bar2, "Clear Filters", self._clear_filters, width=110, danger=True).pack(side="right")
 
@@ -559,6 +560,7 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
         self._tag_filter_mode = TagFilterMode.HAS_ALL
         self._update_source_label()
         self._update_tags_label()
+        self._clear_field_filter()
         self._on_filter_changed(immediate=True)
 
     @staticmethod
@@ -591,6 +593,8 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
             if official == "Official Only" and not page.is_official:
                 continue
             if official == "Homebrew Only" and page.is_official:
+                continue
+            if not self._passes_field_filter(page.name):
                 continue
             pages.append(page)
         return pages
