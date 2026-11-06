@@ -157,14 +157,36 @@ def test_compact_mode_hides_ac_and_shortens_conditions(tk_root, hub):
         table.destroy()
 
 
+def _remember_topmost(win, root):
+    """Whether the window is kept on top. Read back from the window system, except on X11 with no window manager
+    (a test display), which never reports it: there, the last value the window asked for."""
+    real = win.attributes
+    last = [None]
+
+    def spy(*args, **kw):
+        if len(args) >= 2 and args[0] == "-topmost":
+            last[0] = bool(args[1])
+        return real(*args, **kw)
+    win.attributes = spy
+    x11 = root.tk.call("tk", "windowingsystem") == "x11"
+
+    def asked():
+        value = bool(real("-topmost"))
+        if not value and x11 and last[0] is not None:
+            return last[0]
+        return value
+    return asked
+
+
 def test_player_window_pins_and_announces_your_turn(tk_root, hub):
     from ui.initiative_window import InitiativeWindow
     dm = fill(hub)
     settings = Settings()
     win = InitiativeWindow(tk_root, hub.player("alice"), settings, kind="player")
+    asked = _remember_topmost(win, tk_root)
     try:
         pump(tk_root, 1.1)                                                  # CTk's own setup, then our pin
-        assert bool(win.attributes("-topmost")) is True
+        assert asked() is True
         assert win.banner.cget("text") == "Waiting to start"
 
         dm.dispatch({"type": "start"})
@@ -177,9 +199,9 @@ def test_player_window_pins_and_announces_your_turn(tk_root, hub):
         assert "turn" in win.banner.cget("text")
 
         win._toggle_pin()
-        assert bool(win.attributes("-topmost")) is False
+        assert asked() is False
         win._toggle_pin()
-        assert bool(win.attributes("-topmost")) is True
+        assert asked() is True
     finally:
         win.close()
     saved = json.loads(settings.settings.tracker_window_state)["player"]

@@ -22,14 +22,27 @@ def fresh_fonts(tk_root):
     get_font_manager().scope.refresh()
 
 
+def _show(root) -> bool:
+    """Map the (normally withdrawn) test window while text is measured: on X11 a withdrawn window's text widget
+    lays out nothing, so line heights and link positions read as zero. Returns whether it was hidden."""
+    if root.winfo_viewable() or root.tk.call("tk", "windowingsystem") != "x11":
+        return False
+    root.deiconify()
+    root.update()
+    return True
+
+
 @pytest.fixture
 def host(tk_root):
     import customtkinter as ctk
     frame = ctk.CTkFrame(tk_root)
     frame.pack(fill="x", anchor="n")
     tk_root.geometry("900x700")
+    shown = _show(tk_root)
     yield frame
     frame.destroy()
+    if shown:
+        tk_root.withdraw()
 
 
 # --------------------------------------------------------------------------- the markup
