@@ -988,6 +988,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.vulnerability_filter = self._multi(
             bar, "Vulnerabilities", lambda: mgr.get_all_values("damage_vulnerabilities"),
             "vulnerabilities", 130)
+        self._add_field_filter(bar, "monsters", padx=(0, 10))
         ctk.CTkButton(
             bar, text="Clear Filters", width=110, height=35,
             fg_color=theme.get_current_color('button_danger'),
@@ -1059,6 +1060,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.official_var.set("Any Content")
         for f in self._filters:
             f.clear()
+        self._clear_field_filter()
         self._on_filter_changed(immediate=True)
 
     @staticmethod
@@ -1119,6 +1121,8 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
                     and self.condition_filter.matches(m.condition_immunities)
                     and self.resistance_filter.matches(m.damage_resistances)
                     and self.vulnerability_filter.matches(m.damage_vulnerabilities)):
+                continue
+            if not self._passes_field_filter(m.name):
                 continue
             filtered.append(m)
 

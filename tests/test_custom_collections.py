@@ -479,3 +479,59 @@ def test_the_collections_page_shows_a_card_for_each_collection(mgr, tk_root):
         assert len(hub.cards_frame.winfo_children()) == before + 1
     finally:
         hub.destroy()
+
+
+# ------------------------------------------------------------------ filtering built-in pages by added fields
+
+def test_added_fields_give_filter_options_and_matches(mgr):
+    feats = mgr.builtin_type("feats")
+    feats.fields = [cc.FieldDef("f_region", "Region", "choice", ["North", "South"]),
+                    cc.FieldDef("f_tier", "Tier", "number"), cc.FieldDef("f_rare", "Rare", "yes_no"),
+                    cc.FieldDef("f_tags", "Themes", "list")]
+    mgr.save_type(feats)
+    mgr.set_extra_values("feats", "Alert", {"f_region": "North", "f_tier": 2, "f_tags": ["Spy", "Guard"]})
+    mgr.set_extra_values("feats", "Lucky", {"f_region": "East", "f_rare": True})
+    region, tier, rare, themes = mgr.builtin_fields("feats")
+    assert mgr.extra_field_options("feats", region) == ["North", "South", "East"]
+    assert mgr.extra_field_options("feats", tier) == ["2"]
+    assert mgr.extra_field_options("feats", rare) == ["Yes", "No"]
+    assert mgr.extra_field_options("feats", themes) == ["Guard", "Spy"]
+    values = mgr.extra_values_by_name("feats")
+    assert set(values) == {"alert", "lucky"}
+    assert cc.value_matches(region, values["alert"]["f_region"], "north")
+    assert cc.value_matches(tier, values["alert"]["f_tier"], "2")
+    assert cc.value_matches(themes, values["alert"]["f_tags"], "Spy")
+    assert cc.value_matches(rare, values["lucky"]["f_rare"], "Yes")
+    assert cc.value_matches(rare, None, "No") and not cc.value_matches(rare, None, "Yes")
+
+
+def test_the_feats_page_filters_by_your_fields(mgr, tk_root):
+    import customtkinter as ctk
+    from ui.feats_view import FeatsView
+    frame = ctk.CTkFrame(tk_root)
+    frame.pack()
+    view = FeatsView(frame)
+    view.pack(fill="both", expand=True)
+    try:
+        pump(tk_root, 5)
+        button = view.field_filter._button
+        assert not button.winfo_manager()                    # no added field yet: no button
+        feats = mgr.builtin_type("feats")
+        feats.fields = [cc.FieldDef("f_region", "Region", "choice", ["North", "South"])]
+        mgr.save_type(feats)
+        pump(tk_root, 5)
+        assert button.winfo_manager()                        # it appears when there's a field to filter on
+        mgr.set_extra_values("feats", "Alert", {"f_region": "North"})
+        everything = len(view._filtered_feats)
+        view.field_filter.set("f_region", "North")
+        view._apply_filters()
+        assert [f.name for f in view._filtered_feats] == ["Alert"]
+        assert "(1)" in button.cget("text")
+        view.field_filter.open()
+        pump(tk_root, 5)
+        assert view.field_filter._window is not None
+        view._clear_filters()
+        view._apply_filters()
+        assert len(view._filtered_feats) == everything and view.field_filter._window is None
+    finally:
+        frame.destroy()

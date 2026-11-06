@@ -370,8 +370,12 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
             font=ui_font("small"),
             text_color=text_secondary
         )
-        self.tags_label.pack(side="left")
-        
+        self.tags_label.pack(side="left", padx=(0, 15))
+
+        from ui.extra_field_filter import ExtraFieldFilter
+        self.field_filter = ExtraFieldFilter(self, "spells", lambda: self._on_filter_changed(immediate=True))
+        self.field_filter.button(row4, side="left")
+
         # Clear filters button (use themed danger color)
         theme = get_theme_manager()
         danger = theme.get_current_color('button_danger')
@@ -481,6 +485,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         self._selected_tags = []
         self._tag_filter_mode = TagFilterMode.HAS_ALL
         self._update_tags_label()
+        self.field_filter.clear()
         self._on_filter_changed(immediate=True)
     
     def _create_main_content(self):
@@ -801,6 +806,9 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
             collapse_versions=True,  # one row per spell; its versions are in the detail panel's Source drop-down
             titles_only=self._titles_only()
         )
+        field_filter = getattr(self, "field_filter", None)
+        if field_filter is not None and field_filter.active:
+            filtered_spells = [s for s in filtered_spells if field_filter.passes(s.name)]
         self.spell_list.set_spells(filtered_spells, reset_scroll=reset_scroll)
     
     def _on_filter_changed(self, immediate: bool = False):

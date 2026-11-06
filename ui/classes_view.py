@@ -166,6 +166,10 @@ class ClassesCollectionView(ctk.CTkFrame):
             command=self._populate_class_list
         ).pack(fill="x", pady=(0, 5))
 
+        from ui.extra_field_filter import ExtraFieldFilter
+        self.field_filter = ExtraFieldFilter(self, "classes", self._populate_class_list)
+        self.field_filter.button(self.filters_frame, fill="x", pady=(0, 5))
+
         ctk.CTkButton(
             self.filters_frame, text="Clear Filters", height=26,
             fg_color=self.theme.get_current_color('button_danger'),
@@ -231,6 +235,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         self.search_var.set("")
         self.official_var.set("Any Content")
         self.spellcaster_var.set(False)
+        self.field_filter.clear()
         self._selected_sources = []
         self._source_filter_mode = SourceFilterMode.INCLUDE
         self._update_source_label()
@@ -263,6 +268,9 @@ class ClassesCollectionView(ctk.CTkFrame):
                 continue
 
             if spellcaster_only and not class_def.is_spellcaster:
+                continue
+
+            if not self.field_filter.passes(class_def.name):
                 continue
 
             filtered.append(class_def)
