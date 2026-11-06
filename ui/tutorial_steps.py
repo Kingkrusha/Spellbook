@@ -318,7 +318,8 @@ def build_steps(host: TourHost) -> List[Step]:
              "spell, item or monster comes out ahead.\n\n"
              "For spells, all the damage dice in the description are added up (\"Damage: 2d10 + 4d6\"), "
              "with dice joined by \"or\" counted as a choice. Dice for higher-level slots and cantrip "
-             "upgrades are left out.",
+             "upgrades are left out. Monsters compare AC, HP, speed, ability scores and saves, defenses, "
+             "senses and CR, plus their damage per round, attack bonus and legendary actions.",
              prepare=compare, leave=end_compare, wait_ms=150,
              target=lambda: getattr(h.sub_view(), 'main_paned', None)),
 

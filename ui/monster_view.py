@@ -119,7 +119,8 @@ class MonsterDetailPanel(ctk.CTkFrame):
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         self._stat_block.refresh()
 
-    def show_monster(self, monster: Optional[Monster]):
+    def show_monster(self, monster: Optional[Monster], compare_with: Optional[Monster] = None):
+        """Show ``monster``; with ``compare_with``, its numbers are coloured better / worse than that one's."""
         if monster is None:
             self._stat_block.pack_forget()
             self.content_image.pack_forget()
@@ -138,7 +139,7 @@ class MonsterDetailPanel(ctk.CTkFrame):
             show_extra_fields(self, "monsters", monster.name, side="bottom")
             self.content_image.show(monster.name)
             self.content_image.pack(side="right", anchor="n", padx=(10, 0))
-            self._stat_block.show_monster(monster)
+            self._stat_block.show_monster(monster, compare_with)
             self._stat_block.pack(side="left", fill="x", expand=True, anchor="n")
 
 
@@ -829,6 +830,9 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._filter_debounce_delay = 150
         self._filters: List[_MultiFilter] = []
         self._listed_spell_only = False
+        self._compare_mode = False
+        self._compare_monster: Optional[Monster] = None
+        self._context_monster: Optional[Monster] = None
 
         self._create_widgets()
         self._setup_bulk_actions()
@@ -847,17 +851,69 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.configure(fg_color=self.theme.get_current_color('bg_primary'))
         if hasattr(self, 'paned'):
             self.paned.configure(bg=self.theme.get_current_color("pane_sash"))
+        self._update_context_menu_colors()
+        if hasattr(self, 'compare_container'):
+            self.compare_container.configure(fg_color=self.theme.get_current_color('bg_secondary'))
         for f in self._filters:
             f._style()
 
     # ----- layout -----
 
     def _create_panes(self):
-        self.list_panel = MonsterListPanel(self.paned, on_select=self._on_monster_selected)
+        # the list sits in left_container so View and Compare can put a second stat block in its place
+        self.left_container = ctk.CTkFrame(self.paned, fg_color="transparent")
+        self.list_panel = MonsterListPanel(self.left_container, on_select=self._on_monster_selected,
+                                           on_right_click=self._on_monster_right_click)
+        self.list_panel.pack(fill="both", expand=True)
         self.detail_panel = MonsterDetailPanel(self.paned)
 
-        self.paned.add(self.list_panel, minsize=280, stretch="always")
+        self.paned.add(self.left_container, minsize=280, stretch="always")
         self.paned.add(self.detail_panel, minsize=400, stretch="always")
+        self._build_compare_panel("Compare Monsters", MonsterDetailPanel, self._close_compare)
+        self._build_context_menu([("View and Compare", self._context_compare)])
+
+    # ----- view and compare -----
+
+    def _on_monster_right_click(self, monster: Monster, x: int, y: int):
+        self._context_monster = monster
+        try:
+            self.context_menu.tk_popup(x, y)
+        finally:
+            self.context_menu.grab_release()
+
+    def _context_compare(self):
+        if self._context_monster is not None:
+            self._show_compare(self._context_monster)
+
+    def _highlights(self) -> bool:
+        return bool(getattr(self.settings_manager.settings, "show_comparison_highlights", True))
+
+    def _show_compare(self, monster: Monster):
+        """Put ``monster`` beside the selected one, with the better and worse numbers coloured."""
+        self._compare_mode = True
+        self._compare_monster = monster
+        self.list_panel.pack_forget()
+        self.compare_container.pack(fill="both", expand=True)
+        self._show_compared()
+        try:                                    # two stat blocks: share the width evenly
+            self.paned.sash_place(0, max(self.PANE_SASH, self.paned.winfo_width() // 2), 0)
+        except tk.TclError:
+            pass
+
+    def _show_compared(self):
+        primary = self.list_panel.get_selected_monster()
+        other = self._compare_monster
+        colour = self._highlights() and primary is not None and other is not None
+        self.compare_detail.show_monster(other, primary if colour else None)
+        self.detail_panel.show_monster(primary, other if colour else None)
+
+    def _close_compare(self):
+        self._compare_mode = False
+        self._compare_monster = None
+        self.compare_container.pack_forget()
+        self.list_panel.pack(fill="both", expand=True)
+        self.detail_panel.show_monster(self.list_panel.get_selected_monster())
+        self._place_sash()
 
     def _bar(self, pady=(0, 5)) -> ctk.CTkFrame:
         bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -1133,7 +1189,12 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     # ----- actions -----
 
     def _on_monster_selected(self, monster: Optional[Monster]):
-        self.detail_panel.show_monster(monster)
+        if self._compare_mode and self._compare_monster is not None and monster is not None \
+                and self._highlights():
+            self.detail_panel.show_monster(monster, self._compare_monster)
+            self.compare_detail.show_monster(self._compare_monster, monster)
+        else:
+            self.detail_panel.show_monster(monster)
         self.duplicate_btn.configure(state="normal" if monster else "disabled")
         editable = "normal" if monster and monster.is_custom else "disabled"
         self.edit_btn.configure(state=editable)
