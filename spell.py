@@ -648,50 +648,96 @@ class SpellComparison:
             return 1
         return 0
     
+    # A paragraph that starts with one of these is about casting at a higher level or a cantrip's upgrades,
+    # so its dice are left out when comparing a spell's own damage.
+    UPGRADE_PHRASES = (
+        "at higher levels",
+        "using a higher-level spell slot",
+        "when you cast this spell using",
+        "this spell's damage increases",
+        "the spell's damage increases",
+        "circle spell",
+        "cantrip upgrade",
+        "when you reach",
+    )
+    _PARAGRAPH_RE = re.compile(r"\\|\n")
+    _DICE_RE = re.compile(r"(\d+)\s*d\s*(\d+)", re.IGNORECASE)
+    _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+
+    @staticmethod
+    def _is_upgrade_paragraph(paragraph: str) -> bool:
+        text = re.sub(r"^[\s*_#>]+", "", paragraph).lower().replace("\u2019", "'")
+        return text.startswith(SpellComparison.UPGRADE_PHRASES)
+
     @staticmethod
     def _strip_higher_level_sections(description: str) -> str:
-        """
-        Remove sections that describe higher-level casting, circle spells, or cantrip upgrades.
-        These sections should not be included when comparing base damage.
-        """
-        # Split by paragraph break (the app uses \\ for paragraph breaks)
-        paragraphs = description.split("\\")
-        
-        # Filter out paragraphs that start with upgrade-related phrases
-        filtered = []
-        skip_phrases = [
-            "at higher levels",
-            "when you cast this spell using",
-            "this spell's damage increases",
-            "the spell's damage increases",
-            "circle spell",
-            "cantrip upgrade",
-            "when you reach"  # Common cantrip upgrade phrase
-        ]
-        
-        for para in paragraphs:
-            para_lower = para.strip().lower()
-            should_skip = any(para_lower.startswith(phrase) for phrase in skip_phrases)
-            if not should_skip:
-                filtered.append(para)
-        
-        return "\\".join(filtered)
-    
+        """The description without its higher-level, circle spell and cantrip upgrade paragraphs.
+
+        Paragraphs are split on the app's ``\\`` breaks and on line breaks (both are used in the data)."""
+        paragraphs = SpellComparison._PARAGRAPH_RE.split(description)
+        return "\n".join(p for p in paragraphs if not SpellComparison._is_upgrade_paragraph(p))
+
+    @staticmethod
+    def damage_terms(description: str, ignore_higher_levels: bool = True) -> List[List[Tuple[int, int]]]:
+        """The damage dice in a description, as terms that add up.
+
+        Each term is a list of alternatives: ``[[(8, 6)]]`` for Fireball, ``[[(2, 10)], [(4, 6)]]`` for Ice Storm
+        (2d10 and 4d6 both apply), ``[[(1, 8), (1, 12)]]`` for Toll the Dead (1d8, or 1d12 instead). Two dice in a
+        sentence are alternatives when the words between them say "or" or "instead" (and not "and"); a sentence
+        that says "instead" offers its dice in place of the ones before it. Dice that aren't damage (no "damage"
+        after them in the sentence, like Mind Sliver's "subtract 1d4") are left out."""
+        if ignore_higher_levels:
+            description = SpellComparison._strip_higher_level_sections(description)
+        terms: List[List[Tuple[int, int]]] = []
+        for paragraph in SpellComparison._PARAGRAPH_RE.split(description):
+            for sentence in SpellComparison._SENTENCE_RE.split(paragraph):
+                matches = list(SpellComparison._DICE_RE.finditer(sentence))
+                if not matches:
+                    continue
+                low = sentence.lower()
+                found: List[Tuple[int, int, str]] = []          # (count, sides, the words before it)
+                for i, m in enumerate(matches):
+                    after = low[m.end():matches[i + 1].start() if i + 1 < len(matches) else len(low)]
+                    if "damage" not in after:
+                        continue
+                    before_start = matches[i - 1].end() if i else 0
+                    found.append((int(m.group(1)), int(m.group(2)), low[before_start:m.start()]))
+                if not found:
+                    continue
+                instead = bool(re.search(r"\binstead\b", low))
+                for n, (count, sides, before) in enumerate(found):
+                    die = (count, sides)
+                    if n == 0:
+                        if instead and terms:
+                            terms[-1].append(die)
+                        else:
+                            terms.append([die])
+                        continue
+                    alternative = (re.search(r"\bor\b|\binstead\b", before)
+                                   and not re.search(r"\band\b", before))
+                    if alternative:
+                        terms[-1].append(die)
+                    else:
+                        terms.append([die])
+        for term in terms:
+            unique = []
+            for die in term:
+                if die not in unique:
+                    unique.append(die)
+            term[:] = unique
+        return terms
+
     @staticmethod
     def extract_damage_dice(description: str, ignore_higher_levels: bool = True) -> List[Tuple[int, int]]:
-        """Extract all damage dice from description. Returns list of (count, sides) tuples.
-        
+        """The damage dice that add up, taking the biggest of each choice. Returns (count, sides) tuples.
+
         Args:
             description: The spell description text
             ignore_higher_levels: If True, excludes dice from "at higher levels" and similar sections
         """
-        if ignore_higher_levels:
-            description = SpellComparison._strip_higher_level_sections(description)
-        
-        dice_pattern = r'(\d+)d(\d+)'
-        matches = re.findall(dice_pattern, description.lower())
-        return [(int(count), int(sides)) for count, sides in matches]
-    
+        terms = SpellComparison.damage_terms(description, ignore_higher_levels)
+        return [max(term, key=lambda d: (d[0] * d[1], d[0])) for term in terms]
+
     @staticmethod
     def calculate_max_damage(dice: List[Tuple[int, int]]) -> Tuple[int, int]:
         """Calculate max damage and total dice count from dice list."""
@@ -700,38 +746,51 @@ class SpellComparison:
         total_max = sum(count * sides for count, sides in dice)
         total_dice = sum(count for count, _ in dice)
         return (total_max, total_dice)
-    
+
+    @staticmethod
+    def damage_summary(description: str) -> str:
+        """A short line for the damage, e.g. "2d10 + 4d6 (6 dice, up to 44)" or "1d8 or 1d12 (up to 12)".
+        Empty when there are no damage dice."""
+        terms = SpellComparison.damage_terms(description)
+        if not terms:
+            return ""
+        parts = []
+        for term in terms:
+            text = " or ".join(f"{c}d{s}" for c, s in term)
+            parts.append(f"({text})" if len(term) > 1 and len(terms) > 1 else text)
+        best = SpellComparison.extract_damage_dice(description)
+        top, count = SpellComparison.calculate_max_damage(best)
+        average = sum(c * (s + 1) / 2 for c, s in best)
+        average_text = f"{average:g}"
+        choice = any(len(t) > 1 for t in terms)
+        dice = "" if choice else f"{count} {'die' if count == 1 else 'dice'}, "
+        return f"{' + '.join(parts)} ({dice}average {average_text}, up to {top})"
+
     @staticmethod
     def compare_damage(spell1: "Spell", spell2: "Spell") -> int:
         """Compare damage. Returns -1 if spell1 better, 1 if spell2 better, 0 if equal.
-        Only compares if both spells have the 'Damage' tag."""
-        # Check if both spells have the Damage tag
+        Only compares if both spells have the 'Damage' tag.
+
+        All the damage dice a spell mentions are added up (the biggest one where the text gives a choice with
+        "or"); the higher maximum wins, then the higher average, then more dice."""
         spell1_tags_lower = [t.lower() for t in spell1.tags]
         spell2_tags_lower = [t.lower() for t in spell2.tags]
-        
+
         if "damage" not in spell1_tags_lower or "damage" not in spell2_tags_lower:
             return 0  # Don't compare damage if both don't have the Damage tag
-        
-        dice1 = SpellComparison.extract_damage_dice(spell1.description)
-        dice2 = SpellComparison.extract_damage_dice(spell2.description)
-        
-        max1, count1 = SpellComparison.calculate_max_damage(dice1)
-        max2, count2 = SpellComparison.calculate_max_damage(dice2)
-        
-        # Compare max damage first
-        if max1 > max2:
+
+        def score(spell):
+            dice = SpellComparison.extract_damage_dice(spell.description)
+            top, count = SpellComparison.calculate_max_damage(dice)
+            return (top, sum(c * (s + 1) for c, s in dice), count)
+
+        score1, score2 = score(spell1), score(spell2)
+        if score1 > score2:
             return -1
-        elif max1 < max2:
+        if score1 < score2:
             return 1
-        
-        # If equal max damage, compare dice count (more dice is better)
-        if count1 > count2:
-            return -1
-        elif count1 < count2:
-            return 1
-        
         return 0
-    
+
     # Duration rankings in seconds (higher is better)
     @staticmethod
     def parse_duration_seconds(duration: str) -> int:
@@ -837,72 +896,3 @@ class SpellComparison:
             results['ritual'] = 0  # both same
         
         return results
-    
-    @staticmethod
-    def _get_excluded_ranges(description: str) -> List[Tuple[int, int]]:
-        """
-        Get character ranges that should be excluded from damage dice highlighting.
-        These are sections that describe higher-level casting, etc.
-        """
-        excluded = []
-        
-        # Find paragraph breaks (\\) and check what follows
-        skip_phrases = [
-            "at higher levels",
-            "when you cast this spell using",
-            "this spell's damage increases",
-            "the spell's damage increases",
-            "circle spell",
-            "cantrip upgrade",
-            "when you reach"
-        ]
-        
-        # Find all paragraph positions
-        parts = description.split("\\")
-        pos = 0
-        for i, part in enumerate(parts):
-            part_lower = part.strip().lower()
-            should_exclude = any(part_lower.startswith(phrase) for phrase in skip_phrases)
-            
-            if should_exclude:
-                # Exclude this entire paragraph
-                start = pos
-                end = pos + len(part)
-                excluded.append((start, end))
-            
-            pos += len(part)
-            if i < len(parts) - 1:
-                pos += 1  # Account for the \\ separator (stored as single \)
-        
-        return excluded
-    
-    @staticmethod
-    def get_damage_dice_positions(description: str, exclude_higher_levels: bool = True) -> List[Tuple[int, int, str]]:
-        """Find positions of damage dice in description for highlighting.
-        Returns list of (start, end, dice_string) tuples.
-        
-        Args:
-            description: The spell description text
-            exclude_higher_levels: If True, excludes dice from "at higher levels" and similar sections
-        """
-        dice_pattern = r'\d+d\d+'
-        positions = []
-        
-        if exclude_higher_levels:
-            excluded_ranges = SpellComparison._get_excluded_ranges(description)
-        else:
-            excluded_ranges = []
-        
-        for match in re.finditer(dice_pattern, description, re.IGNORECASE):
-            start, end = match.start(), match.end()
-            
-            # Check if this position is in an excluded range
-            in_excluded = any(
-                excl_start <= start < excl_end
-                for excl_start, excl_end in excluded_ranges
-            )
-            
-            if not in_excluded:
-                positions.append((start, end, match.group()))
-        
-        return positions

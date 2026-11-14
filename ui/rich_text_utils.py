@@ -547,9 +547,14 @@ class RichTextRenderer:
     def render_formatted_text(self, parent, text: str, 
                               on_spell_click: Optional[Callable[[str], None]] = None,
                               wraplength: int = 480,
-                              bold_pattern: str = r'\*\*([^*]+)\*\*'):
+                              bold_pattern: str = r'\*\*([^*]+)\*\*',
+                              highlight: Optional[Tuple[str, str]] = None,
+                              highlight_line: Optional[Callable[[str], bool]] = None):
         """
         Render text with markdown formatting, tables, and spell links.
+
+        ``highlight`` is ``(pattern, colour)``: text matching the pattern is drawn bold in that colour (the spell
+        compare mode colours damage dice this way), on the lines ``highlight_line`` accepts (all lines without it).
         
         Args:
             parent: Parent widget to render into
@@ -597,8 +602,13 @@ class RichTextRenderer:
 
             # Check for bold patterns
             parts = re.split(bold_pattern, line)
+            marked = bool(highlight and re.search(highlight[0], line)
+                          and (highlight_line is None or highlight_line(line)))
 
-            if len(parts) == 1 and any(italic for _t, italic in split_italics(line, False)):
+            if marked:
+                self._render_formatted_line(parent, parts, on_spell_click, wraplength)
+                self._highlight_last(parent, *highlight)
+            elif len(parts) == 1 and any(italic for _t, italic in split_italics(line, False)):
                 self._render_formatted_line(parent, parts, on_spell_click, wraplength)
             elif len(parts) == 1:
                 # No bold formatting - check for spell links
@@ -609,6 +619,19 @@ class RichTextRenderer:
             
             i += 1
     
+    @staticmethod
+    def _highlight_last(parent, pattern: str, colour: str):
+        """Colour the matches of ``pattern`` in the line just rendered into ``parent``."""
+        children = [w for w in parent.winfo_children() if isinstance(w, tk.Text)]
+        if not children:
+            return
+        widget = children[-1]
+        widget.tag_configure("highlight", foreground=colour, font=ui_font("body", bold=True))
+        widget.tag_raise("highlight")
+        content = widget.get("1.0", "end-1c")
+        for m in re.finditer(pattern, content):
+            widget.tag_add("highlight", f"1.0+{m.start()}c", f"1.0+{m.end()}c")
+
     def _render_bar(self, parent, pady=(2, 6)):
         """A horizontal bar across the page."""
         bar = ctk.CTkFrame(parent, height=2, corner_radius=0,
@@ -658,18 +681,30 @@ class RichTextRenderer:
             # Has spell links - use text widget with clickable links
             self._render_line_with_spells(parent, parts, on_spell_click, wraplength)
     
+    def _background_of(self, widget) -> str:
+        """The colour a widget is drawn on: its own fg_color, or its nearest parent's when it is transparent
+        (CustomTkinter frames don't answer ``cget('bg')``)."""
+        while widget is not None:
+            try:
+                colour = widget.cget("fg_color")
+            except Exception:
+                try:
+                    colour = widget.cget("bg")
+                except Exception:
+                    colour = None
+            if colour and colour != "transparent" and colour != "SystemButtonFace":
+                if isinstance(colour, (tuple, list)):
+                    try:
+                        colour = widget._apply_appearance_mode(colour)
+                    except Exception:
+                        colour = colour[0]
+                return colour
+            widget = getattr(widget, "master", None)
+        return self.theme.get_current_color('bg_primary')
+
     def _line_text_widget(self, parent) -> tk.Text:
         """A borderless, read-only-looking Text for one line of description (spell links need a Text)."""
-        # Try to get the proper background color from the parent or theme
-        try:
-            parent_bg = parent.cget('bg') if hasattr(parent, 'cget') else None
-            if parent_bg is None or parent_bg == 'SystemButtonFace':
-                bg_color = self.theme.get_current_color('bg_primary')
-            else:
-                bg_color = parent_bg
-        except Exception:
-            bg_color = self.theme.get_current_color('bg_primary')
-
+        bg_color = self._background_of(parent)
         return description_text(parent, self.theme, bg_color, ui_font("body"))
 
     def _cell_text_widget(self, cell_frame, bg=None) -> tk.Text:

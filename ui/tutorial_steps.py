@@ -281,6 +281,14 @@ def build_steps(host: TourHost) -> List[Step]:
              "Pick a result to jump straight to it.",
              prepare=lambda: h.page("collections"),
              target=lambda: getattr(h.view(), 'search_bar', None)),
+        Step(COLLECTIONS, "Make them your own",
+             "Need something the collections don't have? The ⚙ on a card adds your own fields to it (a "
+             "spell's \"Component cost\", a monster's \"Lair\"), and New collection makes a whole new "
+             "one, like deities, factions or places, with the fields you choose.\n\n"
+             "Fields you add can be filled in on every entry, official ones included, and the \"Your "
+             "fields\" button on the page filters by them.",
+             prepare=lambda: h.page("collections"),
+             target=lambda: getattr(h.view(), 'new_collection_btn', None)),
         Step(COLLECTIONS, "Filters",
              "Narrow the list down by name, level and class. Every collection page has filters like "
              "these that fit what it holds: a monster's CR and type, an item's rarity, and so on.",
@@ -307,7 +315,11 @@ def build_steps(host: TourHost) -> List[Step]:
         Step(COLLECTIONS, "View and compare",
              "View and Compare puts two entries side by side. With comparison highlights on (Settings), "
              "the better values show in green and the worse in red, so you can see at a glance which "
-             "spell, item or monster comes out ahead.",
+             "spell, item or monster comes out ahead.\n\n"
+             "For spells, all the damage dice in the description are added up (\"Damage: 2d10 + 4d6\"), "
+             "with dice joined by \"or\" counted as a choice. Dice for higher-level slots and cantrip "
+             "upgrades are left out. Monsters compare AC, HP, speed, ability scores and saves, defenses, "
+             "senses and CR, plus their damage per round, attack bonus and legendary actions.",
              prepare=compare, leave=end_compare, wait_ms=150,
              target=lambda: getattr(h.sub_view(), 'main_paned', None)),
 
@@ -320,8 +332,9 @@ def build_steps(host: TourHost) -> List[Step]:
              prepare=characters_page, target=lambda: getattr(h.view(), 'builder_btn', None)),
         Step(SHEETS, "The Character Builder",
              "One choice at a time: your class, a subclass if your level is high enough, species, "
-             "background, ability scores (standard array, point buy or your own rolls), skills, spells "
-             "and starting equipment. Each step explains the choice and shows the details from your "
+             "background, ability scores (standard array, point buy or your own rolls), skills, class "
+             "features like fighting styles, invocations, expertise and weapon masteries, spells and "
+             "starting equipment. Above level 1 you can split the levels between several classes. Each step explains the choice and shows the details from your "
              "collections, homebrew included.\n\n"
              "Nothing is saved until you press Create Character, and then the new character's sheet "
              "opens with everything filled in.",
@@ -400,6 +413,10 @@ def build_steps(host: TourHost) -> List[Step]:
         tool_step("pdf_library", "PDF Library",
                   "Search the text of all your PDFs at once, and copy an entry's text from a page into a "
                   "collection."),
+        tool_step("music", "Music",
+                  "Your own music for every scene. Tag tracks (folders become tags too), crossfade between "
+                  "them, and add pitch, distortion or muffle effects. Give the play and pause keys a "
+                  "shortcut in Settings to control it from anywhere in the app."),
         Step(TOOLS, "Homebrew Studio",
              "Write your own spells, items, feats, monsters, classes and more. Pick what you're making, "
              "and the draft is saved as you type. Nothing goes into your collections until you press "
@@ -436,7 +453,9 @@ def build_steps(host: TourHost) -> List[Step]:
         Step(TOOLS, "Tabletop: tools",
              "Move tokens, ping, measure, draw, and drop spell areas that light up who they hit. As the "
              "DM you also get fog of war, walls and doors that block the players' line of sight, and "
-             "raised ground. Hover over a tool to see what it does.",
+             "raised ground. Players can open the doors they can see (unless you lock them), and with "
+             "Remember explored areas on, places they've already seen stay dimly visible. Hover over a "
+             "tool to see what it does.",
              prepare=lambda: h.page("tabletop"),
              target=lambda: getattr(h.view(), 'tools_panel', None)),
         Step(TOOLS, "Tabletop: tokens",
@@ -450,7 +469,9 @@ def build_steps(host: TourHost) -> List[Step]:
         Step("Done", "That's the tour!",
              "Finish closes the tour's tab and the example character, and takes you back to where you "
              "were.\n\nWant to see it again? It's in Settings > Help, or press F1. Settings is also where "
-             "you choose the theme, fonts and keyboard shortcuts, and back up everything."),
+             "you choose the theme, fonts and keyboard shortcuts, add picture packs, and back up "
+             "everything (or move it to another computer) with Backup and Transfer.\n\n"
+             "Found a bug or have an idea? Send feedback is in Settings > Help, or press Shift+F1."),
     ]
 
 
