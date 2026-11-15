@@ -685,3 +685,10 @@ class SessionView(ctk.CTkFrame):
             ctk.CTkLabel(parent, text="(Translucent overlay is Windows-only for now.)", font=ui_font("small"),
                          text_color=self.theme.get_text_secondary(), wraplength=206, justify="left"
                          ).pack(anchor="w", padx=16)
+        ctk.CTkLabel(parent, text="Drag the chat button, or the chat's title bar, to move it out of the way.",
+                     font=ui_font("small"), text_color=self.theme.get_text_secondary(), wraplength=206,
+                     justify="left").pack(anchor="w", padx=16, pady=(6, 2))
+        ctk.CTkButton(parent, text="Put the chat back", height=26, font=ui_font("small"),
+                      fg_color=self.theme.get_current_color('button_normal'),
+                      hover_color=self.theme.get_current_color('button_hover'),
+                      command=o.reset_positions).pack(anchor="w", padx=16, pady=(0, 4))

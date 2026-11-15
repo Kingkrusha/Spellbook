@@ -278,6 +278,146 @@ def test_the_password_and_the_dms_approval_apply_to_browsers():
         h.stop()
 
 
+@pytest.fixture()
+def asking_host():
+    h = LanHost("DM", require_approval=True)
+    h.start(port=0, bind="127.0.0.1")
+    h.start_web(port=0, bind="127.0.0.1")
+    yield h
+    h.stop()
+
+
+def no_event(events, kind, seconds=0.8):
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        ev = events.get(timeout=0.1)
+        if ev and ev["type"] == kind:
+            raise AssertionError(f"unexpected {kind!r}: {ev}")
+
+
+def let_in(h, b, name="Robin", client_id="abc123"):
+    b.hello(name=name, client_id=client_id)
+    ask = wait_for(h.events, "approval_request")
+    h.resolve_approval(ask["request_id"], True)
+    return b.recv("welcome")["body"]
+
+
+def test_someone_the_dm_let_in_gets_back_in_without_asking_again(asking_host):
+    h = asking_host
+    b = Browser(h.web_port)
+    let_in(h, b)
+    b.close()                                   # (a phone going to sleep)
+    wait_for(h.events, "peer_left")
+    b = Browser(h.web_port)
+    b.hello(name="Robin", client_id="abc123")
+    assert b.recv("welcome")["body"]["name"] == "Robin"
+    no_event(h.events, "approval_request")
+    # someone else still has to ask
+    other = Browser(h.web_port)
+    other.hello(name="Sam", client_id="def456")
+    assert wait_for(h.events, "approval_request")["name"] == "Sam"
+    b.close()
+    other.close()
+
+
+def test_a_reconnect_replaces_the_old_connection_quietly(asking_host):
+    h = asking_host
+    first = Browser(h.web_port)
+    let_in(h, first)
+    second = Browser(h.web_port)                # the old connection hasn't noticed it's dead yet
+    second.hello(name="Robin", client_id="abc123")
+    second.recv("welcome")
+    left = wait_for(h.events, "peer_left")
+    assert left["replaced"] is True
+    assert wait_for(h.events, "peer_joined")["rejoined"] is True
+    first.close()
+    second.close()
+
+
+def test_someone_the_dm_removed_has_to_ask_again(asking_host):
+    h = asking_host
+    b = Browser(h.web_port)
+    me = let_in(h, b)["peer_id"]
+    h.kick(me)
+    assert b.recv("bye")["body"]["reason"]
+    b.close()
+    b = Browser(h.web_port)
+    b.hello(name="Robin", client_id="abc123")
+    assert wait_for(h.events, "approval_request")["name"] == "Robin"
+    b.close()
+
+
+def test_the_prompt_closes_when_the_player_stops_waiting(asking_host):
+    h = asking_host
+    b = Browser(h.web_port)
+    b.hello()
+    ask = wait_for(h.events, "approval_request")
+    b.close()
+    started = time.time()
+    closed = wait_for(h.events, "approval_closed")
+    assert closed["request_id"] == ask["request_id"] and time.time() - started < 5
+
+
+def test_asking_again_replaces_the_open_prompt(asking_host):
+    h = asking_host
+    first = Browser(h.web_port)
+    first.hello()
+    one = wait_for(h.events, "approval_request")
+    second = Browser(h.web_port)
+    second.hello()                               # (the same player, from a second tab)
+    two = wait_for(h.events, "approval_request")
+    assert wait_for(h.events, "approval_closed")["request_id"] == one["request_id"]
+    assert first.recv("error")["body"]["code"] == "declined"
+    h.resolve_approval(two["request_id"], True)
+    second.recv("welcome")
+    assert wait_for(h.events, "approval_closed")["request_id"] == two["request_id"]
+    first.close()
+    second.close()
+
+
+def test_a_no_from_the_dm_holds_for_a_little_while(asking_host):
+    h = asking_host
+    b = Browser(h.web_port)
+    b.hello()
+    h.resolve_approval(wait_for(h.events, "approval_request")["request_id"], False, "Not tonight.")
+    assert b.recv("error")["body"]["message"] == "Not tonight."
+    b.close()
+    b = Browser(h.web_port)
+    b.hello()
+    err = b.recv("error")["body"]
+    assert err["code"] == "declined" and "Wait" in err["message"]
+    no_event(h.events, "approval_request")
+    b.close()
+
+
+def test_browsers_are_pinged_and_their_answers_keep_them_in(monkeypatch, host):
+    monkeypatch.setattr(P, "PING_INTERVAL", 0.2)
+    monkeypatch.setattr(P, "IDLE_TIMEOUT", 1.0)
+    awake, asleep = Browser(host.web_port), Browser(host.web_port)
+    awake.hello(name="Awake", client_id="aaa111")
+    awake.recv("welcome")
+    asleep.hello(name="Asleep", client_id="bbb222")
+    asleep.recv("welcome")
+    pings = 0
+    deadline = time.time() + 2.5                 # well past the idle timeout, without a word from either
+    while time.time() < deadline:
+        awake.sock.settimeout(0.3)
+        try:
+            opcode, data = awake.recv_frame()
+        except socket.timeout:
+            continue
+        if opcode == 0x9:
+            pings += 1
+            awake.send_raw(data, opcode=0xA)
+    assert pings >= 3
+    left = wait_for(host.events, "peer_left")
+    assert left["peer"]["name"] == "Asleep"
+    awake.send("chat", {"text": "still here"})
+    assert wait_for(host.events, "chat")["text"] == "still here"
+    awake.close()
+    asleep.close()
+
+
 def test_browsers_can_be_turned_off_again():
     h = LanHost("DM", require_approval=False)
     h.start(port=0, bind="127.0.0.1")

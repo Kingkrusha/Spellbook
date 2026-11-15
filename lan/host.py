@@ -13,6 +13,8 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``error`` - ``code, message`` (the host typed something invalid, e.g. a bad ``/roll``)
 * ``dm`` - ``from, name, to, text, ts`` (only DMs sent to or by the host)
 * ``approval_request`` - ``request_id, name, address``; answer with :meth:`resolve_approval`
+* ``approval_closed`` - ``request_id``: that prompt is over however it ended (answered, timed out, the
+  player gave up or asked again), so close it
 * ``tracker_cmd`` - a player's initiative-tracker command: ``peer_id, name, cmd, seq``
 * ``table_cmd`` - a player's tabletop command (move a token, draw, ping): ``peer_id, name, cmd, seq``
 * ``table_asset_req`` - a player is missing tabletop pictures: ``peer_id, ids``
@@ -39,6 +41,7 @@ from lan.security import generate_session_cert, server_context
 HOST_ID = "host"
 MAX_PENDING = 8                 # connections still being admitted
 APPROVAL_TIMEOUT = 60.0         # how long the DM has to say yes
+DENY_COOLDOWN = 30.0            # after the DM says no, the same player can't ask again for this long
 MAX_STRIKES = 20                # rate-limit violations before a peer is dropped
 
 # What a browser player may send (see lan/web.py): no characters or homebrew
@@ -150,6 +153,11 @@ class LanHost:
         self._server: Optional[asyncio.AbstractServer] = None
         self._peers: Dict[str, _Peer] = {}
         self._approvals: Dict[str, "asyncio.Future[tuple]"] = {}
+        # The DM is asked once per player per session: someone they let in (by install id) rejoins after a
+        # dropped connection without asking again, until the DM removes them
+        self._approved: set = set()
+        self._asking: Dict[str, str] = {}      # install id -> request id of its open prompt
+        self._denied: Dict[str, float] = {}    # install id -> when the DM last said no (monotonic)
         self._handlers: Dict[str, Handler] = {}
         self._pending = 0
         self._seq = 0
@@ -249,7 +257,7 @@ class LanHost:
             self._server.close()
         for fut in list(self._approvals.values()):
             if not fut.done():
-                fut.set_result((False, "The session closed."))
+                fut.set_result((False, "The session closed.", False))
         for peer in list(self._peers.values()):
             await self._drop(peer, "The host closed the session.", notify=True)
 
@@ -295,7 +303,7 @@ class LanHost:
         def go():
             fut = self._approvals.get(request_id)
             if fut is not None and not fut.done():
-                fut.set_result((accept, reason))
+                fut.set_result((accept, reason, True))
         if self._started:
             self._runner.call_soon(go)
 
@@ -331,11 +339,15 @@ class LanHost:
         finally:
             self._pending -= 1
 
+        keepalive = getattr(channel, "keepalive", None)
+        pinging = asyncio.ensure_future(keepalive()) if keepalive is not None else None
         try:
             await self._serve(peer)
         except (ProtocolError, asyncio.TimeoutError, OSError):
             pass
         finally:
+            if pinging is not None:
+                pinging.cancel()
             await self._drop(peer, "")
 
     async def _admit(self, channel) -> _Peer:
@@ -363,14 +375,19 @@ class LanHost:
             client_id = secrets.token_hex(8)        # (nor can an app pass for a browser)
         address = channel.address
 
-        if self.require_approval:
-            accepted, reason = await self._ask_dm(name, address, web=channel.web)
+        if self.require_approval and client_id not in self._approved:
+            said_no = self._denied.get(client_id)
+            if said_no is not None and time.monotonic() - said_no < DENY_COOLDOWN:
+                raise LanError("declined", "The DM said no. Wait a little before asking again.")
+            accepted, reason = await self._ask_dm(name, address, channel, client_id, web=channel.web)
             if not accepted:
                 raise LanError("declined", reason)
+            self._approved.add(client_id)
 
         # The same install reconnecting replaces its stale connection
-        for old in [p for p in self._peers.values() if p.client_id == client_id]:
-            await self._drop(old, "Replaced by a new connection.", notify=True)
+        stale = [p for p in self._peers.values() if p.client_id == client_id]
+        for old in stale:
+            await self._drop(old, "Replaced by a new connection.", notify=True, replaced=True)
 
         peer = _Peer(self._new_peer_id(), self._unique_name(name), client_id, channel, address)
         peer.app_version = "browser" if channel.web else P.clean_text(body.get("app_version"), 20)
@@ -388,20 +405,46 @@ class LanHost:
         await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
                                "body": {"event": "join", "peer": peer.public()}}, exclude=peer.peer_id)
         # (client_id goes only to the host's own UI, never into the broadcast presence message)
-        self._emit("peer_joined", peer=peer.public(), client_id=peer.client_id)
+        self._emit("peer_joined", peer=peer.public(), client_id=peer.client_id, rejoined=bool(stale))
         return peer
 
-    async def _ask_dm(self, name: str, address: str, web: bool = False):
+    async def _ask_dm(self, name: str, address: str, channel, client_id: str, web: bool = False):
+        """Ask the DM whether to let someone in: ``(accepted, reason)``.
+
+        Each player has at most one prompt open: asking again (a second tab, or a retry after a dropped
+        connection) closes the old one. The prompt also closes if the player stops waiting, so the DM is
+        never left answering someone who has gone."""
+        earlier = self._approvals.get(self._asking.get(client_id, ""))
+        if earlier is not None and not earlier.done():
+            earlier.set_result((False, "You asked again from somewhere else.", False))
         request_id = secrets.token_hex(6)
         fut: "asyncio.Future[tuple]" = asyncio.get_running_loop().create_future()
         self._approvals[request_id] = fut
+        self._asking[client_id] = request_id
         self._emit("approval_request", request_id=request_id, name=name, address=address, web=web)
+        # Someone waiting to be let in sends nothing, so anything arriving now (most often the
+        # connection closing) means they gave up
+        gone = asyncio.ensure_future(channel.read(P.MAX_PREAUTH_FRAME))
         try:
-            return await asyncio.wait_for(fut, APPROVAL_TIMEOUT)
-        except asyncio.TimeoutError:
+            await asyncio.wait({fut, gone}, timeout=APPROVAL_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
+            if fut.done():
+                accepted, reason, by_dm = fut.result()
+                if by_dm and not accepted:
+                    self._denied[client_id] = time.monotonic()
+                return accepted, reason
+            if gone.done():
+                return False, "You stopped waiting."
             return False, "The DM did not answer in time."
         finally:
+            if not gone.done():
+                gone.cancel()
+            await asyncio.wait({gone})          # (so the next read of this connection starts cleanly)
+            if not gone.cancelled():
+                gone.exception()                # (read, so asyncio doesn't report it as never retrieved)
             self._approvals.pop(request_id, None)
+            if self._asking.get(client_id) == request_id:
+                del self._asking[client_id]
+            self._emit("approval_closed", request_id=request_id)
 
     def _new_peer_id(self) -> str:
         while True:
@@ -429,6 +472,8 @@ class LanHost:
             if kind == "ping":
                 await peer.send({"type": "pong", "from": HOST_ID, "ts": time.time(), "body": {}})
                 continue
+            if kind == "pong":                      # a browser answering our keep-alive
+                continue
             if not peer.bucket.allow():
                 peer.strikes += 1
                 if peer.strikes >= MAX_STRIKES:
@@ -445,7 +490,7 @@ class LanHost:
                 continue
             await handler(self, peer, body)
 
-    async def _drop(self, peer: _Peer, reason: str, notify: bool = False) -> None:
+    async def _drop(self, peer: _Peer, reason: str, notify: bool = False, replaced: bool = False) -> None:
         if peer.dropped:
             return
         peer.dropped = True
@@ -460,13 +505,14 @@ class LanHost:
             del self._peers[peer.peer_id]
             self._client_ids = {k: v for k, v in self._client_ids.items() if k != peer.peer_id}
             self._refresh_public()
-            self._emit("peer_left", peer=peer.public(), reason=reason)
+            self._emit("peer_left", peer=peer.public(), reason=reason, replaced=replaced)
             await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
                                    "body": {"event": "leave", "peer": peer.public()}})
 
     async def _kick(self, peer_id: str, reason: str) -> None:
         peer = self._peers.get(peer_id)
         if peer is not None:
+            self._approved.discard(peer.client_id)      # (coming back means asking the DM again)
             await self._drop(peer, reason, notify=True)
 
     async def _broadcast(self, msg: dict, exclude: Optional[str] = None) -> None:

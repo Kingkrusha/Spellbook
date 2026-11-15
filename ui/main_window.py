@@ -2,6 +2,7 @@
 Main application window for D&D Spellbook (CustomTkinter version).
 """
 
+import os
 from collections import OrderedDict
 
 import customtkinter as ctk
@@ -238,21 +239,32 @@ class MainWindow(ctk.CTkFrame):
         except Exception:
             return
 
+        import queue
+        import threading
+        results = queue.Queue()
+
         def worker():
             try:
                 from updater import check_for_update
-                info = check_for_update()
+                results.put(check_for_update())
             except Exception:
-                return  # stay quiet on any failure
-            if info is None:
-                return
-            try:
-                self.after(0, lambda: self._show_update_dialog(info))
-            except Exception:
-                pass
+                results.put(None)  # stay quiet on any failure
 
-        import threading
+        def poll():
+            # (on Tk's thread: the worker only fills the queue)
+            try:
+                info = results.get_nowait()
+            except queue.Empty:
+                try:
+                    self.after(500, poll)
+                except Exception:
+                    pass
+                return
+            if info is not None:
+                self._show_update_dialog(info)
+
         threading.Thread(target=worker, daemon=True).start()
+        self.after(500, poll)
 
     def _show_update_dialog(self, info):
         """Show the update dialog unless the user has skipped this version."""
@@ -399,9 +411,10 @@ class MainWindow(ctk.CTkFrame):
             self._open_page_in_new_tab("initiative")
 
     def _tracker_players(self):
-        """``[(display name, install id)]`` of the players connected to the session being hosted."""
+        """``[(display name, install id, character)]`` of the players connected to the session being hosted;
+        ``character`` is who they said they're playing (``{name, hp, hp_max, ac, init}``, or ``{}``)."""
         s = self.session
-        return [(p["name"], s.client_ids[p["peer_id"]]) for p in s.peers
+        return [(p["name"], s.client_ids[p["peer_id"]], s.player_character(p["peer_id"])) for p in s.peers
                 if p["peer_id"] != s.my_id and p["peer_id"] in s.client_ids]
 
     def open_tracker_window(self, which: str = "dm"):
@@ -478,6 +491,8 @@ class MainWindow(ctk.CTkFrame):
             self._update_session_bar()
         if kind == 'state':
             self._sync_tracker_links()
+            if self.session.my_character:
+                self._watch_played_character()
         elif kind == 'tracker_state':
             self._maybe_open_tracker_for_player(data.get('view') or {})
         elif kind == 'table_state':
@@ -884,7 +899,7 @@ class MainWindow(ctk.CTkFrame):
                 return None
             return {"type": "add_entry", "kind": T.KIND_PLAYER, "name": c["name"], "hp": c.get("hp") or 0,
                     "hp_max": c.get("hp_max") or c.get("hp") or 0, "ac": c.get("ac") if c.get("ac") is not None else 10,
-                    "owner": token.get("owner", "")}
+                    "init_bonus": c.get("init") or 0, "owner": token.get("owner", "")}
         return None
 
     def _session_character_names(self) -> list:
@@ -905,20 +920,52 @@ class MainWindow(ctk.CTkFrame):
             info["summary"] = " ".join(b for b in bits if b)
         sheet = get_sheet_manager().get_sheet(name)
         if sheet is not None:
-            info.update(hp=sheet.hit_points.current, hp_max=sheet.hit_points.maximum, ac=sheet.armor_class)
+            info.update(hp=sheet.hit_points.current, hp_max=sheet.hit_points.maximum, ac=sheet.armor_class,
+                        init=sheet.get_initiative())
             path = portraits.portrait_path(getattr(sheet, "portrait", "") or "")
             if path:
                 try:
-                    from PIL import Image, ImageOps
-                    with Image.open(path) as image:
-                        image = ImageOps.exif_transpose(image).convert("RGB")
-                        image.thumbnail((160, 160))
-                        data = io.BytesIO()
-                        image.save(data, "JPEG", quality=82)
-                    info["portrait"] = base64.b64encode(data.getvalue()).decode("ascii")
+                    key = (path, os.path.getmtime(path))
+                    cached = getattr(self, "_portrait_thumb", None)
+                    if cached is None or cached[0] != key:
+                        from PIL import Image, ImageOps
+                        with Image.open(path) as image:
+                            image = ImageOps.exif_transpose(image).convert("RGB")
+                            image.thumbnail((160, 160))
+                            data = io.BytesIO()
+                            image.save(data, "JPEG", quality=82)
+                        cached = self._portrait_thumb = (key, base64.b64encode(data.getvalue()).decode("ascii"))
+                    info["portrait"] = cached[1]
                 except Exception as e:                  # the portrait is a nicety; the rest still goes
                     print(f"Session: couldn't shrink the portrait of {name}: {e}")
         return info
+
+    def _watch_played_character(self):
+        """Player: once in a session, keep the DM's copy of our character's HP, AC and initiative current."""
+        if getattr(self, "_watching_sheets", False):
+            return
+        self._watching_sheets = True
+        from ui.character_sheet_view import get_sheet_manager
+        get_sheet_manager().add_saved_listener(self._played_character_saved)
+
+    def _played_character_saved(self):
+        if getattr(self, "_played_refresh_after", None) is None:
+            self._played_refresh_after = self.after(600, self._refresh_played_character)
+
+    def _refresh_played_character(self):
+        self._played_refresh_after = None
+        from lan.service import CLIENT
+        mine = self.session.my_character or {}
+        if self.session.role != CLIENT or not mine.get("name"):
+            return
+        try:
+            from lan.protocol import clean_character
+            info = clean_character(self._session_character_info(mine["name"]))   # (as the DM would get it)
+        except Exception as e:
+            print(f"Session: couldn't read {mine['name']}: {e}")
+            return
+        if any(info.get(k) != mine.get(k) for k in ("hp", "hp_max", "ac", "init", "summary", "portrait")):
+            self.session.set_my_character(info)
 
     def _tabletop_characters(self):
         """``[{name, portrait, hp, hp_max}]`` for the Tabletop's "Character…" button."""

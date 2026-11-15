@@ -23,6 +23,7 @@ import tabletop_net as N
 from conditions import COMMON_EFFECTS, CONDITIONS
 from theme import get_theme_manager
 from typography import ui_font
+from ui.platform_compat import bind_right_click
 from ui.tabletop_canvas import MODE_TOOLS, MapCanvas
 from ui.tooltip import HoverTooltip
 from ui.window_utils import add_cancel_save, center_on_parent
@@ -378,10 +379,27 @@ class TabletopView(ctk.CTkFrame):
             b = ctk.CTkButton(grid, text="", image=image, width=62, height=62, fg_color="transparent",
                               hover_color=self._c("button_hover"), command=lambda p=path, n=name: self._place_file(p, n))
             b.grid(row=i // 4, column=i % 4, padx=1, pady=1)
-            HoverTooltip(b, f"{name}" + (f"  ({group})" if group else ""))
+            HoverTooltip(b, f"{name}" + (f"  ({group})" if group else "") +
+                         "\nClick to place it. Right-click to use it for the selected token.")
+            bind_right_click(b, lambda e, p=path, n=name: self._library_menu(e, p, n))
         if len(files) > len(shown):
             ctk.CTkLabel(self.library, text=f"{len(files) - len(shown)} more: filter to find them.",
                          font=ui_font("small"), text_color=self.theme.get_text_secondary()).pack(pady=4)
+
+    def _library_menu(self, event, path: str, name: str):
+        """Right-click on a token library picture: place it, or put it on the selected token."""
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label="Place on the map", command=lambda: self._place_file(path, name))
+        selected = self.canvas.token(self.canvas.selected) if self.backend.role == "dm" else None
+        if selected is not None:
+            menu.add_command(label=f"Use for {selected['name']}",
+                             command=lambda: self._change_picture(selected["id"], lambda _p: self._token_asset(path)))
+        else:
+            menu.add_command(label="Use for the selected token (select one first)", state="disabled")
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
 
     def _fill_token_list(self):
         if not hasattr(self, "token_list"):
@@ -1029,8 +1047,9 @@ class TabletopView(ctk.CTkFrame):
     def _add_blank_token(self):
         if self._scene_or_warn() is None:
             return
-        dialog = TokenDialog(self.winfo_toplevel(), T.new_token(self._unique_name("Token"), 0, 0),
-                             self._players(), title="New token")
+        blank = T.new_token(self._unique_name("Token"), 0, 0)
+        dialog = TokenDialog(self.winfo_toplevel(), blank, self._players(), title="New token",
+                             **self._picture_options(blank))
         self.wait_window(dialog)
         if dialog.result:
             token = dict(dialog.result)
@@ -1147,10 +1166,67 @@ class TabletopView(ctk.CTkFrame):
         t = self.canvas.token(token_id)
         if t is None or self.backend.role != "dm":
             return
-        dialog = TokenDialog(self.winfo_toplevel(), t, self._players())
+        dialog = TokenDialog(self.winfo_toplevel(), t, self._players(), **self._picture_options(t))
         self.wait_window(dialog)
-        if dialog.result:
+        if dialog.result and self.canvas.token(token_id) is not None:
             self._dispatch({"op": "token_update", "id": t["id"], "fields": dialog.result})
+
+    # ---- token pictures
+    def _picture_options(self, token: dict) -> dict:
+        """What TokenDialog needs to show and change a token's picture."""
+        return {"pictures": self._picture_choices(token), "asset_path": self.assets.path}
+
+    def _picture_choices(self, token: dict) -> List[tuple]:
+        """The ways a token's picture can be changed, ``[(label, pick)]``: ``pick(parent)`` returns the new
+        picture (an asset id, or "" for none) or None when nothing was chosen."""
+        choices = [("A picture file…", self._picture_from_file),
+                   ("From the token library…", self._picture_from_library)]
+        kind, name = self.source_of(token) or ("", "")
+        if kind == "monster" and _content_picture("monsters", name):
+            choices.append((f"The {name} picture", lambda _parent, n=name: self._monster_image(n) or None))
+        if self._portrait_for(token) is not None:
+            choices.append(("Their character's portrait",
+                            lambda _parent, t=dict(token): self._token_asset(self._portrait_for(t))))
+        if token.get("image"):
+            choices.append(("No picture (show a letter)", lambda _parent: ""))
+        return choices
+
+    def _portrait_for(self, token: dict):
+        """The portrait of the character a token stands for (a path or a picture), or None."""
+        kind, _, name = (token.get("source") or "").partition(":")
+        if kind == "character" and self.characters:
+            c = next((c for c in self.characters() if c["name"] == name), None)
+            return (c or {}).get("portrait") or None
+        if kind == "player":
+            c = next((c for c in self._player_characters() if c["name"] == name), None)
+            if c and c.get("portrait"):
+                return _small_picture(c["portrait"])
+        return None
+
+    def _token_asset(self, source) -> Optional[str]:
+        """A picture (a path or a PIL image) stored as a token picture; None (and a message) if it can't be."""
+        if source is None:
+            return None
+        try:
+            return self.assets.add_image(source, token=True)[0]
+        except Exception as e:
+            self._show_error(f"That picture couldn't be used ({e}).")
+            return None
+
+    def _picture_from_file(self, parent) -> Optional[str]:
+        path = filedialog.askopenfilename(parent=parent, title="Token picture", filetypes=[
+            ("Pictures", " ".join(f"*{e}" for e in T.IMAGE_TYPES)), ("All files", "*.*")])
+        return self._token_asset(path) if path else None
+
+    def _picture_from_library(self, parent) -> Optional[str]:
+        dialog = LibraryPickDialog(parent, T.list_token_files(), self._thumbs)
+        parent.wait_window(dialog)
+        return self._token_asset(dialog.result) if dialog.result else None
+
+    def _change_picture(self, token_id: str, pick):
+        image = pick(self.winfo_toplevel())
+        if image is not None and self.canvas.token(token_id) is not None:
+            self._dispatch({"op": "token_update", "id": token_id, "fields": {"image": image}})
 
     def _token_menu(self, token_id: str, event):
         t = self.canvas.token(token_id)
@@ -1158,6 +1234,10 @@ class TabletopView(ctk.CTkFrame):
             return
         menu = tk.Menu(self, tearoff=0)
         menu.add_command(label="Edit…", command=lambda: self._edit_token(token_id))
+        pictures = tk.Menu(menu, tearoff=0)
+        for label, pick in self._picture_choices(t):
+            pictures.add_command(label=label, command=lambda p=pick: self._change_picture(token_id, p))
+        menu.add_cascade(label="Picture", menu=pictures)
         conditions = tk.Menu(menu, tearoff=0)
         current = set(t.get("conditions") or [])
         for name in CONDITIONS + COMMON_EFFECTS:
@@ -1438,10 +1518,17 @@ class NewMapDialog(_Dialog):
 class TokenDialog(_Dialog):
     """Everything about one token. ``result`` is the changed fields."""
 
-    def __init__(self, parent, token: dict, players: List[tuple], title: str = "Token"):
+    PREVIEW = 44
+
+    def __init__(self, parent, token: dict, players: List[tuple], title: str = "Token", *,
+                 pictures: Optional[List[tuple]] = None,
+                 asset_path: Optional[Callable[[str], Optional[str]]] = None):
         self.token = token
         self.players = players
-        super().__init__(parent, title, "520x640")
+        self.image = token.get("image") or ""
+        self.pictures = pictures or []          # [(label, pick)]: see TabletopView._picture_choices
+        self._asset_path = asset_path
+        super().__init__(parent, title, "520x690" if self.pictures else "520x640")
         b = self.body
         top = ctk.CTkFrame(b, fg_color="transparent")
         top.pack(fill="x")
@@ -1453,6 +1540,20 @@ class TokenDialog(_Dialog):
         self.size = ctk.StringVar(value=_size_name(token.get("size", 1.0)))
         ctk.CTkOptionMenu(top, values=[n for n in SIZE_NAMES if n != "Small"] , variable=self.size, width=130
                           ).grid(row=1, column=1, sticky="w")
+
+        self.preview = None
+        if self.pictures:
+            pic = ctk.CTkFrame(b, fg_color="transparent")
+            pic.pack(fill="x", pady=(10, 0))
+            ctk.CTkLabel(pic, text="Picture", font=ui_font("small", bold=True)).pack(side="left")
+            self.preview = ctk.CTkLabel(pic, text="", width=self.PREVIEW, height=self.PREVIEW, compound="center",
+                                        font=ui_font("subheading", bold=True), text_color="#FFFFFF")
+            self.preview.pack(side="left", padx=8)
+            self.picture_button = ctk.CTkButton(pic, text="Change picture ▾", width=150, command=self._picture_menu)
+            self.picture_button.pack(side="left")
+            HoverTooltip(self.picture_button, "A picture file, one from your token library, or the creature's own "
+                                              "picture. Without one, the token shows the first letter of its name.")
+            self.name.bind("<KeyRelease>", lambda _e: None if self.image else self._show_picture(), add="+")
 
         hp = ctk.CTkFrame(b, fg_color="transparent")
         hp.pack(fill="x", pady=(10, 0))
@@ -1530,11 +1631,49 @@ class TokenDialog(_Dialog):
         self.other = ctk.CTkEntry(other, placeholder_text="e.g. Hunter's Mark", width=200)
         self.other.pack(side="left", padx=6)
         self._buttons("Save")
+        self._show_picture()
 
     def _pick_color(self, color: str):
         self.color = color
         for c, btn in self._color_buttons.items():
             btn.configure(border_color="#FFFFFF" if c == color else c)
+        self._show_picture()
+
+    # ---- the picture
+    def _show_picture(self):
+        """The token as it will look: its picture cut round, or its colour with its letter."""
+        if self.preview is None:
+            return
+        from ui.tabletop_canvas import token_letter
+        path = self._asset_path(self.image) if self.image and self._asset_path else None
+        picture, shown = _round_token(path, self.color, self.PREVIEW * 2)
+        self._preview_image = ctk.CTkImage(picture, size=(self.PREVIEW, self.PREVIEW))
+        self.preview.configure(image=self._preview_image, text="" if shown else token_letter(self.name.get()))
+
+    def _picture_menu(self):
+        menu = tk.Menu(self, tearoff=0)
+        for label, pick in self.pictures:
+            menu.add_command(label=label, command=lambda p=pick: self._choose_picture(p))
+        if self.image and self.image != (self.token.get("image") or "") and self.token.get("image"):
+            menu.add_command(label="Keep the picture it had", command=lambda: self._set_picture(self.token["image"]))
+        b = self.picture_button
+        try:
+            menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            menu.grab_release()
+
+    def _choose_picture(self, pick):
+        try:
+            image = pick(self)
+        finally:
+            if self.winfo_exists():
+                self._grab()                 # (a dialog the pick opened took the grab)
+        if image is not None and self.winfo_exists():
+            self._set_picture(image)
+
+    def _set_picture(self, image: str):
+        self.image = image
+        self._show_picture()
 
     def _accept(self):
         def number(entry):
@@ -1561,11 +1700,67 @@ class TokenDialog(_Dialog):
             "hp": number(self.hp), "hp_max": number(self.hp_max), "color": self.color, "owner": owner,
             "owner_name": shown_name, "hidden": bool(self.hidden.get()), "show_name": bool(self.show_name.get()),
             "conditions": conditions, "vision": max(0, number(self.vision) or 0), "z": number(self.height) or 0,
+            "image": self.image,
         }
-        if self.token.get("image"):
-            self.result["image"] = self.token["image"]
         if owner:
             self.result["kind"] = "pc"
+        self.destroy()
+
+
+class LibraryPickDialog(_Dialog):
+    """Pick a picture from the token library: a filter over a grid of thumbnails. ``result`` is its path."""
+
+    COLUMNS = 6
+    SHOWN = 120
+
+    def __init__(self, parent, files: List[tuple], thumbs: _Thumbs):
+        self.files = files                       # [(group, name, path)], as tabletop.list_token_files()
+        self.thumbs = thumbs
+        super().__init__(parent, "Token library", "480x540")
+        self.search = ctk.CTkEntry(self.body, placeholder_text="Filter tokens")
+        self.search.pack(fill="x")
+        self.search.bind("<KeyRelease>", lambda _e: self._fill())
+        self.search.bind("<Escape>", lambda _e: self.destroy())
+        self.shown = ctk.CTkScrollableFrame(self.body, fg_color="transparent")
+        self.shown.pack(fill="both", expand=True, pady=8)
+        row = ctk.CTkFrame(self.body, fg_color="transparent")
+        row.pack(side="bottom", fill="x", before=self.search)
+        ctk.CTkButton(row, text="Cancel", width=100, fg_color="transparent", border_width=1,
+                      command=self.destroy).pack(side="right")
+        ctk.CTkLabel(row, text="Click a picture to use it.", font=ui_font("small"),
+                     text_color=self.theme.get_text_secondary()).pack(side="left")
+        self._fill()
+        self.after(80, self.search.focus_set)
+
+    def _fill(self):
+        for w in self.shown.winfo_children():
+            w.destroy()
+        q = self.search.get().strip().lower()
+        files = [f for f in self.files if not q or q in f[1].lower() or q in f[0].lower()]
+        if not files:
+            text = ("No token pictures yet. Use Import… under Token library with a folder or .zip of pictures."
+                    if not self.files else "No tokens match.")
+            ctk.CTkLabel(self.shown, text=text, font=ui_font("small"), wraplength=400, justify="left",
+                         text_color=self.theme.get_text_secondary()).pack(fill="x", pady=6)
+            return
+        grid = ctk.CTkFrame(self.shown, fg_color="transparent")
+        grid.pack(fill="x")
+        hover = self.theme.get_current_color('button_hover')
+        for i, (group, name, path) in enumerate(files[:self.SHOWN]):
+            image = self.thumbs.get(path, 56)
+            b = ctk.CTkButton(grid, text="" if image is not None else name[:8], image=image, width=62, height=62,
+                              fg_color="transparent", hover_color=hover, command=lambda p=path: self._pick(p))
+            b.grid(row=i // self.COLUMNS, column=i % self.COLUMNS, padx=1, pady=1)
+            HoverTooltip(b, name + (f"  ({group})" if group else ""))
+        if len(files) > self.SHOWN:
+            ctk.CTkLabel(self.shown, text=f"{len(files) - self.SHOWN} more: filter to find them.",
+                         font=ui_font("small"), text_color=self.theme.get_text_secondary()).pack(pady=4)
+
+    def _pick(self, path: str):
+        self.result = path
+        self.destroy()
+
+    def _accept(self):
         self.destroy()
 
 
@@ -1580,7 +1775,7 @@ class PickDialog(_Dialog):
         self.search.bind("<KeyRelease>", lambda _e: self._fill())
         self.search.bind("<Return>", lambda _e: self._accept())
         self.listbox = tk.Listbox(self.body, activestyle="none", borderwidth=0, highlightthickness=0,
-                                  font=("TkDefaultFont", 11))
+                                  font=ui_font("body"))
         self.listbox.pack(fill="both", expand=True, pady=8)
         self.listbox.bind("<Double-Button-1>", lambda _e: self._accept())
         self._buttons("Add")
@@ -1622,6 +1817,33 @@ def _base_name(name: str) -> str:
 
 def _hex(color: str) -> str:
     return color if isinstance(color, str) and color.startswith("#") else "#1E1E1E"
+
+
+def _round_token(path: Optional[str], color: str, side: int) -> tuple:
+    """A token as the map draws it, ``side`` pixels across: ``(picture, True)`` with the picture at ``path`` cut
+    to a circle over the token's colour, or ``(the coloured circle, False)`` when there is no picture."""
+    from PIL import Image, ImageDraw
+    big = side * 3
+    mask = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, big - 1, big - 1), fill=255)
+    mask = mask.resize((side, side), Image.LANCZOS)
+    out = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    out.paste(Image.new("RGBA", (side, side), _hex(color)), (0, 0), mask)
+    has_picture = False
+    if path:
+        try:
+            with Image.open(path) as im:
+                im = im.convert("RGBA")
+            s = min(im.size)
+            im = im.crop(((im.width - s) // 2, (im.height - s) // 2, (im.width + s) // 2, (im.height + s) // 2))
+            im = im.resize((side, side), Image.LANCZOS)
+            alpha = Image.composite(im.getchannel("A"), Image.new("L", im.size, 0), mask)
+            im.putalpha(alpha)
+            out.alpha_composite(im)
+            has_picture = True
+        except Exception:
+            pass
+    return out, has_picture
 
 
 def _content_picture(kind: str, name: str) -> Optional[str]:

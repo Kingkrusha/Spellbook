@@ -259,7 +259,16 @@
     }
     const mine = v.entries.some((e) => e.mine);
     $("add-me").hidden = !(v.can_add && !mine);
-    if (!$("add-me").hidden && !$("add-name").value) $("add-name").value = S.name;
+    if (!$("add-me").hidden && !$("add-name").value) fillAddMe();
+  }
+
+  // "Join the turn order" starts from the character this player said they're playing
+  function fillAddMe() {
+    const c = S.character || {};
+    $("add-name").value = c.name || S.name;
+    if (c.hp !== undefined) $("add-hp").value = c.hp;
+    if (c.ac !== undefined) $("add-ac").value = c.ac;
+    if (c.init !== undefined) $("add-init").value = c.init;
   }
 
   function ownControls(e) {
@@ -300,12 +309,17 @@
 
   $("add-me").addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const num = (id, lo, hi, d) => Math.max(lo, Math.min(hi, parseInt($(id).value, 10) || d));
+    const num = (id, lo, hi, d) => {
+      const v = parseInt($(id).value, 10);
+      return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d;
+    };
     const name = $("add-name").value.replace(/\s+/g, " ").trim();
     if (!name) return;
     const hp = num("add-hp", 0, 9999, 0);
-    command({ type: "add_me", name: name, hp: hp, hp_max: hp, ac: num("add-ac", 0, 50, 10),
-              init_bonus: num("add-init", -20, 20, 0) });
+    const c = S.character || {};
+    const hpMax = c.name === name && c.hp_max !== undefined ? Math.max(hp, c.hp_max) : hp;
+    command({ type: "add_me", name: name, hp: hp, hp_max: hpMax, ac: num("add-ac", 0, 50, 10),
+              init_bonus: num("add-init", -20, 30, 0) });
   });
 
   // ------------------------------------------------------------------ playing as
@@ -314,6 +328,7 @@
     $("play-name").value = c.name || "";
     $("play-hp").value = c.hp_max !== undefined ? c.hp_max : "";
     $("play-ac").value = c.ac !== undefined ? c.ac : "";
+    $("play-init").value = c.init !== undefined ? c.init : "";
   }
   S.on("joined", fillPlayAs);
   $("play-as").addEventListener("submit", (ev) => {

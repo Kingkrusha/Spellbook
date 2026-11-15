@@ -179,6 +179,8 @@ _KINDS: Dict[str, Tuple[str, str]] = {
 
 # Widgets whose children are user widgets (everything else is a leaf to us).
 _CONTAINERS = (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkTabview)
+# Plain Tk widgets the app gives a role font (lists, text boxes): re-pointed like CTk ones
+_TK_TEXT_WIDGETS = (tk.Listbox, tk.Text, tk.Entry, tk.Spinbox)
 
 _class_info_cache: Dict[type, Optional[Tuple[str, str, str]]] = {}
 _class_attr_cache: Dict[type, Tuple[str, ...]] = {}
@@ -606,6 +608,8 @@ class Restyler:
         if styled and not isinstance(w, (ctk.CTk, ctk.CTkToplevel)):
             self._style_shape(w, override)
             self._style_font(w, override)
+        elif not styled and isinstance(w, _TK_TEXT_WIDGETS):
+            self._style_tk_font(w)
 
     @staticmethod
     def _sits_on_neutral(w) -> bool:
@@ -614,6 +618,9 @@ class Restyler:
             return False
         try:
             fg = w.cget("fg_color")
+            if fg == "transparent":
+                # an outlined button shows what it sits on (white text vanished on a light window)
+                fg = w._detect_color_of_master()
         except Exception:
             return False
         return role_of(fg) in NEUTRAL_ROLES
@@ -684,6 +691,26 @@ class Restyler:
         else:
             desired = scope.font_for_spec(spec)
         if desired is not cur:
+            try:
+                w.configure(font=desired)
+            except Exception:
+                pass
+
+    def _style_tk_font(self, w):
+        """A plain Tk list or text box using a role font: point it at that role's current font."""
+        from typography import spec_of_font_name
+        try:
+            current = str(w.cget("font"))
+        except Exception:
+            return
+        spec = spec_of_font_name(current)
+        if spec is None:
+            return
+        scope = getattr(w, "_sb_font_scope", None) or self.fonts
+        if scope is None:
+            return
+        desired = scope.font_for_spec(spec)
+        if str(desired) != current:
             try:
                 w.configure(font=desired)
             except Exception:
@@ -856,8 +883,24 @@ def _note_created(widget):
         m = getattr(m, "master", None)
 
 
+# The font options of the widgets that have them. A widget made without one gets the "body" role at
+# CustomTkinter's own default size (13), instead of a plain CTkFont: it looks the same, but then follows
+# the text size and font the user picks (Settings > Typography), like the text that names its font.
+_FONT_OPTIONS = {"CTkLabel": ("font",), "CTkButton": ("font",), "CTkEntry": ("font",), "CTkTextbox": ("font",),
+                 "CTkCheckBox": ("font",), "CTkSwitch": ("font",), "CTkRadioButton": ("font",),
+                 "CTkOptionMenu": ("font", "dropdown_font"), "CTkComboBox": ("font", "dropdown_font"),
+                 "CTkSegmentedButton": ("font",)}
+DEFAULT_FONT_SIZE = 13
+
+
+def _default_font():
+    from typography import ui_font
+    return ui_font("body", DEFAULT_FONT_SIZE)
+
+
 def install_creation_hook():
-    """Wrap the CTk widget constructors so scoped restylers hear about new widgets."""
+    """Wrap the CTk widget constructors so scoped restylers hear about new widgets (and widgets made
+    without a font get one that follows the user's text size)."""
     global _creation_hook_installed
     if _creation_hook_installed:
         return
@@ -872,14 +915,49 @@ def install_creation_hook():
             continue
         original = cls.__init__
 
-        def make(orig):
+        def make(orig, font_options, button):
             @functools.wraps(orig)
             def init(self, *args, **kwargs):
+                for option in font_options:
+                    if kwargs.get(option) is None:
+                        try:
+                            kwargs[option] = _default_font()
+                        except Exception:
+                            break
+                if button:
+                    _outlined_text_color(args, kwargs)
                 orig(self, *args, **kwargs)
                 _note_created(self)
             return init
 
-        cls.__init__ = make(original)
+        cls.__init__ = make(original, _FONT_OPTIONS.get(name, ()), name == "CTkButton")
+
+
+def _outlined_text_color(args, kwargs):
+    """A see-through button made without a text colour would get the default white button text, which vanishes
+    on a light window: when it sits on a plain panel it gets the theme's text colour instead."""
+    if kwargs.get("fg_color") != "transparent" or kwargs.get("text_color") is not None:
+        return
+    restyler = _global_restyler
+    if restyler is None:
+        return
+    w = args[0] if args else kwargs.get("master")
+    for _ in range(40):                                    # what's under it: the first parent with a colour
+        if w is None:
+            return
+        try:
+            fg = w.cget("fg_color")
+        except Exception:
+            return
+        if fg not in (None, "transparent"):
+            break
+        w = getattr(w, "master", None)
+    else:
+        return
+    if role_of(fg) in NEUTRAL_ROLES:
+        pair = restyler.palette.pair("text_primary")
+        if pair:
+            kwargs["text_color"] = tag_pair(pair, "text_primary")
 
 
 def install_global(root) -> Restyler:
@@ -888,8 +966,9 @@ def install_global(root) -> Restyler:
     install_creation_hook()
     palette = GlobalPalette()
     push_ctk_defaults(palette)
-    from typography import get_font_manager
+    from typography import get_font_manager, sync_named_fonts
     _global_restyler = Restyler(root, palette, get_font_manager().scope)
+    sync_named_fonts(root)
     return _global_restyler
 
 

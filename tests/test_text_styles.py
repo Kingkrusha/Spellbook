@@ -201,3 +201,68 @@ def test_bar_and_italic_insertions(editor):
     assert text_of(box) == "_slant_ me"
     ed.apply_line_style("### ")
     assert text_of(box).startswith("### ")
+
+
+def test_pop_ups_follow_the_text_size(tk_root):
+    """Widgets made without a font (most buttons, boxes and menus in dialogs) follow the "body" size,
+    and so do Tk's own named fonts and plain Tk lists given a role font."""
+    import time
+    import tkinter as tk
+    import tkinter.font as tkfont
+
+    import customtkinter as ctk
+
+    from typography import RoleFont, get_font_manager, ui_font
+    from ui.restyle import install_global
+
+    def pump(seconds=0.3):
+        end = time.time() + seconds
+        while time.time() < end:
+            tk_root.update()
+            time.sleep(0.01)
+
+    install_global(tk_root)
+    manager = get_font_manager()
+    named = tkfont.nametofont("TkDefaultFont", root=tk_root)
+    named_before = abs(int(named.cget("size")))
+    win = ctk.CTkToplevel(tk_root)
+    try:
+        button = ctk.CTkButton(win, text="Let them in")
+        entry = ctk.CTkEntry(win)
+        listbox = tk.Listbox(win, font=ui_font("body", 13))
+        for w in (button, entry, listbox):
+            w.pack()
+        pump()
+        assert isinstance(button.cget("font"), RoleFont) and int(button.cget("font").cget("size")) == 13
+        manager.set_role("body", size=16)
+        pump()
+        assert int(button.cget("font").cget("size")) == 17
+        assert int(entry.cget("font").cget("size")) == 17
+        assert abs(int(tk_root.tk.call("font", "configure", listbox.cget("font"), "-size"))) == 17
+        assert abs(int(named.cget("size"))) > named_before
+    finally:
+        manager.reset()
+        pump()
+        win.destroy()
+    assert abs(int(named.cget("size"))) == named_before
+
+
+def test_an_outlined_button_has_readable_text(tk_root):
+    """A see-through button made without a text colour gets the theme's text colour on a plain window (the
+    default white button text vanished on a light one); a filled button keeps its own."""
+    import customtkinter as ctk
+
+    from ui.restyle import install_global, role_of
+
+    install_global(tk_root)
+    win = ctk.CTkToplevel(tk_root)
+    try:
+        holder = ctk.CTkFrame(win, fg_color="transparent")
+        cancel = ctk.CTkButton(holder, text="Cancel", fg_color="transparent", border_width=1)
+        save = ctk.CTkButton(holder, text="Save")
+        own = ctk.CTkButton(holder, text="Mine", fg_color="transparent", text_color="#123456")
+        assert role_of(cancel.cget("text_color")) == "text_primary"
+        assert role_of(save.cget("text_color")) == "text_on_accent"
+        assert own.cget("text_color") == "#123456"
+    finally:
+        win.destroy()

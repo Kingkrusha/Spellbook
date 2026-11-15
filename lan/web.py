@@ -163,7 +163,10 @@ class WebSocketChannel:
         self._closed = False
 
     async def read(self, max_size: int = MAX_WEB_FRAME) -> dict:
-        """The next JSON message (pings are answered and skipped; a long message may come in pieces)."""
+        """The next JSON message (pings are answered and skipped; a long message may come in pieces).
+
+        A pong (the browser answering :meth:`keepalive`) comes back as ``{"type": "pong"}``, so the
+        host counts it as a sign of life."""
         parts = []
         size = 0
         while True:
@@ -174,6 +177,8 @@ class WebSocketChannel:
                 await self._send_raw(encode_ws(payload[:125], 0xA))
                 continue
             if opcode == 0xA:
+                if not parts:
+                    return {"type": "pong", "body": {}}
                 continue
             if opcode not in (0x0, 0x1, 0x2) or (opcode == 0x0) != bool(parts):
                 raise ProtocolError("unexpected frame")
@@ -189,6 +194,16 @@ class WebSocketChannel:
         if len(data) > P.MAX_FRAME:
             raise ProtocolError("message too large to send")
         await self._send_raw(encode_ws(data))
+
+    async def keepalive(self, every: Optional[float] = None) -> None:
+        """Ping the browser now and then. The browser answers by itself, even while the page's own timers
+        are slowed down (a hidden tab, a phone with its screen off), so the player isn't dropped as idle."""
+        try:
+            while not self._closed:
+                await asyncio.sleep(every or P.PING_INTERVAL)
+                await self._send_raw(encode_ws(b"sb", 0x9))
+        except (ConnectionError, OSError, asyncio.TimeoutError, RuntimeError):
+            pass
 
     async def _send_raw(self, frame: bytes) -> None:
         async with self._lock:

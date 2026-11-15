@@ -47,6 +47,12 @@ class CharacterSheetManager(HeldSaves, SaveErrorListeners):
         self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._sheets: Dict[str, CharacterSheet] = {}  # character_name -> CharacterSheet
         self._error_listeners: List[Callable[[str], None]] = []
+        self._saved_listeners: List[Callable[[], None]] = []
+
+    def add_saved_listener(self, callback: Callable[[], None]):
+        """Call ``callback()`` after each successful save (on the thread that saved, the UI's)."""
+        if callback not in self._saved_listeners:
+            self._saved_listeners.append(callback)
 
     def load(self) -> bool:
         """Load character sheets from file."""
@@ -78,11 +84,16 @@ class CharacterSheetManager(HeldSaves, SaveErrorListeners):
                 }
             }
             atomic_write_json(self.file_path, data)
-            return True
         except Exception as e:
             print(f"Error saving character sheets: {e}")
             self._notify_error(f"Could not save your character sheet changes: {e}")
             return False
+        for listener in list(self._saved_listeners):
+            try:
+                listener()
+            except Exception as e:
+                print(f"Character sheets: a listener failed after saving: {e}")
+        return True
     
     def get_sheet(self, character_name: str) -> Optional[CharacterSheet]:
         """Get character sheet by name."""

@@ -101,7 +101,8 @@ MAX_PORTRAIT = 64 * 1024           # bytes of a character's portrait (a small JP
 
 
 def clean_character(body) -> dict:
-    """The character a player says they are playing: ``{name, hp, hp_max, ac, summary, portrait}``.
+    """The character a player says they are playing: ``{name, hp, hp_max, ac, init, summary, portrait}``
+    (``init`` is their initiative bonus).
 
     Everything is optional except the name; an empty name means "nobody yet" (returns ``{}``). The portrait
     is base64 of a small JPEG or PNG and is dropped if it is too big or isn't one."""
@@ -117,7 +118,8 @@ def clean_character(body) -> dict:
             return None
         return max(low, min(high, int(value)))
     out = {"name": name, "hp": number("hp", 0, 9999), "hp_max": number("hp_max", 0, 9999),
-           "ac": number("ac", 0, 50), "summary": " ".join(clean_text(body.get("summary"), 120).split())[:80]}
+           "ac": number("ac", 0, 50), "init": number("init", -20, 30),
+           "summary": " ".join(clean_text(body.get("summary"), 120).split())[:80]}
     if out["hp"] is not None and out["hp_max"] is None:
         out["hp_max"] = out["hp"]
     portrait = body.get("portrait")

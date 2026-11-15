@@ -416,7 +416,7 @@ class AddCombatantDialog(ctk.CTkToplevel):
         frame.pack(fill="both", expand=True, pady=(6, 0))
         lb = tk.Listbox(frame, activestyle="none", exportselection=False, relief="flat", highlightthickness=0,
                         bg=t.get_current_color('bg_input'), fg=t.get_current_color('text_primary'),
-                        selectbackground=t.get_current_color('accent_primary'), font="TkDefaultFont")
+                        selectbackground=t.get_current_color('accent_primary'), font=ui_font("body", 13))
         sb = ctk.CTkScrollbar(frame, command=lb.yview)
         lb.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
@@ -470,7 +470,7 @@ class AddCombatantDialog(ctk.CTkToplevel):
         ctk.CTkLabel(tab, text="Someone connected to your session. They can then change this character's "
                                "HP, AC and conditions themselves.", font=ui_font("small"), wraplength=480,
                      justify="left", text_color=self.t.get_text_secondary()).pack(anchor="w", pady=(6, 8))
-        names = [n for n, _ in self._players] or ["(nobody is connected)"]
+        names = [p[0] for p in self._players] or ["(nobody is connected)"]
         row = ctk.CTkFrame(tab, fg_color="transparent")
         row.pack(anchor="w")
         ctk.CTkLabel(row, text="Player", font=ui_font("small")).grid(row=0, column=0, sticky="w", padx=4)
@@ -488,11 +488,22 @@ class AddCombatantDialog(ctk.CTkToplevel):
         self._player_picked(names[0])
 
     def _player_picked(self, name: str):
-        entry = self.pl["name"]
-        if not entry.get().strip() or entry.get() in [n for n, _ in self._players]:
+        """Fill in the character the player said they're playing (their own name and the defaults if none)."""
+        player = next((p for p in self._players if p[0] == name), None)
+        if player is None:
+            return
+        character = (player[2] if len(player) > 2 else None) or {}
+
+        def put(key, value):
+            entry = self.pl[key]
             entry.delete(0, "end")
-            if self._players:
-                entry.insert(0, name)
+            entry.insert(0, str(value))
+        put("name", character.get("name") or name)
+        hp = character.get("hp") if character.get("hp") is not None else character.get("hp_max")
+        put("hp", hp if hp is not None else 10)
+        put("ac", character.get("ac") if character.get("ac") is not None else 12)
+        put("bonus", character.get("init") if character.get("init") is not None else 0)
+        self._player_hp_max = character.get("hp_max")
 
     def _character_tab(self, tab):
         ctk.CTkLabel(tab, text="One of your own characters, as an NPC or a stand-in player:",
@@ -553,7 +564,7 @@ class AddCombatantDialog(ctk.CTkToplevel):
                 cmd = S.from_monster(m, roll_hp=self.rollhp_var.get(), hidden=hidden)
                 label = m.name
             elif tab == "Player":
-                owner = next((cid for n, cid in self._players if n == self.p_who.get()), None)
+                owner = next((p[1] for p in self._players if p[0] == self.p_who.get()), None)
                 name = self.pl["name"].get().strip()
                 hp, ac, bonus = (_to_int(self.pl[k].get()) for k in ("hp", "ac", "bonus"))
                 if owner is None:
@@ -562,7 +573,8 @@ class AddCombatantDialog(ctk.CTkToplevel):
                 if not name or hp is None or ac is None or bonus is None:
                     self.status.configure(text="Give the character a name, and whole numbers for HP, AC and bonus.")
                     return
-                cmd = {"type": "add_entry", "kind": T.KIND_PLAYER, "name": name, "hp": hp, "hp_max": hp,
+                hp_max = max(hp, getattr(self, "_player_hp_max", None) or 0)
+                cmd = {"type": "add_entry", "kind": T.KIND_PLAYER, "name": name, "hp": hp, "hp_max": hp_max,
                        "ac": ac, "init_bonus": bonus, "owner": owner, "hidden": hidden}
                 label, count = name, 1
             elif tab == "Character":
@@ -630,7 +642,7 @@ class AddMyCharacterDialog(ctk.CTkToplevel):
         self.list = tk.Listbox(frame, activestyle="none", exportselection=False, relief="flat",
                                highlightthickness=0, bg=t.get_current_color('bg_input'),
                                fg=t.get_current_color('text_primary'),
-                               selectbackground=t.get_current_color('accent_primary'), font="TkDefaultFont")
+                               selectbackground=t.get_current_color('accent_primary'), font=ui_font("body", 13))
         self.list.pack(fill="both", expand=True)
         for c in self._characters:
             classes = ", ".join(f"{cl.get_class_name()} {cl.level}" for cl in c.classes)

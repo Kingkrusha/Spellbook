@@ -114,6 +114,10 @@ class AppSettings:
     lan_overlay_enabled: bool = True  # Show the chat overlay on every page while in a session
     lan_overlay_collapsed: bool = False  # ... collapsed to a small "Chat" button
     lan_overlay_opacity: float = 0.72  # Backdrop opacity of the (Windows) translucent overlay
+    # Where the chat button and the chat panel were dragged to: "x,y" as fractions of the room
+    # they have to move in ("" = the default: the button bottom right, the panel bottom centre)
+    lan_overlay_toggle_pos: str = ""
+    lan_overlay_panel_pos: str = ""
     lan_web: bool = False  # The host lets players join from a web browser (lan/web.py)
     lan_web_port: int = 8742
     lan_character: str = ""  # The character this player last said they were playing in a session
@@ -136,6 +140,11 @@ class AppSettings:
     # Guided tour (Settings > Help): offered once, at the first start after it was added
     tutorial_offered: bool = False
     tutorial_example_character: str = ""  # the example character a running tour made (deleted when it ends)
+    # Crash reports: after Spellbook closes unexpectedly, the next start sends the developer a report with the
+    # end of the logs (see crash_report.py). crash_report_done names the last crash already dealt with.
+    send_crash_reports: bool = True
+    crash_report_done: str = ""
+    crash_reports_sent: list = field(default_factory=list)  # when the last few were sent (to send few a day)
     
     def to_dict(self) -> dict:
         """Convert settings to dictionary."""
@@ -170,6 +179,8 @@ class AppSettings:
             'lan_player_name', 'lan_port', 'lan_require_approval', 'lan_discovery', 'lan_client_id',
             'lan_last_invite', 'lan_overlay_enabled', 'lan_overlay_collapsed',
             'lan_overlay_opacity', 'lan_overlay_translucent', 'lan_web', 'lan_web_port', 'lan_character',
+            'lan_overlay_toggle_pos', 'lan_overlay_panel_pos', 'send_crash_reports', 'crash_report_done',
+            'crash_reports_sent',
             'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
             'hotkeys', 'show_content_images', 'pdf_folders',
             'tutorial_offered', 'tutorial_example_character',

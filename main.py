@@ -4,6 +4,10 @@ A desktop application for managing D&D spells with search, filter, and edit capa
 """
 
 import sys
+import time
+
+# When this run started: it names the run in crash.log and spellbook.log, so a crash report can find it
+STARTED = time.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _ensure_std_streams():
@@ -19,6 +23,12 @@ def _ensure_std_streams():
     to a log file up front so those diagnostics land somewhere instead of
     crashing the operation that was trying to report them.
     """
+    if not (len(sys.argv) >= 2 and sys.argv[1] == "--lan-selftest"):
+        try:      # everything printed is also kept in spellbook.log (see app_log.py)
+            import app_log
+            app_log.install(started=STARTED)
+        except Exception:
+            pass
     if sys.stdout is not None and sys.stderr is not None:
         return
     try:
@@ -111,6 +121,11 @@ def run_data_migrations():
         print(f"Data migration warning: {e}")
 
 
+_crash_log = None             # crash.log, open for the whole run (faulthandler writes to it)
+FREEZE_SECONDS = 30           # the window not answering for this long counts as frozen (see _watch_for_freezes)
+MAX_CRASH_REPORTS_A_DAY = 3
+
+
 def _install_crash_logging(root):
     """Leave evidence when something goes wrong, so a report has more than "it crashed".
 
@@ -120,6 +135,8 @@ def _install_crash_logging(root):
     * ``faulthandler`` writes the Python stack of every thread there if the process dies for a
       reason Python cannot catch (a native crash), which is otherwise completely silent.
     """
+    global _crash_log
+    import os
     import time
     import traceback
     try:
@@ -127,8 +144,10 @@ def _install_crash_logging(root):
         handle = open(user_data_path("crash.log"), "a", encoding="utf-8", buffering=1)
     except Exception:
         return
+    _crash_log = handle
     try:
-        handle.write(f"\n===== Spellbook started {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+        import app_log
+        handle.write("\n" + app_log.start_line(STARTED, os.getpid()) + "\n")
         import faulthandler
         faulthandler.enable(file=handle, all_threads=True)
     except Exception:
@@ -168,6 +187,85 @@ def _install_crash_logging(root):
         pass
 
 
+def _watch_for_freezes(root):
+    """If the window stops answering for FREEZE_SECONDS, write what every thread is doing to crash.log.
+
+    faulthandler's own watchdog thread does the writing (Python code can't run on a stuck thread); the
+    window only keeps pushing its deadline back while it is still answering. A freeze that ends with the
+    app being closed by force is then reported like a crash (crash_report.py)."""
+    import faulthandler
+    if _crash_log is None:
+        return
+
+    def push_back():
+        try:
+            faulthandler.dump_traceback_later(FREEZE_SECONDS, repeat=False, file=_crash_log, exit=False)
+            root.after(5000, push_back)
+        except Exception:
+            pass
+    push_back()
+
+
+def _report_earlier_crashes(app, crashed):
+    """After a run that didn't close normally: send the developer its logs (Settings > Help can turn
+    this off), at most a few a day, and say so at the bottom of the window."""
+    import threading
+    import crash_report
+    import feedback
+    settings_manager = app.settings_manager
+    settings = settings_manager.settings
+    done = str(getattr(settings, "crash_report_done", "") or "")
+    pick = None
+    for run in crashed:                                  # newest first
+        report = None
+        if pick is None and run.key != done:
+            try:
+                report = crash_report.report_for(run)
+            except Exception as e:
+                print(f"Crash report: couldn't read the logs: {e}")
+        if report is not None:
+            pick = (run, report)
+        else:
+            crash_report.forget(run)                     # nothing to tell, already told, or older
+    if pick is None:
+        return
+    run, report = pick
+    from ui.hotkey_actions import toast
+    if not getattr(settings, "send_crash_reports", True):
+        crash_report.forget(run)
+        toast(app, "Spellbook closed unexpectedly last time. You can tell the developer with "
+                   "Send feedback (Shift+F1).", ms=8000)
+        return
+    now = time.time()
+    recent = [t for t in (getattr(settings, "crash_reports_sent", None) or [])
+              if isinstance(t, (int, float)) and now - t < 86400]
+    if len(recent) >= MAX_CRASH_REPORTS_A_DAY:
+        crash_report.forget(run)
+        return
+    outcome = []
+
+    def work():
+        try:
+            feedback.send(report)
+            outcome.append(None)
+        except Exception as e:
+            outcome.append(str(e))
+    threading.Thread(target=work, name="crash-report", daemon=True).start()
+
+    def check():
+        if not outcome:
+            app.after(250, check)
+            return
+        if outcome[0] is None:
+            crash_report.forget(run)
+            settings_manager.update(crash_report_done=run.key, crash_reports_sent=(recent + [now])[-10:])
+            toast(app, "Spellbook closed unexpectedly last time, so a crash report was sent to the developer. "
+                       "(You can turn this off in Settings > Help.)", ms=8000)
+        else:
+            print(f"Crash report: not sent ({outcome[0]}); trying again next time.")
+    app.after(250, check)
+
+
 def main():
     """Application entry point."""
     # Must run before any window is created so Windows groups the taskbar
@@ -188,6 +286,17 @@ def main():
     root.minsize(900, 600)
     root.withdraw()  # Hide until fully loaded
     _install_crash_logging(root)
+    # Tk objects freed on the network (or any other) thread are finished off on Tk's thread
+    from ui import tk_threads
+    tk_threads.install(root)
+    # Runs that didn't close normally (this run is noted too, and the note removed when it closes)
+    crashed = []
+    try:
+        import crash_report
+        from version import __version__
+        crashed = crash_report.begin_run(STARTED, __version__)
+    except Exception as e:
+        print(f"Crash report: couldn't note this run: {e}")
     
     # Track if we're currently closing
     closing = [False]
@@ -284,6 +393,9 @@ def main():
             root.deiconify()
             root.lift()
             root.focus_force()
+            _watch_for_freezes(root)
+            if crashed:
+                app.after(3000, lambda: _report_earlier_crashes(app, crashed))
             
         except Exception as e:
             print(f"Error during startup: {e}")
@@ -297,6 +409,17 @@ def main():
     
     # Start the application
     root.mainloop()
+    # Closed normally: no freeze watch, and no crash report about this run next time
+    try:
+        import faulthandler
+        faulthandler.cancel_dump_traceback_later()
+    except Exception:
+        pass
+    try:
+        import crash_report
+        crash_report.end_run()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ from typing import List, Optional
 
 import customtkinter as ctk
 
-from pdf_library import Document, Hit, available, default_folder, get_pdf_library, library_folders
+from pdf_library import PDFIUM_LOCK, Document, Hit, available, default_folder, get_pdf_library, library_folders
 from theme import get_theme_manager
 from typography import ui_font
 from ui.virtual_list import VirtualListPanel
@@ -104,14 +104,16 @@ class PageCanvas(tk.Frame):
         self._path = path
         if path:
             import pypdfium2 as pdfium
-            self._pdf = pdfium.PdfDocument(path)
+            with PDFIUM_LOCK:
+                self._pdf = pdfium.PdfDocument(path)
         self.page = 0
         self._last_key = None
 
     def close(self):
         if self._pdf is not None:
             try:
-                self._pdf.close()
+                with PDFIUM_LOCK:
+                    self._pdf.close()
             except Exception:
                 pass
         self._pdf = None
@@ -123,7 +125,10 @@ class PageCanvas(tk.Frame):
 
     @property
     def page_count(self) -> int:
-        return len(self._pdf) if self._pdf is not None else 0
+        if self._pdf is None:
+            return 0
+        with PDFIUM_LOCK:
+            return len(self._pdf)
 
     def show_page(self, page: int, terms: Optional[List[str]] = None):
         if self._pdf is None:
@@ -146,6 +151,10 @@ class PageCanvas(tk.Frame):
         self._job = None
         if self._pdf is None:
             return
+        with PDFIUM_LOCK:          # (the library scan reads other PDFs on its own thread)
+            self._render()
+
+    def _render(self):
         width = max(200, self.canvas.winfo_width() - 20)
         page = self._pdf[self.page]
         try:

@@ -245,3 +245,26 @@ def test_a_character_is_cleaned_up():
     assert P.clean_character({"name": "  "}) == {}
     c = P.clean_character({"name": "A\x00ria " * 20, "hp": 1e9, "ac": True, "portrait": "bm90IGEgcGljdHVyZQ=="})
     assert len(c["name"]) <= 40 and c["hp"] == 9999 and c["ac"] is None and "portrait" not in c
+    assert P.clean_character({"name": "Aria", "init": 3})["init"] == 3
+    assert P.clean_character({"name": "Aria", "init": -99})["init"] == -20
+    assert P.clean_character({"name": "Aria", "init": "fast"})["init"] is None
+
+
+def test_a_player_keeps_the_dms_copy_of_their_character_current():
+    """After a sheet is saved, the player's app re-sends their character only when what the DM sees changed."""
+    from types import SimpleNamespace
+
+    from lan.protocol import clean_character
+    from lan.service import CLIENT
+    from ui.main_window import MainWindow
+
+    info = {"name": "Aria", "hp": 20, "hp_max": 31, "ac": 15, "init": 2, "summary": "Elf Rogue 3 " * 12}
+    sent = []
+    session = SimpleNamespace(role=CLIENT, my_character=clean_character(info), set_my_character=sent.append)
+    app = SimpleNamespace(session=session, _session_character_info=lambda name: dict(info),
+                          _played_refresh_after="job")
+    MainWindow._refresh_played_character(app)
+    assert sent == [] and app._played_refresh_after is None      # (a long summary is cut the same way)
+    info["hp"], info["init"] = 12, 3
+    MainWindow._refresh_played_character(app)
+    assert sent[-1]["hp"] == 12 and sent[-1]["init"] == 3

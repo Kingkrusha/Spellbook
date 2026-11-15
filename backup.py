@@ -66,7 +66,8 @@ CATEGORIES: "OrderedDict[str, Tuple[str, str]]" = OrderedDict([
 
 # settings.json keys that belong to this computer, not to the person: never exported or imported
 LOCAL_SETTINGS = {"lan_client_id", "lan_last_invite", "pdf_folders", "tracker_window_state",
-                  "skipped_update_version", "initial_official_tag_applied"}
+                  "skipped_update_version", "initial_official_tag_applied", "crash_report_done", "crash_reports_sent",
+                  "lan_overlay_toggle_pos", "lan_overlay_panel_pos"}
 SETTINGS_FILES = ("settings.json", "font_settings.json", "custom_themes.json")
 
 MAX_JSON_BYTES = 256 * 1024 * 1024          # one JSON member of a backup

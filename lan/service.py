@@ -15,7 +15,7 @@ Listener events - ``listener(kind, **data)``:
 * ``line``             - ``line`` was appended to :attr:`chat` (a dict, see :meth:`_add_line`);
                          a dice roll has ``kind == "roll"`` and a ``roll`` dict
 * ``approval_request`` - host only: ``request_id, name, address``
-* ``approval_done``    - host only: ``request_id`` (answered, so close any prompt)
+* ``approval_done``    - host only: ``request_id`` (answered, timed out or abandoned: close any prompt)
 * ``scan_done``        - discovery finished; the results are in :attr:`discovered`
 * ``peer_joined``      - host only: ``peer``, ``client_id`` (the player's install id)
 * ``tracker_cmd``      - host only: ``peer_id, name, cmd, seq`` from a player
@@ -581,7 +581,7 @@ class SessionService:
             self._set_peer(ev["peer"])
             if ev.get("client_id"):
                 self.client_ids[ev["peer"]["peer_id"]] = ev["client_id"]
-            self._add_line("system", f"{ev['peer']['name']} joined.")
+            self._add_line("system", f"{ev['peer']['name']} " + ("reconnected." if ev.get("rejoined") else "joined."))
             self._notify("state")
             self._notify("peer_joined", peer=ev["peer"], client_id=ev.get("client_id", ""))
         elif kind == "peer_character":                  # host: a player picked (or dropped) a character
@@ -621,12 +621,15 @@ class SessionService:
             self.client_ids.pop(ev["peer"]["peer_id"], None)
             self.player_characters.pop(ev["peer"]["peer_id"], None)
             self._drop_peer(ev["peer"])
-            why = f" ({ev['reason']})" if ev.get("reason") else ""
-            self._add_line("system", f"{ev['peer']['name']} left{why}.")
+            if not ev.get("replaced"):                  # (a reconnect says "reconnected" when they're back)
+                why = f" ({ev['reason']})" if ev.get("reason") else ""
+                self._add_line("system", f"{ev['peer']['name']} left{why}.")
             self._notify("state")
         elif kind == "approval_request":
             self._notify("approval_request", request_id=ev["request_id"], name=ev["name"], address=ev["address"],
                          web=bool(ev.get("web")))
+        elif kind == "approval_closed":                 # timed out, the player gave up or asked again
+            self._notify("approval_done", request_id=ev["request_id"])
         elif kind == "error":
             self._add_line("system", ev.get("message") or "Something went wrong.")
         elif kind == "disconnected":
