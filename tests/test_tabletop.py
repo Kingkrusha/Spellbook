@@ -476,3 +476,71 @@ def test_raised_ground_lifts_tokens_and_counts_in_distances(table):
     assert table.view_for("p1")["scene"]["zones"][0]["elev"] == 35  # players see the heights too
     table.apply({"op": "zone_clear", "scene": sid})
     assert T.token_elevation(scene, orc_t) == 0
+
+
+# ---- the quick point tests give the plain ones' answers
+
+def test_a_prepared_sight_polygon_answers_like_the_plain_test():
+    import random
+    rng = random.Random(7)
+    for round_ in range(12):
+        walls = []
+        for _ in range(rng.randint(0, 60)):
+            x, y = rng.uniform(0, 1200), rng.uniform(0, 900)
+            walls.append((x, y, x + rng.uniform(-200, 200), y + rng.uniform(-200, 200)))
+        ex, ey = rng.uniform(50, 1150), rng.uniform(50, 850)
+        pts = T.visibility_polygon(ex, ey, walls, (-35, -35, 1235, 935))
+        poly = T._Poly(pts)
+        for _ in range(400):
+            x, y = rng.uniform(-100, 1300), rng.uniform(-100, 1000)
+            assert poly.contains(x, y) == T.point_in_polygon(x, y, pts), (round_, x, y)
+        for i in range(0, len(pts), 2):                     # and on the corners themselves
+            assert poly.contains(pts[i], pts[i + 1]) == T.point_in_polygon(pts[i], pts[i + 1], pts)
+    assert not T._Poly([]).contains(0, 0) and not T._Poly([0, 0, 5, 5]).contains(1, 1)
+    assert not T.point_in_polygon(1, 1, [0, 0, 5, 5])
+    square = [0, 0, 10, 0, 10, 10, 0, 10]
+    assert T._poly(square) is T._poly(square)               # prepared once for the same list
+    assert T.in_sight([{"x": 5, "y": 5, "r": 0, "pts": square}], 3, 3)
+    assert not T.in_sight([{"x": 5, "y": 5, "r": 0, "pts": square}], 13, 3)
+
+
+def test_what_a_player_has_seen_is_added_once_and_again_after_a_reset(tmp_path):
+    table = T.Tabletop(str(tmp_path / "t.json"))
+    sid, door, tid, _orc = _wall_scene(table)
+    marks = []
+    real = T._mark_seen
+    T._mark_seen = lambda *a: marks.append(1) or real(*a)
+    try:
+        first = table.view_for("me")["scene"]["explored"]["bits"]
+        assert marks == [1]
+        table.view_for("me")                               # nothing moved: nothing to add
+        table.apply({"op": "draw_add", "scene": sid, "drawing": {"kind": "line", "pts": [0, 0, 9, 9]}})
+        table.view_for("me")
+        assert marks == [1]
+        table.apply({"op": "token_move", "scene": sid, "id": tid, "x": 150, "y": 300})
+        table.view_for("me")
+        assert marks == [1, 1]                               # they moved: looked at again
+        table.apply({"op": "door_toggle", "scene": sid, "id": door, "open": True})
+        assert table.view_for("me")["scene"]["explored"]["bits"] != first      # and through the open door
+        assert marks == [1, 1, 1]
+        table.apply({"op": "explored_reset", "scene": sid})
+        again = table.view_for("me")["scene"]["explored"]["bits"]
+        assert marks == [1, 1, 1, 1] and again               # forgotten, then seen again from where they stand
+        table.undo()                                         # the reset undone: the older record is back
+        table.view_for("me")
+        assert len(marks) == 5
+    finally:
+        T._mark_seen = real
+
+
+def test_points_are_kept_to_a_tenth_of_a_pixel_and_the_file_is_compact(tmp_path):
+    table = T.Tabletop(str(tmp_path / "t.json"))
+    sid = make_scene(table)
+    table.apply({"op": "draw_add", "scene": sid, "drawing": {"kind": "free", "pts": [1.23456789, 2.98765, 30, 40.04]}})
+    assert table.scene(sid)["drawings"][0]["pts"] == [1.2, 3.0, 30.0, 40.0]
+    assert table.dirty
+    table.save()
+    assert not table.dirty
+    text = open(table.path, encoding="utf-8").read()
+    assert "\n" not in text and '"pts":[1.2,3.0,30.0,40.0]' in text
+    assert T.Tabletop(table.path).scene(sid)["drawings"][0]["pts"] == [1.2, 3.0, 30.0, 40.0]

@@ -52,6 +52,29 @@ def install():
 
     _guard_toplevel_titlebar_revert()
     _cancel_timers_on_destroy()
+    _slow_background_checks()
+
+
+APPEARANCE_CHECK_MS = 1000
+SCALING_CHECK_MS = 500
+
+
+def _slow_background_checks():
+    """CustomTkinter keeps two timers running for as long as the app is open: one looks 33 times a second
+    for a change of the system's light/dark setting (on Windows a registry read each time, when the app
+    follows the system), the other asks 10 times a second for the display scaling of every window. Together
+    they are most of what an idle Spellbook does (about 1.2% of a core here against 0.1% without them), and
+    they keep a laptop's processor from resting. Once a second and twice a second is still quicker than
+    anyone changes those settings."""
+    try:
+        from customtkinter.windows.widgets.appearance_mode import AppearanceModeTracker
+        from customtkinter.windows.widgets.scaling import ScalingTracker
+    except Exception:
+        return
+    if getattr(AppearanceModeTracker, "update_loop_interval", APPEARANCE_CHECK_MS) < APPEARANCE_CHECK_MS:
+        AppearanceModeTracker.update_loop_interval = APPEARANCE_CHECK_MS
+    if getattr(ScalingTracker, "update_loop_interval", SCALING_CHECK_MS) < SCALING_CHECK_MS:
+        ScalingTracker.update_loop_interval = SCALING_CHECK_MS
 
 
 def _guard_toplevel_titlebar_revert():

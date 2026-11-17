@@ -336,8 +336,8 @@ def _clean_token_fields(fields: dict) -> dict:
 def _clean_points(points, limit: int = MAX_POINTS) -> List[float]:
     if not isinstance(points, list):
         return []
-    pts = [_num(p) for p in points[: limit * 2]]
-    return pts[: len(pts) // 2 * 2]
+    pts = [round(_num(p), 1) for p in points[: limit * 2]]      # (a tenth of a map pixel is plenty, and it
+    return pts[: len(pts) // 2 * 2]                             # keeps what is saved and sent small)
 
 
 def clean_drawing(d: dict, author: str = "") -> Optional[dict]:
@@ -476,14 +476,73 @@ def visibility_polygon(ex: float, ey: float, walls: List[Tuple[float, float, flo
 
 def point_in_polygon(x: float, y: float, pts: List[float]) -> bool:
     inside = False
-    n = len(pts) // 2
-    j = n - 1
-    for i in range(n):
-        xi, yi, xj, yj = pts[2 * i], pts[2 * i + 1], pts[2 * j], pts[2 * j + 1]
-        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+    if len(pts) < 6:
+        return False
+    xj, yj = pts[-2], pts[-1]
+    it = iter(pts)
+    for xi, yi in zip(it, it):
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
             inside = not inside
-        j = i
+        xj, yj = xi, yi
     return inside
+
+
+class _Poly:
+    """A sight polygon made ready for many point tests. A view asks "is this point seen?" nine times for every
+    token and every pair of eyes, and a polygon has two corners for every wall end, so each test is kept short:
+    a point outside the polygon's box is answered at once, and inside it only the edges crossing the point's
+    horizontal band are looked at. The answer is always :func:`point_in_polygon`'s."""
+
+    __slots__ = ("pts", "x0", "y0", "x1", "y1", "step", "bands")
+    BANDS = 64
+
+    def __init__(self, pts: List[float]):
+        self.pts = pts                      # (kept, so the list's id stays this polygon's for as long as we do)
+        xs, ys = pts[0::2], pts[1::2]
+        n = len(xs)
+        if n < 3:
+            self.x0 = self.y0 = self.x1 = self.y1 = 0.0
+            self.step, self.bands = 1.0, []
+            return
+        self.x0, self.x1, self.y0, self.y1 = min(xs), max(xs), min(ys), max(ys)
+        count = max(1, min(self.BANDS, n // 4))
+        self.step = (self.y1 - self.y0) / count or 1.0
+        bands: List[list] = [[] for _ in range(count)]
+        y0, step, last = self.y0, self.step, count - 1
+        xj, yj = xs[-1], ys[-1]
+        for xi, yi in zip(xs, ys):
+            if yi != yj:
+                lo, hi = (yi, yj) if yi < yj else (yj, yi)
+                a = min(last, max(0, int((lo - y0) / step)))
+                b = min(last, max(0, int((hi - y0) / step)))
+                edge = (xi, yi, xj, yj)
+                for k in range(a, b + 1):
+                    bands[k].append(edge)
+            xj, yj = xi, yi
+        self.bands = bands
+
+    def contains(self, x: float, y: float) -> bool:
+        if not self.bands or x < self.x0 or x > self.x1 or y < self.y0 or y > self.y1:
+            return False
+        inside = False
+        for xi, yi, xj, yj in self.bands[min(len(self.bands) - 1, int((y - self.y0) / self.step))]:
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                inside = not inside
+        return inside
+
+
+_POLYS: Dict[int, _Poly] = {}
+_POLYS_KEPT = 512
+
+
+def _poly(pts: List[float]) -> _Poly:
+    """The prepared form of a sight polygon (the lists come from the sight cache, so the same ones return)."""
+    poly = _POLYS.get(id(pts))
+    if poly is None or poly.pts is not pts:
+        if len(_POLYS) >= _POLYS_KEPT:
+            _POLYS.clear()
+        poly = _POLYS[id(pts)] = _Poly(pts)
+    return poly
 
 
 def sight_range(token: dict, scene: dict) -> float:
@@ -534,7 +593,7 @@ def in_sight(sight: List[dict], x: float, y: float) -> bool:
     for s in sight:
         if s["r"] and math.hypot(x - s["x"], y - s["y"]) > s["r"]:
             continue
-        if point_in_polygon(x, y, s["pts"]):
+        if _poly(s["pts"]).contains(x, y):
             return True
     return False
 
@@ -642,11 +701,23 @@ def _mark_seen(pts: List[float], cx: float, cy: float, r: float, cell: float, co
     return changed
 
 
+_EXPLORED_WITH: Dict[tuple, tuple] = {}     # (scene id, viewer) -> the sight last added, and the record it made
+
+
 def explore(scene: dict, viewer: str, sight: List[dict]) -> bool:
     """Add what ``sight`` shows to ``viewer``'s explored area. Returns whether anything new was seen."""
     cell, cols, rows = explore_grid(scene)
     store = scene.setdefault("explored", {})
     record = store.get(viewer)
+    # Most changes to a map (someone else's token moving, a drawing) leave this player's sight as it was: the
+    # same polygons from the sight cache, added to the same record, can't show them anything new
+    key = (scene.get("id"), viewer)
+    seen = tuple((s["x"], s["y"], s.get("r") or 0.0, s["pts"]) for s in sight)
+    before = _EXPLORED_WITH.get(key)
+    if before is not None and isinstance(record, dict) and record.get("bits") is before[0] \
+            and before[1] == (cell, cols, rows) and len(before[2]) == len(seen) \
+            and all(a[:3] == b[:3] and a[3] is b[3] for a, b in zip(before[2], seen)):
+        return False
     bits = None
     if isinstance(record, dict) and record.get("cell") == cell and record.get("cols") == cols \
             and record.get("rows") == rows:
@@ -660,6 +731,9 @@ def explore(scene: dict, viewer: str, sight: List[dict]) -> bool:
         changed = _mark_seen(s["pts"], s["x"], s["y"], s.get("r") or 0.0, cell, cols, rows, bits) or changed
     if changed or fresh:
         store[viewer] = {"cell": cell, "cols": cols, "rows": rows, "bits": base64.b64encode(bytes(bits)).decode()}
+    if len(_EXPLORED_WITH) > 512:
+        _EXPLORED_WITH.clear()
+    _EXPLORED_WITH[key] = (store[viewer]["bits"], (cell, cols, rows), seen)
     return changed
 
 
@@ -965,6 +1039,7 @@ class Tabletop:
         self._undo: List[Tuple[str, Optional[dict], List[str], str]] = []
         self._lock = threading.RLock()
         self.explored_dirty = False        # a player saw more of a map since the last save
+        self.dirty = False                 # something changed since the last save
         self.load()
 
     # ---- storage
@@ -999,8 +1074,8 @@ class Tabletop:
             data = {"version": 1, "shown": self.shown, "scenes": [self.scenes[i] for i in self.order]}
             try:
                 os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                atomic_write_json(self.path, data)
-                self.explored_dirty = False
+                atomic_write_json(self.path, data, indent=None)     # (large, and never read by people)
+                self.explored_dirty = self.dirty = False
                 return True
             except OSError as e:
                 print(f"Tabletop: could not save: {e}")
@@ -1018,6 +1093,7 @@ class Tabletop:
 
     def _changed(self, scene_id: Optional[str]) -> None:
         self.rev += 1
+        self.dirty = True
         for fn in list(self._listeners):
             try:
                 fn(scene_id)

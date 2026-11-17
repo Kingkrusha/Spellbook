@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import marshal
 from typing import Callable, Dict, List, Optional
 
 import tabletop as T
@@ -61,6 +62,7 @@ class LocalTable:
         self.assets = assets or T.get_assets()
         self.name = name
         self.scene_id = self.table.shown or (self.table.order[0] if self.table.order else "")
+        self._view: Optional[tuple] = None        # (what it was made for, the view)
         self._listeners = _Listeners()
         self._pings = _Listeners()
         self.table.add_listener(self._changed)
@@ -81,7 +83,13 @@ class LocalTable:
 
     # ---- the interface
     def view(self) -> dict:
-        return T.project(self.table.scene(self.scene_id), T.DM, rev=self.table.rev, turn=self.table.turn)
+        # The page asks for the view many times after one change (the map, the lists beside it, the menus),
+        # and each answer is a copy of the whole map: one copy per change is kept. Nobody changes a view.
+        key = (self.table.rev, self.scene_id, self.table.turn)
+        if self._view is None or self._view[0] != key:
+            self._view = (key, T.project(self.table.scene(self.scene_id), T.DM, rev=self.table.rev,
+                                         turn=self.table.turn))
+        return self._view[1]
 
     def select_scene(self, scene_id: str) -> None:
         if scene_id in self.table.scenes and scene_id != self.scene_id:
@@ -116,6 +124,17 @@ class LocalTable:
         self._pings.add(fn)
 
 
+def _digest(view: dict) -> str:
+    """A fingerprint of a view, to tell whether a player already has it. ``marshal`` (format 2, which writes
+    every value out in full) is some 25 times quicker here than JSON, and this runs for every player after
+    every change."""
+    try:
+        data = marshal.dumps(view, 2)
+    except ValueError:                          # something marshal can't write: the slow way
+        data = json.dumps(view, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha1(data).hexdigest()
+
+
 def _player_key(service, peer_id: str) -> str:
     """The id a player's tokens are owned by: their install id (it survives reconnecting)."""
     return service.client_ids.get(peer_id) or f"peer:{peer_id}"
@@ -125,6 +144,7 @@ class TableHostLink:
     """Keeps every connected player's map current and runs their commands (the DM's app, while hosting)."""
 
     COALESCE_MS = 60
+    SAVE_MS = 4000                  # a change is on disk at the latest this long after it was made
     PING_COLORS = ["#3498DB", "#2ECC71", "#E67E22", "#9B59B6", "#1ABC9C", "#E74C3C", "#F1C40F", "#EC407A"]
 
     def __init__(self, service, table: Optional[T.Tabletop] = None, assets: Optional[T.AssetStore] = None,
@@ -136,6 +156,9 @@ class TableHostLink:
         self._pending = False
         self._closed = False
         self._sent: Dict[str, str] = {}           # peer id -> digest of the last view sent
+        self._touched: set = set()                # maps changed since the last send (None: something else did)
+        self._shown = self.table.shown            # the map the players were shown at the last send
+        self._saving = False
         self.table.add_listener(self._changed)
         service.add_listener(self._on_service)
         dm_pings.add(self._forward_ping)
@@ -146,20 +169,41 @@ class TableHostLink:
         self.table.remove_listener(self._changed)
         self.service.remove_listener(self._on_service)
         dm_pings.remove(self._forward_ping)
+        if self._schedule is not None and (self.table.dirty or self.table.explored_dirty):
+            self.table.save()
 
     # ---- outbound
-    def _changed(self, _scene_id) -> None:
+    def _changed(self, scene_id) -> None:
+        self._touched.add(scene_id or None)
         if self._schedule is None:
-            self.send_all()
-        elif not self._pending:
+            self._send_changes()
+            return
+        if not self._pending:
             self._pending = True
             self._schedule(self.COALESCE_MS, self._flush)
+        if not self._saving:
+            self._saving = True
+            self._schedule(self.SAVE_MS, self._save)
 
     def _flush(self) -> None:
         self._pending = False
         if not self._closed:
+            self._send_changes()
+
+    def _send_changes(self) -> None:
+        """Send the players their views after a change, unless it can't have changed them: they only ever
+        see the map they're shown, so the DM working on another one costs nothing here."""
+        touched, self._touched = self._touched, set()
+        shown, self._shown = self._shown, self.table.shown
+        if None in touched or shown != self.table.shown or self.table.shown in touched:
             self.send_all()
-            self.table.save()                   # players' moves are kept even with the page closed
+
+    def _save(self) -> None:
+        """Players' moves are kept even with the tabletop page closed. Not after every one of them: the
+        file holds every map, and writing it stops the window for a moment each time."""
+        self._saving = False
+        if not self._closed and (self.table.dirty or self.table.explored_dirty):
+            self.table.save()
 
     def _players(self) -> List[str]:
         return [p["peer_id"] for p in list(self.service.peers) if p["peer_id"] != self.service.my_id]
@@ -170,8 +214,7 @@ class TableHostLink:
 
     def send_one(self, peer_id: str, force: bool = False) -> None:
         view = self.table.view_for(_player_key(self.service, peer_id))
-        digest = hashlib.sha1(json.dumps({k: v for k, v in view.items() if k != "rev"}, sort_keys=True,
-                                         default=str).encode("utf-8")).hexdigest()
+        digest = _digest({k: v for k, v in view.items() if k != "rev"})
         if not force and self._sent.get(peer_id) == digest:
             return
         self._sent[peer_id] = digest

@@ -284,3 +284,14 @@ def test_a_new_scrollbar_never_flushes_the_whole_window(tk_root, monkeypatch):
         assert flushed == []
     finally:
         box.destroy()
+
+
+def test_customtkinters_background_checks_run_seldom():
+    """Its two timers (light/dark setting, display scaling) are most of what an idle window does."""
+    from customtkinter.windows.widgets.appearance_mode import AppearanceModeTracker
+    from customtkinter.windows.widgets.scaling import ScalingTracker
+    from ui import ctk_patches
+    ctk_patches.install()
+    ctk_patches._slow_background_checks()
+    assert AppearanceModeTracker.update_loop_interval >= 1000
+    assert ScalingTracker.update_loop_interval >= 500
