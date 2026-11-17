@@ -1,6 +1,5 @@
 """The main window opens the size and in the place it was closed (ui/window_utils.py)."""
 
-import customtkinter as ctk
 import pytest
 
 from ui.window_utils import fit_window_memory, restore_window, window_memory
@@ -45,7 +44,10 @@ def test_a_second_monitor_to_the_left_counts_as_on_screen():
 
 
 def test_a_real_window_is_remembered_and_put_back(tk_root):
-    window = ctk.CTkToplevel(tk_root)
+    # (a plain Tk window: on Windows a CustomTkinter pop-up hides itself for a moment after it is made, to colour
+    # its title bar, and a hidden window reports its old size)
+    import tkinter as tk
+    window = tk.Toplevel(tk_root)
     try:
         window.geometry("940x620+60+40")
         window.update()

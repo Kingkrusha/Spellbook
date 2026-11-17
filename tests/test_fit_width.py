@@ -204,9 +204,10 @@ def test_a_full_casters_class_table_shows_every_spell_slot_column(tk_root, stage
         box = None
         while time.time() < deadline:
             pump(tk_root, 5)
-            boxes = [w for w in view.content.winfo_children() if isinstance(w, SidewaysBox)]
-            if boxes and len(boxes[0].inner.winfo_children()) >= 21:
-                box = boxes[0]
+            # (the first class shown, Artificer, may still be on its way out: only the table on screen counts)
+            boxes = [w for w in view.content.winfo_children() if isinstance(w, SidewaysBox) and w.winfo_manager()]
+            if boxes and len(boxes[-1].inner.winfo_children()) >= 21:
+                box = boxes[-1]
                 break
         assert box is not None, "the feature table was not built"
         pump(tk_root, 10)
