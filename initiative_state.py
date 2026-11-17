@@ -897,5 +897,5 @@ def load_state(path: str) -> Optional[TrackerState]:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return TrackerState.from_dict(json.load(f))
-    except (OSError, ValueError, CommandError):
-        return None
+    except (OSError, ValueError, CommandError, TypeError, KeyError, AttributeError):
+        return None                                    # (a file of the wrong shape is no encounter either)

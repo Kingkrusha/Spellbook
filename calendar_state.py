@@ -22,6 +22,8 @@ from typing import List, Optional, Tuple
 
 FILE_NAME = "calendars.json"
 FORMAT_VERSION = 1
+MAX_MONTH_DAYS = 100_000          # (far more than any calendar: only keeps a damaged file's numbers sane)
+MAX_YEAR = 10_000_000
 
 
 # --------------------------------------------------------------------------- #
@@ -55,8 +57,10 @@ class Month:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Month":
-        return cls(str(d.get("name", "")), max(0, int(d.get("days", 30))), bool(d.get("outside", False)),
-                   max(0, int(d.get("leap_every", 0) or 0)), d.get("counts_weekdays"))
+        counts = d.get("counts_weekdays")
+        return cls(str(d.get("name", "")), max(0, min(MAX_MONTH_DAYS, int(d.get("days", 30)))),
+                   bool(d.get("outside", False)), max(0, min(10 ** 6, int(d.get("leap_every", 0) or 0))),
+                   counts if isinstance(counts, bool) else None)
 
 
 @dataclass
@@ -151,8 +155,10 @@ class CalendarConfig:
         months = [Month.from_dict(m) for m in d.get("months", []) if isinstance(m, dict)]
         months = [m for m in months if m.days > 0 or m.leap_every] or [Month("Month", 30)]
         return cls(months, [str(w) for w in d.get("weekdays", [])],
-                   max(1, int(d.get("hours_per_day", 24) or 24)), max(1, int(d.get("minutes_per_hour", 60) or 60)),
-                   str(d.get("year_suffix", "") or ""), int(d.get("weekday_offset", 0) or 0))
+                   max(1, min(1000, int(d.get("hours_per_day", 24) or 24))),
+                   max(1, min(1000, int(d.get("minutes_per_hour", 60) or 60))),
+                   str(d.get("year_suffix", "") or ""),
+                   max(-10 ** 6, min(10 ** 6, int(d.get("weekday_offset", 0) or 0))))
 
     # ---- the months as editable text
 
@@ -424,8 +430,8 @@ class Campaign:
     @classmethod
     def from_dict(cls, d: dict) -> "Campaign":
         return cls(str(d.get("name", "") or "Campaign"), CalendarConfig.from_dict(d.get("config") or {}),
-                   int(d.get("year", 1)), int(d.get("month", 0)), int(d.get("day", 1)),
-                   int(d.get("minute", 8 * 60)),
+                   max(-MAX_YEAR, min(MAX_YEAR, int(d.get("year", 1)))), int(d.get("month", 0)),
+                   max(1, min(MAX_MONTH_DAYS, int(d.get("day", 1)))), max(0, min(10 ** 6, int(d.get("minute", 8 * 60)))),
                    [Event.from_dict(e) for e in d.get("events", []) if isinstance(e, dict)],
                    [Tracker.from_dict(t) for t in d.get("trackers", []) if isinstance(t, dict)],
                    str(d.get("id") or uuid.uuid4().hex[:12]))
@@ -459,13 +465,20 @@ class CalendarStore:
             with open(self.path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, ValueError) as e:
-            print(f"Could not read {self.path}: {e}")
+            from atomic_io import unreadable_note
+            print(f"Could not read {self.path}: {e}.{unreadable_note(self.path)}")
             return
-        for d in data.get("campaigns", []) if isinstance(data, dict) else []:
+        records = data.get("campaigns") if isinstance(data, dict) else None
+        skipped = not isinstance(records, list)
+        for d in records if isinstance(records, list) else []:
             try:
                 self.campaigns.append(Campaign.from_dict(d))
-            except (TypeError, ValueError) as e:
-                print(f"Skipped a calendar that could not be read: {e}")
+            except (TypeError, ValueError, AttributeError, KeyError, OverflowError) as e:
+                skipped = True
+                print(f"Skipped a calendar that could not be read: {e!r}")
+        if skipped:
+            from atomic_io import unreadable_note
+            print(f"Parts of {self.path} could not be read.{unreadable_note(self.path)}")
         self.active_id = data.get("active") if isinstance(data, dict) else None
 
     def save(self) -> bool:

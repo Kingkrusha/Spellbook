@@ -32,7 +32,7 @@ class ClassLevel:
     @classmethod
     def from_dict(cls, data: dict) -> "ClassLevel":
         """Create from dictionary."""
-        class_name = data["class"]
+        class_name = str(data["class"])
         char_class = CharacterClass.from_string(class_name)
         custom_name = ""
         # If from_string returns CUSTOM but the name wasn't "Custom", store the original name
@@ -40,8 +40,8 @@ class ClassLevel:
             custom_name = class_name
         return cls(
             character_class=char_class,
-            level=data["level"],
-            subclass=data.get("subclass", ""),
+            level=int(data["level"]),
+            subclass=str(data.get("subclass") or ""),
             custom_class_name=custom_name
         )
     
@@ -90,6 +90,7 @@ class CharacterSpellList:
     grant_options: Dict[str, str] = field(default_factory=dict)       # {"lineage:Elf": "Drow"}: the variant picked
     grant_choices: Dict[str, List[str]] = field(default_factory=dict)  # {pick key: spells the character chose}
     spell_sources: Dict[str, str] = field(default_factory=dict)       # {spell: "Feat: Fey Touched"} (rebuilt)
+    pact_slots_set: bool = False  # the pact slots were given their starting number: from then on 0 means "all used"
     
     @property
     def primary_class(self) -> Optional[ClassLevel]:
@@ -287,6 +288,7 @@ class CharacterSpellList:
         
         # Restore warlock slots
         self.warlock_slots_current = warlock_max_slots
+        self.pact_slots_set = warlock_max_slots > 0
         
         # Reset all mystic arcanum
         self.mystic_arcanum_used = []
@@ -294,6 +296,18 @@ class CharacterSpellList:
     def short_rest(self, warlock_max_slots: int):
         """Restore warlock spell slots on short rest."""
         self.warlock_slots_current = warlock_max_slots
+        self.pact_slots_set = warlock_max_slots > 0
+    
+    def ensure_pact_slots(self, warlock_max_slots: int):
+        """Give a Warlock their pact slots the first time they are looked at. Afterwards a count of 0 means they
+        have used them all, and stays 0 until a rest (it used to be refilled whenever the character was opened)."""
+        if warlock_max_slots <= 0:
+            self.pact_slots_set = False               # not a Warlock (any more): start afresh if they become one
+            return
+        if not self.pact_slots_set:
+            if self.warlock_slots_current <= 0:
+                self.warlock_slots_current = warlock_max_slots
+            self.pact_slots_set = True
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -314,7 +328,8 @@ class CharacterSpellList:
             "hidden_features": self.hidden_features,
             "grant_options": self.grant_options,
             "grant_choices": self.grant_choices,
-            "spell_sources": self.spell_sources
+            "spell_sources": self.spell_sources,
+            "pact_slots_set": self.pact_slots_set
         }
     
     @classmethod
@@ -347,7 +362,8 @@ class CharacterSpellList:
             hidden_features=data.get("hidden_features", []),
             grant_options=dict(data.get("grant_options", {}) or {}),
             grant_choices={k: list(v) for k, v in (data.get("grant_choices", {}) or {}).items()},
-            spell_sources=dict(data.get("spell_sources", {}) or {})
+            spell_sources=dict(data.get("spell_sources", {}) or {}),
+            pact_slots_set=bool(data.get("pact_slots_set", False))
         )
 
 

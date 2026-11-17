@@ -295,3 +295,18 @@ def test_customtkinters_background_checks_run_seldom():
     ctk_patches._slow_background_checks()
     assert AppearanceModeTracker.update_loop_interval >= 1000
     assert ScalingTracker.update_loop_interval >= 500
+
+
+def test_a_long_rest_on_the_sheet_gives_a_third_caster_and_a_warlock_their_slots_back(sheet, tk_root, monkeypatch):
+    import ui.character_sheet_view as csv
+    monkeypatch.setattr(csv.messagebox, "showinfo", lambda *a, **k: None)
+    view = sheet({"class": "Fighter", "level": 7, "subclass": "Eldritch Knight"}, {"class": "Warlock", "level": 3})
+    character = view.current_character
+    character.current_slots = {1: 0, 2: 1}
+    character.ensure_pact_slots(2)
+    character.warlock_slots_current = 0
+    character.mystic_arcanum_used = [6]
+    view._on_long_rest()
+    pump(tk_root, 0.2)
+    assert character.current_slots == {1: 4, 2: 2}
+    assert character.warlock_slots_current == 2 and character.mystic_arcanum_used == []

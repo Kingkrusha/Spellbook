@@ -60,3 +60,4 @@ pdf_index.db
 
 # --- Release builds ---
 /Spellbook.zip
+*.unreadable-*

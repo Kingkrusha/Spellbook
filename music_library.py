@@ -135,7 +135,7 @@ class Track:
         stamp = d.get("stamp") or (0, 0)
         try:
             stamp = (int(stamp[0]), int(stamp[1]))
-        except (TypeError, ValueError, IndexError):
+        except (TypeError, ValueError, IndexError, KeyError):
             stamp = (0, 0)
         return cls(id=str(d.get("id") or uuid.uuid4().hex), title=str(d.get("title", "")),
                    path=str(d.get("path", "")), url=safe_link(d.get("url", "")),
@@ -181,12 +181,21 @@ class MusicLibrary:
             try:
                 with open(self.path, encoding="utf-8") as f:
                     data = json.load(f)
-            except (OSError, ValueError):
+            except FileNotFoundError:
+                return
+            except (OSError, ValueError) as e:
+                from atomic_io import unreadable_note
+                print(f"Music: could not read {self.path}: {e}.{unreadable_note(self.path)}")
                 return
             if not isinstance(data, dict):
                 return
-            self.tracks = [Track.from_dict(t) for t in data.get("tracks") or [] if isinstance(t, dict)]
-            self.folders = [str(f) for f in data.get("folders") or [] if f]
+            for t in data.get("tracks") if isinstance(data.get("tracks"), list) else []:
+                try:
+                    if isinstance(t, dict):
+                        self.tracks.append(Track.from_dict(t))
+                except (TypeError, ValueError):       # one track that can't be read must not lose the others
+                    pass
+            self.folders = [str(f) for f in data.get("folders") if f] if isinstance(data.get("folders"), list) else []
             settings = data.get("settings") or {}
             if isinstance(settings, dict):
                 for key, default in DEFAULT_SETTINGS.items():

@@ -28,7 +28,7 @@ from legacy_content import apply_legacy_filter
 from theme import get_theme_manager
 from character_class import get_class_manager, ClassAbility
 from feat import get_feat_manager
-from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json
+from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json, unreadable_note
 from paths import user_data_path
 from ui.platform_compat import bind_right_click
 from ui.object_link_widgets import attach_object_linking, open_link_popup
@@ -62,16 +62,27 @@ class CharacterSheetManager(HeldSaves, SaveErrorListeners):
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self._sheets = {
-                    name: CharacterSheet.from_dict(sheet_data)
-                    for name, sheet_data in data.get("sheets", {}).items()
-                }
-            return True
+            records = data.get("sheets", {}) if isinstance(data, dict) else None
+            if not isinstance(records, dict):
+                raise ValueError("it does not hold character sheets")
         except Exception as e:
             print(f"Error loading character sheets: {e}")
-            self._notify_error(f"Could not load character_sheets.json: {e}")
+            # (the copy matters: with nothing loaded, the next save would write an empty file over this one)
             self._sheets = {}
+            self._notify_error(f"Could not load character_sheets.json: {e}.{unreadable_note(self.file_path)}")
             return False
+        sheets, skipped = {}, 0
+        for name, sheet_data in records.items():    # one sheet that can't be read must not lose the others
+            try:
+                sheets[name] = CharacterSheet.from_dict(sheet_data)
+            except Exception as e:
+                skipped += 1
+                print(f"Skipped the sheet of {name!r}, which could not be read: {e!r}")
+        self._sheets = sheets
+        if skipped:
+            self._notify_error(f"Could not load {skipped} of the sheets in character_sheets.json; the others are "
+                               f"here.{unreadable_note(self.file_path)}")
+        return True
 
     def save(self) -> bool:
         """Save character sheets to file."""
@@ -2756,31 +2767,15 @@ class CharacterSheetView(ctk.CTkFrame):
                 var.set(str(max_value))
                 self.current_sheet.class_feature_uses[key] = max_value
         
-        # 5. Restore spell slots and mystic arcanum via character
+        # 5. Restore spell slots and mystic arcanum via character (the same way the Spell Lists page does it, so
+        #    third casters and characters with their own slot numbers get theirs back too)
         if self.current_character:
-            # Reset spell slots to max
-            from spell_slots import get_max_spell_slots
-            class_levels = [(cl.character_class, cl.level) for cl in self.current_character.classes]
-            max_slots = get_max_spell_slots(class_levels)
-            self.current_character.current_slots = dict(max_slots)
-            
-            # Reset warlock pact magic slots
-            warlock_level = sum(cl.level for cl in self.current_character.classes 
-                               if cl.character_class == CharacterClass.WARLOCK)
-            if warlock_level > 0:
-                warlock_slots = min(4, 1 + (warlock_level - 1) // 2)  # 1 at 1, 2 at 2, 3 at 11, 4 at 17
-                if warlock_level >= 17:
-                    warlock_slots = 4
-                elif warlock_level >= 11:
-                    warlock_slots = 3
-                elif warlock_level >= 2:
-                    warlock_slots = 2
-                else:
-                    warlock_slots = 1
-                self.current_character.warlock_slots_current = warlock_slots
-            
-            # Clear mystic arcanum used
-            self.current_character.mystic_arcanum_used = []
+            from spell_slots import get_warlock_level, get_warlock_pact_slots
+            from ui.spell_lists_view import get_effective_max_slots
+            warlock_level = get_warlock_level(self.current_character.get_class_levels_tuple())
+            warlock_slots, _ = get_warlock_pact_slots(warlock_level)
+            self.current_character.current_slots = {}
+            self.current_character.long_rest(get_effective_max_slots(self.current_character), warlock_slots)
             
             # Save character changes
             self.character_manager.save_characters()

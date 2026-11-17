@@ -7,7 +7,7 @@ import os
 import json
 from typing import List, Optional, Callable, Tuple
 from character import CharacterSpellList
-from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json
+from atomic_io import unreadable_note, HeldSaves, SaveErrorListeners, atomic_write_json
 from paths import user_data_path
 
 
@@ -54,17 +54,29 @@ class CharacterManager(HeldSaves, SaveErrorListeners):
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self._characters = [
-                    CharacterSpellList.from_dict(char_data)
-                    for char_data in data.get("characters", [])
-                ]
-            self._notify_listeners()
-            return True
+            records = data.get("characters", []) if isinstance(data, dict) else None
+            if not isinstance(records, list):
+                raise ValueError("it does not hold a list of characters")
         except Exception as e:
             print(f"Error loading characters: {e}")
-            self._notify_error(f"Could not load characters.json: {e}")
+            # (the copy matters: with nothing loaded, the next save would write an empty file over this one)
             self._characters = []
+            self._notify_error(f"Could not load characters.json: {e}.{unreadable_note(self.file_path)}")
             return False
+
+        characters, skipped = [], 0
+        for record in records:                      # one character that can't be read must not lose the others
+            try:
+                characters.append(CharacterSpellList.from_dict(record))
+            except Exception as e:
+                skipped += 1
+                print(f"Skipped a character that could not be read: {e!r}")
+        self._characters = characters
+        if skipped:
+            self._notify_error(f"Could not load {skipped} of the characters in characters.json; the others are "
+                               f"here.{unreadable_note(self.file_path)}")
+        self._notify_listeners()
+        return True
 
     def save_characters(self) -> bool:
         """Save all characters to the JSON file. Returns True if successful."""

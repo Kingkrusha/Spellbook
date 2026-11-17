@@ -69,6 +69,38 @@ def atomic_write_json(
     atomic_write_text(path, text)
 
 
+def keep_unreadable_copy(path: str) -> Optional[str]:
+    """A data file could not be read (or parts of it): keep a copy next to it before anything saves over it.
+
+    After a failed load the app carries on with nothing loaded, and the next save would replace the file - and
+    with it whatever could still have been rescued from it by hand. The copy is named after its contents
+    (``characters.unreadable-1a2b3c4d.json``), so a file that stays unreadable is copied once however often the
+    app starts. Returns the copy's path, or None when there was nothing to keep or it could not be written."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError:
+        return None
+    if not raw.strip():
+        return None
+    stem, ext = os.path.splitext(path)
+    copy = f"{stem}.unreadable-{hashlib.sha1(raw).hexdigest()[:8]}{ext}"
+    if not os.path.exists(copy):
+        try:
+            with open(copy, "wb") as f:
+                f.write(raw)
+        except OSError:
+            return None
+    return copy
+
+
+def unreadable_note(path: str) -> str:
+    """Keeps the copy (see :func:`keep_unreadable_copy`) and says where it is, for the message shown or logged."""
+    copy = keep_unreadable_copy(path)
+    return f" The file as it was is kept as {os.path.basename(copy)}." if copy else ""
+
+
 class SaveErrorListeners:
     """For a manager that saves user data: lets the UI hear about a failed load or save.
 

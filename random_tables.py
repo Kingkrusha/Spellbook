@@ -216,6 +216,10 @@ def _ranges_text(values: List[int], top: int, limit: int = 6) -> str:
 # Reading pasted text
 # --------------------------------------------------------------------------- #
 
+# what a list numbered from 2 or 3 is rolled with, by its first and last number
+_SUMMED_DICE = {(2, 8): "2d4", (2, 12): "2d6", (2, 16): "2d8", (2, 20): "2d10", (2, 24): "2d12", (3, 18): "3d6"}
+
+
 def _is_markdown_rule(line: str) -> bool:
     s = line.strip()
     return bool(s) and set(s) <= set("|-: ") and "-" in s
@@ -253,12 +257,16 @@ def parse_entries(text: str, dice: Optional[str] = None) -> Tuple[List[TableEntr
         entries = [TableEntry(i + 1, i + 1, t) for i, t in enumerate(plain[:MAX_ENTRIES])]
         return entries, (dice or (f"d{len(entries)}" if len(entries) >= 2 else DEFAULT_DICE))
 
-    # The die: the one given, or the smallest common die that fits the highest number written
-    top_written = 0
+    # The die: the one given, or the smallest common die that fits the numbers written ("00" is a d100's 100;
+    # a list that starts at 2 or 3 and ends where two or three dice would is rolled with those: 2-12 is 2d6)
+    top_written, written = 0, []
     for low, high, _plus, _t in numbered:
         for n in (low, high):
             if n is not None:
-                top_written = max(top_written, 100 if n.strip("0") == "" else int(n))
+                written.append(100 if n.strip("0") == "" and len(n) >= 2 else int(n))
+    top_written = max(written)
+    if dice is None:
+        dice = _SUMMED_DICE.get((min(written), top_written))
     if dice is None:
         dice = next((f"d{s}" for s in (4, 6, 8, 10, 12, 20, 100) if top_written <= s), f"d{top_written}")
     try:
@@ -279,6 +287,10 @@ def parse_entries(text: str, dice: Optional[str] = None) -> Tuple[List[TableEntr
         if b < a and high is not None and int(high) == 0:
             b = 100
         entries.append(TableEntry(min(a, b), max(a, b), t))
+    if hi_die == 10 and not any(e.covers(10) for e in entries):
+        for e in entries:                             # a d10 list written 0-9 (or 1-9, 0): its 0 is the die's 10
+            if e.low == e.high == 0:
+                e.low = e.high = 10
     return entries, dice
 
 

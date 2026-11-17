@@ -234,11 +234,10 @@ def parse_item(entry: dict, magic=None) -> ItemInfo:
             weapon.crit_min = min(weapon.crit_min, int(m.group(1)))
         m = re.search(r"treat a d20 roll of (\d+) or lower as a (\d+)", low)
         if m and "death saving" not in low:
-            skills = _skills_in(s) or (["Arcana", "History", "Investigation", "Nature", "Religion"]
-                                       if "intelligence" in low else None)
+            named = _skills_in(s)               # "... on Dexterity (Stealth) checks": only those checks
             rule(f"{name}: a d20 of {m.group(1)} or less counts as {m.group(2)}", ("check",),
                  [minimum(int(m.group(2)))], abilities=fs("INT") if "intelligence" in low else None,
-                 toggle=True, toggle_label=f"{name}: treat a d20 of {m.group(1)} or less as {m.group(2)}")
+                 skills=fs(*named) if named else None, toggle=True, toggle_label=f"{name}: treat a d20 of {m.group(1)} or less as {m.group(2)}")
 
         # ---- extra damage on a hit
         for ex in _parse_extras(s, name):

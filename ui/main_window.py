@@ -155,6 +155,19 @@ class MainWindow(ctk.CTkFrame):
         something is wrong, and repeated identical popups (e.g. from a
         permanently read-only data folder) would just be noise.
         """
+        if message.startswith("Could not load"):           # a data file (or part of one) could not be read
+            if getattr(self, "_shown_load_error", False):
+                return
+            self._shown_load_error = True
+            try:
+                messagebox.showerror(
+                    "Could not read your data",
+                    f"{message}\n\nSpellbook carries on without what it could not read. If you have a backup, "
+                    "Settings > Backup and Transfer can bring it back."
+                )
+            except Exception:
+                pass
+            return
         if getattr(self, "_shown_save_error", False):
             return
         self._shown_save_error = True

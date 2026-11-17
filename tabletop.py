@@ -1048,24 +1048,73 @@ class Tabletop:
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except (OSError, ValueError):
+        except FileNotFoundError:
             return
-        for s in data.get("scenes", []):
-            if isinstance(s, dict) and s.get("id"):
-                self.scenes[s["id"]] = self._repair(s)
+        except (OSError, ValueError) as e:
+            from atomic_io import unreadable_note
+            print(f"Tabletop: could not read {self.path}: {e}.{unreadable_note(self.path)}")
+            return
+        scenes = data.get("scenes") if isinstance(data, dict) else None
+        skipped = not isinstance(scenes, list)
+        for s in scenes if isinstance(scenes, list) else []:
+            try:
+                if not isinstance(s, dict) or not isinstance(s.get("id"), str) or not s["id"] \
+                        or s["id"] in self.scenes:
+                    raise ValueError("not a map")
+                s = self._repair(s)
+                project(s, None)                      # a map that can't be shown would fail every time it is opened
+                project(s, "?")
+                self.scenes[s["id"]] = s
                 self.order.append(s["id"])
-        self.shown = data.get("shown", "") if data.get("shown") in self.scenes else ""
+            except Exception as e:                    # one damaged map must not lose the rest
+                skipped = True
+                print(f"Tabletop: skipped a map that could not be read: {e!r}")
+        if skipped:
+            from atomic_io import unreadable_note
+            print(f"Tabletop: parts of {self.path} could not be read.{unreadable_note(self.path)}")
+        shown = data.get("shown", "") if isinstance(data, dict) else ""
+        self.shown = shown if isinstance(shown, str) and shown in self.scenes else ""
 
     @staticmethod
     def _repair(scene: dict) -> dict:
         base = new_scene(scene.get("name", "Scene"))
+
+        def fits(value, like) -> bool:              # the same kind of thing (any number will do for a number)
+            if isinstance(like, bool) or not isinstance(like, (int, float)):
+                return type(value) is type(like)
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
         for k, v in base.items():
-            if k not in scene:
+            if k not in scene or not fits(scene[k], v):
                 scene[k] = v
         for k, v in base["grid"].items():
-            scene["grid"].setdefault(k, v)
-        scene["fog"].setdefault("on", False)
-        scene["fog"].setdefault("ops", [])
+            if k not in scene["grid"] or not fits(scene["grid"][k], v):
+                scene["grid"][k] = v
+        if not isinstance(scene["fog"].get("on"), bool):
+            scene["fog"]["on"] = False
+        if not isinstance(scene["fog"].get("ops"), list):
+            scene["fog"]["ops"] = []
+        # what is on the map: anything that isn't the kind of record it should be is left out (it could not be
+        # drawn, and would stop the whole map opening); numbers that aren't numbers get their usual value
+        numbers = (int, float)
+
+        def has_points(item, least):
+            pts = item.get("pts")
+            return isinstance(pts, list) and len(pts) >= least and all(type(p) in numbers for p in pts)
+        kept = []
+        for t in scene["tokens"]:
+            if isinstance(t, dict) and isinstance(t.get("id"), str) and t["id"]:
+                for k, v in new_token(t.get("name", "Token"), 0, 0).items():
+                    if k != "id":
+                        t.setdefault(k, v)
+                t.update(_clean_token_fields({k: t[k] for k in ("x", "y", "size", "z", "vision", "conditions")}))
+                kept.append(t)
+        scene["tokens"] = kept
+        for key, least in (("drawings", 4), ("walls", 4), ("zones", 6)):
+            scene[key] = [item for item in scene[key] if isinstance(item, dict) and isinstance(item.get("id"), str)
+                          and has_points(item, least)]
+        scene["areas"] = [a for a in scene["areas"] if isinstance(a, dict) and isinstance(a.get("id"), str)
+                          and clean_area(dict(a)) is not None]
+        scene["fog"]["ops"] = [op for op in scene["fog"]["ops"] if isinstance(op, dict) and has_points(op, 4)]
         return scene
 
     def save(self) -> bool:

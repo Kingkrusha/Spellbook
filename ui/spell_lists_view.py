@@ -842,11 +842,8 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
                 character.current_slots[level] = max_count
         
         class_levels = character.get_class_levels_tuple()
-        warlock_level = get_warlock_level(class_levels)
-        if warlock_level > 0:
-            warlock_slots, _ = get_warlock_pact_slots(warlock_level)
-            if character.warlock_slots_current == 0:
-                character.warlock_slots_current = warlock_slots
+        warlock_slots, _ = get_warlock_pact_slots(get_warlock_level(class_levels))
+        character.ensure_pact_slots(warlock_slots)
     
     def _setup_warlock_display(self, character: CharacterSpellList):
         """Setup the warlock pact magic display."""

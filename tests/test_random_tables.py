@@ -214,3 +214,13 @@ def test_page_scrolls_when_short_and_rolls_panel_is_resizable(tk_root, fresh_fon
     view._remember_split()
     assert state["history_height"] >= HISTORY_MIN
     holder.destroy()
+
+
+def test_a_list_numbered_like_two_dice_or_a_d10_from_zero_gets_the_right_die():
+    entries, dice = rt.parse_entries("2 Dragon\n3-5 Orcs\n6-8 Goblins\n9-11 Wolves\n12 Treasure")
+    assert dice == "2d6" and not rt.coverage_problems(entries, *rt.dice_range(dice))
+    entries, dice = rt.parse_entries("\n".join(f"{n} Result {n}" for n in range(10)))      # 0 to 9
+    assert dice == "d10" and not rt.coverage_problems(entries, *rt.dice_range(dice))
+    assert entries[0].low == 10 and entries[0].text == "Result 0"
+    entries, dice = rt.parse_entries("01-50 Heads\n51-00 Tails")                           # "00" is still 100
+    assert dice == "d100" and entries[-1].high == 100

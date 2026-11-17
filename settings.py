@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
-from atomic_io import atomic_write_json
+from atomic_io import atomic_write_json, unreadable_note
 from paths import user_data_path
 
 
@@ -238,7 +238,7 @@ class SettingsManager:
                 self._settings = AppSettings.from_dict(data)
             return True
         except Exception as e:
-            print(f"Error loading settings: {e}")
+            print(f"Error loading settings: {e}.{unreadable_note(self.file_path)}")
             self._settings = AppSettings()
             return False
     

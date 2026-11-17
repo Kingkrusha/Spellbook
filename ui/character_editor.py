@@ -400,6 +400,7 @@ class CharacterEditorDialog(ThemeListenerMixin, ctk.CTkToplevel):
         subclass_spells = []
         current_slots = {}
         warlock_slots_current = 0
+        pact_slots_set = False
         mystic_arcanum_used = []
         custom_max_slots = {}
         custom_max_cantrips = 0
@@ -411,6 +412,7 @@ class CharacterEditorDialog(ThemeListenerMixin, ctk.CTkToplevel):
             subclass_spells = self._original_character.subclass_spells
             current_slots = self._original_character.current_slots
             warlock_slots_current = self._original_character.warlock_slots_current
+            pact_slots_set = self._original_character.pact_slots_set
             mystic_arcanum_used = self._original_character.mystic_arcanum_used
             custom_max_slots = self._original_character.custom_max_slots
             custom_max_cantrips = self._original_character.custom_max_cantrips
@@ -425,6 +427,7 @@ class CharacterEditorDialog(ThemeListenerMixin, ctk.CTkToplevel):
             subclass_spells=subclass_spells,
             current_slots=current_slots,
             warlock_slots_current=warlock_slots_current,
+            pact_slots_set=pact_slots_set,
             mystic_arcanum_used=mystic_arcanum_used,
             custom_max_slots=custom_max_slots,
             custom_max_cantrips=custom_max_cantrips,
