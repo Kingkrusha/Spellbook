@@ -213,7 +213,9 @@ def test_a_full_casters_class_table_shows_every_spell_slot_column(tk_root, stage
         header = box.inner.winfo_children()[0]
         titles = [str(w.cget("text")).replace("\n", " ") for w in header.winfo_children()
                   if isinstance(w, ctk.CTkLabel)]
-        assert {"Level", "Proficiency Bonus", "Class Features", "Cantrips", "1st", "9th"} <= set(titles)
+        shown = view.current_class               # (whichever Wizard the content settings pick)
+        assert {"Level", "Proficiency Bonus", "Class Features"} <= set(titles)
+        assert set(shown.class_table_columns) <= set(titles) and "1st" in titles and len(titles) >= 10
         assert not box._bar_shown                                        # nothing to scroll: it all fits
         for label in header.winfo_children():
             if isinstance(label, ctk.CTkLabel):

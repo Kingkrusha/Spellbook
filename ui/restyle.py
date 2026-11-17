@@ -34,7 +34,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 import customtkinter as ctk
 from customtkinter.windows.widgets.core_widget_classes import CTkBaseClass
 
-from theme import ThemeStr, ThemeTuple, tag_color, tag_pair, get_theme_manager, ROLE_LABELS
+from theme import tag_color, tag_pair, get_theme_manager, ROLE_LABELS
 from typography import FontScope, RoleFont
 
 

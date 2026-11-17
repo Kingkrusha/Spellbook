@@ -4,7 +4,7 @@ Centralizes all color definitions for easy customization.
 """
 
 import customtkinter as ctk
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Tuple, Dict, Optional, List, Callable
 import copy
 import functools
