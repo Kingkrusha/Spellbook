@@ -266,3 +266,25 @@ def test_an_outlined_button_has_readable_text(tk_root):
         assert own.cget("text_color") == "#123456"
     finally:
         win.destroy()
+
+
+def test_a_grey_button_has_readable_text(tk_root):
+    """A button on the theme's grey (or a segmented button, whose unpicked segments are grey) made without a text
+    colour gets the theme's text colour: the default white was 1.8 : 1 on the light theme's grey."""
+    import customtkinter as ctk
+
+    from theme import get_theme_manager
+    from ui.restyle import install_global, role_of
+
+    install_global(tk_root)
+    theme = get_theme_manager()
+    win = ctk.CTkToplevel(tk_root)
+    try:
+        grey = ctk.CTkButton(win, text="Select Sources...", fg_color=theme.get_current_color('button_normal'))
+        danger = ctk.CTkButton(win, text="Delete", fg_color=theme.get_current_color('button_danger'))
+        segments = ctk.CTkSegmentedButton(win, values=["Custom", "Character"])
+        assert role_of(grey.cget("text_color")) == "text_primary"
+        assert role_of(danger.cget("text_color")) == "text_on_accent"         # (a coloured button keeps white)
+        assert role_of(segments.cget("text_color")) == "text_primary"
+    finally:
+        win.destroy()

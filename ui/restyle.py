@@ -925,21 +925,36 @@ def install_creation_hook():
                         except Exception:
                             break
                 if button:
-                    _outlined_text_color(args, kwargs)
+                    _neutral_text_color(button, args, kwargs)
                 orig(self, *args, **kwargs)
                 _note_created(self)
             return init
 
-        cls.__init__ = make(original, _FONT_OPTIONS.get(name, ()), name == "CTkButton")
+        cls.__init__ = make(original, _FONT_OPTIONS.get(name, ()),
+                            name if name in ("CTkButton", "CTkOptionMenu", "CTkSegmentedButton") else "")
 
 
-def _outlined_text_color(args, kwargs):
-    """A see-through button made without a text colour would get the default white button text, which vanishes
-    on a light window: when it sits on a plain panel it gets the theme's text colour instead."""
-    if kwargs.get("fg_color") != "transparent" or kwargs.get("text_color") is not None:
+def _neutral_text_color(kind: str, args, kwargs):
+    """A button made without a text colour gets CustomTkinter's white button text. That is right on an accent
+    button and on the dark theme's grey ones, but vanishes on the light theme's grey (1.8 : 1) and on a see-through
+    button over a light window: on a plain, neutral background it gets the theme's text colour instead. (A theme
+    switch does the same for buttons already made: Restyler._sits_on_neutral.)"""
+    if kwargs.get("text_color") is not None:
         return
     restyler = _global_restyler
     if restyler is None:
+        return
+    if kind == "CTkSegmentedButton":                       # the segments that aren't picked
+        fg = kwargs.get("unselected_color") or ctk.ThemeManager.theme.get(kind, {}).get("unselected_color")
+    else:
+        fg = kwargs.get("fg_color")
+    if fg is None:
+        return                                             # the default: an accent button
+    if fg != "transparent":
+        if role_of(fg) in NEUTRAL_ROLES:
+            pair = restyler.palette.pair("text_primary")
+            if pair:
+                kwargs["text_color"] = tag_pair(pair, "text_primary")
         return
     w = args[0] if args else kwargs.get("master")
     for _ in range(40):                                    # what's under it: the first parent with a colour

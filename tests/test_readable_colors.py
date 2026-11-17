@@ -23,6 +23,15 @@ def test_every_built_in_theme_has_readable_coloured_text(name):
                 assert ratio >= 4.5, f"{name} {role} {('light', 'dark')[mode]}: {pair[mode]} on {back} = {ratio:.2f}"
 
 
+@pytest.mark.parametrize("name", sorted(THEME_PRESETS))
+def test_every_built_in_theme_has_readable_links_and_labels(name):
+    colors = THEME_PRESETS[name]()
+    for role in ("spell_link", "text_label"):
+        for mode in (0, 1):
+            for back in (colors.bg_primary[mode], colors.bg_secondary[mode]):
+                assert contrast(getattr(colors, role)[mode], back) >= 4.5, (name, role, mode)
+
+
 def test_the_default_accent_itself_could_not_be_read_as_text():
     """(Why the text colours exist: this is what headings and links used to be drawn in.)"""
     colors = THEME_PRESETS["default"]()

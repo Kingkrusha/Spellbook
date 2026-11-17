@@ -639,6 +639,25 @@ THEME_PRESETS.update({
     "high_contrast": _create_high_contrast_theme,
 })
 
+def _with_readable_text(factory: Callable[[], ThemeColors]) -> Callable[[], ThemeColors]:
+    """A built-in theme whose link and label colours are shifted, only as far as it takes, until they read at
+    4.5 : 1 on its panels. Several were well under that (the default theme's links in light mode: 1.7 : 1)."""
+    import functools
+
+    @functools.wraps(factory)
+    def make() -> ThemeColors:
+        colors = factory()
+        for role in ("spell_link", "text_label"):
+            pair = getattr(colors, role)
+            setattr(colors, role, tuple(readable(readable(pair[i], colors.bg_secondary[i]), colors.bg_primary[i])
+                                        for i in (0, 1)))
+        return colors
+    return make
+
+
+for _key, _factory in list(THEME_PRESETS.items()):
+    THEME_PRESETS[_key] = _with_readable_text(_factory)
+
 # Human-readable names for the theme selector in Settings. Order here is the
 # order shown in the dropdown; keys must exist in THEME_PRESETS.
 PRESET_DISPLAY_NAMES: Dict[str, str] = {
