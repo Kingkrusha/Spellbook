@@ -135,8 +135,16 @@ def words(text: str) -> List[str]:
         w = _SYNONYMS.get(w, w)
         if len(w) < 2 and not w.isdigit():
             continue
-        out.append(_stem(w))
+        stemmed = _STEMS.get(w)
+        if stemmed is None:                 # (the same few thousand words come round hundreds of times)
+            if len(_STEMS) > 200000:
+                _STEMS.clear()
+            stemmed = _STEMS[w] = _stem(w)
+        out.append(stemmed)
     return out
+
+
+_STEMS: Dict[str, str] = {}
 
 
 # --------------------------------------------------------------------------- mechanics
@@ -157,7 +165,12 @@ _RULES: List[Tuple[str, str, Tuple[str, ...], "re.Pattern"]] = []
 
 
 def _rule(tag: str, label: str, needs: Tuple[str, ...], pattern: str, flags=re.I | re.S):
-    _RULES.append((tag, label, tuple(n.lower() for n in needs), re.compile(pattern, flags)))
+    """``needs``: the pattern is only tried on a text holding one of these (a quick first look). One written
+    as ``re:...`` is itself a pattern, for a word too short to look for as plain letters ("ac" is in "each",
+    "reach" and "action", which is most texts)."""
+    plain_needs = tuple(n.lower() for n in needs if not n.startswith("re:"))
+    need_patterns = tuple(re.compile(n[3:]) for n in needs if n.startswith("re:"))
+    _RULES.append((tag, label, plain_needs, re.compile(pattern, flags), need_patterns))
 
 
 # d20 manipulation
@@ -213,10 +226,10 @@ for _d in _DAMAGE_TYPES:
           rf"immun(e|ity) to [^.;]{{0,40}}\b{_d}\b|\b{_d}\b[^.;]{{0,20}}immun")
     _rule(f"dmg:{_d}", f"deals {_d} damage", (_d,), rf"\b\d+d\d+\b[^.;]{{0,24}}\b{_d}\b damage|\b{_d}\b damage")
 _rule("resist_all", "resistance to all damage", ("resistance",), r"resistance to (all|any) damage|resistance to damage from")
-_rule("ac_bonus", "bonus to Armor Class", ("ac", "armor class"),
-      r"(\+\d+|bonus of \d+|increase|add)[^.;]{0,30}(\bAC\b|armor class)|(\bAC\b|armor class)[^.;]{0,30}(\+\d+|increase)|bonus to (your )?(AC|armor class)")
-_rule("ac_set", "sets Armor Class", ("ac", "armor class"),
-      r"(base )?(AC|armor class) (equals?|is|becomes?) \d+|armor class (equals?|is) \d+ \+")
+_rule("ac_bonus", "bonus to Armor Class", (r"re:\bac\b", "armor class"),
+      r"(\+\d+|bonus of \d+|increase|add)[^.;]{0,30}(\bAC\b|armor class)|(\bAC\b|armor class)[^.;]{0,30}(\+\d+|increase)|bonus to (your )?(AC\b|armor class)")
+_rule("ac_set", "sets Armor Class", (r"re:\bac\b", "armor class"),
+      r"(base )?(\bAC|armor class) (equals?|is|becomes?) \d+|armor class (equals?|is) \d+ \+")
 _rule("temp_hp", "grants temporary hit points", ("temporary hit point",), r"temporary hit points?")
 _rule("heal", "restores hit points", ("hit point",),
       r"(regains?|restores?|heals?|recover)[^.;]{0,40}hit points?|hit points? (back|equal)")
@@ -333,14 +346,18 @@ def mechanics(text: str) -> Dict[str, str]:
     if not t:
         return out
     low = t.lower()
-    for tag, label, needs, pattern in _RULES:
+    for tag, label, needs, pattern, need_patterns in _RULES:
         if tag in out:
             continue
         for n in needs:
             if n in low:
                 break
         else:
-            continue
+            for n in need_patterns:
+                if n.search(low):
+                    break
+            else:
+                continue
         if pattern.search(low):
             out[tag] = label
     # a 'skill:' or 'abil:' tag on its own is only a mention; keep it, it is weak
@@ -406,7 +423,18 @@ def _entry_terms(entry: Entry) -> None:
     for w in words(entry.title):
         counts[w] += 2           # the name says what it is
     entry.terms = counts
-    entry.tags = mechanics(entry.text)
+    # Finding the mechanics is most of the work of building the index, and after a change to the collections
+    # nearly every text is one that was looked at before
+    key = (len(entry.text), hash(entry.text))
+    tags = _TAGS_SEEN.get(key)
+    if tags is None:
+        if len(_TAGS_SEEN) > 60000:
+            _TAGS_SEEN.clear()
+        tags = _TAGS_SEEN[key] = mechanics(entry.text)
+    entry.tags = dict(tags)
+
+
+_TAGS_SEEN: Dict[Tuple[int, int], Dict[str, str]] = {}
 
 
 # --------------------------------------------------------------------------- collecting entries
@@ -552,6 +580,7 @@ class HomebrewIndex:
         self._idf: Dict[str, float] = {}
         self._tag_idf: Dict[str, float] = {}
         self._weight: List[float] = []                                              # idf weight of each entry
+        self._word_weight: Dict[str, float] = {}                                    # what a word counts for
         self._signature: tuple = ()
         self.ready = False
 
@@ -640,6 +669,7 @@ class HomebrewIndex:
         self.entries = entries
         self._postings = postings
         self._tag_postings = tag_postings
+        self._word_weight = {}
         self._weight = [sum(self._term_weight(w, c) for w, c in e.terms.items()) for e in entries]
         self.ready = True
 
@@ -654,13 +684,18 @@ class HomebrewIndex:
         return base
 
     def _term_weight(self, word: str, count: int) -> float:
-        idf = self._idf.get(word)
+        idf = self._word_weight.get(word)
         if idf is None:
-            idf = math.log(1 + len(self.entries))            # a word nobody else uses is as telling as it gets
-        if word in _BOOST_WORDS or word.isdigit() is False and re.fullmatch(r"\d*d\d+", word):
-            idf = max(idf, 3.0)
-        if word.isdigit():
-            idf *= 0.5                                      # numbers matter, but only next to other words
+            idf = self._idf.get(word)
+            if idf is None:
+                idf = math.log(1 + len(self.entries))        # a word nobody else uses is as telling as it gets
+            if word in _BOOST_WORDS or word.isdigit() is False and re.fullmatch(r"\d*d\d+", word):
+                idf = max(idf, 3.0)
+            if word.isdigit():
+                idf *= 0.5                                  # numbers matter, but only next to other words
+            if len(self._word_weight) > 200000:
+                self._word_weight.clear()
+            self._word_weight[word] = idf
         return idf * (1 + math.log(count))
 
     # ---- searching

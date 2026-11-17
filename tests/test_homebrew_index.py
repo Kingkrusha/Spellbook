@@ -45,6 +45,30 @@ def test_mechanics_reads_the_effect(text, tag):
     assert tag in H.mechanics(text)
 
 
+def test_armor_class_is_only_read_where_it_is_written():
+    assert "ac_bonus" in H.mechanics("You gain a +2 bonus to AC while you wear no armor.")
+    assert "ac_bonus" in H.mechanics("While holding it you have a bonus to your Armor Class.")
+    assert "ac_set" in H.mechanics("Your base AC equals 13 plus your Dexterity modifier.")
+    assert "ac_set" in H.mechanics("The target's (AC is 15) for the duration.")
+    # "ac" is in every other word of rules text (each, reach, action, attack, Acrobatics)
+    for text in ("You gain a +2 bonus to Acrobatics checks and each attack you make with reach.",
+                 "The zodiac is 12 signs wide, and its action is to increase the reach of each attack by +1."):
+        tags = H.mechanics(text)
+        assert "ac_bonus" not in tags and "ac_set" not in tags, text
+
+
+def test_a_rebuilt_index_reuses_what_it_read_before(index, monkeypatch):
+    idx, sm = index
+    read = []
+    real = H.mechanics
+    monkeypatch.setattr(H, "mechanics", lambda text: read.append(1) or real(text))
+    again = H.HomebrewIndex().build(sm)
+    assert read == []                                       # every text had been read already
+    assert [e.tags for e in again.entries] == [e.tags for e in idx.entries]
+    again.entries[0].tags["made_up"] = "x"                  # an entry's tags are its own copy
+    assert "made_up" not in H.HomebrewIndex().build(sm).entries[0].tags
+
+
 def test_mechanics_does_not_invent_effects():
     tags = H.mechanics("The tavern smells of old ale and woodsmoke.")
     assert not [t for t in tags if not H.tag_is_weak(t)]

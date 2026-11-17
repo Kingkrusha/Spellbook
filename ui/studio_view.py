@@ -302,7 +302,9 @@ class StudioView(ctk.CTkFrame):
         self.bind("<Destroy>", self._on_destroy, add="+")
 
         # ---- start up
-        self.service.ensure_index()
+        # The index of every collection takes seconds to build on another thread, and while it runs it and
+        # this page take turns: started now, the page itself would take several times longer to appear
+        self._jobs["start_index"] = self.after(350, self._start_index)
         self._restore_panels()
         self._restore_drafts()
         self._jobs["tick"] = self.after(TICK_MS, self._tick)
@@ -780,6 +782,11 @@ class StudioView(ctk.CTkFrame):
             return
         if self._token:
             self._jobs["poll"] = self.after(70, self._poll_analysis)
+
+    def _start_index(self):
+        self._jobs["start_index"] = None
+        if self._alive:
+            self.service.ensure_index()
 
     def _poll_index(self):
         self._jobs["index"] = None
