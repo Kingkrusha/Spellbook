@@ -75,3 +75,11 @@ def test_split_command():
     assert dice.split_command("/roll 2d6") == ("/roll", "2d6")
     assert dice.split_command("  /R d20 ") == ("/r", "d20")
     assert dice.split_command("hi there") == ("", "hi there")
+
+
+def test_a_natural_20_shows_when_the_modifier_is_written_first():
+    class Twenty:
+        def randint(self, a, b):
+            return b
+    assert dice.roll("5+d20", Twenty()).crit == "nat20"
+    assert dice.roll("5+2d6+d20", Twenty()).crit == ""          # the first die rolled is not a d20

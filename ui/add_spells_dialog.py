@@ -17,6 +17,7 @@ from ui.window_utils import center_on_parent
 from typing import Callable, List, Optional
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from spell_access import learn_rules
 from theme import get_theme_manager
@@ -96,7 +97,7 @@ class AddSpellsDialog(ctk.CTkToplevel):
         controls.pack(fill="x")
         self.query = tk.StringVar()
         self.query.trace_add("write", lambda *_a: self._schedule())
-        self.search = ctk.CTkEntry(controls, textvariable=self.query, height=32, placeholder_text="Search spells...")
+        self.search = PlaceholderEntry(controls, textvariable=self.query, height=32, placeholder_text="Search spells...")
         self.search.pack(side="left", fill="x", expand=True)
         self.level_menu = ctk.CTkOptionMenu(controls, values=LEVELS, width=120, height=32, command=lambda _v: self._refresh())
         self.level_menu.pack(side="left", padx=(8, 0))

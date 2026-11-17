@@ -1022,7 +1022,7 @@ class ClassEditorBody:
         ctk.CTkLabel(
             header, text=col_name,
             font=ui_font("subheading", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(side="left")
         
         # Fill pattern helper

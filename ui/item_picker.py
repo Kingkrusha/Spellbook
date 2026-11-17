@@ -12,6 +12,7 @@ from ui.window_utils import add_cancel_save, center_on_parent
 from typing import Callable, List, Optional
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from typography import ui_font
 from theme import get_theme_manager
@@ -76,7 +77,7 @@ class ItemPickerDialog(ctk.CTkToplevel):
 
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *_a: self._schedule_search())
-        search_entry = ctk.CTkEntry(
+        search_entry = PlaceholderEntry(
             container, textvariable=self.search_var,
             placeholder_text="Search by name...", height=32
         )
@@ -164,7 +165,7 @@ class ItemPickerDialog(ctk.CTkToplevel):
         count = self.added.count(item.name)
         if count:
             ctk.CTkLabel(name_row, text=f"  added ×{count}" if count > 1 else "  added ✓", font=ui_font("small"),
-                         text_color=c("button_success")).pack(side="left")
+                         text_color=c("success_text")).pack(side="left")
         subtitle = self._subtitle_fn(item)
         if subtitle:
             ctk.CTkLabel(text, text=subtitle, font=ui_font("small"), text_color=self.theme.get_text_secondary(),

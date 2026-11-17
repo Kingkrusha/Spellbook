@@ -306,7 +306,9 @@ def test_a_long_rest_on_the_sheet_gives_a_third_caster_and_a_warlock_their_slots
     character.ensure_pact_slots(2)
     character.warlock_slots_current = 0
     character.mystic_arcanum_used = [6]
+    view.current_sheet.hit_points.temporary = 7
     view._on_long_rest()
     pump(tk_root, 0.2)
+    assert view.current_sheet.hit_points.temporary == 0 and view.temp_hp_var.get() == "0"
     assert character.current_slots == {1: 4, 2: 2}
     assert character.warlock_slots_current == 2 and character.mystic_arcanum_used == []

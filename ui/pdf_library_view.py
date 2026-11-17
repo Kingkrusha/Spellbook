@@ -23,6 +23,7 @@ import customtkinter as ctk
 from pdf_library import PDFIUM_LOCK, Document, Hit, available, default_folder, get_pdf_library, library_folders
 from theme import get_theme_manager
 from typography import ui_font
+from ui.flow_bar import FlowBar
 from ui.virtual_list import VirtualListPanel
 
 ALL_DOCS = "All documents"
@@ -299,6 +300,7 @@ class PdfLibraryView(ctk.CTkFrame):
         self.open_btn.pack(side="right")
         self.import_btn = self._button(bar, "Import Text…", self._on_import_text, width=110)
         self.import_btn.pack(side="right", padx=(0, 6))
+        self._bar_flow = FlowBar(bar)           # (a long title must not push the buttons out)
 
         nav = ctk.CTkFrame(right, fg_color="transparent")
         nav.pack(fill="x", padx=10, pady=(0, 6))
@@ -314,11 +316,14 @@ class PdfLibraryView(ctk.CTkFrame):
         self._button(nav, "−", lambda: self._zoom(-1), width=34).pack(side="left")
         self.zoom_label = ctk.CTkLabel(nav, text="100%", width=50, font=ui_font("small"))
         self.zoom_label.pack(side="left")
-        self._button(nav, "+", lambda: self._zoom(1), width=34).pack(side="left")
+        plus = self._button(nav, "+", lambda: self._zoom(1), width=34)
+        plus.pack(side="left")
+        plus.flow_with_previous = True
         self.section_var = ctk.StringVar(value="Sections")
         self.section_menu = ctk.CTkOptionMenu(nav, variable=self.section_var, values=["Sections"], width=240,
                                               height=32, command=self._on_section)
         self.section_menu.pack(side="right")
+        self._nav_flow = FlowBar(nav)
 
         self.viewer = PageCanvas(right)
         self.viewer.pack(fill="both", expand=True, padx=10, pady=(0, 10))

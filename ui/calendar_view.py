@@ -343,7 +343,7 @@ class CalendarView(ctk.CTkFrame):
         self.date_label = ctk.CTkLabel(top, text="", font=ui_font("title", 22, bold=True), anchor="w")
         self.date_label.pack(side="left")
         self.time_label = ctk.CTkLabel(top, text="", font=ui_font("title", 22, bold=True),
-                                       text_color=th.get_current_color('accent_primary'))
+                                       text_color=th.get_current_color('accent_text'))
         self.time_label.pack(side="left", padx=(16, 0))
         self._button(top, "Set Date…", self._on_set_date, width=90).pack(side="right")
         self.notice_label = ctk.CTkLabel(now, text="", font=ui_font("small"), anchor="w", justify="left",
@@ -417,8 +417,8 @@ class CalendarView(ctk.CTkFrame):
         if not campaigns:
             self.main.pack_forget()
             self.empty.pack(fill="both", expand=True, padx=20)
-            self.campaign_menu.configure(values=[""])
-            self.campaign_var.set("")
+            self.campaign_menu.configure(values=["No calendars"])
+            self.campaign_var.set("No calendars")           # (an empty drop-down looked broken)
             for w in (self.edit_btn, self.delete_btn, self.campaign_menu):
                 w.configure(state="disabled")
             return

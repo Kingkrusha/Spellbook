@@ -85,9 +85,9 @@ class Roll:
 
     @property
     def crit(self) -> str:
-        """``nat20`` / ``nat1`` when the first term is a single d20 that was kept (adv/dis included)."""
-        first = self.terms[0] if self.terms else None
-        if first is None or not first.is_dice or first.sides != 20 or first.sign < 0:
+        """``nat20`` / ``nat1`` when the first die rolled is a single d20 that was kept (adv/dis included)."""
+        first = next((t for t in self.terms if t.is_dice), None)        # ("5+d20" counts like "d20+5")
+        if first is None or first.sides != 20 or first.sign < 0:
             return ""
         kept = [r for r, k in zip(first.rolls, first.kept) if k]
         if len(kept) != 1:

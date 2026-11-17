@@ -65,7 +65,7 @@ CATEGORIES: "OrderedDict[str, Tuple[str, str]]" = OrderedDict([
 ])
 
 # settings.json keys that belong to this computer, not to the person: never exported or imported
-LOCAL_SETTINGS = {"lan_client_id", "lan_last_invite", "pdf_folders", "tracker_window_state",
+LOCAL_SETTINGS = {"lan_client_id", "lan_last_invite", "pdf_folders", "tracker_window_state", "window_geometry",
                   "skipped_update_version", "initial_official_tag_applied", "crash_report_done", "crash_reports_sent",
                   "lan_overlay_toggle_pos", "lan_overlay_panel_pos",
                   # the example character a tour is using is deleted at the next start: only ever this install's

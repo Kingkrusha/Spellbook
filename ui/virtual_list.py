@@ -33,7 +33,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import customtkinter as ctk
 
-from theme import get_theme_manager
+from theme import get_theme_manager, readable_if_lost
 from typography import ui_font
 from ui.platform_compat import bind_right_click
 
@@ -332,7 +332,10 @@ class VirtualListPanel(ThemeListenerMixin, ctk.CTkFrame):
             return
         row._vl_state = state
         text = state[0] if not self._multi else (self.TICKED if ticked else self.UNTICKED) + state[0]
-        row.configure(text=text, text_color=state[1], fg_color=self.row_color(selected))
+        colour, back = state[1], self.row_color(selected)
+        if selected and back != "transparent":       # a coloured name (a magic item's rarity) on the highlight;
+            colour = readable_if_lost(str(colour), str(back))        # white on a theme's bright yellow accent
+        row.configure(text=text, text_color=colour, fg_color=back)
 
     # ------------------------------------------------------------ interaction
 

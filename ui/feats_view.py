@@ -94,7 +94,7 @@ class FeatDetailPanel(VersionedDetailBase):
         self.prereq_label = LabeledLabel(
             self.prereq_frame, text="",
             font=ui_font("body"),
-            text_color=self.theme.get_current_color('button_danger'),
+            text_color=self.theme.get_current_color('danger_text'),
             wraplength=400,
             justify="left"
         )
@@ -294,7 +294,7 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.spellcasting_check.pack(side="left", padx=(0, 15))
 
         self._add_action_buttons(filter_bar, "+ Add Feat", 100, self._on_add_feat,
-                                 self._on_edit_feat, self._on_delete_feat)
+                                 self._on_edit_feat, self._on_delete_feat, start_disabled=True)
 
         # Second row: source, official content, prerequisite, clear
         filter_bar2 = self._filter_row()

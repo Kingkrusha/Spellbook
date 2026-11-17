@@ -137,7 +137,7 @@ class GameToolsView(ctk.CTkFrame):
 
         if key == "session" and self.service is not None and self.service.in_session:
             ctk.CTkLabel(inner, text="● A session is running", font=ui_font("small", bold=True),
-                         text_color=self.theme.get_current_color('button_success')
+                         text_color=self.theme.get_current_color('success_text')
                          ).pack(side="bottom", anchor="w", pady=(0, 6))
 
         if enabled:

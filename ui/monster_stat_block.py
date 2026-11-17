@@ -132,7 +132,7 @@ class MonsterStatBlock(ctk.CTkFrame):
         ctk.CTkLabel(
             self._body, text=title, anchor="w",
             font=ui_font("heading", 16, bold=True),
-            text_color=self.theme.get_current_color('accent_primary'),
+            text_color=self.theme.get_current_color('accent_text'),
         ).pack(fill="x", pady=(12, 0))
         self._rule(pady=(0, 4))
 

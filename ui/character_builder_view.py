@@ -89,7 +89,7 @@ class CharacterBuilderView(ctk.CTkFrame):
                                       command=self.back)
         self.back_btn.pack(side="right", padx=(0, 8))
         self.problem_label = ctk.CTkLabel(footer, text="", font=ui_font("body"), anchor="w", justify="left",
-                                          text_color=self._color('button_danger'))
+                                          text_color=self._color('danger_text'))
         self.problem_label.pack(side="left", fill="x", expand=True)
 
         self.content = ctk.CTkFrame(right, fg_color=self._color('bg_secondary'), corner_radius=10)

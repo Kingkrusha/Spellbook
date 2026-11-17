@@ -527,9 +527,9 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
         # Color code: red if over limit, normal if under
         theme = get_theme_manager()
         if prepared_count > max_prepared:
-            color = theme.get_current_color('button_danger')
+            color = theme.get_current_color('danger_text')
         elif prepared_count == max_prepared:
-            color = theme.get_current_color('accent_primary')
+            color = theme.get_current_color('accent_text')
         else:
             color = theme.get_text_secondary()
         
@@ -1161,7 +1161,7 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
                 star = ctk.CTkLabel(
                     row, text="★",
                     font=ui_font("small", 10),
-                    text_color=self.theme.get_current_color('accent_primary')
+                    text_color=self.theme.get_current_color('accent_text')
                 )
                 star.pack(side="right", padx=(0, 2))
                 from ui.tooltip import HoverTooltip

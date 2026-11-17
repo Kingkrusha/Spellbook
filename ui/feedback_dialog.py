@@ -163,7 +163,7 @@ class FeedbackDialog(ctk.CTkToplevel):
             pass
 
     def _say(self, text: str, ok: bool = False):
-        color = self.theme.get_current_color("accent_primary" if ok else "text_warning")
+        color = self.theme.get_current_color("accent_text" if ok else "text_warning")
         self.status.configure(text=text, text_color=color)
 
     def report(self) -> F.Report:

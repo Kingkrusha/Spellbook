@@ -23,6 +23,7 @@ import tabletop_net as N
 from conditions import COMMON_EFFECTS, CONDITIONS
 from theme import get_theme_manager
 from typography import ui_font
+from ui.flow_bar import FlowBar
 from ui.platform_compat import bind_right_click
 from ui.tabletop_canvas import MODE_TOOLS, MapCanvas
 from ui.tooltip import HoverTooltip
@@ -217,6 +218,7 @@ class TabletopView(ctk.CTkFrame):
         self._button(head, "－", lambda: self.canvas.zoom_by(0.8), width=34).pack(side="right", padx=2)
         self.status = ctk.CTkLabel(head, text="", font=ui_font("small"), text_color=self.theme.get_text_secondary())
         self.status.pack(side="right", padx=10)
+        self._head_flow = FlowBar(head)         # in a narrow window the buttons wrap instead of dropping off
 
         body = ctk.CTkFrame(outer, fg_color="transparent")
         body.pack(fill="both", expand=True)

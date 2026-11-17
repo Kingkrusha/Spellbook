@@ -1,4 +1,7 @@
-"""Small helpers for placing and filling dialog windows."""
+"""Small helpers for placing and filling dialog windows, and for the main window's remembered size and place."""
+
+import re
+import tkinter as tk
 
 
 def center_on_parent(window, parent, *, root_coords: bool = True, clamp: bool = False):
@@ -78,3 +81,77 @@ def add_export_cancel(parent, theme, export_text: str, on_export, on_cancel):
         hover_color=theme.get_current_color('bg_tertiary'),
         command=on_cancel
     ).pack(side="right")
+
+
+# ---- the main window's size and place, kept from one run to the next
+
+_GEOMETRY = re.compile(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)")
+
+
+def _is_zoomed(root) -> bool:
+    try:
+        if root.state() == "zoomed":                 # Windows, macOS
+            return True
+    except tk.TclError:
+        pass
+    try:
+        return bool(root.attributes("-zoomed"))      # X11
+    except tk.TclError:
+        return False
+
+
+def zoom_window(root):
+    """Maximise the window."""
+    try:
+        root.state("zoomed")
+    except tk.TclError:
+        try:
+            root.attributes("-zoomed", True)
+        except tk.TclError:
+            pass
+
+
+def window_memory(root, previous: str = "") -> str:
+    """What to remember of the main window as it closes: "<width>x<height>+<x>+<y>", with " zoomed" after it when
+    it is maximised (the size before that is then the one already remembered, since Tk only knows the full one)."""
+    if _is_zoomed(root):
+        old = _GEOMETRY.match(str(previous or ""))
+        return ((old.group(0) + " ") if old else "") + "zoomed"
+    return root.geometry()
+
+
+def fit_window_memory(text: str, least: tuple, screen: tuple, origin: tuple = (0, 0), scaling: float = 1.0):
+    """``(geometry, zoomed)`` to open the main window with, from what ``window_memory`` kept, or None for the default.
+
+    ``least`` is the window's minimum (width, height), ``screen`` the desktop's size in pixels and ``origin`` its
+    top-left corner (the monitors together), ``scaling`` the display scaling the width and height are multiplied by.
+    The size is kept inside the desktop and the place is dropped when the window would open where it can't be
+    reached: the monitor it was on is gone, or it was closed from the taskbar while minimised."""
+    text = str(text or "").strip()
+    zoomed = text.endswith("zoomed")
+    match = _GEOMETRY.match(text)
+    if not match:
+        return ("", True) if zoomed else None
+    width, height, x, y = (int(g) for g in match.groups())
+    scaling = scaling if scaling and scaling > 0 else 1.0
+    width = max(least[0], min(width, int(screen[0] / scaling)))
+    height = max(least[1], min(height, int(screen[1] / scaling)))
+    reach = 120                                      # this much of the title bar has to be on the desktop
+    on_screen = (origin[0] - width * scaling + reach <= x <= origin[0] + screen[0] - reach
+                 and origin[1] <= y <= origin[1] + screen[1] - reach)
+    return f"{width}x{height}" + (f"+{x}+{y}" if on_screen else ""), zoomed
+
+
+def restore_window(root, text: str, least: tuple = (900, 600)) -> bool:
+    """Size and place the main window as it was left. Returns whether it should be maximised once it is shown."""
+    try:
+        scaling = float(getattr(root, "_get_window_scaling", lambda: 1.0)())
+        fit = fit_window_memory(text, least, (root.winfo_vrootwidth(), root.winfo_vrootheight()),
+                                (root.winfo_vrootx(), root.winfo_vrooty()), scaling)
+        if fit is None:
+            return False
+        if fit[0]:
+            root.geometry(fit[0])
+        return fit[1]
+    except (tk.TclError, ValueError, TypeError):
+        return False

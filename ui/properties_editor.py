@@ -290,7 +290,7 @@ class PropertiesEditor(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 top, text=prop["name"], font=ui_font("subheading", 13, bold=True),
-                text_color=theme.get_current_color('accent_primary'),
+                text_color=theme.get_current_color('accent_text'),
             ).pack(side="left")
 
             ctk.CTkButton(

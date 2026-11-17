@@ -6,6 +6,7 @@ Displays detailed information about a selected spell.
 from ui.window_utils import center_on_parent
 from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 import tkinter as tk
 import re
@@ -178,7 +179,7 @@ class AddToListDialog(ctk.CTkToplevel):
         theme = get_theme_manager()
         self._characters = list(characters)
         self._search_var = ctk.StringVar()
-        search = ctk.CTkEntry(container, textvariable=self._search_var, height=32,
+        search = PlaceholderEntry(container, textvariable=self._search_var, height=32,
                               placeholder_text="Search characters...")
         search.pack(fill="x", pady=(0, 10))
         search.focus_set()

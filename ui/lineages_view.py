@@ -286,7 +286,7 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._add_filter_combo(filter_bar, "size", "Size:", "All Sizes", ["All Sizes"], 150)
         self._add_filter_combo(filter_bar, "type", "Type:", "All Types", ["All Types"], 150)
         self._add_action_buttons(filter_bar, "+ Add Lineage", 120, self._on_add_lineage,
-                                 self._on_edit_lineage, self._on_delete_lineage)
+                                 self._on_edit_lineage, self._on_delete_lineage, start_disabled=True)
 
         # Second row: source, official content, min speed, clear
         filter_bar2 = self._filter_row()
@@ -423,7 +423,8 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         """Handle lineage selection."""
         setting = self.settings_manager.settings.legacy_content_filter
         self.detail_panel.show_lineage(lineage, self._catalog.options(lineage, setting) if lineage else None)
-    
+        self._set_edit_buttons(lineage)
+
     def _on_lineage_right_click(self, lineage: Lineage, x: int, y: int):
         """Handle right-click on lineage - show context menu."""
         self._context_lineage = lineage

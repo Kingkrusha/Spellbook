@@ -13,6 +13,7 @@ from tkinter import messagebox
 from typing import List, Optional
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from rules import RuleHit, RulePage, get_rules_manager
 from settings import get_settings_manager
@@ -89,7 +90,7 @@ class RuleDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
             fg_color=theme.get_current_color('accent_primary'), corner_radius=5, padx=8, pady=2)
         self.category_badge.pack(side="left", padx=(0, 8))
         self.tags_label = ctk.CTkLabel(self.badge_row, text="", font=ui_font("body"),
-                                       text_color=theme.get_current_color('accent_primary'))
+                                       text_color=theme.get_current_color('accent_text'))
         self.tags_label.pack(side="left")
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -437,7 +438,7 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
 
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        self.search_entry = ctk.CTkEntry(
+        self.search_entry = PlaceholderEntry(
             bar, width=280, height=35,
             placeholder_text="Search rules (titles and text)...", textvariable=self.search_var)
         self.search_entry.pack(side="left", padx=(0, 10))

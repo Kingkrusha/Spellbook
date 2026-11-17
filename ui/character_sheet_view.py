@@ -8,6 +8,7 @@ from ui.description_popup import DescriptionPopup
 from ui.base_widgets import create_context_menu, show_context_menu
 from ui.window_utils import add_cancel_save, center_on_parent
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 from ui.restyle import style_name, widget_kind
 from ui.sheet_style import SheetStyler, StylePanel, PANEL_WIDTH
@@ -215,7 +216,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
         self.modifier_label = ctk.CTkLabel(
             self, text=mod_text,
             font=ui_font("heading", 16, bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         )
         self.modifier_label.pack(pady=(2, 8))
     
@@ -346,7 +347,7 @@ class SkillWidget(ctk.CTkFrame):
         if self.prof_level == 0:
             return self.theme.get_current_color('bg_tertiary')
         elif self.prof_level == 1:
-            return self.theme.get_current_color('accent_primary')
+            return self.theme.get_current_color('accent_text')
         else:
             return self.theme.get_current_color('accent_secondary')
     
@@ -2447,7 +2448,7 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         severity, tooltip_text = self._get_speed_reduction_info()
         if severity == "hard":
-            color = self.theme.get_current_color('button_danger')
+            color = self.theme.get_current_color('danger_text')
         elif severity == "soft":
             color = self.theme.get_text_warning()
         else:
@@ -2719,9 +2720,12 @@ class CharacterSheetView(ctk.CTkFrame):
         settings = get_settings_manager().settings
         hit_dice_mode = settings.long_rest_hit_dice  # "all", "half", or "none"
         
-        # 1. Restore HP to maximum
+        # 1. Restore HP to maximum (temporary hit points end with a long rest)
         self.current_sheet.hit_points.current = self.current_sheet.hit_points.maximum
         self.current_hp_var.set(str(self.current_sheet.hit_points.maximum))
+        self.current_sheet.hit_points.temporary = 0
+        if hasattr(self, "temp_hp_var"):
+            self.temp_hp_var.set("0")
         
         # 2. Restore hit dice based on settings
         hit_dice_message = ""
@@ -3157,7 +3161,7 @@ class CharacterSheetView(ctk.CTkFrame):
         ctk.CTkLabel(
             class_frame, text=header_text,
             font=ui_font("body", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(anchor="w", pady=(0, 4))
         
         # Stats container - use grid for wrapping when many features
@@ -4875,7 +4879,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
         # Extra properties - free text for anything beyond the catalog description
         extra_var = ctk.StringVar(value=item.get("extra_properties", ""))
-        extra_entry = ctk.CTkEntry(
+        extra_entry = PlaceholderEntry(
             content, textvariable=extra_var,
             height=26, placeholder_text="Extra properties (e.g. charges remaining)"
         )

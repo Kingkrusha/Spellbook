@@ -212,7 +212,7 @@ class _Callout(PopupWindow):
 
         top = ctk.CTkFrame(inner, fg_color="transparent")
         top.pack(fill="x")
-        self.section = ctk.CTkLabel(top, text="", font=ui_font("small", bold=True), text_color=c("accent_primary"))
+        self.section = ctk.CTkLabel(top, text="", font=ui_font("small", bold=True), text_color=c("accent_text"))
         self.section.pack(side="left")
         self.count = ctk.CTkLabel(top, text="", font=ui_font("small"), text_color=theme.get_text_secondary())
         self.count.pack(side="right")

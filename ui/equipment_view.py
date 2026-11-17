@@ -71,7 +71,7 @@ class EquipmentDetailPanel(ItemDetailBase):
     def _update_colors(self):
         self.type_badge.configure(fg_color=self.theme.get_current_color('accent_primary'))
         self.crafting_frame.configure(fg_color=self.theme.get_current_color('bg_secondary'))
-        self.tags_label.configure(text_color=self.theme.get_current_color('accent_primary'))
+        self.tags_label.configure(text_color=self.theme.get_current_color('accent_text'))
 
     @staticmethod
     def _crafting_tool_markup(text: str) -> str:

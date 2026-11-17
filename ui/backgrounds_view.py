@@ -232,7 +232,7 @@ class BackgroundDetailPanel(VersionedDetailBase):
                 ctk.CTkLabel(
                     content, text=f"Prerequisite: {feat.prereq}",
                     font=ui_font("body"),
-                    text_color=self.theme.get_current_color('button_danger')
+                    text_color=self.theme.get_current_color('danger_text')
                 ).pack(anchor="w", pady=(5, 0))
             
             if feat.description:
@@ -510,7 +510,7 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._add_search_entry(filter_bar, "Search backgrounds...", 200)
         self._add_source_filter(filter_bar, end_padx=(0, 15))
         self._add_action_buttons(filter_bar, "+ Add Background", 140, self._on_add_background,
-                                 self._on_edit_background, self._on_delete_background)
+                                 self._on_edit_background, self._on_delete_background, start_disabled=True)
 
         # Second row: official content, skill, clear
         filter_bar2 = self._filter_row()
@@ -626,7 +626,8 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         setting = self.settings_manager.settings.legacy_content_filter
         self.detail_panel.show_background(
             background, self._catalog.options(background, setting) if background else None)
-    
+        self._set_edit_buttons(background)
+
     def _on_background_right_click(self, background: Background, x: int, y: int):
         """Handle right-click on background - show context menu."""
         self._context_background = background

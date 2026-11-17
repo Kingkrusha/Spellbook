@@ -307,7 +307,18 @@ def main():
         if closing[0]:
             return  # Already closing
         closing[0] = True
-        
+
+        # Remember where the window was and how big, for next time
+        try:
+            from settings import get_settings_manager
+            from ui.window_utils import window_memory
+            manager = get_settings_manager()
+            kept = window_memory(root, manager.settings.window_geometry)
+            if kept != manager.settings.window_geometry:
+                manager.update(window_geometry=kept)
+        except Exception as e:
+            print(f"Window size not remembered: {e}")
+
         # Show closing splash
         from ui.splash_screen import ClosingSplash
         splash = ClosingSplash(root)
@@ -388,9 +399,14 @@ def main():
             splash.update_progress("Finalizing...", 1.0)
             root.update()
             
-            # Close splash and show main window
+            # Close splash and show main window, the size and in the place it was left
+            from settings import get_settings_manager
+            from ui.window_utils import restore_window, zoom_window
+            zoomed = restore_window(root, get_settings_manager().settings.window_geometry)
             splash.destroy()
             root.deiconify()
+            if zoomed:
+                zoom_window(root)
             root.lift()
             root.focus_force()
             _watch_for_freezes(root)

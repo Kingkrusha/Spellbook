@@ -125,6 +125,7 @@ class AppSettings:
     tracker_window_state: str = ""  # JSON: where each pop-up window was, whether it was pinned, ...
     tracker_turn_beep: bool = True  # Beep (and flash the taskbar) when it becomes your turn
     tracker_auto_open: bool = True  # Open the tracker window when the DM starts combat
+    window_geometry: str = ""  # The main window's size and place when it was last closed (ui/window_utils.py)
 
     lan_overlay_translucent: bool = True  # Use the translucent overlay where the OS allows it
 
@@ -181,7 +182,7 @@ class AppSettings:
             'lan_overlay_opacity', 'lan_overlay_translucent', 'lan_web', 'lan_web_port', 'lan_character',
             'lan_overlay_toggle_pos', 'lan_overlay_panel_pos', 'send_crash_reports', 'crash_report_done',
             'crash_reports_sent',
-            'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open',
+            'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open', 'window_geometry',
             'hotkeys', 'show_content_images', 'pdf_folders',
             'tutorial_offered', 'tutorial_example_character',
         }

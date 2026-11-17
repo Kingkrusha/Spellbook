@@ -219,6 +219,7 @@ class _BonusDice:
 
 class DiceAnalyzerView(BackgroundWorkMixin, ctk.CTkFrame):
     POLL_MS = 40
+    STATS_ROW_WIDTH = 520          # the six summary numbers need about this much room to sit in one row
 
     def __init__(self, parent, state: dict, character_names: Callable[[], List[str]],
                  load_character: Callable[[str], Optional[tuple]], lookups: Lookups,
@@ -401,14 +402,31 @@ class DiceAnalyzerView(BackgroundWorkMixin, ctk.CTkFrame):
         stats.pack(fill="x", pady=(8, 8))
         self._stat_labels: Dict[str, ctk.CTkLabel] = {}
         names = ["Average", "Std. deviation", "Lowest", "Highest", "Median", "Most likely"]
+        cells = []
         for i, name in enumerate(names):
             cell = ctk.CTkFrame(stats, fg_color="transparent")
-            cell.grid(row=0, column=i, padx=10, pady=8, sticky="w")
-            stats.grid_columnconfigure(i, weight=1)
+            cells.append(cell)
             ctk.CTkLabel(cell, text=name, font=ui_font("small", 11), text_color=c('text_secondary')).pack(anchor="w")
             lab = ctk.CTkLabel(cell, text="-", font=ui_font("heading", 18, bold=True))
             lab.pack(anchor="w")
             self._stat_labels[name] = lab
+
+        def arrange(event=None, state={"columns": 0}):
+            """Six numbers in a row, or two rows of three when the pane is too narrow for that."""
+            width = (event.width if event is not None else 10_000) / stats._get_widget_scaling()
+            columns = len(cells) if width >= self.STATS_ROW_WIDTH else 3
+            if columns == state["columns"]:
+                return
+            state["columns"] = columns
+            for i, cell in enumerate(cells):
+                row = i // columns
+                cell.grid(row=row, column=i % columns, padx=10, sticky="w",
+                          pady=(8 if row == 0 else 0, 8 if row == (len(cells) - 1) // columns else 4))
+            for i in range(len(cells)):
+                stats.grid_columnconfigure(i, weight=1 if i < columns else 0)
+
+        arrange()
+        tk.Misc.bind(stats, "<Configure>", arrange, add="+")
         self.spread_label = ctk.CTkLabel(r, text="", font=ui_font("small", 12), text_color=c('text_secondary'),
                                          anchor="w")
         self.spread_label.pack(fill="x")

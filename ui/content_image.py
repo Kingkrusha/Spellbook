@@ -61,6 +61,8 @@ class ContentImage(ctk.CTkFrame):
     """The picture of one entry. Call ``show(name)`` whenever the page shows another entry."""
 
     def __init__(self, parent, kind: str, side: int = 140, **kwargs):
+        kwargs.setdefault("width", 1)                 # (a frame with nothing in it is 200 x 200 otherwise)
+        kwargs.setdefault("height", 1)
         super().__init__(parent, fg_color="transparent", **kwargs)
         self.theme = get_theme_manager()
         self.store = get_image_store()
@@ -99,6 +101,7 @@ class ContentImage(ctk.CTkFrame):
         self.add_button.pack_forget()
         if not name or not pictures_enabled():
             self._clear_image()
+            self.configure(width=1, height=1)         # nothing to show: take no room (Tk keeps the old size)
             return
         path = self.path
         image = thumbnail(path, self.side) if path else None
