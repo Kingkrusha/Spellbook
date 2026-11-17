@@ -324,6 +324,21 @@ def test_library_scans_folders_with_sub_folder_tags_and_saves(tmp_path):
     assert [t.title for t in again.tracks] == ["YouTube link"]
 
 
+def test_only_web_addresses_are_kept_as_links(tmp_path):
+    """A link is opened by the system, which would start a program just as readily: only web (and Spotify)
+    addresses are links, also in a list that came from someone else's backup."""
+    lib = ml.MusicLibrary(str(tmp_path / "music.json"))
+    assert lib.add_link("spotify:track:123").url == "spotify:track:123"
+    assert lib.add_link("HTTPS://example.com/a?b=c").url == "HTTPS://example.com/a?b=c"
+    with pytest.raises(ValueError):
+        lib.add_link("my favourite song")
+    for bad in ("file:///C:/Windows/System32/calc.exe", "\\\\server\\share\\run.exe", "C:\\run.bat",
+                "javascript:alert(1)", "https://example.com/a b", ""):
+        assert ml.safe_link(bad) == ""
+        assert ml.Track.from_dict({"id": "x", "title": "T", "url": bad}).url == ""
+    assert ml.Track.from_dict({"id": "x", "title": "T", "url": " https://youtu.be/abc "}).url == "https://youtu.be/abc"
+
+
 def test_library_ignores_a_broken_file_and_bad_settings(tmp_path):
     path = tmp_path / "music.json"
     path.write_text("{not json")

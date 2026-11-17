@@ -228,6 +228,47 @@ def test_paths_that_escape_the_folder_are_ignored(tmp_path, spells):
         assert B.safe_member(bad, "tokens/") is None
 
 
+def test_only_pictures_are_unpacked_into_the_pictures_folder(tmp_path, spells):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (10, 20, 30)).save(buf, "PNG")
+    index = {"version": 1, "images": {"spells": {
+        "fire bolt": {"name": "Fire Bolt", "file": "spells/fire-bolt.png", "pack": ""},
+        "run me": {"name": "Run Me", "file": "spells/run-me.exe", "pack": ""}}}, "packs": {}}
+    odd = tmp_path / "odd.zip"
+    with zipfile.ZipFile(odd, "w") as z:
+        z.writestr("manifest.json", json.dumps({"format": B.FORMAT, "version": 1,
+                                                "categories": {"images": {"count": 2}}}))
+        z.writestr("images/index.json", json.dumps(index))
+        z.writestr("images/spells/fire-bolt.png", buf.getvalue())
+        z.writestr("images/spells/run-me.exe", b"MZ not a picture")
+    away = _sources(tmp_path, "away", spells)
+    result = B.import_backup(str(odd), away, ["images"])
+    assert result.lines["images"] == "1 added"
+    assert away.image_store.has("spells", "Fire Bolt") and not away.image_store.has("spells", "Run Me")
+    assert not os.path.exists(os.path.join(away.image_store.folder, "spells", "run-me.exe"))
+
+
+def test_the_tours_example_character_is_never_taken_from_a_backup(home, tmp_path, spells):
+    """It is deleted at the next start: a backup naming one would delete the other install's character."""
+    home.settings_manager.update(tutorial_example_character="Mira")
+    path = str(tmp_path / "b.zip")
+    B.export_backup(path, home, ["settings"])
+    with zipfile.ZipFile(path) as z:
+        assert "tutorial_example_character" not in json.loads(z.read("settings/settings.json"))
+    by_hand = str(tmp_path / "by_hand.zip")              # (and one written by hand is ignored too)
+    with zipfile.ZipFile(by_hand, "w") as z:
+        z.writestr("manifest.json", json.dumps({"format": B.FORMAT, "version": 1,
+                                                "categories": {"settings": {"count": 1}}}))
+        z.writestr("settings/settings.json", json.dumps({"tutorial_example_character": "Mira",
+                                                         "appearance_mode": "light"}))
+    away = _sources(tmp_path, "away", spells)
+    B.import_backup(by_hand, away, ["settings"])
+    assert away.settings_manager.settings.tutorial_example_character == ""
+    assert away.settings_manager.settings.appearance_mode == "light"
+
+
 def test_dialogs_list_the_categories_and_import(home, tmp_path, spells, tk_root, monkeypatch):
     from tkinter import messagebox
     from ui import backup_dialogs as D

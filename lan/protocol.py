@@ -14,6 +14,7 @@ import hmac
 import json
 import re
 import struct
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
@@ -84,16 +85,25 @@ async def read_frame(reader: asyncio.StreamReader, max_size: int = MAX_FRAME) ->
     return decode_payload(data)
 
 
+# Characters that turn the text after them around or wrap it in another direction. With them a message or a
+# name can be made to read as something else than it is ("the DM" spelled backwards, say), so they are dropped.
+_DIRECTION_MARKS = frozenset(map(chr, [*range(0x202A, 0x202F), *range(0x2066, 0x206A)]))
+
+
 def clean_text(value, max_len: int) -> str:
     """Printable text only (newline and tab allowed), trimmed and capped."""
     if not isinstance(value, str):
         return ""
-    text = "".join(ch for ch in value if ch in "\n\t" or (ch >= " " and ch != "\x7f"))
+    text = "".join(ch for ch in value if ch in "\n\t" or
+                   (unicodedata.category(ch) != "Cc" and ch not in _DIRECTION_MARKS))
     return text.strip()[:max_len]
 
 
 def clean_name(value, fallback: str = "Player") -> str:
-    name = " ".join(clean_text(value, MAX_NAME * 2).split())[:MAX_NAME].strip()
+    """A name on one line, with nothing in it that can't be seen (zero-width and direction characters), so
+    two names that look the same are the same."""
+    text = "".join(ch for ch in clean_text(value, MAX_NAME * 2) if unicodedata.category(ch) != "Cf")
+    name = " ".join(text.split())[:MAX_NAME].strip()
     return name or fallback
 
 

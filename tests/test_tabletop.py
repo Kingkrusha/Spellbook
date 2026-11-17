@@ -215,8 +215,12 @@ def test_token_library_imports_folders_and_zips(tmp_path):
     with zipfile.ZipFile(zpath, "w") as z:
         z.writestr("Undead/zombie.png", png_bytes())
         z.writestr("../evil.png", png_bytes())
-    assert T.import_tokens(str(zpath), str(lib)) == 2
+        z.writestr("C:/Elsewhere/drive.png", png_bytes())
+    assert T.import_tokens(str(zpath), str(lib)) == 3
     assert not (tmp_path / "evil.png").exists()
+    # every picture lands inside the library, whatever its path in the .zip says
+    assert all(os.path.abspath(p).startswith(str(lib) + os.sep) for _g, _n, p in T.list_token_files(str(lib)))
+    assert (lib / "Undead" / "Elsewhere" / "drive.png").exists()
     found = T.list_token_files(str(lib))
     assert ("Goblins / Archers", "goblin archer") in [(g, n) for g, n, _ in found]
     assert any(n == "zombie" for _, n, _ in found)

@@ -26,10 +26,11 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import ipaddress
 import json
 import secrets
 import time
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from lan import dice
 from lan import discovery
@@ -40,8 +41,12 @@ from lan.security import generate_session_cert, server_context
 
 HOST_ID = "host"
 MAX_PENDING = 8                 # connections still being admitted
+MAX_PENDING_PER_ADDRESS = 3     # ... and how many of those one address may hold
 APPROVAL_TIMEOUT = 60.0         # how long the DM has to say yes
 DENY_COOLDOWN = 30.0            # after the DM says no, the same player can't ask again for this long
+DENY_COOLDOWN_MAX = 600.0       # ... doubling each time the DM says no to the same address, up to this
+WRONG_PASSWORDS = 5             # this many wrong passwords from one address ...
+WRONG_PASSWORD_WINDOW = 60.0    # ... within this long, and that address has to wait before the next try
 MAX_STRIKES = 20                # rate-limit violations before a peer is dropped
 
 # What a browser player may send (see lan/web.py): no characters or homebrew
@@ -66,6 +71,93 @@ class _Bucket:
             self.tokens -= 1
             return True
         return False
+
+
+class _Door:
+    """What each address has done on its way in, so that one machine can't hold every waiting place, keep
+    guessing the password, or (with a new name and id each time) keep asking a DM who said no.
+
+    The DM's own computer (127.0.0.1) isn't counted: a second window there, or a tunnel that brings players
+    in from the internet, makes everyone look like that one address."""
+
+    KEPT = 256                          # addresses remembered at most
+
+    def __init__(self):
+        self.count_loopback = False     # (the tests turn this on: they have no other address)
+        self._waiting: Dict[str, int] = {}
+        self._wrong: Dict[str, List[float]] = {}
+        self._refused: Dict[str, Tuple[int, float]] = {}
+
+    def counted(self, address: str) -> bool:
+        if self.count_loopback:
+            return True
+        try:
+            ip = ipaddress.ip_address(str(address).split("%")[0])
+        except ValueError:
+            return False                # no address to count by
+        ip = getattr(ip, "ipv4_mapped", None) or ip
+        return not ip.is_loopback
+
+    def enter(self, address: str) -> bool:
+        """A connection starts being admitted. False: this address already holds its share of the places."""
+        if not self.counted(address):
+            return True
+        waiting = self._waiting.get(address, 0)
+        if waiting >= MAX_PENDING_PER_ADDRESS:
+            return False
+        self._waiting[address] = waiting + 1
+        return True
+
+    def leave(self, address: str) -> None:
+        waiting = self._waiting.get(address, 0) - 1
+        if waiting > 0:
+            self._waiting[address] = waiting
+        else:
+            self._waiting.pop(address, None)
+
+    def wrong_password(self, address: str) -> None:
+        if self.counted(address):
+            self._wrong.setdefault(address, []).append(time.monotonic())
+            self._trim(self._wrong)
+
+    def locked_out(self, address: str) -> bool:
+        """Whether this address has guessed wrong too often to try again yet."""
+        now = time.monotonic()
+        recent = [t for t in self._wrong.get(address, ()) if now - t < WRONG_PASSWORD_WINDOW]
+        if recent:
+            self._wrong[address] = recent
+        else:
+            self._wrong.pop(address, None)
+        return len(recent) >= WRONG_PASSWORDS
+
+    def refused(self, address: str) -> None:
+        """The DM said no to someone at this address."""
+        if self.counted(address):
+            times = self._refused.get(address, (0, 0.0))[0]
+            self._refused[address] = (times + 1, time.monotonic())
+            self._trim(self._refused)
+
+    def let_in(self, address: str) -> None:
+        self._refused.pop(address, None)
+
+    def wait_left(self, address: str) -> float:
+        """Seconds until this address may ask the DM again (0 = now)."""
+        times, when = self._refused.get(address, (0, 0.0))
+        if not times:
+            return 0.0
+        wait = min(DENY_COOLDOWN_MAX, DENY_COOLDOWN * 2 ** (times - 1))
+        return max(0.0, wait - (time.monotonic() - when))
+
+    def _trim(self, table: dict) -> None:
+        while len(table) > self.KEPT:
+            table.pop(next(iter(table)))
+
+
+def _wait_words(seconds: float) -> str:
+    if seconds <= DENY_COOLDOWN:
+        return "The DM said no. Wait a little before asking again."
+    minutes = max(1, round(seconds / 60))
+    return f"The DM said no. Wait about {minutes} minute{'s' if minutes != 1 else ''} before asking again."
 
 
 class StreamChannel:
@@ -158,6 +250,7 @@ class LanHost:
         self._approved: set = set()
         self._asking: Dict[str, str] = {}      # install id -> request id of its open prompt
         self._denied: Dict[str, float] = {}    # install id -> when the DM last said no (monotonic)
+        self._door = _Door()                   # the same, and wrong passwords, by address
         self._handlers: Dict[str, Handler] = {}
         self._pending = 0
         self._seq = 0
@@ -317,7 +410,8 @@ class LanHost:
 
     async def accept(self, channel) -> None:
         """Admit and then serve one connection (an app player's, or a browser's from :mod:`lan.web`)."""
-        if self._pending >= MAX_PENDING:
+        address = channel.address
+        if self._pending >= MAX_PENDING or not self._door.enter(address):
             channel.close()
             return
         self._pending += 1
@@ -338,6 +432,7 @@ class LanHost:
                 return
         finally:
             self._pending -= 1
+            self._door.leave(address)
 
         keepalive = getattr(channel, "keepalive", None)
         pinging = asyncio.ensure_future(keepalive()) if keepalive is not None else None
@@ -358,9 +453,14 @@ class LanHost:
         if body.get("proto") != P.PROTOCOL_VERSION:
             raise LanError("version", "This session uses a different version of the Spellbook network "
                                       "protocol. Please make sure everyone is on the same app version.")
+        address = channel.address
         if self._password:
+            if self._door.locked_out(address):
+                raise LanError("password", "Too many wrong passwords from this device. Wait a minute, "
+                                           "then try again.")
             given = str(body.get("password") or "")
             if not hmac.compare_digest(given.encode("utf-8"), self._password.encode("utf-8")):
+                self._door.wrong_password(address)
                 await asyncio.sleep(0.5)               # slows down guessing
                 raise LanError("password", "Wrong session password.")
         if len(self._peers) >= self.max_peers:
@@ -373,16 +473,19 @@ class LanHost:
             client_id = "web:" + "".join(ch for ch in client_id if ch.isalnum())[:32]
         elif client_id.startswith("web:"):
             client_id = secrets.token_hex(8)        # (nor can an app pass for a browser)
-        address = channel.address
 
         if self.require_approval and client_id not in self._approved:
             said_no = self._denied.get(client_id)
-            if said_no is not None and time.monotonic() - said_no < DENY_COOLDOWN:
-                raise LanError("declined", "The DM said no. Wait a little before asking again.")
+            wait = self._door.wait_left(address)
+            if said_no is not None:
+                wait = max(wait, DENY_COOLDOWN - (time.monotonic() - said_no))
+            if wait > 0:
+                raise LanError("declined", _wait_words(wait))
             accepted, reason = await self._ask_dm(name, address, channel, client_id, web=channel.web)
             if not accepted:
                 raise LanError("declined", reason)
             self._approved.add(client_id)
+            self._door.let_in(address)
 
         # The same install reconnecting replaces its stale connection
         stale = [p for p in self._peers.values() if p.client_id == client_id]
@@ -430,7 +533,11 @@ class LanHost:
             if fut.done():
                 accepted, reason, by_dm = fut.result()
                 if by_dm and not accepted:
+                    self._denied.pop(client_id, None)       # (so the newest answer is the last one kept)
                     self._denied[client_id] = time.monotonic()
+                    while len(self._denied) > _Door.KEPT:
+                        self._denied.pop(next(iter(self._denied)))
+                    self._door.refused(address)
                 return accepted, reason
             if gone.done():
                 return False, "You stopped waiting."

@@ -27,6 +27,7 @@ import json
 import math
 import random
 import secrets
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
@@ -211,9 +212,11 @@ class TrackerState:
 # ---------------------------------------------------------------------------
 
 def _text(value: Any, max_len: int) -> str:
+    """One line of text without control characters or ones that can't be seen (a player names their own
+    entry, and it must not be able to pass for another one)."""
     if not isinstance(value, str):
         return ""
-    return "".join(ch for ch in value if ch >= " " and ch != "\x7f").strip()[:max_len]
+    return "".join(ch for ch in value if unicodedata.category(ch) not in ("Cc", "Cf")).strip()[:max_len]
 
 
 def _int(value: Any, lo: int, hi: int, name: str) -> int:

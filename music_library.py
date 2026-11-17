@@ -43,6 +43,17 @@ DEFAULT_SETTINGS = {
 }
 
 
+_WEB_LINK = re.compile(r"^(https?://|spotify:)[^\s]+$", re.I)
+
+
+def safe_link(url: str) -> str:
+    """``url`` when it is a web (or Spotify) link, else "". A link is opened with the system's own handler,
+    which would just as readily start a program a ``file:`` address or a network path points at, and the
+    music list can come from someone else's backup."""
+    url = str(url or "").strip()
+    return url if _WEB_LINK.match(url) else ""
+
+
 def link_kind(url: str) -> str:
     u = url.lower()
     if "youtube.com" in u or "youtu.be" in u:
@@ -127,7 +138,7 @@ class Track:
         except (TypeError, ValueError, IndexError):
             stamp = (0, 0)
         return cls(id=str(d.get("id") or uuid.uuid4().hex), title=str(d.get("title", "")),
-                   path=str(d.get("path", "")), url=str(d.get("url", "")),
+                   path=str(d.get("path", "")), url=safe_link(d.get("url", "")),
                    tags=clean_tags(d.get("tags") or []),
                    volume=max(0.0, min(1.5, float(d.get("volume", 1.0) or 0))),
                    duration=max(0.0, float(d.get("duration", 0) or 0)), stamp=stamp)
@@ -233,6 +244,9 @@ class MusicLibrary:
         url = url.strip()
         if not re.match(r"^(https?://|spotify:)", url, re.I):
             url = "https://" + url
+        url = safe_link(url)
+        if not url:
+            raise ValueError("That isn't a web link.")
         track = Track(uuid.uuid4().hex, title.strip() or f"{link_kind(url)} link", url=url, tags=clean_tags(tags))
         with self._lock:
             self.tracks.append(track)

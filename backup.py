@@ -67,10 +67,13 @@ CATEGORIES: "OrderedDict[str, Tuple[str, str]]" = OrderedDict([
 # settings.json keys that belong to this computer, not to the person: never exported or imported
 LOCAL_SETTINGS = {"lan_client_id", "lan_last_invite", "pdf_folders", "tracker_window_state",
                   "skipped_update_version", "initial_official_tag_applied", "crash_report_done", "crash_reports_sent",
-                  "lan_overlay_toggle_pos", "lan_overlay_panel_pos"}
+                  "lan_overlay_toggle_pos", "lan_overlay_panel_pos",
+                  # the example character a tour is using is deleted at the next start: only ever this install's
+                  "tutorial_example_character"}
 SETTINGS_FILES = ("settings.json", "font_settings.json", "custom_themes.json")
 
 MAX_JSON_BYTES = 256 * 1024 * 1024          # one JSON member of a backup
+PICTURE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 
 
 class BackupError(ValueError):
@@ -939,8 +942,8 @@ def _import_images(z, src: Sources, replace: bool, result: ImportResult) -> str:
                 continue
             rel = safe_member("images/" + str(entry.get("file") or ""), "images/")
             info = members.get(rel) if rel else None
-            if info is None:
-                continue
+            if info is None or os.path.splitext(rel)[1].lower() not in PICTURE_TYPES:
+                continue                                # (only pictures are unpacked into the pictures folder)
             existing = store._index.get(kind, {}).get(name_key(str(entry.get("name") or key)))
             if existing and not replace:
                 kept += 1

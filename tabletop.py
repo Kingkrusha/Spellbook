@@ -1651,10 +1651,13 @@ def import_tokens(source: str, folder: Optional[str] = None) -> int:
             name = info.filename
             if info.is_dir() or os.path.splitext(name)[1].lower() not in IMAGE_TYPES:
                 continue
-            parts = [p for p in re.split(r"[\\/]+", name) if p not in ("", ".", "..")]
+            # (a part with a colon is a drive letter on Windows: joined to a path, it would leave the folder)
+            parts = [p for p in re.split(r"[\\/]+", name) if p not in ("", ".", "..") and ":" not in p]
             if not parts or info.file_size > MAX_ASSET_BYTES:
                 continue
             target = os.path.join(folder, base, *parts)
+            if not os.path.abspath(target).startswith(os.path.abspath(folder) + os.sep):
+                continue
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with z.open(info) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
