@@ -57,12 +57,15 @@ def test_only_the_parts_near_the_view_are_built_and_scrolling_builds_more(tk_roo
     assert lazy.pending == 0 and sorted(built) == list(range(40))
 
 
-def test_a_part_built_above_the_view_does_not_move_what_is_shown(tk_root, page):
+@pytest.mark.parametrize("increment", [30, 1])          # (a scroll step: 30 px on Linux, 1 px on Windows)
+def test_a_part_built_above_the_view_does_not_move_what_is_shown(tk_root, page, increment):
     lazy = LazySections(page)
     built = []
     holders = [lazy.add(page, fill(n, built), height=100) for n in range(40)]
     pump(tk_root)
     canvas = page._parent_canvas
+    canvas.configure(yscrollincrement=increment)
+    step = max(1, 60 // increment)                        # about 60 px a wheel notch, whatever the step
     canvas.yview_moveto(0.8)
     pump(tk_root, 25)
     # a part on screen, and where it is
@@ -73,14 +76,14 @@ def test_a_part_built_above_the_view_does_not_move_what_is_shown(tk_root, page):
     before = marker.winfo_rooty()
     pending = lazy.pending
     for _ in range(8):                        # up with the mouse wheel, a step at a time, into parts not built yet
-        canvas.yview_scroll(-2, "units")
+        canvas.yview_scroll(-step, "units")
         pump(tk_root, 4)
     assert lazy.pending < pending                                      # (some were built above the old view)
     for _ in range(8):
-        canvas.yview_scroll(2, "units")
+        canvas.yview_scroll(step, "units")
         pump(tk_root, 4)
     # back where we were: the parts that grew above didn't push the marker away (but for the scroll step's rounding)
-    assert abs(marker.winfo_rooty() - before) <= int(float(canvas.cget("yscrollincrement"))) // 2 + 1
+    assert abs(marker.winfo_rooty() - before) <= increment // 2 + 1
 
 
 def test_cleared_parts_are_not_built(tk_root, page):
