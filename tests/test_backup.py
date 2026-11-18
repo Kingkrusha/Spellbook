@@ -362,3 +362,31 @@ def test_music_list_alone_keeps_a_track_that_already_plays(tmp_path):
     song.unlink()
     B.import_backup(path, away, ["music"])
     assert away.music_library.get(track.id).path == os.path.abspath(str(moved))
+
+
+def test_a_restore_that_would_fill_the_disk_is_refused_before_anything_is_written(home, tmp_path, spells,
+                                                                                    monkeypatch):
+    from collections import namedtuple
+    path = str(tmp_path / "full.zip")
+    B.export_backup(path, home, ["tokens", "pdfs", "studio"])
+    away = _sources(tmp_path, "away", spells)
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(B.shutil, "disk_usage", lambda p: Usage(10 ** 9, 10 ** 9, B.SPACE_MARGIN))
+    with pytest.raises(B.NotEnoughSpace) as e:
+        B.import_backup(path, away, ["tokens", "pdfs", "studio"])
+    assert "free" in str(e.value) and "MB" in str(e.value)
+    assert not os.path.exists(away.token_folder) and away.studio_store.drafts == []
+    monkeypatch.undo()
+    B.import_backup(path, away, ["tokens", "pdfs", "studio"])
+    assert os.path.isfile(os.path.join(away.token_folder, "Orcs", "Orc Chief.png"))
+
+
+def test_the_room_needed_leaves_out_files_already_here(home, tmp_path):
+    path = str(tmp_path / "files.zip")
+    B.export_backup(path, home, ["tokens", "pdfs"])
+    with zipfile.ZipFile(path) as z:
+        assert B.space_needed(z, home, ["tokens", "pdfs"]) == []    # both files are here already, the same size
+        os.remove(os.path.join(home.pdf_target, "Handout.pdf"))
+        [(where, need, free)] = B.space_needed(z, home, ["tokens", "pdfs"])     # (one drive)
+        assert need == B.SPACE_MARGIN + len(b"%PDF-1.4 test handout")
+        assert B.space_needed(z, home, ["characters"]) == []

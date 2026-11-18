@@ -253,6 +253,10 @@ class ImportBackupDialog(_ChoiceDialog):
         try:
             result = B.import_backup(self.path, self.sources, keys, replace=self.mode.get() == self.REPLACE,
                                      progress=progress)
+        except B.NotEnoughSpace as e:
+            progress.close()
+            messagebox.showerror("Not enough free space", str(e), parent=self)
+            return
         except Exception as e:
             progress.close()
             messagebox.showerror("Import failed", f"The backup could not be imported:\n{e}", parent=self)
