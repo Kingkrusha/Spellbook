@@ -113,6 +113,7 @@ class SessionService:
         self.player_characters: Dict[str, dict] = {}  # host: peer id -> their character (+ player, client_id)
 
         self._host: Optional[LanHost] = None
+        self._blocked_here = 0                         # devices blocked from the join prompt this session
         self._client: Optional[LanClient] = None
         self._local = EventQueue()                    # results of the join thread
         self._listeners: List[Callable[..., None]] = []
@@ -220,6 +221,7 @@ class SessionService:
         self.peers = host.peers()
         self.chat = []
         self.last_end_reason = ""
+        self._blocked_here = 0
         self._remember(lan_player_name=name, lan_port=port, lan_require_approval=require_approval,
                        lan_discovery=bool(discoverable))
         self._add_line("system", "Session started. Share an invite with your players.")
@@ -276,10 +278,25 @@ class SessionService:
     def is_web_peer(self, peer_id: str) -> bool:
         return any(p.get("web") for p in self.peers if p["peer_id"] == peer_id)
 
-    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.") -> None:
+    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.",
+                         block: bool = False) -> None:
+        """Host: answer a join prompt. ``block`` turns a no into "never ask about this device again" for the
+        rest of the session (see :meth:`unblock_all`)."""
         if self._host is not None:
-            self._host.resolve_approval(request_id, accept, reason)
+            self._host.resolve_approval(request_id, accept, reason, block=block)
         self._notify("approval_done", request_id=request_id)
+
+    @property
+    def blocked_devices(self) -> int:
+        """Host: how many devices were blocked from the join prompt this session."""
+        return self._blocked_here if self._host is not None else 0
+
+    def unblock_all(self) -> None:
+        """Host: blocked devices may ask to join again."""
+        if self._host is not None:
+            self._host.unblock_all()
+        self._blocked_here = 0
+        self._notify("state")
 
     def kick(self, peer_id: str) -> None:
         if self._host is not None:
@@ -645,6 +662,9 @@ class SessionService:
         elif kind == "approval_request":
             self._notify("approval_request", request_id=ev["request_id"], name=ev["name"], address=ev["address"],
                          web=bool(ev.get("web")))
+        elif kind == "device_blocked":
+            self._blocked_here = int(ev.get("count") or 0)
+            self._notify("state")
         elif kind == "approval_closed":                 # timed out, the player gave up or asked again
             self._notify("approval_done", request_id=ev["request_id"])
         elif kind == "error":

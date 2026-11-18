@@ -18,6 +18,7 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``tracker_cmd`` - a player's initiative-tracker command: ``peer_id, name, cmd, seq``
 * ``table_cmd`` - a player's tabletop command (move a token, draw, ping): ``peer_id, name, cmd, seq``
 * ``table_asset_req`` - a player is missing tabletop pictures: ``peer_id, ids``
+* ``device_blocked`` - the DM blocked a device from the join prompt: ``count`` (blocked this session)
 * ``table_sync`` - a player wants their whole view of the map again (and takes patches after): ``peer_id``
 * ``xfer`` - something sent to the host: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_reply`` - the recipient answered a transfer: ``from, name, xfer_id, status, detail``
@@ -251,6 +252,10 @@ class LanHost:
         self._approved: set = set()
         self._asking: Dict[str, str] = {}      # install id -> request id of its open prompt
         self._denied: Dict[str, float] = {}    # install id -> when the DM last said no (monotonic)
+        # Devices the DM blocked from the prompt: never asked about again while this session lasts (by install
+        # id, and by address, since a browser can pick a new id)
+        self._blocked_ids: set = set()
+        self._blocked_addresses: set = set()
         self._door = _Door()                   # the same, and wrong passwords, by address
         self._handlers: Dict[str, Handler] = {}
         self._pending = 0
@@ -352,7 +357,7 @@ class LanHost:
             self._server.close()
         for fut in list(self._approvals.values()):
             if not fut.done():
-                fut.set_result((False, "The session closed.", False))
+                fut.set_result((False, "The session closed.", False, False))
         for peer in list(self._peers.values()):
             await self._drop(peer, "The host closed the session.", notify=True)
 
@@ -394,13 +399,30 @@ class LanHost:
         if self._started:
             self._runner.submit(self._kick(peer_id, reason))
 
-    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.") -> None:
+    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.",
+                         block: bool = False) -> None:
+        """The DM's answer to a join prompt. ``block`` (with a no) keeps that device out for the rest of the
+        session without asking again."""
         def go():
             fut = self._approvals.get(request_id)
             if fut is not None and not fut.done():
-                fut.set_result((accept, reason, True))
+                fut.set_result((accept, reason, True, bool(block) and not accept))
         if self._started:
             self._runner.call_soon(go)
+
+    @property
+    def blocked_count(self) -> int:
+        """How many devices the DM blocked this session."""
+        return len(self._blocked_ids)
+
+    def unblock_all(self) -> None:
+        def go():
+            self._blocked_ids.clear()
+            self._blocked_addresses.clear()
+        if self._started:
+            self._runner.call_soon(go)
+        else:
+            go()
 
     # ----------------------------------------------------------- loop-thread internals
 
@@ -476,6 +498,8 @@ class LanHost:
         elif client_id.startswith("web:"):
             client_id = secrets.token_hex(8)        # (nor can an app pass for a browser)
 
+        if client_id in self._blocked_ids or (address in self._blocked_addresses and client_id not in self._approved):
+            raise LanError("declined", "The DM isn't letting this device join this session.")
         if self.require_approval and client_id not in self._approved:
             said_no = self._denied.get(client_id)
             wait = self._door.wait_left(address)
@@ -521,7 +545,7 @@ class LanHost:
         never left answering someone who has gone."""
         earlier = self._approvals.get(self._asking.get(client_id, ""))
         if earlier is not None and not earlier.done():
-            earlier.set_result((False, "You asked again from somewhere else.", False))
+            earlier.set_result((False, "You asked again from somewhere else.", False, False))
         request_id = secrets.token_hex(6)
         fut: "asyncio.Future[tuple]" = asyncio.get_running_loop().create_future()
         self._approvals[request_id] = fut
@@ -533,7 +557,13 @@ class LanHost:
         try:
             await asyncio.wait({fut, gone}, timeout=APPROVAL_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
             if fut.done():
-                accepted, reason, by_dm = fut.result()
+                accepted, reason, by_dm, block = fut.result()
+                if block:
+                    self._blocked_ids.add(client_id)
+                    if self._door.counted(address):
+                        self._blocked_addresses.add(address)
+                    self._emit("device_blocked", count=len(self._blocked_ids))
+                    return False, "The DM isn't letting this device join this session."
                 if by_dm and not accepted:
                     self._denied.pop(client_id, None)       # (so the newest answer is the last one kept)
                     self._denied[client_id] = time.monotonic()

@@ -390,6 +390,29 @@ def test_a_no_from_the_dm_holds_for_a_little_while(asking_host):
     b.close()
 
 
+def test_a_blocked_device_is_never_asked_about_again_this_session(asking_host):
+    h = asking_host
+    h._door.count_loopback = True                # (as if the player were on another computer)
+    b = Browser(h.web_port)
+    b.hello()
+    h.resolve_approval(wait_for(h.events, "approval_request")["request_id"], False, block=True)
+    assert "isn't letting this device" in b.recv("error")["body"]["message"]
+    assert wait_for(h.events, "device_blocked")["count"] == 1 and h.blocked_count == 1
+    b.close()
+    for client_id in ("abc123", "fresh999"):    # the same device, even with a new id
+        b = Browser(h.web_port)
+        b.hello(client_id=client_id)
+        assert "isn't letting this device" in b.recv("error")["body"]["message"]
+        b.close()
+    no_event(h.events, "approval_request")
+    h.unblock_all()
+    time.sleep(0.2)
+    b = Browser(h.web_port)
+    b.hello()
+    assert wait_for(h.events, "approval_request")
+    b.close()
+
+
 def test_browsers_are_pinged_and_their_answers_keep_them_in(monkeypatch, host):
     monkeypatch.setattr(P, "PING_INTERVAL", 0.2)
     monkeypatch.setattr(P, "IDLE_TIMEOUT", 1.0)
