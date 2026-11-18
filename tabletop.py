@@ -1116,7 +1116,7 @@ class Tabletop:
         self._changed(result.get("scene", scene_id) or None)
         return result
 
-    PLAYER_OPS = {"token_move", "draw_add", "draw_delete", "area_add", "area_update", "area_delete", "door_toggle"}
+    PLAYER_OPS = {"token_move", "draw_add", "draw_update", "draw_delete", "area_add", "area_update", "area_delete", "door_toggle"}
     NO_UNDO = {"scene_show"}
 
     def _scene_or_fail(self, cmd: dict) -> dict:
@@ -1279,6 +1279,26 @@ class Tabletop:
         scene["drawings"].append(drawing)
         return {"drawing": drawing["id"]}
 
+    def _op_draw_update(self, cmd, actor, actor_name):
+        """Move, resize or recolour a drawing. A player may only change their own (while drawing is allowed)."""
+        scene = self._scene_or_fail(cmd)
+        drawing = next((d for d in scene["drawings"] if d["id"] == cmd.get("id")), None)
+        if drawing is None:
+            raise CommandError("That drawing is gone.")
+        if actor != DM:
+            if not scene.get("players_draw"):
+                raise CommandError("The DM has turned drawing off on this map.")
+            if drawing.get("author") != actor:
+                raise CommandError("That drawing isn't yours.")
+        fields = cmd.get("fields") or {}
+        allowed = ("pts", "color", "width", "private") if actor == DM else ("pts", "color", "width")
+        merged = clean_drawing(dict(drawing, **{k: v for k, v in fields.items() if k in allowed}),
+                               author=drawing.get("author", ""))
+        if merged is None:
+            raise CommandError("That drawing couldn't be read.")
+        merged["id"] = drawing["id"]
+        drawing.update(merged)
+
     def _op_draw_delete(self, cmd, actor, actor_name):
         scene = self._scene_or_fail(cmd)
         ids = cmd.get("ids") if isinstance(cmd.get("ids"), list) else [cmd.get("id")]
@@ -1324,6 +1344,25 @@ class Tabletop:
             wall["locked"] = bool(fields["locked"])
         if not wall["door"]:
             wall["open"] = wall["locked"] = False
+
+    def _op_wall_reshape(self, cmd, actor, actor_name):
+        """Move the ends of one or more walls at once: ``walls`` = [{"id", "pts"}, ...] (all or none)."""
+        scene = self._scene_or_fail(cmd)
+        raw = cmd.get("walls") if isinstance(cmd.get("walls"), list) else []
+        by_id = {w["id"]: w for w in scene["walls"]}
+        changes = []
+        for item in raw[:MAX_WALLS]:
+            wall = by_id.get(item.get("id")) if isinstance(item, dict) else None
+            if wall is None:
+                continue
+            cleaned = clean_wall(dict(wall, pts=item.get("pts")))
+            if cleaned is None:
+                raise CommandError("A wall can't be that short.")
+            changes.append((wall, cleaned["pts"]))
+        if not changes:
+            raise CommandError("Those walls are gone.")
+        for wall, pts in changes:
+            wall["pts"] = pts
 
     def _op_door_toggle(self, cmd, actor, actor_name):
         """Open or close a door. A player may only use a door they can see that isn't locked."""
@@ -1373,6 +1412,11 @@ class Tabletop:
         zone = next((z for z in scene["zones"] if z["id"] == cmd.get("id")), None)
         if zone is None:
             raise CommandError("That raised area is gone.")
+        if "pts" in cmd:                                # moved or resized
+            cleaned = clean_zone({"pts": cmd.get("pts"), "elev": zone["elev"]})
+            if cleaned is None:
+                raise CommandError("That raised area couldn't be read.")
+            zone["pts"] = cleaned["pts"]
         zone["elev"] = round(_num(cmd.get("elev"), zone["elev"], -MAX_HEIGHT, MAX_HEIGHT), 1)
         self._refollow(scene)
 

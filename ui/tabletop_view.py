@@ -29,7 +29,10 @@ from ui.window_utils import add_cancel_save, center_on_parent
 
 TOOL_BUTTONS = [
     # (tool, label, tooltip, dm only)
-    ("select", "✋ Move", "Select and drag tokens; drag empty space to pan. Alt-click anywhere to ping.", False),
+    ("select", "✋ Move", "Select and drag tokens; drag empty space to pan. Click a drawing, wall, raised area or "
+                         "spell area to pick it: drag it to move it, or drag its handles to resize it (Shift keeps "
+                         "its shape, Ctrl works from the middle). Double-click a wall to pick its whole run. "
+                         "Alt-click anywhere to ping.", False),
     ("ping", "📍 Ping", "Point at a spot on the map for everyone.", False),
     ("measure", "📐 Ruler", "Drag to measure a distance.", False),
     ("free", "✏️ Draw", "Draw freehand.", False),

@@ -448,11 +448,102 @@
     return "#" + hex(80 + (h >> 16) % 150) + hex(80 + (h >> 8) % 150) + hex(80 + h % 150);
   }
 
+  // ---- changing a drawing or an area after it is made (tabletop_shapes.py)
+  const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+  const MIN_SIDE = 4;
+  function boundsOf(pts) {
+    const xs = pts.filter((_, i) => i % 2 === 0), ys = pts.filter((_, i) => i % 2 === 1);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+  function handlePoints(box) {
+    const [x0, y0, x1, y1] = box, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    return { nw: [x0, y0], n: [mx, y0], ne: [x1, y0], e: [x1, my], se: [x1, y1], s: [mx, y1], sw: [x0, y1], w: [x0, my] };
+  }
+  function resizeBox(box, handle, x, y, keepRatio, centred) {
+    const [x0, y0, x1, y1] = box;
+    const w = x1 - x0, h = y1 - y0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const movesX = handle.includes("e") || handle.includes("w");
+    const movesY = handle.includes("n") || handle.includes("s");
+    const signX = handle.includes("e") ? 1 : -1, signY = handle.includes("s") ? 1 : -1;
+    let nw, nh;
+    if (centred) {
+      nw = movesX ? 2 * Math.max(MIN_SIDE / 2, (x - cx) * signX) : w;
+      nh = movesY ? 2 * Math.max(MIN_SIDE / 2, (y - cy) * signY) : h;
+    } else {
+      nw = movesX ? Math.max(MIN_SIDE, (x - (signX > 0 ? x0 : x1)) * signX) : w;
+      nh = movesY ? Math.max(MIN_SIDE, (y - (signY > 0 ? y0 : y1)) * signY) : h;
+    }
+    if (keepRatio && w > 1e-9 && h > 1e-9) {
+      let k = movesX && movesY ? Math.max(nw / w, nh / h) : movesX ? nw / w : nh / h;
+      k = Math.max(k, MIN_SIDE / Math.min(w, h));
+      nw = w * k; nh = h * k;
+    }
+    if (centred) return [cx - nw / 2, cy - nh / 2, cx + nw / 2, cy + nh / 2];
+    const xs = movesX ? (signX > 0 ? [x0, x0 + nw] : [x1 - nw, x1]) : [cx - nw / 2, cx + nw / 2];
+    const ys = movesY ? (signY > 0 ? [y0, y0 + nh] : [y1 - nh, y1]) : [cy - nh / 2, cy + nh / 2];
+    return [xs[0], ys[0], xs[1], ys[1]];
+  }
+  function refit(pts, old, box) {
+    const kx = old[2] - old[0] > 1e-9 ? (box[2] - box[0]) / (old[2] - old[0]) : 1;
+    const ky = old[3] - old[1] > 1e-9 ? (box[3] - box[1]) / (old[3] - old[1]) : 1;
+    const out = [];
+    for (let i = 0; i + 1 < pts.length; i += 2) {
+      out.push(pyRound(box[0] + (pts[i] - old[0]) * kx, 1), pyRound(box[1] + (pts[i + 1] - old[1]) * ky, 1));
+    }
+    return out;
+  }
+  function movePts(pts, dx, dy) {
+    return pts.map((p, i) => pyRound(p + (i % 2 === 0 ? dx : dy), 1));
+  }
+  function reshape(pts, handle, x, y, start, keepRatio, centred) {
+    if (handle === "p0" || handle === "p1") {
+      const out = pts.slice();
+      const i = handle === "p0" ? 0 : out.length - 2;
+      out[i] = pyRound(x, 1); out[i + 1] = pyRound(y, 1);
+      return out;
+    }
+    const old = start || boundsOf(pts);
+    return refit(pts, old, resizeBox(old, handle, x, y, keepRatio, centred));
+  }
+  function pitchScale(area) {
+    const c = Math.cos(radians(area.pitch || 0));
+    return c > 0.2 ? c : 1;
+  }
+  function areaHandle(scene, area) {
+    const [ox, oy] = areaOrigin(scene, area);
+    const ppf = 1 / feetPerPx(scene);
+    const size = Number(area.size) * ppf, d = radians(area.dir || 0);
+    if (area.shape === "cube" || area.shape === "square") {
+      return [ox + (Math.cos(d) >= 0 ? size : -size), oy + (Math.sin(d) >= 0 ? size : -size)];
+    }
+    if (area.shape === "circle" || area.shape === "sphere" || area.shape === "emanation") {
+      const r = size + tokenReachFt(scene, area) * ppf;
+      return [ox + r * Math.cos(d), oy + r * Math.sin(d)];
+    }
+    const length = size * pitchScale(area);
+    return [ox + length * Math.cos(d), oy + length * Math.sin(d)];
+  }
+  function areaFromHandle(scene, area, x, y) {
+    const [ox, oy] = areaOrigin(scene, area);
+    const fpp = feetPerPx(scene);
+    const feet = Number((scene.grid || {}).feet || 5);
+    const dx = x - ox, dy = y - oy;
+    let reach;
+    if (area.shape === "cube" || area.shape === "square") reach = Math.max(Math.abs(dx), Math.abs(dy)) * fpp;
+    else if (area.shape === "circle" || area.shape === "sphere" || area.shape === "emanation") {
+      reach = Math.hypot(dx, dy) * fpp - tokenReachFt(scene, area);
+    } else reach = Math.hypot(dx, dy) * fpp / pitchScale(area);
+    const out = { size: Math.max(feet, pyRound(reach / feet) * feet) };
+    if (dx || dy) out.dir = pyRound(mod(degrees(Math.atan2(dy, dx)), 360), 2);
+    return out;
+  }
+
   const api = {
     SQRT3, AREA_SHAPES, AREA_LABELS, AREA_COLORS, MAX_HEIGHT, Grid, pyRound, mod, radians, degrees,
     tokenBox, pointInPolygon, feetPerPx, groundAt, tokenElevation, tokenHeight, distanceFt, areaOrigin,
     areaContains, areaFootprint, cellsIn, areaCells, areaTokens, cleanArea, axisSnap, shapeBox, heightText,
     areaText, tokenLetter, md5hex, conditionColor, fmt,
+    HANDLES, MIN_SIDE, boundsOf, handlePoints, resizeBox, refit, movePts, reshape, areaHandle, areaFromHandle,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SpellbookGeometry = api;
