@@ -1089,6 +1089,11 @@ class MainWindow(ctk.CTkFrame):
     # on every navigation is what made switching feel sluggish.
     CACHEABLE_PAGES = ("home", "collections", "characters", "character_sheet")
     PAGE_CACHE_SIZE = 3        # left pages kept per tab
+    # Game Tools pages a tab left are kept too (the last few), so going back to Initiative, the Tabletop or the Dice
+    # Analyzer is instant instead of a rebuild. A kept tool page goes on working as it does in a background tab.
+    KEPT_TOOL_PAGES = ("game_tools", "session", "initiative", "dice_analyzer", "matchup", "random_tables",
+                       "calendar", "pdf_library", "music", "tabletop")
+    TOOL_CACHE_SIZE = 3
     SUB_VIEW_CACHE_SIZE = 3    # collection pages kept per tab
 
     def _page_key(self, page_type: str, character: Optional[str] = None) -> tuple:
@@ -1112,6 +1117,10 @@ class MainWindow(ctk.CTkFrame):
             if entry['sub_views']:
                 info['sub_views'] = entry['sub_views']
             info.pop('fresh', None)  # a reused page catches up with changes when it is shown
+            if page_type == 'tabletop':
+                from lan.service import CLIENT
+                if self.session.role != CLIENT:
+                    self._tabletop_initiative()     # catch the tokens up with the tracker, as a new page does
         else:
             info['view'] = self._build_page(tab_id, page_type, character=character)
             info['fresh'] = True  # just built: nothing to catch up on when it is first shown
@@ -1142,19 +1151,26 @@ class MainWindow(ctk.CTkFrame):
         info.pop('sub_view_key', None)
         loaded = info.pop('pending_character', None) is None  # a sheet that never showed has nothing to keep
 
-        if page_type in self.CACHEABLE_PAGES and key and loaded:
+        kept = page_type in self.CACHEABLE_PAGES or page_type in self.KEPT_TOOL_PAGES
+        if kept and key and loaded:
             if page_type == 'character_sheet' and not self._sheet_still_valid(view):
                 self._dispose_entry(entry)
                 return
             cache = info.setdefault('cache', OrderedDict())
             stale = cache.pop(key, None)
             if stale is not None:
-                self._dispose_entry(stale)
+                self._dispose_entry(stale, immediately=self._is_tool_key(key))
             cache[key] = entry
-            while len(cache) > self.PAGE_CACHE_SIZE:
-                self._dispose_entry(cache.popitem(last=False)[1])
+            for tools, limit in ((False, self.PAGE_CACHE_SIZE), (True, self.TOOL_CACHE_SIZE)):
+                keys = [k for k in cache if self._is_tool_key(k) == tools]
+                for old_key in keys[:max(0, len(keys) - limit)]:          # the least recently left go first
+                    self._dispose_entry(cache.pop(old_key), immediately=tools)
         else:
             self._dispose_entry(entry, immediately=page_type not in self.CACHEABLE_PAGES)
+
+    def _is_tool_key(self, key) -> bool:
+        """A Game Tools page: those have their own teardown (sessions, sound, timers), so they go at once."""
+        return bool(key) and key[0] in self.KEPT_TOOL_PAGES
 
     def _take_cached_page(self, info: dict, key: tuple):
         """The cached page for ``key`` (removed from the cache), or None."""
@@ -1178,14 +1194,14 @@ class MainWindow(ctk.CTkFrame):
 
     def _dispose_tab(self, info: dict, immediately: bool = False):
         """Get rid of everything a closed (or suspended) tab was holding."""
-        entries = list((info.pop('cache', None) or {}).values())
+        entries = [(entry, self._is_tool_key(key)) for key, entry in (info.pop('cache', None) or {}).items()]
         if info.get('view') is not None:
-            entries.append({'view': info['view'], 'sub_views': info.pop('sub_views', None) or {}})
+            entries.append(({'view': info['view'], 'sub_views': info.pop('sub_views', None) or {}}, False))
             info['view'] = None
         else:
             info.pop('sub_views', None)
-        for entry in entries:
-            self._dispose_entry(entry, immediately)
+        for entry, tool in entries:
+            self._dispose_entry(entry, immediately or tool)
         info.pop('sub_view', None)
         info.pop('sub_view_key', None)
         info.pop('pending_character', None)
@@ -1427,7 +1443,7 @@ class MainWindow(ctk.CTkFrame):
         elif kind == 'cache' and info is not None:
             entry = (info.get('cache') or {}).pop(key, None)
             if entry is not None:
-                self._dispose_entry(entry, immediately)
+                self._dispose_entry(entry, immediately or self._is_tool_key(key))
         elif kind == 'sub' and info is not None:
             self._dispose_view((info.get('sub_views') or {}).pop(key, None), immediately)
         elif kind == 'tab' and info is not None:
