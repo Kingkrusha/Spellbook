@@ -166,12 +166,40 @@ class EditorBody:
         add_cancel_save(btn_frame, self.theme, self._finish, self._save, outlined=True)
 
 
-class DialogWindow(ctk.CTkToplevel):
-    """The window a stand-alone editor dialog is: finishing closes it."""
+class _AfterBuild(type):
+    """Calls ``_form_built()`` once the editor's own ``__init__`` (which builds and fills the form) is done."""
+
+    def __call__(cls, *args, **kwargs):
+        window = super().__call__(*args, **kwargs)
+        try:
+            window._form_built()
+        except Exception:
+            pass
+        return window
+
+
+class DialogWindow(ctk.CTkToplevel, metaclass=_AfterBuild):
+    """The window a stand-alone editor dialog is: finishing closes it.
+
+    Closing without saving (Cancel or the window's close button) asks "Discard your changes?" first when
+    the form says something else than it did when it opened."""
 
     EMBEDDED = False
 
+    def _form_built(self):
+        self._form_at_open = form_state(self)
+        tk.Toplevel.protocol(self, "WM_DELETE_WINDOW", self._finish)
+
+    def form_changed(self) -> bool:
+        opened = getattr(self, "_form_at_open", None)
+        return opened is not None and form_state(self) != opened
+
     def _finish(self):
+        if getattr(self, "result", None) is None and self.form_changed():
+            if not messagebox.askyesno("Discard your changes?",
+                                       "This form has changes that are not saved. Close it and discard them?",
+                                       icon="warning", default="no", parent=self):
+                return
         self.destroy()
 
 
@@ -245,6 +273,33 @@ class EmbeddedWindow(ctk.CTkFrame):
             callback(getattr(self, "result", None))
         else:
             self.destroy()
+
+
+def form_state(root: tk.Misc) -> List[Any]:
+    """What every field under ``root`` holds, in order: text boxes, entries (a hint showing counts as empty),
+    drop-downs, check boxes, switches. Two calls give equal lists when nothing on the form was changed."""
+    out: List[Any] = []
+    readers = (ctk.CTkEntry, ctk.CTkTextbox, ctk.CTkComboBox, ctk.CTkOptionMenu, ctk.CTkCheckBox, ctk.CTkSwitch,
+               ctk.CTkSegmentedButton, ctk.CTkSlider)
+
+    def walk(w: tk.Misc):
+        for child in w.winfo_children():
+            try:
+                if isinstance(child, ctk.CTkTextbox):
+                    out.append(child.get("1.0", "end-1c"))
+                    continue                                # (its inner Text is the same text)
+                if isinstance(child, readers):
+                    out.append(child.get())
+                    continue
+                if isinstance(child, tk.Text):
+                    out.append(child.get("1.0", "end-1c"))
+                elif isinstance(child, tk.Entry):
+                    out.append(child.get())
+            except (tk.TclError, AttributeError):
+                pass
+            walk(child)
+    walk(root)
+    return out
 
 
 def form_text(root: tk.Misc) -> List[str]:
