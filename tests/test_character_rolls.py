@@ -697,3 +697,26 @@ def test_every_class_and_subclass_analyses_with_everything_switched_on():
                             assert v.dist.total() == pytest.approx(1, abs=1e-6), (cname, sub, level, r.key)
                     checked += 1
     assert checked > 60
+
+
+# ----------------------------------------------------------------------------- exhaustion
+
+def test_exhaustion_takes_two_per_level_off_every_d20_test():
+    a, _, sheet = make([("Fighter", 3)], scores={AbilityScore.STRENGTH: 16}, prof=2, skills={Skill.ATHLETICS: 1})
+    plain = main(roll(a, "skill:ATHLETICS")).mean()
+    sheet.exhaustion = 3
+    tired = roll(a, "skill:ATHLETICS")
+    assert main(tired).mean() == pytest.approx(plain - 6)
+    assert any("Exhaustion 3" in n for n in tired.notes)
+    save = sheet.get_saving_throw_bonus(AbilityScore.CONSTITUTION)
+    assert main(roll(a, "save:CON")).mean() == pytest.approx(10.5 + save - 6)
+
+
+def test_exhaustion_is_saved_and_kept_to_its_six_levels():
+    from character_sheet import CharacterSheet as Sheet
+    sheet = Sheet(character_name="T")
+    assert "exhaustion" not in sheet.to_dict()                        # (files of rested characters stay as they were)
+    sheet.exhaustion = 2
+    assert Sheet.from_dict(sheet.to_dict()).exhaustion == 2
+    assert Sheet.from_dict({"exhaustion": 9}).exhaustion == 6
+    assert Sheet.from_dict({"exhaustion": "lots"}).exhaustion == 0

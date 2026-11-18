@@ -312,3 +312,24 @@ def test_a_long_rest_on_the_sheet_gives_a_third_caster_and_a_warlock_their_slots
     assert view.current_sheet.hit_points.temporary == 0 and view.temp_hp_var.get() == "0"
     assert character.current_slots == {1: 4, 2: 2}
     assert character.warlock_slots_current == 2 and character.mystic_arcanum_used == []
+
+
+def test_exhaustion_on_the_sheet_slows_the_character_and_a_long_rest_takes_a_level_off(sheet, tk_root, monkeypatch):
+    import ui.character_sheet_view as csv
+    monkeypatch.setattr(csv.messagebox, "showinfo", lambda *a, **k: None)
+    view = sheet({"class": "Fighter", "level": 3})
+    speed = view.current_sheet.speed
+    widget = view.death_widget
+    assert widget._exh_label.cget("text") == "0" and widget._exh_minus.cget("state") == "disabled"
+    widget._step_exhaustion(1)
+    widget._step_exhaustion(1)
+    assert view.current_sheet.exhaustion == 2 and view.current_sheet.speed == speed - 10
+    assert view.speed_var.get() == str(speed - 10) and "Exhaustion 2" in view.speed_tooltip.text
+    assert "-4 to every d20 test" in widget._exh_tip.text
+    view._on_long_rest()
+    pump(tk_root, 0.2)
+    assert view.current_sheet.exhaustion == 1 and widget._exh_label.cget("text") == "1"
+    assert view.current_sheet.speed == speed - 5
+    for _ in range(9):
+        widget._step_exhaustion(1)
+    assert view.current_sheet.exhaustion == 6 and widget._exh_plus.cget("state") == "disabled"

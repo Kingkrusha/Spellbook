@@ -21,7 +21,7 @@ from character_sheet import (
     CharacterSheet, AbilityScore, Skill, HitPoints, DeathSaves,
     CLASS_HIT_DICE, get_hit_dice_for_classes, calculate_hp_maximum, get_default_proficiencies,
     calculate_proficiency_bonus, ArmorType, COMMON_ARMOR_OPTIONS, SHIELD_OPTIONS, calculate_ac,
-    calculate_carry_capacity, calculate_encumbrance_threshold, calculate_push_drag_lift
+    calculate_carry_capacity, calculate_encumbrance_threshold, calculate_push_drag_lift, MAX_EXHAUSTION
 )
 from spell import CharacterClass
 from settings import get_settings_manager
@@ -496,7 +496,8 @@ class DeathSavesWidget(ctk.CTkFrame):
     
     def __init__(self, parent, death_saves: DeathSaves, inspiration: bool = False,
                  on_change: Optional[Callable[[DeathSaves], None]] = None,
-                 on_inspiration_change: Optional[Callable[[bool], None]] = None):
+                 on_inspiration_change: Optional[Callable[[bool], None]] = None,
+                 exhaustion: int = 0, on_exhaustion_change: Optional[Callable[[int], None]] = None):
         self.theme = get_theme_manager()
         super().__init__(parent, fg_color=self.theme.get_current_color('bg_secondary'),
                          corner_radius=8)
@@ -505,6 +506,8 @@ class DeathSavesWidget(ctk.CTkFrame):
         self.on_change = on_change
         self.on_inspiration_change = on_inspiration_change
         self.inspiration = inspiration
+        self.exhaustion = exhaustion
+        self.on_exhaustion_change = on_exhaustion_change
         
         self._create_widgets()
     
@@ -567,6 +570,52 @@ class DeathSavesWidget(ctk.CTkFrame):
             checkbox_width=24, checkbox_height=24
         )
         insp_check.pack(pady=5)
+
+        # Middle column: Exhaustion (2024 rules: -2 per level to d20 tests, -5 ft speed per level; 6 is death)
+        exh_col = ctk.CTkFrame(main_row, fg_color="transparent")
+        exh_col.pack(side="right", padx=(10, 0))
+        ctk.CTkLabel(exh_col, text="EXHAUSTION", font=ui_font("small", 10, bold=True)).pack(anchor="center")
+        stepper = ctk.CTkFrame(exh_col, fg_color="transparent")
+        stepper.pack(pady=3)
+        neutral = {"fg_color": self.theme.get_current_color('button_normal'),
+                   "hover_color": self.theme.get_current_color('button_hover'),
+                   "text_color": self.theme.get_current_color('text_primary')}
+        self._exh_minus = ctk.CTkButton(stepper, text="−", width=24, height=24, font=ui_font("body", bold=True),
+                                        command=lambda: self._step_exhaustion(-1), **neutral)
+        self._exh_minus.pack(side="left")
+        self._exh_label = ctk.CTkLabel(stepper, text="0", width=28, font=ui_font("subheading", bold=True))
+        self._exh_label.pack(side="left", padx=2)
+        self._exh_plus = ctk.CTkButton(stepper, text="+", width=24, height=24, font=ui_font("body", bold=True),
+                                       command=lambda: self._step_exhaustion(1), **neutral)
+        self._exh_plus.pack(side="left")
+        self._exh_tip = HoverTooltip(self._exh_label, "")
+        self._show_exhaustion()
+
+    def _step_exhaustion(self, step: int):
+        level = max(0, min(MAX_EXHAUSTION, self.exhaustion + step))
+        if level == self.exhaustion:
+            return
+        self.exhaustion = level
+        self._show_exhaustion()
+        if self.on_exhaustion_change:
+            self.on_exhaustion_change(level)
+
+    def _show_exhaustion(self):
+        level = self.exhaustion
+        if level >= MAX_EXHAUSTION:
+            colour, tip = self.theme.get_current_color('danger_text'), "Exhaustion 6: the character dies."
+        elif level:
+            colour = self.theme.get_text_warning()
+            tip = (f"Exhaustion {level}: -{2 * level} to every d20 test (checks, attacks, saves) and "
+                   f"-{5 * level} ft speed. A long rest removes one level.")
+        else:
+            colour = self.theme.get_current_color('text_primary')
+            tip = ("Exhaustion levels (0-6). Each is -2 to every d20 test and -5 ft speed; "
+                   "a long rest removes one.")
+        self._exh_label.configure(text=str(level), text_color=colour)
+        self._exh_tip.update_text(tip)
+        self._exh_minus.configure(state="normal" if level > 0 else "disabled")
+        self._exh_plus.configure(state="normal" if level < MAX_EXHAUSTION else "disabled")
     
     def _on_success_change(self):
         self.death_saves.successes = sum(1 for v in self.success_vars if v.get())
@@ -582,10 +631,13 @@ class DeathSavesWidget(ctk.CTkFrame):
         if self.on_inspiration_change:
             self.on_inspiration_change(self.inspiration_var.get())
     
-    def set_values(self, death_saves: DeathSaves, inspiration: bool):
+    def set_values(self, death_saves: DeathSaves, inspiration: bool, exhaustion: Optional[int] = None):
         """Update the widget values (used during long rest)."""
         self.death_saves = death_saves
         self.inspiration = inspiration
+        if exhaustion is not None:
+            self.exhaustion = exhaustion
+            self._show_exhaustion()
         
         # Update success checkboxes
         for i, var in enumerate(self.success_vars):
@@ -2130,7 +2182,9 @@ class CharacterSheetView(ctk.CTkFrame):
             combat_frame, sheet.death_saves,
             inspiration=sheet.inspiration,
             on_change=self._on_death_saves_change,
-            on_inspiration_change=self._on_inspiration_change
+            on_inspiration_change=self._on_inspiration_change,
+            exhaustion=sheet.exhaustion,
+            on_exhaustion_change=self._on_exhaustion_change
         )
         self.death_widget.pack(fill="x", padx=8, pady=(3, 8))
         self._refresh_stat_boxes()
@@ -2447,9 +2501,13 @@ class CharacterSheetView(ctk.CTkFrame):
         if not hasattr(self, 'speed_entry') or not self.speed_entry.winfo_exists():
             return
         severity, tooltip_text = self._get_speed_reduction_info()
+        exhaustion = int(getattr(self.current_sheet, "exhaustion", 0) or 0) if self.current_sheet else 0
+        if exhaustion:
+            note = f"Exhaustion {exhaustion}: speed reduced by {5 * exhaustion} ft."
+            tooltip_text = f"{tooltip_text}\n{note}" if tooltip_text else note
         if severity == "hard":
             color = self.theme.get_current_color('danger_text')
-        elif severity == "soft":
+        elif severity == "soft" or exhaustion:
             color = self.theme.get_text_warning()
         else:
             color = self.theme.get_current_color('text_primary')
@@ -2504,6 +2562,11 @@ class CharacterSheetView(ctk.CTkFrame):
                                     speed_bonus = int(match.group(1))
                                     speed += speed_bonus
                     break  # Only one Monk class matters
+
+        # Exhaustion: 5 ft less per level
+        exhaustion = int(getattr(sheet, "exhaustion", 0) or 0)
+        if exhaustion:
+            speed = max(0, speed - 5 * exhaustion)
 
         # Carrying-capacity encumbrance: over full capacity always wins (5 ft
         # floor) over the optional Encumbrance variant rule's -10 ft, since
@@ -2759,11 +2822,17 @@ class CharacterSheetView(ctk.CTkFrame):
         else:  # "none"
             hit_dice_message = "• Hit dice not restored"
         
-        # 3. Reset death saves
+        # 3. Reset death saves; a long rest removes one level of exhaustion
         self.current_sheet.death_saves.successes = 0
         self.current_sheet.death_saves.failures = 0
+        exhaustion_message = ""
+        if self.current_sheet.exhaustion > 0:
+            self.current_sheet.exhaustion -= 1
+            exhaustion_message = f"• Exhaustion lowered to {self.current_sheet.exhaustion}\n"
+            self._recalculate_speed()
         if hasattr(self, 'death_widget'):
-            self.death_widget.set_values(self.current_sheet.death_saves, self.current_sheet.inspiration)
+            self.death_widget.set_values(self.current_sheet.death_saves, self.current_sheet.inspiration,
+                                         self.current_sheet.exhaustion)
         
         # 4. Restore all class feature uses to max
         if hasattr(self, '_feature_use_widgets'):
@@ -2796,6 +2865,7 @@ class CharacterSheetView(ctk.CTkFrame):
                            f"• HP restored to maximum\n"
                            f"{hit_dice_message}\n"
                            f"• Death saves reset\n"
+                           f"{exhaustion_message}"
                            f"• Class features restored\n"
                            f"• Spell slots restored\n"
                            f"• Mystic Arcanum restored")
@@ -4301,6 +4371,13 @@ class CharacterSheetView(ctk.CTkFrame):
         """Handle inspiration change."""
         if self.current_sheet:
             self.current_sheet.inspiration = inspiration
+            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+
+    def _on_exhaustion_change(self, level: int):
+        """Exhaustion went up or down: its speed penalty is applied and the sheet saved (rolls read it)."""
+        if self.current_sheet:
+            self.current_sheet.exhaustion = level
+            self._recalculate_speed()
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
     
     def _on_proficiency_change(self, event=None):
