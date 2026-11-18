@@ -268,3 +268,33 @@ def test_a_player_keeps_the_dms_copy_of_their_character_current():
     info["hp"], info["init"] = 12, 3
     MainWindow._refresh_played_character(app)
     assert sent[-1]["hp"] == 12 and sent[-1]["init"] == 3
+
+
+def test_a_player_gets_only_the_changes_to_the_map(pair, tmp_path):
+    import json
+
+    import tabletop as T
+    import tabletop_net as N
+    host, guest, invite = pair
+    table = T.Tabletop(str(tmp_path / "tabletop.json"))
+    scene = table.apply({"op": "scene_new", "scene_data": {"name": "Cave", "w": 2000, "h": 2000}})["scene"]
+    table.apply({"op": "scene_show", "scene": scene})
+    for i in range(20):
+        table.apply({"op": "token_add", "scene": scene, "token": {"name": f"Goblin {i}", "x": 25 + 50 * i, "y": 25}})
+    link = N.TableHostLink(host, table, T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c")))
+    sent = []
+    real = host.send_table_patch
+    host.send_table_patch = lambda *a: sent.append(a) or real(*a)
+    guest.join(invite, "Alice")
+    pump_until(lambda: guest.role == CLIENT, host, guest)
+    remote = N.RemoteTable(guest, T.AssetStore(str(tmp_path / "pa"), str(tmp_path / "pc")))
+    pump_until(lambda: (remote.view().get("scene") or {}).get("id") == scene and remote._view_seq is not None,
+               host, guest)
+    pump_until(lambda: not remote._syncing, host, guest)
+    token = table.scenes[scene]["tokens"][5]["id"]
+    table.apply({"op": "token_move", "scene": scene, "id": token, "x": 525, "y": 525})
+    want = json.loads(json.dumps(table.view_for(N._player_key(host, guest.my_id))))
+    pump_until(lambda: remote.view() == want, host, guest)
+    assert sent                                        # it came as a patch
+    link.close()
+    remote.close()

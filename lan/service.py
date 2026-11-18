@@ -318,10 +318,15 @@ class SessionService:
 
     # ---------------------------------------------------------------- tabletop
 
-    def send_table_state(self, peer_id: str, view: dict) -> None:
-        """Host: give one player their view of the scene they're shown."""
+    def send_table_state(self, peer_id: str, view: dict, seq: Optional[int] = None) -> None:
+        """Host: give one player their view of the scene they're shown (``seq`` numbers it, for patches)."""
         if self._host is not None:
-            self._host.send_to(peer_id, "table_state", {"view": view})
+            self._host.send_to(peer_id, "table_state", {"view": view, "seq": seq})
+
+    def send_table_patch(self, peer_id: str, ops: list, base: int, seq: int) -> None:
+        """Host: what changed in a player's view since view number ``base`` (see ``table_patch.py``)."""
+        if self._host is not None:
+            self._host.send_to(peer_id, "table_patch", {"ops": ops, "base": base, "seq": seq})
 
     def send_table_error(self, peer_id: str, message: str, seq: Optional[int] = None) -> None:
         if self._host is not None:
@@ -341,6 +346,13 @@ class SessionService:
         if self._client is None or self.role != CLIENT:
             return False
         self._client.send("table_cmd", {"cmd": cmd, "seq": seq})
+        return True
+
+    def request_table_sync(self) -> bool:
+        """Player: ask the host for our whole view of the map again; it also says we take patches."""
+        if self._client is None or self.role != CLIENT:
+            return False
+        self._client.send("table_sync", {})
         return True
 
     def request_table_assets(self, ids: List[str]) -> bool:
@@ -609,8 +621,12 @@ class SessionService:
             self._notify("table_cmd", peer_id=ev["peer_id"], name=ev["name"], cmd=ev["cmd"], seq=ev.get("seq"))
         elif kind == "table_asset_req":
             self._notify("table_asset_req", peer_id=ev["peer_id"], ids=ev["ids"])
+        elif kind == "table_sync":
+            self._notify("table_sync", peer_id=ev["peer_id"])
         elif kind == "table_state":
-            self._notify("table_state", view=ev["view"])
+            self._notify("table_state", view=ev["view"], seq=ev.get("seq"))
+        elif kind == "table_patch":
+            self._notify("table_patch", ops=ev["ops"], base=ev["base"], seq=ev["seq"])
         elif kind == "table_asset":
             self._notify("table_asset", id=ev["id"], part=ev.get("part"), parts=ev.get("parts"), data=ev["data"])
         elif kind == "table_error":
@@ -621,6 +637,7 @@ class SessionService:
             self.client_ids.pop(ev["peer"]["peer_id"], None)
             self.player_characters.pop(ev["peer"]["peer_id"], None)
             self._drop_peer(ev["peer"])
+            self._notify("peer_left", peer=ev["peer"])
             if not ev.get("replaced"):                  # (a reconnect says "reconnected" when they're back)
                 why = f" ({ev['reason']})" if ev.get("reason") else ""
                 self._add_line("system", f"{ev['peer']['name']} left{why}.")
@@ -631,6 +648,8 @@ class SessionService:
         elif kind == "approval_closed":                 # timed out, the player gave up or asked again
             self._notify("approval_done", request_id=ev["request_id"])
         elif kind == "error":
+            if ev.get("code") == "unknown_type" and "'table_sync'" in (ev.get("message") or ""):
+                return                                  # a DM's app from before patches: it sends whole views
             self._add_line("system", ev.get("message") or "Something went wrong.")
         elif kind == "disconnected":
             self.leave(ev.get("reason") or "The connection was lost.")

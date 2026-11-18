@@ -47,6 +47,7 @@ FILES = {
     "/table.css": ("table.css", "text/css; charset=utf-8"),
     "/table.js": ("table.js", "text/javascript; charset=utf-8"),
     "/geometry.js": ("geometry.js", "text/javascript; charset=utf-8"),
+    "/patch.js": ("patch.js", "text/javascript; charset=utf-8"),
     "/tabletop.js": ("tabletop.js", "text/javascript; charset=utf-8"),
     "/side.js": ("side.js", "text/javascript; charset=utf-8"),
 }

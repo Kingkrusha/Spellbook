@@ -18,6 +18,7 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``tracker_cmd`` - a player's initiative-tracker command: ``peer_id, name, cmd, seq``
 * ``table_cmd`` - a player's tabletop command (move a token, draw, ping): ``peer_id, name, cmd, seq``
 * ``table_asset_req`` - a player is missing tabletop pictures: ``peer_id, ids``
+* ``table_sync`` - a player wants their whole view of the map again (and takes patches after): ``peer_id``
 * ``xfer`` - something sent to the host: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_reply`` - the recipient answered a transfer: ``from, name, xfer_id, status, detail``
 """
@@ -50,7 +51,7 @@ WRONG_PASSWORD_WINDOW = 60.0    # ... within this long, and that address has to 
 MAX_STRIKES = 20                # rate-limit violations before a peer is dropped
 
 # What a browser player may send (see lan/web.py): no characters or homebrew
-WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req", "character"}
+WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req", "table_sync", "character"}
 
 Handler = Callable[["LanHost", "_Peer", dict], Awaitable[None]]
 
@@ -265,6 +266,7 @@ class LanHost:
         self.register_handler("tracker_cmd", self._on_tracker_cmd)
         self.register_handler("table_cmd", self._on_table_cmd)
         self.register_handler("table_asset_req", self._on_table_asset_req)
+        self.register_handler("table_sync", self._on_table_sync)
         self.register_handler("xfer_reply", self._on_xfer_reply)
         self.register_handler("character", self._on_character)
 
@@ -760,6 +762,9 @@ class LanHost:
             ids = [i for i in ids if isinstance(i, str) and len(i) <= 40][:50]
             if ids:
                 self._emit("table_asset_req", peer_id=peer.peer_id, ids=ids)
+
+    async def _on_table_sync(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        self._emit("table_sync", peer_id=peer.peer_id)
 
     # ------------------------------------------------------------------ transfers
 

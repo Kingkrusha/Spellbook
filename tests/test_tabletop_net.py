@@ -178,7 +178,7 @@ class _Recorder:
     def remove_listener(self, fn):
         pass
 
-    def send_table_state(self, peer_id, view):
+    def send_table_state(self, peer_id, view, seq=None):
         self.sent.append((peer_id, view))
 
     def send_table_error(self, *args):

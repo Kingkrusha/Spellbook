@@ -4,7 +4,8 @@
 * :class:`TableHostLink` (the DM's app, while hosting) sends every connected player *their own view* of the
   scene they're shown whenever it changes (hidden tokens and other people's hit points are left out on the
   DM's computer, so they never reach a player's), runs the commands players send as that player, and hands
-  out the pictures a player's view needs (only those).
+  out the pictures a player's view needs (only those). After a change a player whose app can take it gets
+  only what changed in their view (``table_patch.py``), not the whole map again.
 * :class:`RemoteTable` (a player's app) holds the last view the DM sent and turns "move this token" or
   "draw this" into a command. A moved token jumps to where it was dropped straight away; the DM's answer
   then confirms it (or puts it back, if it wasn't allowed).
@@ -23,6 +24,7 @@ import json
 import marshal
 from typing import Callable, Dict, List, Optional
 
+import table_patch as TP
 import tabletop as T
 
 
@@ -124,15 +126,27 @@ class LocalTable:
         self._pings.add(fn)
 
 
-def _digest(view: dict) -> str:
-    """A fingerprint of a view, to tell whether a player already has it. ``marshal`` (format 2, which writes
-    every value out in full) is some 25 times quicker here than JSON, and this runs for every player after
-    every change."""
+def _dump(view: dict) -> Optional[bytes]:
+    """``view`` written out in full with ``marshal`` (format 2), or None when it holds something marshal
+    can't write. Some 25 times quicker than JSON, and this runs for every player after every change."""
     try:
-        data = marshal.dumps(view, 2)
-    except ValueError:                          # something marshal can't write: the slow way
+        return marshal.dumps(view, 2)
+    except ValueError:
+        return None
+
+
+def _digest(view: dict) -> str:
+    """A fingerprint of a view, to tell whether a player already has it."""
+    data = _dump(view)
+    if data is None:                            # something marshal can't write: the slow way
         data = json.dumps(view, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha1(data).hexdigest()
+
+
+def _copy(view: dict) -> dict:
+    """A copy of a view sharing nothing with it (or with the scene it was made from)."""
+    data = _dump(view)
+    return marshal.loads(data) if data is not None else json.loads(json.dumps(view, default=str))
 
 
 def _player_key(service, peer_id: str) -> str:
@@ -156,6 +170,9 @@ class TableHostLink:
         self._pending = False
         self._closed = False
         self._sent: Dict[str, str] = {}           # peer id -> digest of the last view sent
+        self._last: Dict[str, dict] = {}          # peer id -> a copy of that view (to send only what changes)
+        self._seq: Dict[str, int] = {}            # peer id -> the number of the last view sent
+        self._patching: set = set()               # players whose app takes changes ("table_sync" said so)
         self._touched: set = set()                # maps changed since the last send (None: something else did)
         self._shown = self.table.shown            # the map the players were shown at the last send
         self._saving = False
@@ -213,12 +230,32 @@ class TableHostLink:
             self.send_one(peer_id)
 
     def send_one(self, peer_id: str, force: bool = False) -> None:
+        """Bring one player's map up to date: only what changed when their app takes that and it's clearly
+        smaller, otherwise the whole view. ``force`` sends the whole view even if they should have it."""
         view = self.table.view_for(_player_key(self.service, peer_id))
-        digest = _digest({k: v for k, v in view.items() if k != "rev"})
+        body = {k: v for k, v in view.items() if k != "rev"}
+        data = _dump(body)
+        digest = hashlib.sha1(data).hexdigest() if data is not None else _digest(body)
         if not force and self._sent.get(peer_id) == digest:
             return
         self._sent[peer_id] = digest
-        self.service.send_table_state(peer_id, view)
+        seq = self._seq.get(peer_id, 0) + 1
+        self._seq[peer_id] = seq
+        last = self._last.get(peer_id) if peer_id in self._patching and not force else None
+        if peer_id in self._patching:
+            self._last[peer_id] = marshal.loads(data) if data is not None else _copy(body)
+            self._last[peer_id]["rev"] = view.get("rev")
+        ops = TP.diff_view(last, view) if last is not None else None
+        # (the marshal size stands in for the JSON one: near enough to tell "a few changes" from "most of it")
+        if ops is not None and TP.worth_it(ops, len(data) if data is not None else 1 << 30):
+            self.service.send_table_patch(peer_id, ops, seq - 1, seq)
+        else:
+            self.service.send_table_state(peer_id, view, seq=seq)
+
+    def _forget(self, peer_id: str) -> None:
+        for d in (self._sent, self._last, self._seq):
+            d.pop(peer_id, None)
+        self._patching.discard(peer_id)
 
     def _forward_ping(self, ping: dict) -> None:
         if ping.get("scene") != self.table.shown:
@@ -231,7 +268,13 @@ class TableHostLink:
         if self._closed:
             return
         if kind == "peer_joined":
+            self._forget(data["peer"]["peer_id"])
             self.send_one(data["peer"]["peer_id"], force=True)
+        elif kind == "peer_left":
+            self._forget(data["peer"]["peer_id"])
+        elif kind == "table_sync":                  # a player's app takes changes, or lost track: the whole view
+            self._patching.add(data["peer_id"])
+            self.send_one(data["peer_id"], force=True)
         elif kind == "table_cmd":
             self.apply(data["peer_id"], data["name"], data["cmd"], data.get("seq"))
         elif kind == "table_asset_req":
@@ -292,7 +335,13 @@ class RemoteTable:
         self._requested: set = set()
         self._parts: Dict[str, Dict[int, bytes]] = {}
         self._seq = 0
+        self._view_seq: Optional[int] = None     # the number of the view we hold (for the DM's patches)
+        self._syncing = False                     # asked for the whole view and waiting for it
         service.add_listener(self._on_service)
+        # the whole view now (it may have come before we were listening), and patches from here on
+        sync = getattr(service, "request_table_sync", None)
+        if sync is not None:
+            self._syncing = bool(sync())
 
     def close(self) -> None:
         self.service.remove_listener(self._on_service)
@@ -351,8 +400,12 @@ class RemoteTable:
             view = data.get("view")
             if valid_view(view):
                 self._view = view
+                self._view_seq = data.get("seq")
+                self._syncing = False
                 self._fetch_missing()
                 self._listeners.call()
+        elif kind == "table_patch":
+            self._patch(data)
         elif kind == "table_asset":
             self._receive_part(data)
         elif kind == "table_error":
@@ -364,6 +417,26 @@ class RemoteTable:
                 self._pings.call({"scene": scene["id"], "x": T._num(ping.get("x")), "y": T._num(ping.get("y")),
                                   "name": T._text(ping.get("name"), 32),
                                   "color": T._color(ping.get("color"), "#3498DB")})
+
+    def _patch(self, data: dict) -> None:
+        """What changed since the view we hold. Made on a copy, so a patch that doesn't fit leaves the map as it
+        was; then (or if we missed one) we ask for the whole view again."""
+        seq = data.get("seq")
+        if self._syncing:
+            return                                      # the whole view is on its way
+        view = None
+        if self._view_seq is not None and data.get("base") == self._view_seq and isinstance(seq, int):
+            view = _copy(self._view)
+            if not TP.apply_ops(view, data.get("ops")) or not valid_view(view):
+                view = None
+        if view is None:
+            self._view_seq = None
+            self._syncing = bool(self.service.request_table_sync())
+            return
+        self._view = view
+        self._view_seq = seq
+        self._fetch_missing()
+        self._listeners.call()
 
     def _fetch_missing(self) -> None:
         missing = [i for i in T.asset_ids_in(self._view.get("scene"))
