@@ -144,7 +144,7 @@ def test_the_spell_boxes_are_typed_in_and_explain_themselves(tk_root):
     from character_rolls import SpellStat
     from spell_manager import SpellManager
     from ui.character_sheet_view import get_sheet_manager
-    from ui.spell_lists_view import CharacterSpellsPanel
+    from ui.character_spells_panel import CharacterSpellsPanel
     sm = SpellManager()
     sm.load_spells()
     frame = ctk.CTkFrame(tk_root)

@@ -2775,7 +2775,7 @@ class CharacterSheetView(ctk.CTkFrame):
         #    third casters and characters with their own slot numbers get theirs back too)
         if self.current_character:
             from spell_slots import get_warlock_level, get_warlock_pact_slots
-            from ui.spell_lists_view import get_effective_max_slots
+            from ui.character_spells_panel import get_effective_max_slots
             warlock_level = get_warlock_level(self.current_character.get_class_levels_tuple())
             warlock_slots, _ = get_warlock_pact_slots(warlock_level)
             self.current_character.current_slots = {}
@@ -5019,7 +5019,7 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         
         # Import spell lists view components
-        from ui.spell_lists_view import CharacterSpellsPanel
+        from ui.character_spells_panel import CharacterSpellsPanel
         
         # Create the spell list detail panel for this character
         # Use scrollable=False since the parent content_scroll already handles scrolling

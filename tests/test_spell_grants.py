@@ -250,7 +250,7 @@ def test_a_character_whose_spells_come_only_from_a_species_gets_the_best_mental_
 def test_arcane_tricksters_and_mystic_arts_monks_cast_like_eldritch_knights(spells):
     from character import get_max_prepared_spells
     from spell_slots import get_max_spell_slots
-    from ui.spell_lists_view import get_effective_max_cantrips, get_effective_max_slots
+    from ui.character_spells_panel import get_effective_max_cantrips, get_effective_max_slots
     knight = make([("Fighter", 7, "Eldritch Knight")])
     trickster = make([("Rogue", 7, "Arcane Trickster")])
     monk = make([("Monk", 7, "Warrior of the Mystic Arts")])
