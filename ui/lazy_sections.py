@@ -55,6 +55,8 @@ class LazySections:
         previous = self.canvas.cget("yscrollcommand")
         self.canvas.configure(yscrollcommand=lambda first, last: self._scrolled(previous, first, last))
         self.canvas.bind("<Configure>", lambda _e: self.schedule(), add="+")
+        # a page made while out of sight (another tab, a window still opening) builds once it's shown
+        self.canvas.bind("<Map>", lambda _e: self.schedule(), add="+")
 
     # ------------------------------------------------------------------ parts
 

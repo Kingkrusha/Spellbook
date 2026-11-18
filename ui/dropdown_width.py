@@ -42,24 +42,19 @@ def text_ratio(font) -> float:
     if ratio is None:
         try:
             from typography import default_family
-            normal = _normal_font(default_family(), int(spec[1]), bool(spec[2]))
-            ratio = max(1.0, min(MAX_GROWTH, font.measure(SAMPLE) / max(1, normal.measure(SAMPLE))))
+            normal = _normal_width(font, default_family(), int(spec[1]), bool(spec[2]))
+            ratio = max(1.0, min(MAX_GROWTH, font.measure(SAMPLE) / max(1, normal)))
         except Exception:
             ratio = 1.0
         _ratios[name] = ratio
     return ratio
 
 
-_normal_fonts: Dict[tuple, object] = {}
-
-
-def _normal_font(family: str, size: int, bold: bool):
-    """CustomTkinter's normal font at ``size`` (made like a CTkFont, so sizes compare like for like)."""
-    key = (family, size, bold)
-    font = _normal_fonts.get(key)
-    if font is None:
-        font = _normal_fonts[key] = ctk.CTkFont(family=family, size=size, weight="bold" if bold else "normal")
-    return font
+def _normal_width(font, family: str, size: int, bold: bool) -> int:
+    """How wide CustomTkinter's normal font at ``size`` writes the sample (asked of the Tk ``font`` lives in, as a
+    description rather than a named font: nothing is kept that outlives that Tk)."""
+    description = (family, -abs(size), "bold" if bold else "normal")     # (a CTkFont's size is in pixels)
+    return int(font._tk.call("font", "measure", description, SAMPLE))
 
 
 _original_configure: Dict[type, object] = {}

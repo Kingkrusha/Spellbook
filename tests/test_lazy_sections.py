@@ -103,3 +103,27 @@ def test_the_estimate_grows_with_the_text_and_shrinks_with_the_width(tk_root):
     narrow = estimate_text_height("word " * 400, 300, f)
     assert short < long < narrow
     assert estimate_text_height("one\n\ntwo", 600, f) > short
+
+
+def test_a_page_made_out_of_sight_builds_once_it_is_shown(tk_root):
+    shown = tk_root.state() != "withdrawn"
+    tk_root.withdraw()                                     # (another tab, or a window still opening)
+    frame = tk.Frame(tk_root, width=500, height=400)
+    frame.pack_propagate(False)
+    frame.place(x=0, y=0)
+    scroll = ctk.CTkScrollableFrame(frame)
+    scroll.pack(fill="both", expand=True)
+    lazy = LazySections(scroll)
+    built = []
+    for n in range(20):
+        lazy.add(scroll, fill(n, built), height=100)
+    try:
+        pump(tk_root)
+        assert built == []
+        tk_root.deiconify()
+        pump(tk_root)
+        assert built and built[0] == 0
+    finally:
+        frame.destroy()
+        if not shown:
+            tk_root.withdraw()

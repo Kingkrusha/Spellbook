@@ -54,3 +54,16 @@ def test_larger_text_widens_it_and_back_again(kind, tk_root, text_size):
     assert made_large._desired_width == 120
     box.destroy()
     made_large.destroy()
+
+
+def test_it_still_measures_after_an_earlier_window_was_closed(tk_root, text_size):
+    """(The test windows come and go; so does a Tk in the app's own tests and tools.)"""
+    other = ctk.CTk()
+    box = ctk.CTkComboBox(other, width=150, values=["x"], font=ui_font("body"))
+    text_size(6)
+    box.configure(font=ui_font("body"))
+    other.destroy()
+    text_size(4)
+    again = ctk.CTkComboBox(tk_root, width=150, values=["x"], font=ui_font("body"))
+    assert again._desired_width > 150 * 1.2
+    again.destroy()
