@@ -906,6 +906,8 @@ def install_creation_hook():
         return
     _creation_hook_installed = True
     import functools
+    from ui import dropdown_width
+    dropdown_width.install()        # (drop-downs widen with the text size)
     names = ("CTkFrame", "CTkLabel", "CTkButton", "CTkEntry", "CTkTextbox", "CTkCheckBox", "CTkSwitch",
              "CTkRadioButton", "CTkOptionMenu", "CTkComboBox", "CTkSegmentedButton", "CTkProgressBar",
              "CTkSlider", "CTkScrollableFrame")
@@ -915,7 +917,7 @@ def install_creation_hook():
             continue
         original = cls.__init__
 
-        def make(orig, font_options, button):
+        def make(orig, font_options, button, dropdown):
             @functools.wraps(orig)
             def init(self, *args, **kwargs):
                 for option in font_options:
@@ -927,11 +929,15 @@ def install_creation_hook():
                 if button:
                     _neutral_text_color(button, args, kwargs)
                 orig(self, *args, **kwargs)
+                if dropdown:
+                    from ui import dropdown_width
+                    dropdown_width.track(self, kwargs.get("width", 140))
                 _note_created(self)
             return init
 
         cls.__init__ = make(original, _FONT_OPTIONS.get(name, ()),
-                            name if name in ("CTkButton", "CTkOptionMenu", "CTkSegmentedButton") else "")
+                            name if name in ("CTkButton", "CTkOptionMenu", "CTkSegmentedButton") else "",
+                            name in ("CTkOptionMenu", "CTkComboBox"))
 
 
 def _neutral_text_color(kind: str, args, kwargs):
