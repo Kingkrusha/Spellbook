@@ -429,6 +429,49 @@ def blocking_walls(scene: dict) -> List[Tuple[float, float, float, float]]:
     return [tuple(w["pts"]) for w in scene.get("walls") or [] if not (w.get("door") and w.get("open"))]
 
 
+def _crossing(ax: float, ay: float, bx: float, by: float, wall: Tuple[float, float, float, float]) -> Optional[float]:
+    """How far along a->b (0..1) the segment crosses ``wall``, or None when it doesn't."""
+    x0, y0, x1, y1 = wall
+    rx, ry, sx, sy = bx - ax, by - ay, x1 - x0, y1 - y0
+    den = rx * sy - ry * sx
+    if abs(den) < 1e-9:
+        return None                                   # parallel (sliding along a wall doesn't cross it)
+    qx, qy = x0 - ax, y0 - ay
+    t = (qx * sy - qy * sx) / den
+    u = (qx * ry - qy * rx) / den
+    if 1e-6 < t <= 1.0 and -1e-6 <= u <= 1.0 + 1e-6:
+        return t
+    return None
+
+
+def first_crossing(scene: dict, ax: float, ay: float, bx: float, by: float) -> Optional[float]:
+    """How far along a->b (0..1) the first wall or closed door is, or None when the way is clear."""
+    hits = [t for w in blocking_walls(scene) if (t := _crossing(ax, ay, bx, by, w)) is not None]
+    return min(hits) if hits else None
+
+
+def stop_at_walls(scene: dict, token: dict, x: float, y: float) -> Tuple[float, float, bool]:
+    """Where a token moved from where it stands towards (x, y) ends up: (x, y) itself when no wall or closed door
+    is in the way, otherwise just short of the first one (on a grid, the nearest cell centre short of it when
+    there is one). Returns ``(x, y, stopped)``."""
+    ax, ay = token["x"], token["y"]
+    t = first_crossing(scene, ax, ay, x, y)
+    if t is None:
+        return x, y, False
+    grid = Grid.of(scene)
+    length = math.hypot(x - ax, y - ay)
+    radius = token_box(token, grid)[2]
+    back = min(length * t, max(2.0, radius * 0.5))           # stop with the token's middle off the wall
+    along = max(0.0, length * t - back)
+    sx, sy = (ax + (x - ax) * along / length, ay + (y - ay) * along / length) if length else (ax, ay)
+    if grid.kind != "none":
+        gx, gy = grid.snap(sx, sy, token.get("size", 1.0))
+        if first_crossing(scene, ax, ay, gx, gy) is None:
+            return round(gx, 1), round(gy, 1), True
+        return ax, ay, True                                   # no cell this side of the wall: stay put
+    return round(sx, 1), round(sy, 1), True
+
+
 def _seg_distance(ex: float, ey: float, s: Tuple[float, float, float, float]) -> float:
     x0, y0, x1, y1 = s
     dx, dy = x1 - x0, y1 - y0
@@ -1381,11 +1424,17 @@ class Tabletop:
                 raise CommandError("That token is gone.")
             if token.get("owner") != actor and not scene.get("players_move_all"):
                 raise CommandError("That token isn't yours to move.")
-        token["x"] = _num(cmd.get("x"), token["x"], -2000, scene["w"] + 2000)
-        token["y"] = _num(cmd.get("y"), token["y"], -2000, scene["h"] + 2000)
+        x = _num(cmd.get("x"), token["x"], -2000, scene["w"] + 2000)
+        y = _num(cmd.get("y"), token["y"], -2000, scene["h"] + 2000)
+        # Walls and closed doors stop a move; only the DM can go through (holding Shift as they drop the token)
+        stopped = False
+        if (x, y) != (token["x"], token["y"]) and not (actor == DM and cmd.get("through")):
+            x, y, stopped = stop_at_walls(scene, token, x, y)
+        token["x"], token["y"] = x, y
         if cmd.get("z") is not None:
             token["z"] = round(_num(cmd.get("z"), 0.0, -MAX_HEIGHT, MAX_HEIGHT), 1)
         _follow(scene, token)
+        return {"stopped": True} if stopped else None
 
     # drawings
     def _op_draw_add(self, cmd, actor, actor_name):

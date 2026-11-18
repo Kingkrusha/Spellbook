@@ -274,6 +274,42 @@ def test_sight_range_and_the_partys_eyes(table):
     assert len(table.view_for("someone-else")["scene"]["sight"]) == 1
 
 
+def test_walls_and_closed_doors_stop_a_moving_token(table):
+    sid, door, me, orc = _wall_scene(table)
+    token = lambda tid: T.Tabletop._token_or_fail(table.scene(sid), tid)
+    # a player dragging through the wall stops this side of it, on a cell
+    result = table.apply({"op": "token_move", "scene": sid, "id": me, "x": 595, "y": 105}, actor="me")
+    assert result.get("stopped") and token(me)["x"] < 350 and token(me)["y"] == 105
+    assert token(me)["x"] == 315                                 # the last whole cell before the wall
+    # ... and asking to go through as the DM would changes nothing for a player
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 595, "y": 105, "through": True}, actor="me")
+    assert token(me)["x"] < 350
+    # the closed door stops it too; an open one doesn't
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 105, "y": 630}, actor="me")
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 595, "y": 630}, actor="me")
+    assert token(me)["x"] < 350
+    table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"open": True}})
+    assert not table.apply({"op": "token_move", "scene": sid, "id": me, "x": 595, "y": 630}, actor="me")
+    assert token(me)["x"] == 595
+    # the DM is stopped as well unless they hold Shift as they drop (sent as "through")
+    table.apply({"op": "token_move", "scene": sid, "id": orc, "x": 105, "y": 105})
+    assert token(orc)["x"] > 350
+    table.apply({"op": "token_move", "scene": sid, "id": orc, "x": 105, "y": 105, "through": True})
+    assert token(orc)["x"] == 105
+    # moving along a wall, or only up and down, isn't stopped
+    table.apply({"op": "token_move", "scene": sid, "id": orc, "x": 105, "y": 400})
+    assert (token(orc)["x"], token(orc)["y"]) == (105, 400)
+
+
+def test_a_token_stops_short_of_a_wall_on_a_map_without_a_grid(table):
+    sid = make_scene(table, grid="none")
+    table.apply({"op": "wall_add", "scene": sid, "wall": {"pts": [300, 0, 300, 700]}})
+    t = table.apply({"op": "token_add", "scene": sid, "token": {"name": "Rat", "x": 100, "y": 100}})["token"]
+    table.apply({"op": "token_move", "scene": sid, "id": t, "x": 500, "y": 300})
+    moved = T.Tabletop._token_or_fail(table.scene(sid), t)
+    assert 250 < moved["x"] < 300 and 100 < moved["y"] < 200     # on the line it was dragged along, short of the wall
+
+
 def test_players_open_doors_they_can_see_unless_locked(table):
     sid, door, me, _orc = _wall_scene(table)
     # far from the door the player sees it from their side of the wall
@@ -313,7 +349,8 @@ def test_explored_areas_stay_on_a_players_map(table):
 
     # walk through the open door to the other side: the first room stays explored
     table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"open": True}})
-    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 420, "y": 630}, actor="me")
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 105, "y": 630}, actor="me")   # (walls stop
+    table.apply({"op": "token_move", "scene": sid, "id": me, "x": 420, "y": 630}, actor="me")   # a straight line)
     table.view_for("me")
     table.apply({"op": "wall_update", "scene": sid, "id": door, "fields": {"open": False}})
     table.apply({"op": "token_move", "scene": sid, "id": me, "x": 595, "y": 300})

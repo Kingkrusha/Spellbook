@@ -710,3 +710,28 @@ def test_a_library_picture_can_go_on_the_selected_token(page, tk_root, tmp_path,
     assert menus[-1].entrycget(1, "label") == "Use for Wolf"
     menus[-1].invoke(1)
     assert page.canvas.token(tid)["image"]
+
+
+def test_a_dragged_token_stops_at_a_wall_unless_the_dm_holds_shift(page, tk_root):
+    sid = with_map(page, tk_root)
+    page._dispatch({"op": "wall_add", "wall": {"pts": [350, 0, 350, 490]}})
+    page._dispatch({"op": "token_add", "token": {"name": "Orc", "x": 105, "y": 105}})
+    pump(tk_root)
+    token = lambda: page.table_.scene(sid)["tokens"][0]
+    statuses = []
+    page.canvas.on_status = statuses.append
+
+    def drag(to_x, to_y, state=0):
+        sx, sy = page.canvas.to_screen(token()["x"], token()["y"])
+        ex, ey = page.canvas.to_screen(to_x, to_y)
+        page.canvas._press(type("E", (), {"x": sx, "y": sy, "state": 0})())
+        for i in range(1, 6):
+            page.canvas._motion(type("E", (), {"x": sx + (ex - sx) * i / 5, "y": sy + (ey - sy) * i / 5,
+                                               "state": state})())
+        page.canvas._release(type("E", (), {"x": ex, "y": ey, "state": state})())
+        pump(tk_root)
+
+    drag(595, 105)
+    assert token()["x"] == 315 and any("Stopped at a wall" in s and "Shift" in s for s in statuses)
+    drag(595, 105, state=0x0001)                          # Shift held as it is dropped: through the wall
+    assert token()["x"] == 595

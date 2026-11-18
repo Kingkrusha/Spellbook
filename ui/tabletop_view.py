@@ -49,7 +49,9 @@ TOOL_BUTTONS = [
     ("fog_lasso_reveal", "☀ Lasso", "Draw around an area to reveal it.", True),
     ("fog_lasso_hide", "🌫 Lasso", "Draw around an area to cover it again.", True),
     ("wall", "🧱 Wall", "Click corner to corner to draw walls; double-click, right-click or Esc stops. Ends snap to "
-                       "other walls and grid corners. With line of sight on, players can't see through them.", True),
+                       "other walls and grid corners. With line of sight on, players can't see through them. Tokens "
+                       "dragged into a wall (or a closed door) stop at it; hold Shift as you drop one to go through.",
+     True),
     ("door", "🚪 Door", "Click both ends of a door. Right-click a door to open or close it.", True),
     ("elevation", "⛰ Height", "Draw around part of the map to raise or sink it (the height is set on the Map tab). "
                              "Distances and areas count the climb.", True),

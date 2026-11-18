@@ -1109,7 +1109,13 @@ class MapCanvas(tk.Canvas):
             nx, ny = self._dragged_centre(d)
             nx, ny = self.grid.snap(nx, ny, t.get("size", 1.0))
             self.on_status("")
-            self.dispatch({"op": "token_move", "id": t["id"], "x": nx, "y": ny})
+            cmd = {"op": "token_move", "id": t["id"], "x": nx, "y": ny}
+            if self.is_dm and e.state & 0x0001:            # the DM holds Shift as they drop it: through walls
+                cmd["through"] = True
+            result = self.dispatch(cmd)
+            if isinstance(result, dict) and result.get("stopped"):
+                self.on_status("Stopped at a wall." + (" Hold Shift as you drop a token to go through walls."
+                                                        if self.is_dm else ""))
             self._draw_overlay()
         elif kind == "lift":
             self.delete("preview")
