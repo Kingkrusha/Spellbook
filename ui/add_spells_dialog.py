@@ -1,7 +1,7 @@
 """
 Search-and-add dialog for a character's spells.
 
-Opened from the Spells section of a character sheet (and the Spell Lists page): type to search the spell
+Opened from the Spells section of a character sheet: type to search the spell
 collection, filter by level, and add spells to the character without leaving the page. A switch limits the list
 to what the character can actually learn - spells on their class's list, up to the highest level they can cast,
 including the extra spells a Warlock patron or a feature adds to the list (see ``spell_access``).
@@ -181,6 +181,10 @@ class AddSpellsDialog(ctk.CTkToplevel):
         if r.any_class and not r.class_labels:
             lists = "any class"
         top = "cantrips only" if r.max_level == 0 else f"up to level {r.max_level}"
+        if r.max_level and r.list_levels and len(set(r.list_levels.values())) > 1:
+            top = ", ".join(f"{name.title()} up to level {lvl}" for name, lvl in r.list_levels.items())
+        elif r.max_level and r.list_levels:
+            top = f"up to level {min(r.max_level, max(r.list_levels.values()))}"
         extra = f", plus {len(r.expanded)} added by features" if r.expanded else ""
         return f"{lists} spell list{'s' if len(r.class_labels) > 1 else ''}, {top}{extra}."
 

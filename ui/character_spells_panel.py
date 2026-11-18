@@ -6,7 +6,7 @@ import customtkinter as ctk
 from typography import ui_font
 from tkinter import messagebox
 from typing import Callable, Optional, List, Dict
-from character import CharacterSpellList, get_max_prepared_spells
+from character import CharacterSpellList, prepared_spells_by_class
 from character_manager import CharacterManager
 from spell_manager import SpellManager
 from spell import Spell
@@ -37,6 +37,19 @@ def get_effective_max_cantrips(character: CharacterSpellList) -> int:
     class_levels = character.get_class_levels_tuple()
     ek_level = character.get_eldritch_knight_level()
     return get_max_cantrips(class_levels, ek_level) + character.third_caster_extra_cantrips()
+
+
+def ability_modifier(character: CharacterSpellList, ability: str) -> int:
+    """The character's modifier for an ability ("WIS"), read from their sheet; 0 without one."""
+    try:
+        from ui.character_sheet_view import get_sheet_manager
+        from character_sheet import AbilityScore
+        sheet = get_sheet_manager().get_sheet(character.name)
+        if sheet is None:
+            return 0
+        return sheet.get_effective_ability_modifier(AbilityScore.from_short_name(ability))
+    except Exception:
+        return 0
 
 
 def default_spell_stats(character: CharacterSpellList, spell_manager) -> list:
@@ -421,11 +434,12 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
             self.prepared_label.configure(text="")
             return
         
-        max_prepared = get_max_prepared_spells(self._current_character)
-        if max_prepared is None:
+        by_class = self._prepared_by_class()
+        if not by_class:
             # Not a prepared caster
             self.prepared_label.configure(text="")
             return
+        max_prepared = sum(by_class.values())
         
         # Count prepared spells (not including subclass spells)
         prepared_count = self._current_character.get_prepared_count()
@@ -439,10 +453,18 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
         else:
             color = theme.get_text_secondary()
         
+        split = f" ({' + '.join(f'{name} {n}' for name, n in by_class.items())})" if len(by_class) > 1 else ""
         self.prepared_label.configure(
-            text=f"Prepared: {prepared_count}/{max_prepared}",
+            text=f"Prepared: {prepared_count}/{max_prepared}{split}",
             text_color=color
         )
+
+    def _prepared_by_class(self) -> Dict[str, int]:
+        """What each class lets the character prepare (2014 classes add the modifier from the character's sheet)."""
+        character = self._current_character
+        if character is None:
+            return {}
+        return prepared_spells_by_class(character, modifier=lambda ability: ability_modifier(character, ability))
     
     def _toggle_prepared_filter(self):
         """Toggle showing only prepared spells using visibility, not rebuild."""
@@ -1129,9 +1151,10 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
         if not settings.settings.warn_too_many_prepared:
             return
         
-        max_prepared = get_max_prepared_spells(self._current_character)
-        if max_prepared is None:
+        by_class = self._prepared_by_class()
+        if not by_class:
             return  # Not a prepared caster
+        max_prepared = sum(by_class.values())
         
         prepared_count = self._current_character.get_prepared_count()
         if prepared_count > max_prepared:

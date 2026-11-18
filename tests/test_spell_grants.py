@@ -157,6 +157,36 @@ def test_multiclass_characters_can_learn_from_each_list(spells):
     assert rules.allows(spells.get_spell("Cure Wounds")) and rules.allows(spells.get_spell("Shield"))
 
 
+def test_each_class_prepares_spells_only_up_to_the_level_it_could_on_its_own(spells):
+    """A Wizard 3 / Cleric 3 has 3rd-level slots, but each class prepares as if it were the only one: 2nd level."""
+    from validation import validate_spell_for_character
+    c = make([("Wizard", 3), ("Cleric", 3)])
+    rules = access.learn_rules(c)
+    assert rules.max_level == 3 and rules.list_levels == {"wizard": 2, "cleric": 2}
+    fireball, weapon = spells.get_spell("Fireball"), spells.get_spell("Spiritual Weapon")
+    assert not rules.allows(fireball) and "up to level 2" in rules.why_not(fireball)
+    assert rules.allows(weapon)
+    assert any("up to level 2" in w for w in validate_spell_for_character(fireball, c))
+    assert validate_spell_for_character(weapon, c) == []
+    # the higher class decides for a spell on both lists; a lone class still uses its own slots
+    both = access.learn_rules(make([("Wizard", 5), ("Cleric", 1)]))
+    assert both.allows(fireball) and not both.allows(spells.get_spell("Spirit Guardians"))
+    assert access.learn_rules(make([("Wizard", 5)])).list_levels == {}
+    knight = access.learn_rules(make([("Fighter", 7, "Eldritch Knight"), ("Cleric", 1)]))
+    assert knight.list_levels == {"wizard": 2, "cleric": 1}
+
+
+def test_a_multiclass_character_prepares_the_sum_of_each_classes_own_count():
+    from character import get_max_prepared_spells, prepared_spells_by_class
+    assert get_max_prepared_spells(make([("Cleric", 5)])) == 9                 # the 2024 table, not the level
+    assert prepared_spells_by_class(make([("Wizard", 3), ("Cleric", 3)])) == {"Wizard": 6, "Cleric": 6}
+    assert get_max_prepared_spells(make([("Fighter", 7, "Eldritch Knight"), ("Wizard", 2)])) == 5 + 5
+    assert get_max_prepared_spells(make([("Fighter", 7), ("Rogue", 3)])) is None
+    legacy = make([("Cleric (Legacy)", 5), ("Bard (Legacy)", 2)])               # level + Wisdom; a 2014 Bard knows
+    assert prepared_spells_by_class(legacy, modifier={"WIS": 3}.get) == {"Cleric (Legacy)": 8}
+    assert get_max_prepared_spells(make([("Paladin (Legacy)", 5)]), modifier=lambda a: 2) == 4
+
+
 def test_a_warlock_can_also_learn_the_spells_their_patron_adds(spells):
     plain = access.learn_rules(make([("Warlock", 5)]))
     patron = access.learn_rules(make([("Warlock", 5, "Fiend Patron")]))

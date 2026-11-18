@@ -4,7 +4,7 @@ Character Spell List data model for D&D Spellbook Application.
 
 import json
 from dataclasses import dataclass, field
-from typing import List, Dict, Set, Tuple, Optional
+from typing import Callable, List, Dict, Set, Tuple, Optional
 from spell import CharacterClass
 
 
@@ -367,139 +367,100 @@ class CharacterSpellList:
         )
 
 
-# Prepared spell calculation constants
-# All spellcasters now use prepared spells in 2024 rules
-PREPARED_CASTER_CLASSES = {
-    CharacterClass.ARTIFICER: "INT",  # Uses table value, not formula
-    CharacterClass.BARD: "CHA",       # Uses table value (spells_prepared column)
-    CharacterClass.CLERIC: "WIS",     # Level + WIS modifier
-    CharacterClass.DRUID: "WIS",      # Level + WIS modifier
-    CharacterClass.PALADIN: "CHA",    # Level/2 + CHA modifier (minimum 1)
-    CharacterClass.RANGER: "WIS",     # Uses table value (spells_prepared column)
-    CharacterClass.SORCERER: "CHA",   # Uses table value (spells_prepared column)
-    CharacterClass.WARLOCK: "CHA",    # Uses table value (spells_prepared column)  
-    CharacterClass.WIZARD: "INT",     # Level + INT modifier
-}
-
-# Classes that know a fixed number of spells - deprecated in 2024 rules
-# Keeping for backwards compatibility but empty
-SPELLS_KNOWN_CLASSES: set = set()
-
-
-def get_max_prepared_spells(character: CharacterSpellList, class_manager=None) -> Optional[int]:
+def get_max_prepared_spells(character: CharacterSpellList, class_manager=None,
+                            modifier: Optional[Callable[[str], int]] = None) -> Optional[int]:
     """
-    Calculate the maximum number of spells a character can prepare.
-    
-    For prepared casters, this is based on class level and ability modifier.
-    For "spells known" casters, returns None as they don't prepare spells.
-    
+    The number of spells a character can prepare, or None if none of their classes prepares spells.
+
+    A multiclass character prepares each class's spells as if they had only that class (the multiclassing
+    rules), so this is the sum of what each class gives at its own level, plus a third-caster subclass's
+    (Eldritch Knight, Arcane Trickster, Warrior of the Mystic Arts) own table.
+
     Args:
         character: The character to calculate for
-        class_manager: Optional ClassManager instance (for Artificer table lookup)
-    
-    Returns:
-        Maximum prepared spells, or None if not a prepared caster
+        class_manager: the class definitions to read "Prepared Spells" from (found if not given)
+        modifier: ability abbreviation ("WIS") -> the character's modifier, for the 2014 classes that prepare
+            their level plus a modifier. Without it the modifier counts as 0.
     """
-    if not character.classes:
-        return None
-    
-    # Check for Eldritch Knight (Fighter with spellcasting subclass)
-    ek_level = character.get_eldritch_knight_level()
-    if ek_level >= 3:
-        from spell_slots import get_eldritch_knight_prepared
-        return get_eldritch_knight_prepared(ek_level)
-    
-    # For simplicity, use primary class for now
-    # TODO: Handle multiclass prepared spell calculation
-    primary = character.primary_class
-    if not primary:
-        return None
-    
-    char_class = primary.character_class
-    level = primary.level
-    
-    # Check if this is a "spells known" class (not prepared)
-    if char_class in SPELLS_KNOWN_CLASSES:
-        return None
-    
-    # Check if this is a prepared caster
-    if char_class not in PREPARED_CASTER_CLASSES:
-        return None
-    
-    # Artificer uses a fixed table value
-    if char_class == CharacterClass.ARTIFICER:
-        return _get_artificer_prepared_spells(level, class_manager)
-    
-    # Bard uses a fixed table value
-    if char_class == CharacterClass.BARD:
-        return _get_bard_prepared_spells(level)
-    
-    # Ranger uses a fixed table value  
-    if char_class == CharacterClass.RANGER:
-        return _get_ranger_prepared_spells(level)
-    
-    # Sorcerer uses a fixed table value
-    if char_class == CharacterClass.SORCERER:
-        return _get_sorcerer_prepared_spells(level)
-    
-    # Warlock uses a fixed table value
-    if char_class == CharacterClass.WARLOCK:
-        return _get_warlock_prepared_spells(level)
-    
-    # Paladin has a different formula (half level rounded down + modifier)
-    if char_class == CharacterClass.PALADIN:
-        # Minimum of 1 for Paladin
-        return max(1, (level // 2))  # Without ability modifier for now
-    
-    # Other prepared casters: Level + ability modifier
-    # Without ability scores, we just return the level
-    return level
+    counts = prepared_spells_by_class(character, class_manager, modifier)
+    return sum(counts.values()) if counts else None
 
 
-def _get_artificer_prepared_spells(level: int, class_manager=None) -> int:
-    """Get Artificer's max prepared spells from the class table."""
-    # Artificer prepared spells by level (from the class table)
-    artificer_prepared = {
-        1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 6, 7: 7, 8: 7, 9: 9, 10: 9,
-        11: 10, 12: 10, 13: 11, 14: 11, 15: 12, 16: 12, 17: 14, 18: 14, 19: 15, 20: 15
-    }
-    return artificer_prepared.get(level, 2)
+def prepared_spells_by_class(character: CharacterSpellList, class_manager=None,
+                             modifier: Optional[Callable[[str], int]] = None) -> Dict[str, int]:
+    """{class name: spells that class lets the character prepare} for every class that prepares spells; a
+    third-caster subclass is listed under its class's name too."""
+    found: Dict[str, int] = {}
+    if class_manager is None:
+        try:
+            from character_class import get_class_manager
+            class_manager = get_class_manager()
+        except Exception:
+            class_manager = None
+    for cl in character.classes:
+        count = _prepared_for_class(cl, class_manager, modifier)
+        if count is not None:
+            found[cl.get_class_name()] = count
+    from spell_slots import get_eldritch_knight_prepared
+    for cl, _list, _ability in character.third_casters():
+        if cl.get_class_name() not in found:
+            found[cl.get_class_name()] = get_eldritch_knight_prepared(cl.level)
+    return found
 
 
-def _get_bard_prepared_spells(level: int) -> int:
-    """Get Bard's max prepared spells from the class table (2024 rules)."""
-    bard_prepared = {
-        1: 4, 2: 5, 3: 6, 4: 7, 5: 9, 6: 10, 7: 11, 8: 12, 9: 14, 10: 15,
-        11: 16, 12: 16, 13: 17, 14: 17, 15: 18, 16: 18, 17: 19, 18: 20, 19: 21, 20: 22
-    }
-    return bard_prepared.get(level, 4)
+# The 2014 classes that prepare spells (level, or half of it, plus a modifier); the others knew a fixed number
+_LEGACY_PREPARED = {"cleric": ("WIS", 1), "druid": ("WIS", 1), "wizard": ("INT", 1),
+                    "paladin": ("CHA", 2), "artificer": ("INT", 2)}
 
 
-def _get_ranger_prepared_spells(level: int) -> int:
-    """Get Ranger's max prepared spells from the class table (2024 rules)."""
-    ranger_prepared = {
-        1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 6, 7: 7, 8: 7, 9: 9, 10: 9,
-        11: 10, 12: 10, 13: 11, 14: 11, 15: 12, 16: 12, 17: 14, 18: 14, 19: 15, 20: 15
-    }
-    return ranger_prepared.get(level, 2)
+def _prepared_for_class(cl: ClassLevel, class_manager=None,
+                        modifier: Optional[Callable[[str], int]] = None) -> Optional[int]:
+    """What one class prepares at its level on its own: the class table's "Prepared Spells" column when the
+    class has one, otherwise the rules of its edition."""
+    from legacy_content import strip_legacy_suffix
+    name = cl.get_class_name()
+    base = strip_legacy_suffix(name).strip()
+    legacy = base != name.strip()
+    level = max(1, min(20, int(cl.level or 1)))
+    class_def = None
+    if class_manager is not None:
+        try:
+            class_def = class_manager.get_class(name)
+        except Exception:
+            class_def = None
+    data = class_def.levels.get(level) if class_def is not None and isinstance(class_def.levels, dict) else None
+    if data is not None:
+        import re
+        cell = str((getattr(data, "class_specific", {}) or {}).get("Prepared Spells") or "")
+        match = re.match(r"\s*(\d+)", cell)
+        if match:
+            return int(match.group(1))
+    if legacy:
+        rule = _LEGACY_PREPARED.get(base.lower())
+        if rule is None:
+            return None                                       # a 2014 class that knows its spells instead
+        ability, divide = rule
+        bonus = modifier(ability) if modifier else 0
+        return max(1, level // divide + bonus)
+    char_class = cl.character_class
+    if char_class == CharacterClass.CUSTOM:
+        char_class = CharacterClass.from_string(base)
+    table = _PREPARED_2024.get(char_class)
+    return table[level - 1] if table else None
 
 
-def _get_sorcerer_prepared_spells(level: int) -> int:
-    """Get Sorcerer's max prepared spells from the class table (2024 rules)."""
-    sorcerer_prepared = {
-        1: 2, 2: 4, 3: 6, 4: 7, 5: 9, 6: 10, 7: 11, 8: 12, 9: 14, 10: 15,
-        11: 16, 12: 16, 13: 17, 14: 17, 15: 18, 16: 18, 17: 19, 18: 20, 19: 21, 20: 22
-    }
-    return sorcerer_prepared.get(level, 2)
-
-
-def _get_warlock_prepared_spells(level: int) -> int:
-    """Get Warlock's max prepared spells from the class table (2024 rules)."""
-    warlock_prepared = {
-        1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7, 7: 8, 8: 9, 9: 10, 10: 10,
-        11: 11, 12: 11, 13: 12, 14: 12, 15: 13, 16: 13, 17: 14, 18: 14, 19: 15, 20: 15
-    }
-    return warlock_prepared.get(level, 2)
+# "Prepared Spells" of the 2024 class tables, for when the class data isn't there to read
+_PREPARED_2024 = {
+    CharacterClass.ARTIFICER: (2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15),
+    CharacterClass.BARD: (4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22),
+    CharacterClass.CLERIC: (4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22),
+    CharacterClass.DRUID: (4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22),
+    CharacterClass.PALADIN: (2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15),
+    CharacterClass.RANGER: (2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15),
+    CharacterClass.SORCERER: (2, 4, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22),
+    CharacterClass.WARLOCK: (2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15),
+    CharacterClass.WIZARD: (4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 18, 19, 21, 22, 23, 24, 25),
+}
 
 
 # Class feature spells that are granted by specific class features

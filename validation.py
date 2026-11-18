@@ -127,8 +127,24 @@ def validate_spell_for_character(
             max_level = max(character.custom_max_slots.keys()) if character.custom_max_slots else 0
         else:
             max_level = get_max_spell_level(class_levels, ek_level)
-        
-        if spell.level > max_level:
+        limit = max_level
+        if not has_custom_class:
+            # Each class prepares its own spells as if it were the character's only class
+            from spell_access import class_spell_levels
+            from legacy_content import strip_legacy_suffix
+            per_list = class_spell_levels(character)
+            lists = {strip_legacy_suffix(c).strip().lower() for c in spell.get_class_names()}
+            found = [per_list[n] for n in lists if n in per_list]
+            if found:
+                limit = min(max_level, max(found))
+
+        if max_level >= spell.level > limit:
+            warnings.append(
+                f"This is a level {spell.level} spell. This character has slots of that level, but each class "
+                f"prepares spells as if it were their only class, and the classes with this spell on their "
+                f"list can prepare spells up to level {limit}."
+            )
+        elif spell.level > max_level:
             if max_level == 0:
                 warnings.append(
                     f"This is a level {spell.level} spell, but this character "

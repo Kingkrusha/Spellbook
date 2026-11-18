@@ -57,6 +57,10 @@ class LearnRules:
     max_level: int = 0                                     # highest level of spell the character can cast
     expanded: Set[str] = field(default_factory=set)        # lower-case names of spells added to the lists
     class_labels: List[str] = field(default_factory=list)  # for messages
+    # lower-case spell list -> highest level that list's class can prepare on its own. A multiclass character
+    # prepares each class's spells as if they had that class alone: a Wizard 3 / Cleric 3 has 3rd-level slots
+    # but prepares spells of 2nd level at most. Empty: only ``max_level`` counts.
+    list_levels: Dict[str, int] = field(default_factory=dict)
 
     def class_ok(self, spell) -> bool:
         if self.any_class or spell.name.lower() in self.expanded:
@@ -64,8 +68,16 @@ class LearnRules:
         names = {strip_legacy_suffix(c).strip().lower() for c in spell.get_class_names()}
         return bool(names & self.classes)
 
+    def level_limit(self, spell) -> int:
+        """The highest level this spell could have for the character to prepare it (from the lists it is on)."""
+        if self.any_class or not self.list_levels or spell.name.lower() in self.expanded:
+            return self.max_level
+        names = {strip_legacy_suffix(c).strip().lower() for c in spell.get_class_names()}
+        levels = [self.list_levels[n] for n in names if n in self.list_levels]
+        return min(self.max_level, max(levels)) if levels else self.max_level
+
     def level_ok(self, spell) -> bool:
-        return spell.level == 0 or spell.level <= self.max_level
+        return spell.level == 0 or spell.level <= self.level_limit(spell)
 
     def allows(self, spell) -> bool:
         return self.class_ok(spell) and self.level_ok(spell)
@@ -74,6 +86,10 @@ class LearnRules:
         if not self.class_ok(spell):
             return "not on " + (" / ".join(self.class_labels) or "the character's") + " spell list"
         if not self.level_ok(spell):
+            limit = self.level_limit(spell)
+            if limit < self.max_level:
+                return (f"level {spell.level} is above what this character's classes on its list can prepare "
+                        f"(up to level {limit})")
             return f"level {spell.level} is above the highest level this character can cast ({self.max_level})"
         return ""
 
@@ -110,6 +126,49 @@ def max_spell_level(character) -> int:
     if custom:
         top = max(top, max(custom))
     return top
+
+
+def class_spell_levels(character) -> Dict[str, int]:
+    """{lower-case spell list: the highest spell level the class (or subclass) that casts from it gives on its
+    own}, for a character with more than one spellcasting class. Empty when one class (or none) casts spells,
+    as then the combined slots and the class's own are the same."""
+    from spell_slots import (ELDRITCH_KNIGHT_SLOTS, get_max_spell_level, FULL_CASTER_CLASSES,
+                             HALF_CASTER_CLASSES)
+    levels: Dict[str, int] = {}
+
+    def give(name: str, level: int):
+        if level > 0:
+            levels[name] = max(levels.get(name, 0), level)
+
+    casters = 0
+    thirds = {id(cl): (lst, cl.level) for cl, lst, _a in _third_caster_entries(character)}
+    for cl in character.classes:
+        enum = cl.character_class
+        if enum == CharacterClass.CUSTOM and cl.custom_class_name:
+            enum = CharacterClass.from_string(strip_legacy_suffix(cl.custom_class_name))
+        if enum == CharacterClass.CUSTOM:
+            return {}                                         # a Custom class: its own slot limits decide
+        base = strip_legacy_suffix(cl.get_class_name()).strip().lower()
+        sub = strip_legacy_suffix(getattr(cl, "subclass", "") or "").strip().lower()
+        if id(cl) in thirds:
+            spell_list, at = thirds[id(cl)]
+            slots = ELDRITCH_KNIGHT_SLOTS.get(min(at, 20), {})
+            give(spell_list.lower(), max(slots) if slots else 0)
+            casters += 1
+            continue
+        if enum not in FULL_CASTER_CLASSES and enum not in HALF_CASTER_CLASSES and enum != CharacterClass.WARLOCK:
+            continue
+        casters += 1
+        top = get_max_spell_level([(enum, cl.level)])
+        give(base, top)
+        if base == "bard" and (cl.level >= 10 or (sub == "college of lore" and cl.level >= 6)):
+            for other in ("cleric", "druid", "wizard"):       # Magical Secrets: those lists at the Bard's level
+                give(other, top)
+        if base == "bard" and sub == "college of the moon" and cl.level >= 3:
+            give("druid", top)
+        if base == "sorcerer" and sub == "divine soul":
+            give("cleric", top)
+    return levels if casters > 1 else {}
 
 
 def _class_lists(character) -> (Set[str], bool, List[str]):
@@ -189,4 +248,4 @@ def learn_rules(character, class_manager=None, feat_manager=None, lineage_manage
         max_level = 9                                                           # "Custom": nothing limits it
     return LearnRules(classes, any_class, max_level,
                       expanded_spells(character, class_manager, feat_manager, lineage_manager),
-                      list(dict.fromkeys(labels)))
+                      list(dict.fromkeys(labels)), {} if any_class else class_spell_levels(character))
