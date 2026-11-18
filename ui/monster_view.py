@@ -43,14 +43,6 @@ MOVEMENT_OPTIONS = ["Burrow", "Climb", "Fly", "Hover", "Swim"]
 # Skill / initiative proficiency levels, as stored (0, 1, 2) and as shown.
 PROFICIENCY_LABELS = ["None", "Proficient", "Expertise"]
 
-SORT_OPTIONS = {
-    "Name (A-Z)": (lambda m: m.name.lower(), False),
-    "CR (low to high)": (lambda m: (cr_to_number(m.challenge_rating), m.name.lower()), False),
-    "CR (high to low)": (lambda m: (cr_to_number(m.challenge_rating), m.name.lower()), True),
-    "HP (high to low)": (lambda m: (m.hp, m.name.lower()), True),
-    "AC (high to low)": (lambda m: (m.ac, m.name.lower()), True),
-}
-
 def movement_kinds(monster: Monster) -> List[str]:
     """The MOVEMENT_OPTIONS a monster has (its non-walking speeds, plus Hover)."""
     kinds = [kind.capitalize() for kind in SPEED_TYPES
@@ -976,8 +968,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._label(bar, "Alignment:")
         self.alignment_var, self.alignment_combo = self._combo(
             bar, ["All Alignments"], "All Alignments", 150)
-        self._label(bar, "Sort:")
-        self.sort_var, _ = self._combo(bar, SORT_OPTIONS, "Name (A-Z)", 150)
+        self._add_sort_control(bar, "monsters", padx=(0, 10))   # CR, HP, AC, ... and the person's own fields
 
         ctk.CTkButton(
             bar, text="+ Add Monster", width=130, height=35,
@@ -1106,7 +1097,6 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.type_var.set("All Types")
         self.size_var.set("All Sizes")
         self.alignment_var.set("All Alignments")
-        self.sort_var.set("Name (A-Z)")
         self.min_cr_var.set("Any")
         self.max_cr_var.set("Any")
         for var in (self.min_ac_var, self.max_ac_var, self.min_hp_var, self.max_hp_var):
@@ -1182,9 +1172,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
                 continue
             filtered.append(m)
 
-        key, reverse = SORT_OPTIONS.get(self.sort_var.get(), SORT_OPTIONS["Name (A-Z)"])
-        filtered.sort(key=key, reverse=reverse)
-        self.list_panel.set_monsters(filtered)
+        self.list_panel.set_monsters(self._sorted(filtered))
 
     # ----- actions -----
 

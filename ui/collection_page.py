@@ -254,6 +254,21 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
         if f is not None:
             f.clear()
 
+    def _add_sort_control(self, bar, collection: str, padx=(0, 20), fields=None, watch_fields: bool = True):
+        """The "Sort:" drop-down and its ascending/descending button (ui/sort_control.py). ``fields`` gives the
+        choices; by default those of the built-in ``collection``. The choice is remembered per collection."""
+        import collection_sort
+        from ui.sort_control import SortControl
+        fields = fields or (lambda: collection_sort.sorts_for(collection))
+        self.sorter = SortControl(bar, collection, fields, lambda: self._on_filter_changed(immediate=True),
+                                  watch_fields=watch_fields)
+        self.sorter.pack(side="left", padx=padx)
+
+    def _sorted(self, entries) -> list:
+        """``entries`` in the order the page's Sort control says (as they are if it has none)."""
+        sorter = getattr(self, "sorter", None)
+        return sorter.sort(entries) if sorter is not None else list(entries)
+
     def _add_clear_button(self, bar):
         ctk.CTkButton(
             bar, text="Clear Filters", width=110, height=35,

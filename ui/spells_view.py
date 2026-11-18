@@ -204,6 +204,13 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
                                            command=lambda x: self._on_filter_changed(immediate=True))
         self.class_combo.pack(side="left")
 
+        # Sort: by level (as always), name, range ... or one of the person's own fields
+        import collection_sort
+        from ui.sort_control import SortControl
+        self.sorter = SortControl(left_frame, "spells", lambda: collection_sort.sorts_for("spells"),
+                                  on_change=lambda: self._on_filter_changed(immediate=True), height=28)
+        self.sorter.pack(side="left", padx=(0, 15))
+
         # Advanced filters toggle button
         self.advanced_btn = ctk.CTkButton(
             left_frame, text="▼ Filters", width=90,
@@ -809,6 +816,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         field_filter = getattr(self, "field_filter", None)
         if field_filter is not None and field_filter.active:
             filtered_spells = [s for s in filtered_spells if field_filter.passes(s.name)]
+        filtered_spells = self.sorter.sort(filtered_spells)
         self.spell_list.set_spells(filtered_spells, reset_scroll=reset_scroll)
     
     def _on_filter_changed(self, immediate: bool = False):

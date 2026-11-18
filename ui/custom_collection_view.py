@@ -204,6 +204,10 @@ class CustomCollectionView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             self._add_filter_combo(row, name, f"{f.label}:", ANY, options, 130)
             self._field_vars[f.id] = getattr(self, f"{name}_var")
             count += 1
+        import collection_sort
+        # (the page is rebuilt when the fields change, so the control needn't follow them itself)
+        self._add_sort_control(row, f"custom:{self.key}", watch_fields=False,
+                               fields=lambda: collection_sort.custom_collection_sorts(self.ctype))
         self._add_clear_button(row)
 
     def _create_panes(self):
@@ -285,7 +289,7 @@ class CustomCollectionView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
                        for fid, var in self._field_vars.items() if fid in fields):
                 continue
             out.append(e)
-        self.list_panel.set_items(out)
+        self.list_panel.set_items(self._sorted(out))
 
     # ------------------------------------------------------------------ selection and actions
 
