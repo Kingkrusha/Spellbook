@@ -206,21 +206,22 @@ def test_a_full_casters_class_table_shows_every_spell_slot_column(tk_root, stage
             pump(tk_root, 5)
             # (the first class shown, Artificer, may still be on its way out: only the table on screen counts)
             boxes = [w for w in view.content.winfo_children() if isinstance(w, SidewaysBox) and w.winfo_manager()]
-            if boxes and len(boxes[-1].inner.winfo_children()) >= 21:
+            tables = boxes[-1].inner.winfo_children() if boxes else []
+            if tables and tables[0]._rows >= 21:
                 box = boxes[-1]
                 break
         assert box is not None, "the feature table was not built"
         pump(tk_root, 10)
-        header = box.inner.winfo_children()[0]
-        titles = [str(w.cget("text")).replace("\n", " ") for w in header.winfo_children()
-                  if isinstance(w, ctk.CTkLabel)]
+        table = box.inner.winfo_children()[0]
+        headings = table.header_labels()
+        titles = [str(w.cget("text")).replace("\n", " ") for w in headings]
         shown = view.current_class               # (whichever Wizard the content settings pick)
         assert {"Level", "Proficiency Bonus", "Class Features"} <= set(titles)
         assert set(shown.class_table_columns) <= set(titles) and "1st" in titles and len(titles) >= 10
         assert not box._bar_shown                                        # nothing to scroll: it all fits
-        for label in header.winfo_children():
-            if isinstance(label, ctk.CTkLabel):
-                assert fits(label, box), label.cget("text")
+        for label in headings:
+            assert fits(label, box), label.cget("text")
+        assert len(table.winfo_children()) == 21 * len(table.columns)    # one plain label a cell, nothing more
     finally:
         view.destroy()
 
