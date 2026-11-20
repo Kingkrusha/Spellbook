@@ -428,16 +428,34 @@ class FontManager:
         self.apply()
 
     def apply_preset(self, name: str):
-        preset = FONT_PRESETS.get(name)
-        if preset is None:
+        settings = preset_settings(name)
+        if settings is None:
             return
-        settings = FontSettings()
-        settings.family = preset.get("family", "")
-        for role, changes in (preset.get("roles") or {}).items():
-            for key, value in changes.items():
-                setattr(settings.roles[role], key, value)
         self.settings = settings
         self.apply()
+
+    def replace(self, settings: "FontSettings", restyle: bool = True):
+        """Take ``settings`` (a copy is kept) as the app's fonts: applied to everything on screen, or with
+        ``restyle=False`` only saved (on the way out, when nothing will be shown again)."""
+        self.settings = FontSettings.from_dict(settings.to_dict())
+        if restyle:
+            self.apply()
+        else:
+            self.scope.refresh()
+            self.save()
+
+
+def preset_settings(name: str) -> Optional[FontSettings]:
+    """The font settings a preset in FONT_PRESETS stands for (None for an unknown name)."""
+    preset = FONT_PRESETS.get(name)
+    if preset is None:
+        return None
+    settings = FontSettings()
+    settings.family = preset.get("family", "")
+    for role, changes in (preset.get("roles") or {}).items():
+        for key, value in changes.items():
+            setattr(settings.roles[role], key, value)
+    return settings
 
 
 # Tk's own named fonts: what plain Tk widgets (menus, lists, text boxes) use when given no font. They keep

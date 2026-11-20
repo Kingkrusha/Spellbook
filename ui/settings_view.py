@@ -1450,7 +1450,7 @@ class SettingsView(ctk.CTkFrame):
         get_font_manager().reset()
         editor = getattr(self, '_typography_editor', None)
         if editor is not None:
-            editor.refresh()
+            editor.reload()
         hotkey_editor = getattr(self, '_hotkey_editor', None)
         if hotkey_editor is not None:
             hotkey_editor.refresh()
@@ -1483,6 +1483,24 @@ class SettingsView(ctk.CTkFrame):
             self._sync_theme_menu()
         except Exception:
             pass
+
+    def apply_pending_fonts(self):
+        """Apply font changes made in Typography but not applied yet (called when Settings is left or closed)."""
+        editor = getattr(self, '_typography_editor', None)
+        if editor is not None:
+            try:
+                editor.apply_pending()
+            except Exception as e:
+                print(f"Fonts not applied: {e}")
+
+    def commit_pending_edits(self):
+        """The app is closing: keep font changes not applied yet (saved, nothing restyled)."""
+        editor = getattr(self, '_typography_editor', None)
+        if editor is not None:
+            try:
+                editor.apply_pending(restyle=False)
+            except Exception as e:
+                print(f"Fonts not saved: {e}")
 
     def destroy(self):
         """Remove theme listener when view is destroyed."""

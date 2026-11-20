@@ -35,6 +35,7 @@ from ui.platform_compat import bind_right_click
 from ui.object_link_widgets import attach_object_linking, open_link_popup
 from ui.scrollable_combobox import ScrollableComboBox
 from ui.tooltip import HoverTooltip
+from ui.text_fit import grow_with_content
 import json
 import os
 
@@ -219,6 +220,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
             text_color=self.theme.get_current_color('accent_text')
         )
         self.modifier_label.pack(pady=(2, 8))
+        grow_with_content(self, 80, 100)         # (larger text needs a bigger card)
     
     def _on_score_change(self, event=None):
         """Handle score change."""
@@ -2119,6 +2121,7 @@ class CharacterSheetView(ctk.CTkFrame):
         for event in ("<FocusOut>", "<Return>"):
             ac_entry.bind(event, lambda e: self._on_stat_typed("armor_class"))
         self._stat_tips = {"armor_class": HoverTooltip(ac_entry, "")}
+        grow_with_content(ac_frame, 65, 60)
         
         # Initiative
         init_frame = ctk.CTkFrame(stats_row, fg_color=self.theme.get_current_color('bg_tertiary'),
@@ -2136,6 +2139,7 @@ class CharacterSheetView(ctk.CTkFrame):
         for event in ("<FocusOut>", "<Return>"):
             self.init_entry.bind(event, lambda e: self._on_stat_typed("initiative"))
         self._stat_tips["initiative"] = HoverTooltip(self.init_entry, "")
+        grow_with_content(init_frame, 65, 60)
         
         # Speed
         speed_frame = ctk.CTkFrame(stats_row, fg_color=self.theme.get_current_color('bg_tertiary'),
@@ -2153,7 +2157,8 @@ class CharacterSheetView(ctk.CTkFrame):
         self.speed_entry.bind("<FocusOut>", lambda e: self._save_int_field("speed", self.speed_var.get()))
         self.speed_tooltip = HoverTooltip(self.speed_entry, "")
         self._update_speed_display_style()
-        
+        grow_with_content(speed_frame, 65, 60)
+
         # Proficiency Bonus (auto-calculated from level, displayed as label)
         prof_frame = ctk.CTkFrame(stats_row, fg_color=self.theme.get_current_color('bg_tertiary'),
                                   corner_radius=8, width=65, height=60)
@@ -2168,6 +2173,7 @@ class CharacterSheetView(ctk.CTkFrame):
             font=ui_font("heading", 16, bold=True)
         )
         self.prof_label.pack(pady=3)
+        grow_with_content(prof_frame, 65, 60)
         self.prof_var = ctk.StringVar(value=str(sheet.proficiency_bonus))
         
         # Armor and Shield dropdowns (only if auto-calculate AC is enabled)
@@ -2880,42 +2886,39 @@ class CharacterSheetView(ctk.CTkFrame):
         )
         attacks_frame.pack(fill="both", expand=True, pady=3)
         
-        # Header row
-        header_row = ctk.CTkFrame(attacks_frame, fg_color="transparent")
-        header_row.pack(fill="x", padx=8, pady=(8, 2))
-        
-        ctk.CTkLabel(header_row, text="Name", font=ui_font("small", 9, bold=True), width=100).pack(side="left", padx=2)
-        ctk.CTkLabel(header_row, text="Atk Bonus", font=ui_font("small", 9, bold=True), width=60).pack(side="left", padx=2)
-        ctk.CTkLabel(header_row, text="Damage/Type", font=ui_font("small", 9, bold=True), width=100).pack(side="left", padx=2)
-        
+        # One grid for the headings and the boxes, so each heading stays over its column when the boxes grow
+        # with the text size
+        table = ctk.CTkFrame(attacks_frame, fg_color="transparent")
+        table.pack(fill="x", padx=8, pady=(8, 2))
+        for col, heading in enumerate(("Name", "Atk Bonus", "Damage/Type")):
+            ctk.CTkLabel(table, text=heading, font=ui_font("small", 9, bold=True)).grid(
+                row=0, column=col, padx=2, pady=(0, 2), sticky="ew")
+
         # Initialize attacks if empty
         if not sheet.attacks or len(sheet.attacks) < 5:
             while len(sheet.attacks) < 5:
                 sheet.attacks.append({"name": "", "attack_bonus": "", "damage": ""})
-        
+
         self.attack_entries = []
         for i, attack in enumerate(sheet.attacks[:5]):  # Max 5 attacks
-            row = ctk.CTkFrame(attacks_frame, fg_color="transparent")
-            row.pack(fill="x", padx=8, pady=1)
-            
             # Name entry
             name_var = ctk.StringVar(value=attack.get("name", ""))
-            name_entry = ctk.CTkEntry(row, textvariable=name_var, width=100, height=24)
-            name_entry.pack(side="left", padx=2)
+            name_entry = ctk.CTkEntry(table, textvariable=name_var, width=100, height=24)
+            name_entry.grid(row=i + 1, column=0, padx=2, pady=1)
             name_entry.bind("<FocusOut>", lambda e, idx=i, var=name_var: self._save_attack_field(idx, "name", var.get()))
-            
+
             # Attack bonus entry
             bonus_var = ctk.StringVar(value=attack.get("attack_bonus", ""))
-            bonus_entry = ctk.CTkEntry(row, textvariable=bonus_var, width=60, height=24, justify="center")
-            bonus_entry.pack(side="left", padx=2)
+            bonus_entry = ctk.CTkEntry(table, textvariable=bonus_var, width=60, height=24, justify="center")
+            bonus_entry.grid(row=i + 1, column=1, padx=2, pady=1)
             bonus_entry.bind("<FocusOut>", lambda e, idx=i, var=bonus_var: self._save_attack_field(idx, "attack_bonus", var.get()))
-            
+
             # Damage entry
             damage_var = ctk.StringVar(value=attack.get("damage", ""))
-            damage_entry = ctk.CTkEntry(row, textvariable=damage_var, width=100, height=24)
-            damage_entry.pack(side="left", padx=2)
+            damage_entry = ctk.CTkEntry(table, textvariable=damage_var, width=100, height=24)
+            damage_entry.grid(row=i + 1, column=2, padx=2, pady=1)
             damage_entry.bind("<FocusOut>", lambda e, idx=i, var=damage_var: self._save_attack_field(idx, "damage", var.get()))
-            
+
             self.attack_entries.append({"name": name_var, "bonus": bonus_var, "damage": damage_var})
     
     def _save_attack_field(self, index: int, field: str, value: str):

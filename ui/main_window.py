@@ -1286,7 +1286,10 @@ class MainWindow(ctk.CTkFrame):
     def _on_tab_closed(self, tab_id: str):
         """Handle tab closure - destroy its page."""
         if tab_id in self._tab_views:
-            self._dispose_tab(self._tab_views[tab_id])
+            info = self._tab_views[tab_id]
+            if info.get('type') == 'settings' and info.get('view') is not None:
+                info['view'].apply_pending_fonts()      # closing Settings applies what wasn't yet
+            self._dispose_tab(info)
             del self._tab_views[tab_id]
         if tab_id == self._current_tab_id:
             self._current_tab_id = None
@@ -1351,6 +1354,8 @@ class MainWindow(ctk.CTkFrame):
             view.pack_forget()
         except Exception:
             pass
+        if info['type'] == 'settings':
+            view.apply_pending_fonts()      # font changes wait for Apply or for Settings to be left
         # ... and the collection page this tab was showing, if any
         self._hide_sub_view(info)
         # Clean up search bar if switching away from a collections hub
