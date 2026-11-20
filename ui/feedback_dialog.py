@@ -1,7 +1,6 @@
 """The Send feedback window (Settings > Help, or its shortcut, Shift+F1 by default).
 
-The user picks Bug report or Idea, writes a message, optionally leaves an email address and attaches
-pictures (a file, or a screenshot of Spellbook), and chooses whether to include the version and system
+The user picks Bug report or Idea, writes a message, optionally leaves an email address, and chooses whether to include the version and system
 details and the end of the app's logs (both on by default). "Show what will be sent" previews the exact
 text. Send posts it (see feedback.py) on a background thread; Copy report puts the same text on the
 clipboard for when sending isn't possible.
@@ -10,7 +9,7 @@ clipboard for when sending isn't possible.
 from __future__ import annotations
 
 import threading
-from typing import Callable, List, Optional
+from typing import Optional
 
 import customtkinter as ctk
 
@@ -19,17 +18,9 @@ from theme import get_theme_manager
 from typography import ui_font
 
 NOTE = ("Tell me what went wrong or what you'd like to see. It goes straight to the developer. "
-        "Only what you see under \"Show what will be sent\" (and the pictures you add) is sent, and only when "
+        "Only what you see under \"Show what will be sent\" is sent, and only when "
         "you press Send.")
 
-
-def grab_screen(bbox):
-    """A picture of part of the screen (PIL.ImageGrab; on Windows across all monitors)."""
-    import sys
-    from PIL import ImageGrab
-    if sys.platform == "win32":
-        return ImageGrab.grab(bbox=bbox, all_screens=True)
-    return ImageGrab.grab(bbox=bbox)
 
 _open_dialog: Optional["FeedbackDialog"] = None
 
@@ -61,16 +52,12 @@ def _button(parent, text, command, primary=False, width=120, **kw):
 class FeedbackDialog(ctk.CTkToplevel):
     WIDTH, HEIGHT = 600, 700
 
-    def __init__(self, parent, kind: Optional[str] = None, form_id: Optional[str] = None, sender=None,
-                 grabber: Optional[Callable] = None):
+    def __init__(self, parent, kind: Optional[str] = None, form_id: Optional[str] = None, sender=None):
         super().__init__(parent)
         self.theme = get_theme_manager()
         self.form_id = form_id
         self._sender = sender or F.send
-        self._grabber = grabber or grab_screen
         self._sending = False
-        self.pictures: List[F.Picture] = []
-        self._shots = 0
         self.title("Send feedback")
         self.geometry(f"{self.WIDTH}x{self.HEIGHT}")
         self.minsize(480, 520)
@@ -105,14 +92,6 @@ class FeedbackDialog(ctk.CTkToplevel):
                      font=ui_font("small"), text_color=secondary, anchor="w").pack(fill="x", pady=(8, 2))
         self.email = ctk.CTkEntry(options, placeholder_text="name@example.com")
         self.email.pack(fill="x")
-        pics = ctk.CTkFrame(options, fg_color="transparent")
-        pics.pack(fill="x", pady=(10, 0))
-        self.attach_btn = _button(pics, "Attach a picture…", self._attach, width=140, height=26)
-        self.attach_btn.pack(side="left")
-        self.shot_btn = _button(pics, "Screenshot of Spellbook", self._screenshot, width=170, height=26)
-        self.shot_btn.pack(side="left", padx=(8, 0))
-        self.pictures_box = ctk.CTkFrame(options, fg_color="transparent")
-        self.pictures_box.pack(fill="x")
         self.system_var = ctk.BooleanVar(value=True)
         self.log_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(options, text="Include the app version and system details (Windows/macOS version)",
@@ -168,86 +147,7 @@ class FeedbackDialog(ctk.CTkToplevel):
 
     def report(self) -> F.Report:
         return F.make_report(self.kind_var.get(), self.message.get("1.0", "end-1c"), self.email.get(),
-                             include_system=self.system_var.get(), include_log=self.log_var.get(),
-                             pictures=self.pictures)
-
-    # ---- pictures ----------------------------------------------------------------------------------
-
-    def _room_for_pictures(self) -> bool:
-        if len(self.pictures) >= F.MAX_PICTURES:
-            self._say(f"That's the most pictures one report can take ({F.MAX_PICTURES}).")
-            return False
-        return True
-
-    def _attach(self):
-        if not self._room_for_pictures():
-            return
-        from tkinter import filedialog
-        paths = filedialog.askopenfilenames(
-            parent=self, title="Attach pictures",
-            filetypes=[("Pictures", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"), ("All files", "*.*")])
-        for path in paths or ():
-            if len(self.pictures) >= F.MAX_PICTURES:
-                break
-            try:
-                self.add_picture(F.picture_from_file(path))
-            except ValueError as err:
-                self._say(str(err))
-
-    def _screenshot(self):
-        """A picture of the Spellbook window (this window steps aside for a moment)."""
-        if not self._room_for_pictures():
-            return
-        target = self.master.winfo_toplevel() if self.master is not None else None
-        if target is None:
-            return
-        self.withdraw()
-        self.after(300, lambda: self._grab(target))
-
-    def _grab(self, target):
-        image, problem = None, ""
-        try:
-            target.update_idletasks()
-            x, y = target.winfo_rootx(), target.winfo_rooty()
-            image = self._grabber((x, y, x + target.winfo_width(), y + target.winfo_height()))
-        except Exception as err:
-            problem = f"Couldn't take a screenshot ({err}). You can attach a picture file instead."
-        try:
-            self.deiconify()
-            self.lift()
-        except Exception:
-            return
-        if image is not None:
-            self._shots += 1
-            try:
-                self.add_picture(F.make_picture(image, f"screenshot-{self._shots}"))
-            except Exception as err:
-                problem = f"Couldn't use the screenshot ({err})."
-        if problem:
-            self._say(problem)
-
-    def add_picture(self, picture: F.Picture):
-        if len(self.pictures) < F.MAX_PICTURES:
-            self.pictures.append(picture)
-            self._show_pictures()
-            self._changed()
-
-    def remove_picture(self, picture: F.Picture):
-        if picture in self.pictures:
-            self.pictures.remove(picture)
-            self._show_pictures()
-            self._changed()
-
-    def _show_pictures(self):
-        for child in self.pictures_box.winfo_children():
-            child.destroy()
-        for picture in self.pictures:
-            _button(self.pictures_box, f"✕  {picture.name} ({picture.size_text})",
-                    lambda p=picture: self.remove_picture(p), width=10, height=22,
-                    font=ui_font("small")).pack(anchor="w", pady=(4, 0))
-        full = len(self.pictures) >= F.MAX_PICTURES
-        for btn in (self.attach_btn, self.shot_btn):
-            btn.configure(state="disabled" if full else "normal")
+                             include_system=self.system_var.get(), include_log=self.log_var.get())
 
     def _changed(self):
         if self._preview_shown:
@@ -293,15 +193,14 @@ class FeedbackDialog(ctk.CTkToplevel):
         self._say("Sending…", ok=True)
 
         def work():
-            note = None
             try:
-                note = self._sender(report, self.form_id)
+                self._sender(report, self.form_id)
                 outcome = None
             except F.SendError as err:
                 outcome = str(err)
             except Exception as err:          # never let a send problem become a crash
                 outcome = f"Something went wrong while sending ({err}). You can use Copy report instead."
-            self._outcome = [outcome, note if isinstance(note, str) else None]   # read on the UI thread by _poll
+            self._outcome = [outcome]   # read on the UI thread by _poll
         self._outcome = None
         threading.Thread(target=work, name="feedback-send", daemon=True).start()
         self.after(100, self._poll)
@@ -317,7 +216,7 @@ class FeedbackDialog(ctk.CTkToplevel):
             return
         self._sent(*self._outcome)
 
-    def _sent(self, error: Optional[str], note: Optional[str] = None):
+    def _sent(self, error: Optional[str]):
         self._sending = False
         try:
             if not self.winfo_exists():
@@ -329,13 +228,8 @@ class FeedbackDialog(ctk.CTkToplevel):
             self._say(error)
             return
         self.message.delete("1.0", "end")
-        self.pictures = []
-        self._show_pictures()
         self._changed()
-        if note:
-            self._say(f"Thank you! {note}", ok=True)
-        else:
-            self._say("Thank you! Your report was sent.", ok=True)
+        self._say("Thank you! Your report was sent.", ok=True)
 
     def close(self):
         global _open_dialog

@@ -2,13 +2,12 @@
 
 A report is a short form (bug or idea, a message, an optional email address to reply to) plus, unless the
 user unticks them, the app version and system details and the end of the app's logs (``crash.log`` and
-``spellbook.log``), and any pictures the user attached. It is posted to a Formspree form, which forwards it
+``spellbook.log``). It is posted to a Formspree form, which forwards it
 to the developer by email. Nothing is sent without the user pressing Send (crash reports, see
 crash_report.py, can be turned off), and the user can read everything that would be sent first
 (:func:`report_text`).
 
-Pictures go as file uploads, which Formspree accepts only on its paid plans: if the form refuses them, the
-report is sent again without them and the sender is told (:func:`send` returns that note).
+Reports are text only: Formspree accepts file uploads only on its paid plans, so there are no pictures.
 
 The Formspree form id is not a secret: it only lets people *submit* to the form, which is what it is
 for, so it is fine in source code. Formspree's own spam filtering and the ``_gotcha`` honeypot keep
@@ -19,17 +18,15 @@ Standard library only (``urllib``, ``json``, ``platform``) so it adds no packagi
 
 from __future__ import annotations
 
-import io
 import json
 import os
 import platform
 import re
-import secrets
 import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 from version import __version__
 
@@ -41,10 +38,7 @@ KINDS = ("Bug report", "Idea or feedback")
 MAX_MESSAGE = 10_000      # characters the user can write
 LOG_TAIL = 8_000          # characters of crash.log that are attached at most
 APP_LOG_TAIL = 6_000      # ... and of spellbook.log
-TIMEOUT = 15              # seconds (pictures get longer, see send())
-MAX_PICTURES = 3
-PICTURE_SIDE = 1600       # pictures are shrunk to fit this many pixels on their longer side
-MAX_PICTURE_BYTES = 2 * 1024 * 1024
+TIMEOUT = 15              # seconds
 
 
 def is_configured(form_id: Optional[str] = None) -> bool:
@@ -123,55 +117,6 @@ def app_log_tail(limit: int = APP_LOG_TAIL) -> str:
         return ""
 
 
-# --- pictures -------------------------------------------------------------------------------------
-
-@dataclass
-class Picture:
-    name: str            # a file name for the developer's end ("screenshot-1.png")
-    data: bytes
-    mime: str            # image/png or image/jpeg
-
-    @property
-    def size_text(self) -> str:
-        n = len(self.data)
-        return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{max(1, n // 1024)} KB"
-
-
-def make_picture(image, name: str) -> Picture:
-    """A picture ready to send from a PIL image: shrunk to :data:`PICTURE_SIDE` and kept under
-    :data:`MAX_PICTURE_BYTES` (PNG when that is small enough, so text in a screenshot stays sharp)."""
-    from PIL import Image
-    image = image.copy()
-    if image.mode not in ("RGB", "RGBA", "L"):
-        image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
-    image.thumbnail((PICTURE_SIDE, PICTURE_SIDE), Image.LANCZOS)
-    stem = os.path.splitext(os.path.basename(name))[0][:40] or "picture"
-    stem = re.sub(r"[^A-Za-z0-9 ._-]+", "_", stem).strip() or "picture"
-    data = io.BytesIO()
-    image.save(data, "PNG", optimize=True)
-    if data.tell() <= MAX_PICTURE_BYTES:
-        return Picture(stem + ".png", data.getvalue(), "image/png")
-    flat = image.convert("RGB")
-    for quality in (85, 70, 55):
-        data = io.BytesIO()
-        flat.save(data, "JPEG", quality=quality, optimize=True)
-        if data.tell() <= MAX_PICTURE_BYTES:
-            break
-    return Picture(stem + ".jpg", data.getvalue(), "image/jpeg")
-
-
-def picture_from_file(path: str) -> Picture:
-    """Raises ValueError with a readable reason if the file isn't a picture."""
-    from PIL import Image, ImageOps, UnidentifiedImageError
-    try:
-        with Image.open(path) as image:
-            image.load()
-            image = ImageOps.exif_transpose(image)
-            return make_picture(image, os.path.basename(path))
-    except (UnidentifiedImageError, OSError, ValueError) as err:
-        raise ValueError(f"That file isn't a picture Spellbook can read ({err}).") from None
-
-
 # --- the report -----------------------------------------------------------------------------------
 
 @dataclass
@@ -184,7 +129,6 @@ class Report:
     system: Dict[str, str] = field(default_factory=dict)
     log: str = ""              # the end of crash.log
     app_log: str = ""          # the end of spellbook.log
-    pictures: List[Picture] = field(default_factory=list)
 
     def problem(self) -> str:
         """Why this report can't be sent yet, or "" if it can."""
@@ -210,19 +154,15 @@ class Report:
         if self.include_log:
             data["crash_log"] = self.log or "(crash.log is empty)"
             data["app_log"] = self.app_log or "(spellbook.log is empty)"
-        if self.pictures:
-            data["pictures"] = ", ".join(f"{p.name} ({p.size_text})" for p in self.pictures)
         return data
 
 
 def make_report(kind: str, message: str, email: str = "", include_system: bool = True,
-                include_log: bool = False, log_path: Optional[str] = None,
-                pictures: Optional[List[Picture]] = None) -> Report:
+                include_log: bool = False, log_path: Optional[str] = None) -> Report:
     return Report(kind=kind, message=message, email=email, include_system=include_system,
                   include_log=include_log, system=system_info() if include_system else {},
                   log=crash_log_tail(log_path) if include_log else "",
-                  app_log=app_log_tail() if include_log else "",
-                  pictures=list(pictures or [])[:MAX_PICTURES])
+                  app_log=app_log_tail() if include_log else "")
 
 
 def report_text(report: Report) -> str:
@@ -230,8 +170,6 @@ def report_text(report: Report) -> str:
     lines = [f"Spellbook {__version__}: {report.kind}", "", report.message.strip()]
     if report.email.strip():
         lines += ["", f"Reply to: {report.email.strip()}"]
-    if report.pictures:
-        lines += ["", "Pictures: " + ", ".join(f"{p.name} ({p.size_text})" for p in report.pictures)]
     if report.include_system and report.system:
         lines += ["", "System:"] + [f"  {k}: {v}" for k, v in report.system.items()]
     if report.include_log:
@@ -254,25 +192,6 @@ class SendError(Exception):
 def _ssl_context():
     from updater import _ssl_context as context      # same CA handling as the update check
     return context()
-
-
-def multipart(fields: Dict[str, str], pictures: List[Picture]) -> Tuple[bytes, str]:
-    """``(body, content type)`` of a multipart/form-data post with the fields and the pictures."""
-    boundary = "SpellbookReport" + secrets.token_hex(12)
-
-    def quoted(text: str) -> str:
-        return re.sub(r'[\r\n"\\]', "_", text)
-    out = io.BytesIO()
-    for name, value in fields.items():
-        out.write(f'--{boundary}\r\nContent-Disposition: form-data; name="{quoted(name)}"\r\n\r\n'
-                  .encode("utf-8"))
-        out.write(str(value).encode("utf-8") + b"\r\n")
-    for picture in pictures:
-        out.write(f'--{boundary}\r\nContent-Disposition: form-data; name="attachment"; '
-                  f'filename="{quoted(picture.name)}"\r\nContent-Type: {picture.mime}\r\n\r\n'.encode("utf-8"))
-        out.write(picture.data + b"\r\n")
-    out.write(f"--{boundary}--\r\n".encode("ascii"))
-    return out.getvalue(), f"multipart/form-data; boundary={boundary}"
 
 
 def _post(url: str, body: bytes, content_type: str, timeout: float, opener=None) -> bytes:
@@ -303,31 +222,14 @@ def _post(url: str, body: bytes, content_type: str, timeout: float, opener=None)
     return answer
 
 
-def send(report: Report, form_id: Optional[str] = None, opener=None) -> Optional[str]:
-    """Post the report. Raises :class:`SendError` with a readable reason when it doesn't arrive.
-
-    Returns None, or a note for the sender when the report went but its pictures didn't (the form doesn't
-    take files, which on Formspree needs a paid plan)."""
+def send(report: Report, form_id: Optional[str] = None, opener=None) -> None:
+    """Post the report. Raises :class:`SendError` with a readable reason when it doesn't arrive."""
     if not is_configured(form_id):
         raise SendError("Sending isn't set up in this copy of Spellbook. Use Copy report instead.")
     problem = report.problem()
     if problem:
         raise SendError(problem)
-    fields = report.fields()
-    if report.pictures:
-        body, kind = multipart(fields, report.pictures)
-        try:
-            _post(endpoint(form_id), body, kind, TIMEOUT + 30, opener)
-            return None
-        except SendError as err:
-            if err.reason != "refused":
-                raise
-            reason = str(err)
-        fields = dict(fields, pictures=fields.get("pictures", "") + " (not attached: the form refused them)")
-        _post(endpoint(form_id), json.dumps(fields).encode("utf-8"), "application/json", TIMEOUT, opener)
-        return f"Sent, but without the pictures ({reason.rstrip('.')})."
-    _post(endpoint(form_id), json.dumps(fields).encode("utf-8"), "application/json", TIMEOUT, opener)
-    return None
+    _post(endpoint(form_id), json.dumps(report.fields()).encode("utf-8"), "application/json", TIMEOUT, opener)
 
 
 def _error_text(code: int, raw: bytes) -> str:
