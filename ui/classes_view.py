@@ -1809,7 +1809,7 @@ class FeatureDetailPopup(ctk.CTkToplevel):
         
         self._renderer.render_formatted_text(
             inner_frame, description,
-            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s),
+            on_spell_click=lambda s: self._renderer.show_link_popup(self, s),
             wraplength=400,
             bold_pattern=r'\*([^*]+)\*'
         )

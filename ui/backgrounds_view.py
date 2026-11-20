@@ -243,7 +243,7 @@ class BackgroundDetailPanel(VersionedDetailBase):
                 renderer = self._get_renderer()
                 renderer.render_formatted_text(
                     desc_container, feat.description,
-                    on_spell_click=lambda s: renderer.show_spell_popup(popup, s),
+                    on_spell_click=lambda s: renderer.show_link_popup(popup, s),
                     wraplength=450,
                     bold_pattern=r'\*([^*]+)\*'
                 )
@@ -293,7 +293,7 @@ class BackgroundDetailPanel(VersionedDetailBase):
             renderer = self._get_renderer()
             renderer.render_formatted_text(
                 desc_container, feature.description,
-                on_spell_click=lambda s: renderer.show_spell_popup(desc_container, s),
+                on_spell_click=lambda s: renderer.show_link_popup(desc_container, s),
                 wraplength=500
             )
     
