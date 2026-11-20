@@ -250,25 +250,26 @@ class EquipmentView(ItemViewBase):
         return AddEquipmentSourceDialog, EquipmentTextImportDialog, to_draft
 
     def _create_filter_bar(self):
-        filter_bar = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar.pack(fill="x", padx=10, pady=10)
+        filter_bar = self._top_bar
 
         self._add_back_button(filter_bar)
         self._add_search_and_type(filter_bar, "Search equipment...", 170, (0, 15), 170, (0, 15))
+        self._add_sort_control(filter_bar, self.STUDIO_KIND, padx=(0, 15))
         self._add_action_buttons(filter_bar, "+ Add Equipment", 130, self._on_add_item,
                                  self._on_edit_item, self._on_delete_item, start_disabled=True)
 
-        # Second row: source, official content, crafting tool
-        filter_bar2 = self._filter_row(pady=(0, 5))
-        self._add_source_filter(filter_bar2)
-        self._add_content_filter(filter_bar2)
+        # The "▼ Filters" panel: crafting tool, content, source; tags; crafting materials, price, clear
+        filter_bar2 = self._filter_row()
         self._add_filter_combo(filter_bar2, "crafting_tool", "Crafting Tool:", "Any Tool", ["Any Tool"],
-                               160, padx=0)
+                               160, padx=(0, 20))
+        self._add_content_filter(filter_bar2)
+        self._add_source_filter(filter_bar2)
 
-        # Third row: tags, crafting materials, price range, clear
         filter_bar3 = self._filter_row()
-        self._add_tags_filter(filter_bar3, end_padx=(0, 20))
-        self._add_price_filter(filter_bar3)
+        self._add_tags_filter(filter_bar3, end_padx=0)
+
+        filter_bar4 = self._filter_row(pady=(0, 0))
+        self._add_price_filter(filter_bar4)
 
     def _load_extra_options(self):
         tool_options = ["Any Tool"] + self.item_manager.get_all_crafting_tools()

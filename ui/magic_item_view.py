@@ -348,33 +348,34 @@ class MagicItemView(ItemViewBase):
         return AddMagicItemSourceDialog, MagicItemTextImportDialog, to_draft
 
     def _create_filter_bar(self):
-        filter_bar = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar.pack(fill="x", padx=10, pady=10)
+        filter_bar = self._top_bar
 
         self._add_back_button(filter_bar)
-        self._add_search_and_type(filter_bar, "Search magic items...", 150, (0, 10), 150, (0, 10))
+        self._add_search_entry(filter_bar, "Search magic items...", 170, (0, 15))
         self._add_filter_combo(filter_bar, "rarity", "Rarity:", "All Rarities",
-                               ["All Rarities"] + Rarity.all_values(), 130, (0, 10))
-
-        self.attunement_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(
-            filter_bar, text="Requires Attunement",
-            variable=self.attunement_var,
-            command=lambda: self._on_filter_changed(immediate=True)
-        ).pack(side="left")
+                               ["All Rarities"] + Rarity.all_values(), 130, (0, 15))
+        self._add_sort_control(filter_bar, self.STUDIO_KIND, padx=(0, 15))
 
         self._add_action_buttons(filter_bar, "+ Add Magic Item", 140, self._on_add_item,
                                  self._on_edit_item, self._on_delete_item, start_disabled=True)
 
-        # Second row: source, official content, tags
-        filter_bar2 = self._filter_row(pady=(0, 5))
-        self._add_source_filter(filter_bar2)
+        # The "▼ Filters" panel: type, attunement, content, source; tags; enchanting materials, price, clear
+        filter_bar2 = self._filter_row()
+        self._add_filter_combo(filter_bar2, "type", "Type:", "All Types", ["All Types"], 150, (0, 20))
+        self.attunement_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            filter_bar2, text="Requires Attunement",
+            variable=self.attunement_var,
+            command=lambda: self._on_filter_changed(immediate=True)
+        ).pack(side="left", padx=(0, 20))
         self._add_content_filter(filter_bar2)
-        self._add_tags_filter(filter_bar2, end_padx=0)
+        self._add_source_filter(filter_bar2)
 
-        # Third row: enchanting materials, price range, clear
         filter_bar3 = self._filter_row()
-        self._add_price_filter(filter_bar3)
+        self._add_tags_filter(filter_bar3, end_padx=0)
+
+        filter_bar4 = self._filter_row(pady=(0, 0))
+        self._add_price_filter(filter_bar4)
 
     def _clear_extra_filters(self):
         self.rarity_var.set("All Rarities")

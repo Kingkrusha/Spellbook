@@ -908,11 +908,6 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.detail_panel.show_monster(self.list_panel.get_selected_monster())
         self._place_sash()
 
-    def _bar(self, pady=(0, 5)) -> ctk.CTkFrame:
-        bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.pack(fill="x", padx=10, pady=pady)
-        return bar
-
     def _label(self, parent, text: str):
         ctk.CTkLabel(parent, text=text).pack(side="left", padx=(0, 5))
 
@@ -947,8 +942,8 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         theme = self.theme
         mgr = self.monster_manager
 
-        # Row 1: search, type, size, alignment, sort, actions
-        bar = self._bar(pady=(10, 5))
+        # The top bar: search, type, sort, actions
+        bar = self._top_bar
         if self.on_back:
             ctk.CTkButton(
                 bar, text="← Collections", width=110,
@@ -960,15 +955,11 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
         PlaceholderEntry(bar, width=200, height=35, placeholder_text="Search monsters...",
-                     textvariable=self.search_var).pack(side="left", padx=(0, 10))
+                     textvariable=self.search_var).pack(side="left", padx=(0, 8))
+        self._add_titles_only(bar, (0, 10))
 
         self._label(bar, "Type:")
         self.type_var, self.type_combo = self._combo(bar, ["All Types"], "All Types", 140)
-        self._label(bar, "Size:")
-        self.size_var, self.size_combo = self._combo(bar, ["All Sizes"], "All Sizes", 120)
-        self._label(bar, "Alignment:")
-        self.alignment_var, self.alignment_combo = self._combo(
-            bar, ["All Alignments"], "All Alignments", 150)
         self._add_sort_control(bar, "monsters", padx=(0, 10))   # CR, HP, AC, ... and the person's own fields
 
         ctk.CTkButton(
@@ -995,8 +986,13 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             command=self._on_duplicate_monster, state="disabled")
         self.duplicate_btn.pack(side="right", padx=(0, 5))
 
-        # Row 2: challenge rating, armor class, hit points, checkboxes
-        bar = self._bar()
+        # The "▼ Filters" panel. Its first row: size, alignment, challenge rating, armor class, hit points, checkboxes
+        bar = self._filter_row()
+        self._label(bar, "Size:")
+        self.size_var, self.size_combo = self._combo(bar, ["All Sizes"], "All Sizes", 120)
+        self._label(bar, "Alignment:")
+        self.alignment_var, self.alignment_combo = self._combo(
+            bar, ["All Alignments"], "All Alignments", 150)
         self._label(bar, "CR:")
         self.min_cr_var, self.min_cr_combo = self._combo(bar, ["Any"] + CR_OPTIONS, "Any", 75)
         ctk.CTkLabel(bar, text="to").pack(side="left", padx=(0, 5))
@@ -1009,10 +1005,9 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.lair_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(bar, text="Has Lair", variable=self.lair_var, width=80,
                         command=lambda: self._on_filter_changed(immediate=True)).pack(side="left", padx=(0, 10))
-        self._add_titles_only(bar, (0, 0))
 
         # Row 3: where it comes from, where it lives, what it carries
-        bar = self._bar()
+        bar = self._filter_row()
         self.source_filter = self._multi(bar, "Source", mgr.get_all_sources, "sources", 120, source=True)
         self._label(bar, "Content:")
         self.official_var, self.official_combo = self._combo(
@@ -1023,7 +1018,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self.movement_filter = self._multi(bar, "Movement", lambda: MOVEMENT_OPTIONS, "movement types")
 
         # Row 4: senses, languages, defenses
-        bar = self._bar(pady=(0, 10))
+        bar = self._filter_row(pady=(0, 0))
         self.senses_filter = self._multi(bar, "Senses", mgr.get_all_sense_kinds, "senses")
         self.languages_filter = self._multi(bar, "Languages", mgr.get_all_languages, "languages", 120)
         self.immunity_filter = self._multi(

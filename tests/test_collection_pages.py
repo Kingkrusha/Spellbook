@@ -629,3 +629,88 @@ def test_the_detail_pane_shows_what_the_item_has_and_hides_the_rest(item_page, t
     detail.show_item(None)
     assert detail.name_label.cget("text") == "Select an item" and not packed(detail.properties_frame)
     detail._on_theme_changed()
+
+
+# ---------------------------------------------------------------- the folding "▼ Filters" panel
+
+def test_the_header_is_one_row_and_the_other_filters_fold_away(page, tk_root):
+    """Only the top bar shows at first; "▼ Filters" opens the panel of the other filters above the list."""
+    folding = page.folding
+    assert folding is not None and folding.rows
+    assert not packed(folding.frame) and folding.button.cget("text") == "▼ Filters"
+    # Search and Sort stay in the top bar; the source filter is in the panel
+    assert page.sorter.master is page._top_bar
+    assert str(page.source_btn).startswith(str(folding.content))
+
+    page._toggle_advanced_filters()
+    pump(tk_root)
+    assert packed(folding.frame) and page._advanced_expanded
+    assert folding.button.cget("text").startswith("▲ Filters")
+    slaves = page.pack_slaves()
+    assert slaves.index(folding.frame) == slaves.index(page.content) - 1      # right above the list
+
+    page._toggle_advanced_filters()
+    pump(tk_root)
+    assert not packed(folding.frame)
+
+
+def test_the_filters_button_shows_when_a_folded_filter_is_set(page, tk_root):
+    folding = page.folding
+    page.official_var.set("Homebrew Only")
+    page._on_filter_changed(immediate=True)
+    pump(tk_root, 20)
+    assert folding.is_set and folding.button.cget("text").endswith("•")
+
+    page._clear_filters()
+    pump(tk_root, 20)
+    assert not folding.is_set and folding.button.cget("text") == "▼ Filters"
+
+
+def test_the_search_box_does_not_count_as_a_folded_filter(page, tk_root):
+    page.search_var.set("a")
+    page._on_filter_changed(immediate=True)
+    pump(tk_root, 20)
+    assert not page.folding.is_set
+
+
+def test_monsters_and_rules_fold_their_filters_too(tk_root):
+    from ui.monster_view import MonsterView
+    from ui.rules_view import RulesView
+    for cls in (MonsterView, RulesView):
+        view = cls(tk_root)
+        view.pack(fill="both", expand=True)
+        try:
+            pump(tk_root)
+            assert view.folding.rows and not packed(view.folding.frame), cls.__name__
+            assert view.folding.button.master is view._top_bar
+            view._toggle_advanced_filters()
+            pump(tk_root)
+            assert packed(view.folding.frame)
+        finally:
+            view.destroy()
+
+
+def test_the_spells_page_uses_the_same_folding_panel(tk_root):
+    from character_manager import CharacterManager
+    from settings import get_settings_manager
+    from spell_manager import SpellManager
+    import os
+    import tempfile
+    from ui.spells_view import SpellsView
+    manager = SpellManager()
+    assert manager.load_spells()
+    characters = CharacterManager(os.path.join(tempfile.mkdtemp(), "characters.json"))
+    view = SpellsView(tk_root, manager, characters, get_settings_manager())
+    view.pack(fill="both", expand=True)
+    pump(tk_root)
+    try:
+        assert view.advanced_frame is view.folding.frame and not view._advanced_expanded
+        view.ritual_var.set("Ritual Only")
+        view._on_filter_changed(immediate=True)
+        pump(tk_root, 20)
+        assert view.folding.is_set
+        view._clear_advanced_filters()
+        pump(tk_root, 20)
+        assert not view.folding.is_set
+    finally:
+        view.destroy()

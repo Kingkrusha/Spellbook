@@ -285,8 +285,9 @@ def test_the_pages_search_boxes_show_their_hints(tk_root, stage):
     view.pack(fill="both", expand=True)
     pump(tk_root, 10)
     try:
-        hints = sorted(e._entry.get() for bar in view.winfo_children() for e in bar.winfo_children()
-                       if isinstance(e, PlaceholderEntry))
+        bars = list(view._top_bar.winfo_children()) + [
+            e for row in view.folding.rows for e in row.winfo_children()]      # (most filters fold away)
+        hints = sorted(e._entry.get() for e in bars if isinstance(e, PlaceholderEntry))
         assert hints == ["Max", "Max", "Min", "Min", "Search monsters..."]
         assert view.search_var.get() == "" and view.min_ac_var.get() == ""
         before = len(view.list_panel._items)

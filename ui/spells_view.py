@@ -36,7 +36,6 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         self.on_back = on_back  # the toolbar's back button (to the Collections page)
 
         # State
-        self._advanced_expanded = False
         self._selected_tags: List[str] = []
         self._tag_filter_mode: TagFilterMode = TagFilterMode.HAS_ALL
         self._selected_sources: List[str] = []
@@ -49,6 +48,8 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         self._create_toolbar()
         self._create_advanced_filters()
         self._create_main_content()
+        self.folding.set_before(self._main_content)
+        self.folding.remember()
         self._setup_bulk_actions()
         self._create_context_menu()
 
@@ -75,11 +76,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         self._update_context_menu_colors()
         self._update_paned_colors()
 
-        try:
-            self.advanced_btn.configure(fg_color=theme.get_current_color('button_normal'),
-                                        hover_color=theme.get_current_color('button_hover'))
-        except Exception:
-            pass
+        self.folding._paint()
 
         # These "card" panels are created with an explicit fg_color (not
         # "transparent"), so they need to be repainted explicitly too.
@@ -221,27 +218,18 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
                                   on_change=lambda: self._on_filter_changed(immediate=True), height=28)
         self.sorter.pack(side="left", padx=(0, 15))
 
-        # Advanced filters toggle button
-        self.advanced_btn = ctk.CTkButton(
-            left_frame, text="▼ Filters", width=90,
-            fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
-            text_color=theme.get_current_color('text_primary'),
-            command=self._toggle_advanced_filters
-        )
-        self.advanced_btn.pack(side="left")
+        # Advanced filters toggle button (ui/folding_filters.py: every collection page has the same one)
+        from ui.folding_filters import FoldingFilters
+        self.folding = FoldingFilters(self, left_frame, on_open=self._update_filter_dropdowns, padx=15)
+        self.advanced_btn = self.folding.add_button(left_frame, height=28)
         self._flow_bar = FlowBar(left_frame)    # the filters wrap onto a second row in a narrow window
     
     def _create_advanced_filters(self):
         """Create the collapsible advanced filters panel."""
-        # Container frame (hidden by default)
+        # The folding panel (hidden until "▼ Filters" is clicked)
         theme = get_theme_manager()
-        self.advanced_frame = ctk.CTkFrame(self, corner_radius=10,
-                                            fg_color=theme.get_current_color('bg_secondary'))
-        # Don't pack yet - will be shown/hidden by toggle
-        
-        # Inner content with padding
-        content = ctk.CTkFrame(self.advanced_frame, fg_color="transparent")
-        content.pack(fill="x", padx=15, pady=15)
+        self.advanced_frame = self.folding.frame
+        content = self.folding.content
         
         # Row 1: Ritual, Concentration, Min Range
         row1 = ctk.CTkFrame(content, fg_color="transparent")
@@ -348,6 +336,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         self.source_btn = ctk.CTkButton(
             source_frame, text="Select Sources...", width=130,
             fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
+            text_color=theme.get_current_color('text_primary'),
             command=self._open_source_filter
         )
         self.source_btn.pack(side="left", padx=(0, 10))
@@ -371,6 +360,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         self.tags_btn = ctk.CTkButton(
             tags_frame, text="Select Tags...", width=120,
             fg_color=theme.get_current_color('button_normal'), hover_color=theme.get_current_color('button_hover'),
+            text_color=theme.get_current_color('text_primary'),
             command=self._open_tag_filter
         )
         self.tags_btn.pack(side="left", padx=(0, 10))
@@ -432,17 +422,13 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         else:
             self.tags_label.configure(text=f"{count} tags ({mode_str})")
     
+    @property
+    def _advanced_expanded(self) -> bool:
+        return self.folding.expanded
+
     def _toggle_advanced_filters(self):
         """Toggle the advanced filters panel visibility."""
-        self._advanced_expanded = not self._advanced_expanded
-        
-        if self._advanced_expanded:
-            self.advanced_btn.configure(text="▲ Filters")
-            self.advanced_frame.pack(fill="x", padx=15, pady=(0, 10), before=self._main_content)
-            self._update_filter_dropdowns()
-        else:
-            self.advanced_btn.configure(text="▼ Filters")
-            self.advanced_frame.pack_forget()
+        self.folding.toggle()
     
     def _update_filter_dropdowns(self):
         """Update the casting time, duration, and source dropdowns with current values."""
@@ -848,6 +834,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         """Apply the filter after debounce delay."""
         self._filter_debounce_id = None
         self._refresh_spell_list()
+        self.folding.refresh()
     
     def refresh_class_filter(self):
         """Refresh the class filter dropdown to include newly imported custom classes."""

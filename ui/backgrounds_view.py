@@ -503,21 +503,20 @@ class BackgroundsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
-        filter_bar = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar.pack(fill="x", padx=10, pady=10)
+        filter_bar = self._top_bar
 
         self._add_back_button(filter_bar)
         self._add_search_entry(filter_bar, "Search backgrounds...", 200)
-        self._add_source_filter(filter_bar, end_padx=(0, 15))
+        self._add_filter_combo(filter_bar, "skill", "Grants Skill:", "All Skills", ["All Skills"], 160)
+        self._add_sort_control(filter_bar, "backgrounds", padx=(0, 15))
         self._add_action_buttons(filter_bar, "+ Add Background", 140, self._on_add_background,
                                  self._on_edit_background, self._on_delete_background, start_disabled=True)
 
-        # Second row: official content, skill, clear
-        filter_bar2 = self._filter_row()
+        # The "▼ Filters" panel: source, content, your fields, clear
+        filter_bar2 = self._filter_row(pady=(0, 0))
+        self._add_source_filter(filter_bar2)
         self._add_content_filter(filter_bar2)
-        self._add_filter_combo(filter_bar2, "skill", "Grants Skill:", "All Skills", ["All Skills"], 160, (0, 20))
         self._add_field_filter(filter_bar2, "backgrounds")
-        self._add_sort_control(filter_bar2, "backgrounds")
         self._add_clear_button(filter_bar2)
 
     def _create_context_menu(self):

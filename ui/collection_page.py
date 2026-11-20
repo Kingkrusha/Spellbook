@@ -173,7 +173,13 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
             self._filter_debounce_id = None
 
         delay = 10 if immediate else self._filter_debounce_delay
-        self._filter_debounce_id = self.after(delay, self._apply_filters)
+        self._filter_debounce_id = self.after(delay, self._run_filters)
+
+    def _run_filters(self):
+        self._apply_filters()
+        folding = getattr(self, "folding", None)
+        if folding is not None:
+            folding.refresh()
 
     @staticmethod
     def _passes_official_filter(is_official: bool, choice: str) -> bool:
@@ -228,6 +234,7 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
             bar, text="Select Sources...", width=130, height=35,
             fg_color=self.theme.get_current_color('button_normal'),
             hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
             command=self._open_source_filter
         )
         self.source_btn.pack(side="left", padx=(0, 8))
@@ -320,11 +327,30 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
         self.edit_btn.configure(state=state)
         self.delete_btn.configure(state=state)
 
-    def _filter_row(self, pady=(0, 10)):
-        """A further row of filters under the first."""
-        row = ctk.CTkFrame(self, fg_color="transparent")
-        row.pack(fill="x", padx=10, pady=pady)
-        return row
+    def _filter_row(self, pady=(0, 6)):
+        """A further row of filters: it goes in the folding panel under the top bar that "▼ Filters" opens
+        (ui/folding_filters.py), so the page's header stays one row high."""
+        folding = getattr(self, "folding", None)
+        if folding is None:
+            from ui.folding_filters import FoldingFilters
+            folding = self.folding = FoldingFilters(self, self._top_bar)
+        return folding.row(pady)
+
+    # (the guided tour and the Spells page call these by these names)
+    @property
+    def advanced_frame(self):
+        folding = getattr(self, "folding", None)
+        return folding.frame if folding is not None else None
+
+    @property
+    def _advanced_expanded(self) -> bool:
+        folding = getattr(self, "folding", None)
+        return bool(folding and folding.expanded)
+
+    def _toggle_advanced_filters(self):
+        folding = getattr(self, "folding", None)
+        if folding is not None:
+            folding.toggle()
 
     def _build_context_menu(self, entries: List[tuple]):
         """The right-click menu: ``entries`` is ``[(label, command), ...]``."""
@@ -333,18 +359,35 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
         for label, command in entries:
             self.context_menu.add_command(label=label, command=command)
 
+    def _make_top_bar(self) -> ctk.CTkFrame:
+        """The page's one-row header; ``_create_filter_bar`` fills it (``self._top_bar``)."""
+        bar = ctk.CTkFrame(self, fg_color="transparent")
+        bar.pack(fill="x", padx=10, pady=10)
+        return bar
+
     def _create_paned_layout(self):
         """The filter bar, then a resizable list | detail split (``self.paned``).
 
         The page supplies the two panes in ``_create_panes`` and adds them to ``self.paned``."""
-        before = set(self.winfo_children())
+        old = getattr(self, "folding", None)
+        was_open = bool(old and old.expanded)          # (a custom collection's page is rebuilt when its fields change)
+        self.folding = None
+        self._top_bar = self._make_top_bar()
         self._create_filter_bar()
+        folding = self.folding
+        if folding is not None:
+            folding.add_button(self._top_bar)
         # Each row of the filter bar wraps when the window is too narrow for it, so no control is squeezed out.
-        self._flow_bars = [FlowBar(row) for row in self.winfo_children()
-                           if row not in before and isinstance(row, ctk.CTkFrame)]
+        rows = [self._top_bar] + (folding.rows if folding is not None else [])
+        self._flow_bars = [FlowBar(row) for row in rows]
 
         self.content = ctk.CTkFrame(self, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        if folding is not None:
+            folding.set_before(self.content)
+            folding.remember()
+            if was_open:
+                folding.set_open(True)
 
         self.paned = tk.PanedWindow(
             self.content, orient=tk.HORIZONTAL, sashwidth=8, sashrelief=tk.RAISED,

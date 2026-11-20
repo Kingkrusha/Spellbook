@@ -535,3 +535,21 @@ def test_the_feats_page_filters_by_your_fields(mgr, tk_root):
         assert len(view._filtered_feats) == everything and view.field_filter._window is None
     finally:
         frame.destroy()
+
+
+def test_the_pages_filters_fold_away_and_stay_open_when_it_is_rebuilt(mgr, tk_root):
+    from ui.custom_collection_view import CustomCollectionView
+    deities(mgr)
+    view = CustomCollectionView(tk_root, "deities")
+    view.pack(fill="both", expand=True)
+    try:
+        pump(tk_root)
+        folding = view.folding
+        assert folding.rows and folding.frame.winfo_manager() == ""
+        assert view.sorter.master is view._top_bar
+        view._toggle_advanced_filters()
+        view._build()                      # (what happens when the collection's fields change)
+        pump(tk_root)
+        assert view.folding is not folding and view.folding.frame.winfo_manager() == "pack"
+    finally:
+        view.destroy()

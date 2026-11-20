@@ -274,8 +274,7 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
-        filter_bar = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar.pack(fill="x", padx=10, pady=10)
+        filter_bar = self._top_bar
 
         self._add_back_button(filter_bar)
         self._add_search_entry(filter_bar, "Search feats...", 200)
@@ -283,28 +282,27 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         # Type filter, from the feat manager (auto-populated)
         type_options = ["All Types"] + [t if t else "General" for t in self.feat_manager.get_all_types()]
         self._add_filter_combo(filter_bar, "type", "Type:", "All Types", type_options, 180)
-
-        # Spellcasting filter
-        self.spellcasting_var = ctk.BooleanVar(value=False)
-        self.spellcasting_check = ctk.CTkCheckBox(
-            filter_bar, text="Spellcasting Only",
-            variable=self.spellcasting_var,
-            command=lambda: self._on_filter_changed(immediate=True)
-        )
-        self.spellcasting_check.pack(side="left", padx=(0, 15))
+        self._add_sort_control(filter_bar, "feats", padx=(0, 15))
 
         self._add_action_buttons(filter_bar, "+ Add Feat", 100, self._on_add_feat,
                                  self._on_edit_feat, self._on_delete_feat, start_disabled=True)
 
-        # Second row: source, official content, prerequisite, clear
+        # The "▼ Filters" panel: prerequisite, spellcasting, content; source, your fields, clear
         filter_bar2 = self._filter_row()
-        self._add_source_filter(filter_bar2)
-        self._add_content_filter(filter_bar2)
         self._add_filter_combo(filter_bar2, "prereq", "Prerequisite:", "Any",
                                ["Any", "Has Prerequisite", "No Prerequisite"], 110, (0, 20))
-        self._add_field_filter(filter_bar2, "feats")
-        self._add_sort_control(filter_bar2, "feats")
-        self._add_clear_button(filter_bar2)
+        self.spellcasting_var = ctk.BooleanVar(value=False)
+        self.spellcasting_check = ctk.CTkCheckBox(
+            filter_bar2, text="Spellcasting Only",
+            variable=self.spellcasting_var,
+            command=lambda: self._on_filter_changed(immediate=True)
+        )
+        self.spellcasting_check.pack(side="left", padx=(0, 20))
+        self._add_content_filter(filter_bar2)
+        filter_bar3 = self._filter_row(pady=(0, 0))
+        self._add_source_filter(filter_bar3)
+        self._add_field_filter(filter_bar3, "feats")
+        self._add_clear_button(filter_bar3)
 
     def _create_context_menu(self):
         """Create the right-click context menu for feats."""
