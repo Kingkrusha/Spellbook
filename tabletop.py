@@ -336,8 +336,8 @@ def _clean_token_fields(fields: dict) -> dict:
 def _clean_points(points, limit: int = MAX_POINTS) -> List[float]:
     if not isinstance(points, list):
         return []
-    pts = [_num(p) for p in points[: limit * 2]]
-    return pts[: len(pts) // 2 * 2]
+    pts = [round(_num(p), 1) for p in points[: limit * 2]]      # (a tenth of a map pixel is plenty, and it
+    return pts[: len(pts) // 2 * 2]                             # keeps what is saved and sent small)
 
 
 def clean_drawing(d: dict, author: str = "") -> Optional[dict]:
@@ -429,6 +429,49 @@ def blocking_walls(scene: dict) -> List[Tuple[float, float, float, float]]:
     return [tuple(w["pts"]) for w in scene.get("walls") or [] if not (w.get("door") and w.get("open"))]
 
 
+def _crossing(ax: float, ay: float, bx: float, by: float, wall: Tuple[float, float, float, float]) -> Optional[float]:
+    """How far along a->b (0..1) the segment crosses ``wall``, or None when it doesn't."""
+    x0, y0, x1, y1 = wall
+    rx, ry, sx, sy = bx - ax, by - ay, x1 - x0, y1 - y0
+    den = rx * sy - ry * sx
+    if abs(den) < 1e-9:
+        return None                                   # parallel (sliding along a wall doesn't cross it)
+    qx, qy = x0 - ax, y0 - ay
+    t = (qx * sy - qy * sx) / den
+    u = (qx * ry - qy * rx) / den
+    if 1e-6 < t <= 1.0 and -1e-6 <= u <= 1.0 + 1e-6:
+        return t
+    return None
+
+
+def first_crossing(scene: dict, ax: float, ay: float, bx: float, by: float) -> Optional[float]:
+    """How far along a->b (0..1) the first wall or closed door is, or None when the way is clear."""
+    hits = [t for w in blocking_walls(scene) if (t := _crossing(ax, ay, bx, by, w)) is not None]
+    return min(hits) if hits else None
+
+
+def stop_at_walls(scene: dict, token: dict, x: float, y: float) -> Tuple[float, float, bool]:
+    """Where a token moved from where it stands towards (x, y) ends up: (x, y) itself when no wall or closed door
+    is in the way, otherwise just short of the first one (on a grid, the nearest cell centre short of it when
+    there is one). Returns ``(x, y, stopped)``."""
+    ax, ay = token["x"], token["y"]
+    t = first_crossing(scene, ax, ay, x, y)
+    if t is None:
+        return x, y, False
+    grid = Grid.of(scene)
+    length = math.hypot(x - ax, y - ay)
+    radius = token_box(token, grid)[2]
+    back = min(length * t, max(2.0, radius * 0.5))           # stop with the token's middle off the wall
+    along = max(0.0, length * t - back)
+    sx, sy = (ax + (x - ax) * along / length, ay + (y - ay) * along / length) if length else (ax, ay)
+    if grid.kind != "none":
+        gx, gy = grid.snap(sx, sy, token.get("size", 1.0))
+        if first_crossing(scene, ax, ay, gx, gy) is None:
+            return round(gx, 1), round(gy, 1), True
+        return ax, ay, True                                   # no cell this side of the wall: stay put
+    return round(sx, 1), round(sy, 1), True
+
+
 def _seg_distance(ex: float, ey: float, s: Tuple[float, float, float, float]) -> float:
     x0, y0, x1, y1 = s
     dx, dy = x1 - x0, y1 - y0
@@ -476,14 +519,73 @@ def visibility_polygon(ex: float, ey: float, walls: List[Tuple[float, float, flo
 
 def point_in_polygon(x: float, y: float, pts: List[float]) -> bool:
     inside = False
-    n = len(pts) // 2
-    j = n - 1
-    for i in range(n):
-        xi, yi, xj, yj = pts[2 * i], pts[2 * i + 1], pts[2 * j], pts[2 * j + 1]
-        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi:
+    if len(pts) < 6:
+        return False
+    xj, yj = pts[-2], pts[-1]
+    it = iter(pts)
+    for xi, yi in zip(it, it):
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
             inside = not inside
-        j = i
+        xj, yj = xi, yi
     return inside
+
+
+class _Poly:
+    """A sight polygon made ready for many point tests. A view asks "is this point seen?" nine times for every
+    token and every pair of eyes, and a polygon has two corners for every wall end, so each test is kept short:
+    a point outside the polygon's box is answered at once, and inside it only the edges crossing the point's
+    horizontal band are looked at. The answer is always :func:`point_in_polygon`'s."""
+
+    __slots__ = ("pts", "x0", "y0", "x1", "y1", "step", "bands")
+    BANDS = 64
+
+    def __init__(self, pts: List[float]):
+        self.pts = pts                      # (kept, so the list's id stays this polygon's for as long as we do)
+        xs, ys = pts[0::2], pts[1::2]
+        n = len(xs)
+        if n < 3:
+            self.x0 = self.y0 = self.x1 = self.y1 = 0.0
+            self.step, self.bands = 1.0, []
+            return
+        self.x0, self.x1, self.y0, self.y1 = min(xs), max(xs), min(ys), max(ys)
+        count = max(1, min(self.BANDS, n // 4))
+        self.step = (self.y1 - self.y0) / count or 1.0
+        bands: List[list] = [[] for _ in range(count)]
+        y0, step, last = self.y0, self.step, count - 1
+        xj, yj = xs[-1], ys[-1]
+        for xi, yi in zip(xs, ys):
+            if yi != yj:
+                lo, hi = (yi, yj) if yi < yj else (yj, yi)
+                a = min(last, max(0, int((lo - y0) / step)))
+                b = min(last, max(0, int((hi - y0) / step)))
+                edge = (xi, yi, xj, yj)
+                for k in range(a, b + 1):
+                    bands[k].append(edge)
+            xj, yj = xi, yi
+        self.bands = bands
+
+    def contains(self, x: float, y: float) -> bool:
+        if not self.bands or x < self.x0 or x > self.x1 or y < self.y0 or y > self.y1:
+            return False
+        inside = False
+        for xi, yi, xj, yj in self.bands[min(len(self.bands) - 1, int((y - self.y0) / self.step))]:
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                inside = not inside
+        return inside
+
+
+_POLYS: Dict[int, _Poly] = {}
+_POLYS_KEPT = 512
+
+
+def _poly(pts: List[float]) -> _Poly:
+    """The prepared form of a sight polygon (the lists come from the sight cache, so the same ones return)."""
+    poly = _POLYS.get(id(pts))
+    if poly is None or poly.pts is not pts:
+        if len(_POLYS) >= _POLYS_KEPT:
+            _POLYS.clear()
+        poly = _POLYS[id(pts)] = _Poly(pts)
+    return poly
 
 
 def sight_range(token: dict, scene: dict) -> float:
@@ -534,7 +636,7 @@ def in_sight(sight: List[dict], x: float, y: float) -> bool:
     for s in sight:
         if s["r"] and math.hypot(x - s["x"], y - s["y"]) > s["r"]:
             continue
-        if point_in_polygon(x, y, s["pts"]):
+        if _poly(s["pts"]).contains(x, y):
             return True
     return False
 
@@ -642,11 +744,23 @@ def _mark_seen(pts: List[float], cx: float, cy: float, r: float, cell: float, co
     return changed
 
 
+_EXPLORED_WITH: Dict[tuple, tuple] = {}     # (scene id, viewer) -> the sight last added, and the record it made
+
+
 def explore(scene: dict, viewer: str, sight: List[dict]) -> bool:
     """Add what ``sight`` shows to ``viewer``'s explored area. Returns whether anything new was seen."""
     cell, cols, rows = explore_grid(scene)
     store = scene.setdefault("explored", {})
     record = store.get(viewer)
+    # Most changes to a map (someone else's token moving, a drawing) leave this player's sight as it was: the
+    # same polygons from the sight cache, added to the same record, can't show them anything new
+    key = (scene.get("id"), viewer)
+    seen = tuple((s["x"], s["y"], s.get("r") or 0.0, s["pts"]) for s in sight)
+    before = _EXPLORED_WITH.get(key)
+    if before is not None and isinstance(record, dict) and record.get("bits") is before[0] \
+            and before[1] == (cell, cols, rows) and len(before[2]) == len(seen) \
+            and all(a[:3] == b[:3] and a[3] is b[3] for a, b in zip(before[2], seen)):
+        return False
     bits = None
     if isinstance(record, dict) and record.get("cell") == cell and record.get("cols") == cols \
             and record.get("rows") == rows:
@@ -660,6 +774,9 @@ def explore(scene: dict, viewer: str, sight: List[dict]) -> bool:
         changed = _mark_seen(s["pts"], s["x"], s["y"], s.get("r") or 0.0, cell, cols, rows, bits) or changed
     if changed or fresh:
         store[viewer] = {"cell": cell, "cols": cols, "rows": rows, "bits": base64.b64encode(bytes(bits)).decode()}
+    if len(_EXPLORED_WITH) > 512:
+        _EXPLORED_WITH.clear()
+    _EXPLORED_WITH[key] = (store[viewer]["bits"], (cell, cols, rows), seen)
     return changed
 
 
@@ -965,6 +1082,7 @@ class Tabletop:
         self._undo: List[Tuple[str, Optional[dict], List[str], str]] = []
         self._lock = threading.RLock()
         self.explored_dirty = False        # a player saw more of a map since the last save
+        self.dirty = False                 # something changed since the last save
         self.load()
 
     # ---- storage
@@ -973,24 +1091,73 @@ class Tabletop:
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except (OSError, ValueError):
+        except FileNotFoundError:
             return
-        for s in data.get("scenes", []):
-            if isinstance(s, dict) and s.get("id"):
-                self.scenes[s["id"]] = self._repair(s)
+        except (OSError, ValueError) as e:
+            from atomic_io import unreadable_note
+            print(f"Tabletop: could not read {self.path}: {e}.{unreadable_note(self.path)}")
+            return
+        scenes = data.get("scenes") if isinstance(data, dict) else None
+        skipped = not isinstance(scenes, list)
+        for s in scenes if isinstance(scenes, list) else []:
+            try:
+                if not isinstance(s, dict) or not isinstance(s.get("id"), str) or not s["id"] \
+                        or s["id"] in self.scenes:
+                    raise ValueError("not a map")
+                s = self._repair(s)
+                project(s, None)                      # a map that can't be shown would fail every time it is opened
+                project(s, "?")
+                self.scenes[s["id"]] = s
                 self.order.append(s["id"])
-        self.shown = data.get("shown", "") if data.get("shown") in self.scenes else ""
+            except Exception as e:                    # one damaged map must not lose the rest
+                skipped = True
+                print(f"Tabletop: skipped a map that could not be read: {e!r}")
+        if skipped:
+            from atomic_io import unreadable_note
+            print(f"Tabletop: parts of {self.path} could not be read.{unreadable_note(self.path)}")
+        shown = data.get("shown", "") if isinstance(data, dict) else ""
+        self.shown = shown if isinstance(shown, str) and shown in self.scenes else ""
 
     @staticmethod
     def _repair(scene: dict) -> dict:
         base = new_scene(scene.get("name", "Scene"))
+
+        def fits(value, like) -> bool:              # the same kind of thing (any number will do for a number)
+            if isinstance(like, bool) or not isinstance(like, (int, float)):
+                return type(value) is type(like)
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
         for k, v in base.items():
-            if k not in scene:
+            if k not in scene or not fits(scene[k], v):
                 scene[k] = v
         for k, v in base["grid"].items():
-            scene["grid"].setdefault(k, v)
-        scene["fog"].setdefault("on", False)
-        scene["fog"].setdefault("ops", [])
+            if k not in scene["grid"] or not fits(scene["grid"][k], v):
+                scene["grid"][k] = v
+        if not isinstance(scene["fog"].get("on"), bool):
+            scene["fog"]["on"] = False
+        if not isinstance(scene["fog"].get("ops"), list):
+            scene["fog"]["ops"] = []
+        # what is on the map: anything that isn't the kind of record it should be is left out (it could not be
+        # drawn, and would stop the whole map opening); numbers that aren't numbers get their usual value
+        numbers = (int, float)
+
+        def has_points(item, least):
+            pts = item.get("pts")
+            return isinstance(pts, list) and len(pts) >= least and all(type(p) in numbers for p in pts)
+        kept = []
+        for t in scene["tokens"]:
+            if isinstance(t, dict) and isinstance(t.get("id"), str) and t["id"]:
+                for k, v in new_token(t.get("name", "Token"), 0, 0).items():
+                    if k != "id":
+                        t.setdefault(k, v)
+                t.update(_clean_token_fields({k: t[k] for k in ("x", "y", "size", "z", "vision", "conditions")}))
+                kept.append(t)
+        scene["tokens"] = kept
+        for key, least in (("drawings", 4), ("walls", 4), ("zones", 6)):
+            scene[key] = [item for item in scene[key] if isinstance(item, dict) and isinstance(item.get("id"), str)
+                          and has_points(item, least)]
+        scene["areas"] = [a for a in scene["areas"] if isinstance(a, dict) and isinstance(a.get("id"), str)
+                          and clean_area(dict(a)) is not None]
+        scene["fog"]["ops"] = [op for op in scene["fog"]["ops"] if isinstance(op, dict) and has_points(op, 4)]
         return scene
 
     def save(self) -> bool:
@@ -999,8 +1166,8 @@ class Tabletop:
             data = {"version": 1, "shown": self.shown, "scenes": [self.scenes[i] for i in self.order]}
             try:
                 os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                atomic_write_json(self.path, data)
-                self.explored_dirty = False
+                atomic_write_json(self.path, data, indent=None)     # (large, and never read by people)
+                self.explored_dirty = self.dirty = False
                 return True
             except OSError as e:
                 print(f"Tabletop: could not save: {e}")
@@ -1018,6 +1185,7 @@ class Tabletop:
 
     def _changed(self, scene_id: Optional[str]) -> None:
         self.rev += 1
+        self.dirty = True
         for fn in list(self._listeners):
             try:
                 fn(scene_id)
@@ -1256,11 +1424,17 @@ class Tabletop:
                 raise CommandError("That token is gone.")
             if token.get("owner") != actor and not scene.get("players_move_all"):
                 raise CommandError("That token isn't yours to move.")
-        token["x"] = _num(cmd.get("x"), token["x"], -2000, scene["w"] + 2000)
-        token["y"] = _num(cmd.get("y"), token["y"], -2000, scene["h"] + 2000)
+        x = _num(cmd.get("x"), token["x"], -2000, scene["w"] + 2000)
+        y = _num(cmd.get("y"), token["y"], -2000, scene["h"] + 2000)
+        # Walls and closed doors stop a move; only the DM can go through (holding Shift as they drop the token)
+        stopped = False
+        if (x, y) != (token["x"], token["y"]) and not (actor == DM and cmd.get("through")):
+            x, y, stopped = stop_at_walls(scene, token, x, y)
+        token["x"], token["y"] = x, y
         if cmd.get("z") is not None:
             token["z"] = round(_num(cmd.get("z"), 0.0, -MAX_HEIGHT, MAX_HEIGHT), 1)
         _follow(scene, token)
+        return {"stopped": True} if stopped else None
 
     # drawings
     def _op_draw_add(self, cmd, actor, actor_name):
@@ -1651,10 +1825,13 @@ def import_tokens(source: str, folder: Optional[str] = None) -> int:
             name = info.filename
             if info.is_dir() or os.path.splitext(name)[1].lower() not in IMAGE_TYPES:
                 continue
-            parts = [p for p in re.split(r"[\\/]+", name) if p not in ("", ".", "..")]
+            # (a part with a colon is a drive letter on Windows: joined to a path, it would leave the folder)
+            parts = [p for p in re.split(r"[\\/]+", name) if p not in ("", ".", "..") and ":" not in p]
             if not parts or info.file_size > MAX_ASSET_BYTES:
                 continue
             target = os.path.join(folder, base, *parts)
+            if not os.path.abspath(target).startswith(os.path.abspath(folder) + os.sep):
+                continue
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with z.open(info) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)

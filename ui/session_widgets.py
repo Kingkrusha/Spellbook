@@ -189,18 +189,18 @@ class VerifyDialog(ctk.CTkToplevel):
 
 
 class ApprovalDialog(ctk.CTkToplevel):
-    """Non-blocking prompt: ``on_answer(True/False)`` is called once, when the DM chooses.
+    """Non-blocking prompt: ``on_answer(accept, block)`` is called once, when the DM chooses.
 
-    Closing the window counts as "Deny"."""
+    Closing the window counts as "Deny". "Block" denies and keeps that device from asking again this session."""
 
-    def __init__(self, parent, name: str, address: str, on_answer: Callable[[bool], None], web: bool = False):
+    def __init__(self, parent, name: str, address: str, on_answer: Callable[..., None], web: bool = False):
         super().__init__(parent)
         theme = get_theme_manager()
         self._on_answer = on_answer
         self._answered = False
 
         self.title("Player wants to join")
-        self.geometry("380x170")
+        self.geometry("420x180")
         self.resizable(False, False)
         try:
             self.attributes("-topmost", True)
@@ -210,12 +210,12 @@ class ApprovalDialog(ctk.CTkToplevel):
         box = ctk.CTkFrame(self, fg_color="transparent")
         box.pack(fill="both", expand=True, padx=20, pady=18)
         ctk.CTkLabel(box, text=f"{name} wants to join your session",
-                     font=ui_font("heading", 16, bold=True), wraplength=340, justify="left"
+                     font=ui_font("heading", 16, bold=True), wraplength=380, justify="left"
                      ).pack(anchor="w")
         where = f"From a web browser at {address}." if web else f"From {address}."
         ctk.CTkLabel(box, text=f"{where} Only let in people you invited.",
                      font=ui_font("body"), text_color=theme.get_text_secondary(),
-                     wraplength=340, justify="left").pack(anchor="w", pady=(4, 14))
+                     wraplength=380, justify="left").pack(anchor="w", pady=(4, 14))
 
         row = ctk.CTkFrame(box, fg_color="transparent")
         row.pack(fill="x", side="bottom")
@@ -223,17 +223,27 @@ class ApprovalDialog(ctk.CTkToplevel):
                       fg_color=theme.get_current_color('button_success'),
                       hover_color=theme.get_current_color('button_success_hover'),
                       command=lambda: self._answer(True)).pack(side="left")
+        block = ctk.CTkButton(row, text="Block", width=80,
+                              fg_color=theme.get_current_color('button_normal'),
+                              hover_color=theme.get_current_color('button_hover'),
+                              command=lambda: self._answer(False, block=True))
+        block.pack(side="right", padx=(8, 0))
         ctk.CTkButton(row, text="Deny", width=90,
                       fg_color=theme.get_current_color('button_danger'),
                       hover_color=theme.get_current_color('button_danger_hover'),
                       command=lambda: self._answer(False)).pack(side="right")
+        HoverTooltip(block, "Say no, and don't ask about this device again while this session lasts. "
+                            "You can let blocked devices ask again on the Session page.")
         self.protocol("WM_DELETE_WINDOW", lambda: self._answer(False))
 
-    def _answer(self, accept: bool) -> None:
+    def _answer(self, accept: bool, block: bool = False) -> None:
         if not self._answered:
             self._answered = True
             try:
-                self._on_answer(accept)
+                if block:
+                    self._on_answer(accept, True)
+                else:
+                    self._on_answer(accept)
             finally:
                 try:
                     self.destroy()

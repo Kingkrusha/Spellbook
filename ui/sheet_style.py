@@ -650,7 +650,7 @@ class StylePanel(ctk.CTkFrame):
         if overridden:
             ctk.CTkButton(row, text="↺", width=26, height=26, fg_color="transparent",
                           hover_color=self.tm.get_current_color("button_hover"),
-                          text_color=self.tm.get_current_color("accent_primary"),
+                          text_color=self.tm.get_current_color("accent_text"),
                           command=lambda: self._reset_element_attr(widget, key, attr)).pack(side="right")
 
     def _palette_swatches(self):
@@ -792,7 +792,7 @@ class StylePanel(ctk.CTkFrame):
             if prop in group:
                 ctk.CTkButton(row, text="\u21ba", width=26, height=26, fg_color="transparent",
                               hover_color=self.tm.get_current_color("button_hover"),
-                              text_color=self.tm.get_current_color("accent_primary"),
+                              text_color=self.tm.get_current_color("accent_text"),
                               command=lambda p=prop: self._set_group(widget, key, p, None)).pack(side="right")
 
         font = group.get("font", {})
@@ -950,7 +950,7 @@ class StylePanel(ctk.CTkFrame):
         if override:
             ctk.CTkButton(row2, text="↺", width=26, height=26, fg_color="transparent",
                           hover_color=self.tm.get_current_color("button_hover"),
-                          text_color=self.tm.get_current_color("accent_primary"),
+                          text_color=self.tm.get_current_color("accent_text"),
                           command=lambda: self._reset_element_font(widget, key)).pack(side="right")
 
     def _reset_element_font(self, widget, key):
@@ -1035,7 +1035,7 @@ class StylePanel(ctk.CTkFrame):
                 if overridden:
                     ctk.CTkButton(row, text="↺", width=24, height=24, fg_color="transparent",
                                   hover_color=tm.get_current_color("button_hover"),
-                                  text_color=tm.get_current_color("accent_primary"),
+                                  text_color=tm.get_current_color("accent_text"),
                                   command=lambda r=role: self._reset_role(r)).pack(side="right")
 
         if styler.palette.overrides or styler.palette.base_key:

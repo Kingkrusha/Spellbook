@@ -6,6 +6,7 @@ own search text, filters, selection and scroll position.
 """
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 import tkinter as tk
 from tkinter import messagebox, filedialog
@@ -15,6 +16,7 @@ from validation import validate_spell_for_character
 from theme import get_theme_manager
 from ui.bulk_actions import BulkActionsMixin, BulkWarningsDialog
 from ui.collection_page import SearchTitlesMixin, SourceFilterMixin
+from ui.flow_bar import FlowBar
 from ui.text_import_flow import announce_added, import_from_pasted_text
 from ui.filter_widgets import TagFilterDialog
 
@@ -150,9 +152,17 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
         toolbar = ctk.CTkFrame(self, fg_color="transparent")
         toolbar.pack(fill="x", padx=15, pady=(15, 10))
 
+        # Right side - New Spell button only (packed first, so a narrow window can't squeeze it out)
+        btn_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
+        btn_frame.pack(side="right", anchor="n")
+
+        ctk.CTkButton(btn_frame, text="+ New Spell", width=100,
+                      text_color=get_theme_manager().get_current_color('text_primary'),
+                      command=self._on_new_spell).pack(side="left")
+
         # Left side - Back button, Search and filters
         left_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
-        left_frame.pack(side="left", fill="x", expand=True)
+        left_frame.pack(side="left", fill="x", expand=True, anchor="n")
         self.filter_bar = left_frame   # (the guided tour points at it)
         
         # Back to Collections button
@@ -173,7 +183,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
             side="left", padx=(0, 8))
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        self.search_entry = ctk.CTkEntry(search_frame, textvariable=self.search_var,
+        self.search_entry = PlaceholderEntry(search_frame, textvariable=self.search_var,
                                          width=160, placeholder_text="Search spells...")
         self.search_entry.pack(side="left", padx=(0, 8))
         self._add_titles_only(search_frame, (0, 0))
@@ -212,14 +222,7 @@ class SpellsView(BulkActionsMixin, SearchTitlesMixin, SourceFilterMixin, ctk.CTk
             command=self._toggle_advanced_filters
         )
         self.advanced_btn.pack(side="left")
-
-        # Right side - New Spell button only
-        btn_frame = ctk.CTkFrame(toolbar, fg_color="transparent")
-        btn_frame.pack(side="right")
-
-        ctk.CTkButton(btn_frame, text="+ New Spell", width=100,
-                      text_color=theme.get_current_color('text_primary'),
-                      command=self._on_new_spell).pack(side="left")
+        self._flow_bar = FlowBar(left_frame)    # the filters wrap onto a second row in a narrow window
     
     def _create_advanced_filters(self):
         """Create the collapsible advanced filters panel."""

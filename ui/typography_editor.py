@@ -315,4 +315,4 @@ class TypographyEditor(ctk.CTkFrame):
 def theme_dim(active: bool) -> str:
     """Reset-arrow colour: bright when the role has been changed."""
     theme = get_theme_manager()
-    return theme.get_current_color("accent_primary" if active else "text_disabled")
+    return theme.get_current_color("accent_text" if active else "text_disabled")

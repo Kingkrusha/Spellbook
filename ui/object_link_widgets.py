@@ -212,7 +212,7 @@ class LinkDetailView(ctk.CTkFrame):
             row.pack(fill="x", pady=3)
             ctk.CTkLabel(
                 row, text=name, font=ui_font("subheading", 13, bold=True),
-                text_color=self.theme.get_current_color('accent_primary'), anchor="w",
+                text_color=self.theme.get_current_color('accent_text'), anchor="w",
             ).pack(anchor="w", padx=10, pady=(6, 0))
             if desc:
                 body = ctk.CTkFrame(row, fg_color="transparent")
@@ -286,7 +286,7 @@ class LinkDetailView(ctk.CTkFrame):
         if tags:
             ctk.CTkLabel(
                 parent, text=item.display_tags(), font=ui_font("body"),
-                text_color=self.theme.get_current_color('accent_primary'),
+                text_color=self.theme.get_current_color('accent_text'),
                 wraplength=self.wrap, justify="left", anchor="w",
             ).pack(anchor="w", pady=(0, 8))
 

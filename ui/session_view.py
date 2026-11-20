@@ -657,6 +657,17 @@ class SessionView(ctk.CTkFrame):
                               fg_color=self.theme.get_current_color('button_normal'),
                               hover_color=self.theme.get_current_color('button_hover'),
                               command=lambda n=p["name"]: self._to_var.set(n)).pack(side="right")
+        blocked = s.blocked_devices if s.is_host else 0
+        if blocked:
+            row = ctk.CTkFrame(self._peers_frame, fg_color="transparent")
+            row.pack(fill="x", pady=(6, 1))
+            ctk.CTkLabel(row, text=f"🚫 {blocked} blocked device{'s' if blocked != 1 else ''}",
+                         font=ui_font("small"), text_color=self.theme.get_text_secondary(), anchor="w"
+                         ).pack(side="left", padx=(4, 0))
+            ctk.CTkButton(row, text="Unblock", width=62, height=22, font=ui_font("small"),
+                          fg_color=self.theme.get_current_color('button_normal'),
+                          hover_color=self.theme.get_current_color('button_hover'),
+                          command=s.unblock_all).pack(side="right")
         self._names_to_ids = names
         if self._to_combo is not None:
             self._to_combo.configure(values=[EVERYONE] + sorted(names))
@@ -685,3 +696,10 @@ class SessionView(ctk.CTkFrame):
             ctk.CTkLabel(parent, text="(Translucent overlay is Windows-only for now.)", font=ui_font("small"),
                          text_color=self.theme.get_text_secondary(), wraplength=206, justify="left"
                          ).pack(anchor="w", padx=16)
+        ctk.CTkLabel(parent, text="Drag the chat button, or the chat's title bar, to move it out of the way.",
+                     font=ui_font("small"), text_color=self.theme.get_text_secondary(), wraplength=206,
+                     justify="left").pack(anchor="w", padx=16, pady=(6, 2))
+        ctk.CTkButton(parent, text="Put the chat back", height=26, font=ui_font("small"),
+                      fg_color=self.theme.get_current_color('button_normal'),
+                      hover_color=self.theme.get_current_color('button_hover'),
+                      command=o.reset_positions).pack(anchor="w", padx=16, pady=(0, 4))

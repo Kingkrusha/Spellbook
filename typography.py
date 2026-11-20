@@ -192,6 +192,15 @@ def installed_families() -> List[str]:
 FontSpec = Tuple[str, int, bool, bool, bool]   # role, call-site size, bold, italic, underline
 
 
+# Tk font name -> the spec of the RoleFont that made it. A plain Tk widget only gives back its font's
+# name, so this is how the restyle pass finds the role of a Tk list or text box's font.
+_SPEC_BY_NAME: Dict[str, FontSpec] = {}
+
+
+def spec_of_font_name(name: str) -> Optional[FontSpec]:
+    return _SPEC_BY_NAME.get(str(name))
+
+
 class RoleFont(ctk.CTkFont):
     """A CTkFont that remembers which role/spec it was built for.
 
@@ -204,6 +213,7 @@ class RoleFont(ctk.CTkFont):
         self.spec = spec
         self.element_override = None   # set on fonts made for a per-widget override
         super().__init__(family=family, size=size, weight=weight, slant=slant, underline=underline)
+        _SPEC_BY_NAME[self.name] = spec
 
 
 class FontScope:
@@ -392,6 +402,7 @@ class FontManager:
                 listener()
             except Exception as e:
                 print(f"Error notifying font listener: {e}")
+        sync_named_fonts()
         try:
             from ui.restyle import restyle_app
             restyle_app()
@@ -427,6 +438,40 @@ class FontManager:
                 setattr(settings.roles[role], key, value)
         self.settings = settings
         self.apply()
+
+
+# Tk's own named fonts: what plain Tk widgets (menus, lists, text boxes) use when given no font. They keep
+# their family and follow the "body" size: the same number of points bigger or smaller.
+NAMED_FONTS = ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont", "TkCaptionFont",
+               "TkSmallCaptionFont", "TkIconFont", "TkTooltipFont", "TkFixedFont")
+_named_base: Dict[str, int] = {}
+
+
+def sync_named_fonts(root=None) -> None:
+    """Resize Tk's named fonts to match the user's "body" size (their own size at the stock setting)."""
+    try:
+        import tkinter.font as tkfont
+        body = get_font_manager().settings.roles.get("body")
+        delta = (body.size if body else ROLE_STOCK_SIZE["body"]) - ROLE_STOCK_SIZE["body"]
+    except Exception:
+        return
+    for name in NAMED_FONTS:
+        try:
+            font = tkfont.nametofont(name, root=root) if root is not None else tkfont.nametofont(name)
+            base = _named_base.setdefault(name, int(font.cget("size")))
+        except Exception:
+            continue
+        if base == 0:
+            continue
+        if base > 0:                     # points
+            size = max(MIN_SIZE, base + delta)
+        else:                            # pixels (negative): about 4 pixels for every 3 points
+            size = -max(MIN_SIZE, -base + round(delta * 4 / 3))
+        try:
+            if int(font.cget("size")) != size:
+                font.configure(size=size)
+        except Exception:
+            pass
 
 
 _manager: Optional[FontManager] = None

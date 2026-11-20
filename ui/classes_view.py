@@ -5,7 +5,9 @@ Displays class information with feature tables like the PHB 2024.
 
 import re
 import time
+import tkinter as tk
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 from typing import Optional, Callable, List
 from theme import get_theme_manager
@@ -14,7 +16,10 @@ from content_versions import VersionCatalog, display_name
 from legacy_content import apply_legacy_filter
 from ui.version_bar import VersionBar
 from ui.rich_text_utils import follow_width
+from ui.flow_bar import SidewaysBox
 from ui.lazy_destroy import destroy_later
+from ui.lazy_sections import LazySections, estimate_text_height
+from ui.theme_listener import ThemeListenerMixin
 from ui import handle_budget
 from character_class import (
     get_class_manager, CharacterClassDefinition, ClassLevel, ClassAbility,
@@ -118,7 +123,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Search box
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *args: self._populate_class_list())
-        ctk.CTkEntry(
+        PlaceholderEntry(
             sidebar, placeholder_text="Search classes...", textvariable=self.search_var
         ).pack(fill="x", padx=10, pady=(0, 5))
 
@@ -191,6 +196,8 @@ class ClassesCollectionView(ctk.CTkFrame):
         # Content container
         self.content = ctk.CTkFrame(self.content_scroll, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=20, pady=20)
+        # the features' descriptions are built as they come near the view (a class has ~40 of them)
+        self._lazy = LazySections(self.content_scroll)
     
     def _toggle_filters(self):
         """Toggle the filters panel visibility."""
@@ -504,6 +511,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         
         # Clear content and subclass tracking (the old page goes away a little at a time:
         # destroying ~800 widgets in one go froze the window for seconds)
+        self._lazy.clear()
         for widget in list(self.content.winfo_children()):
             destroy_later(widget)
         self._subclass_cards.clear()
@@ -530,7 +538,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             header_frame, text=display_name(class_def.name),
             font=ui_font("title", 28, bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(side="left")
         
         ctk.CTkLabel(
@@ -764,71 +772,70 @@ class ClassesCollectionView(ctk.CTkFrame):
         result = "Choose A or B: " + "; or ".join(options)
         return result
     
+    FEATURES_MIN = 170       # the least width of the "Class Features" column, before the table scrolls sideways
+    COLUMN_MAX = 150         # a class's own column is no wider than this (longer text wraps)
+    CELL_PAD = 3
+
     def _create_feature_table(self, class_def: CharacterClassDefinition):
-        """Create the class feature table like the PHB."""
-        # Determine columns
-        # Base columns: Level, Proficiency Bonus, Class Features
-        # Plus class-specific columns from class_table_columns
+        """Create the class feature table like the PHB.
+
+        Every column but "Class Features" is as wide as its longest text needs, and that one takes the room that is
+        left: a full caster's table (eleven more columns) fits the window at its default size. In a window too narrow
+        even for that, the table scrolls sideways - it used to lose its right-hand columns (the higher spell slots)
+        without a sign that they were there."""
         base_columns = ["Level", "Proficiency Bonus", "Class Features"]
         extra_columns = class_def.class_table_columns if class_def.class_table_columns else []
-        all_columns = base_columns + extra_columns
-        
-        # Calculate column widths
+        font, bold = ui_font("small"), ui_font("small", bold=True)
+        pad = self.CELL_PAD
+        # Map spell slot column names to slot levels
+        spell_slot_map = {"1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5, "6th": 6, "7th": 7, "8th": 8, "9th": 9}
+
+        def value_of(level_data, col) -> str:
+            value = "—"
+            if level_data:
+                if col in spell_slot_map and level_data.spell_slots:      # a spell slot column
+                    slot_count = level_data.spell_slots.get(spell_slot_map[col], 0)
+                    value = str(slot_count) if slot_count > 0 else "—"
+                elif level_data.class_specific:
+                    value = level_data.class_specific.get(col, "—")
+            return str(value)
+
+        def heading(col: str) -> str:
+            """A title of several words goes on two lines, so its column can stay narrow."""
+            words = col.split()
+            if len(words) < 2:
+                return col
+            half = (len(words) + 1) // 2
+            return " ".join(words[:half]) + "\n" + " ".join(words[half:])
+
+        def width_of(text: str, text_font) -> int:
+            return max(text_font.measure(line) for line in str(text).split("\n"))
+
+        headings = {col: heading(col) for col in base_columns + extra_columns}
+        headings["Class Features"] = "Class Features"
         col_widths = {
-            "Level": 50,
-            "Proficiency Bonus": 90,
-            "Class Features": 280,
+            "Level": max(width_of("Level", bold), width_of("20", font)) + 12,
+            "Proficiency Bonus": max(width_of(headings["Proficiency Bonus"], bold), width_of("+6", font)) + 12,
         }
         for col in extra_columns:
-            col_widths[col] = 90  # Standard width for extra columns
-        
-        # Standard table (no horizontal scrolling)
-        table_frame = ctk.CTkFrame(
-            self.content,
-            fg_color=self.theme.get_current_color('bg_secondary'),
-            corner_radius=8
-        )
-        table_frame.pack(fill="x", pady=(0, 20))
-        
-        # Header row
-        header_row = ctk.CTkFrame(table_frame, fg_color=self.theme.get_current_color('accent_primary'))
-        header_row.pack(fill="x")
-        
-        for col in all_columns:
-            width = col_widths.get(col, 90)
-            label = ctk.CTkLabel(
-                header_row, text=col,
-                font=ui_font("small", bold=True),
-                text_color="white",
-                width=width
-            )
-            label.pack(side="left", padx=5, pady=8)
-        
+            texts = [value_of(class_def.levels.get(level), col) for level in range(1, 21)]
+            widest = max([width_of(headings[col], bold)] + [width_of(t, font) for t in texts])
+            col_widths[col] = min(self.COLUMN_MAX, widest + 12)
+        fixed = sum(width + 2 * pad for width in col_widths.values())
+        scale = self._get_widget_scaling() or 1.0
+        box = SidewaysBox(self.content, least_width=(fixed + self.FEATURES_MIN + 2 * pad) / scale,
+                          fg_color=self.theme.get_current_color('bg_secondary'))
+        box.pack(fill="x", pady=(0, 20))
+        order = base_columns + extra_columns
+        table = FeatureTable(box.inner, self.theme, order, col_widths, pad, features_min=self.FEATURES_MIN)
+        table.pack(fill="x")
+        table.add_row(headings, bold, header=True)
+
         # Data rows: built one task per row (see _run_sliced)
         def build_row(level):
             level_data = class_def.levels.get(level)
-            
-            # Alternate row colors
-            row_color = self.theme.get_current_color('bg_tertiary') if level % 2 == 0 else self.theme.get_current_color('bg_secondary')
-            
-            row = ctk.CTkFrame(table_frame, fg_color=row_color)
-            row.pack(fill="x")
-            
-            # Level
-            ctk.CTkLabel(
-                row, text=str(level),
-                font=ui_font("small"),
-                width=col_widths["Level"]
-            ).pack(side="left", padx=5, pady=5)
-            
-            # Proficiency Bonus
             prof_bonus = level_data.proficiency_bonus if level_data else self._get_proficiency_bonus(level)
-            ctk.CTkLabel(
-                row, text=f"+{prof_bonus}",
-                font=ui_font("small"),
-                width=col_widths["Proficiency Bonus"]
-            ).pack(side="left", padx=5, pady=5)
-            
+
             # Class Features - show ALL features including ASI and Epic Boon
             features_text = ""
             if level_data and level_data.abilities:
@@ -843,36 +850,12 @@ class ClassesCollectionView(ctk.CTkFrame):
                     else:
                         visible_abilities.append(ability.title)
                 features_text = ", ".join(visible_abilities)
-            
-            features_label = ctk.CTkLabel(
-                row, text=features_text if features_text else "—",
-                font=ui_font("small"),
-                width=col_widths["Class Features"],
-                anchor="w",
-                wraplength=270
-            )
-            features_label.pack(side="left", padx=5, pady=5)
-            
-            # Extra columns (class-specific and spell slots)
-            # Map spell slot column names to slot levels
-            spell_slot_map = {"1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5, "6th": 6, "7th": 7, "8th": 8, "9th": 9}
-            
+
+            texts = {"Level": str(level), "Proficiency Bonus": f"+{prof_bonus}",
+                     "Class Features": features_text if features_text else "—"}
             for col in extra_columns:
-                value = "—"
-                if level_data:
-                    # Check if this is a spell slot column
-                    if col in spell_slot_map and level_data.spell_slots:
-                        slot_level = spell_slot_map[col]
-                        slot_count = level_data.spell_slots.get(slot_level, 0)
-                        value = str(slot_count) if slot_count > 0 else "—"
-                    elif level_data.class_specific:
-                        value = level_data.class_specific.get(col, "—")
-                
-                ctk.CTkLabel(
-                    row, text=value,
-                    font=ui_font("small"),
-                    width=col_widths.get(col, 90)
-                ).pack(side="left", padx=5, pady=5)
+                texts[col] = value_of(level_data, col)
+            table.add_row(texts, font, shade=level % 2 == 0)
 
         return [lambda lv=level: build_row(lv) for level in range(1, 21)]
 
@@ -1005,22 +988,26 @@ class ClassesCollectionView(ctk.CTkFrame):
             text_color="white"
         ).pack(anchor="w", padx=10, pady=6)
         
-        # Show description if present
-        if ability.description.strip():
-            # Feature description - parse markdown-style formatting
-            desc_text = ability.description.strip()
-            
-            # Create a text display for the description
-            desc_frame = ctk.CTkFrame(feature_frame, fg_color="transparent")
-            desc_frame.pack(fill="x", pady=(8, 0), padx=5)
-            
-            # Parse and display description with basic formatting
-            self._render_formatted_description(desc_frame, desc_text)
-        
-        # Render any tables associated with this ability
-        if hasattr(ability, 'tables') and ability.tables:
-            for table_data in ability.tables:
-                self._render_feature_table(feature_frame, table_data)
+        desc_text = ability.description.strip()
+        tables = list(getattr(ability, 'tables', None) or [])
+        if not desc_text and not tables:
+            return
+
+        def build(body):
+            if desc_text:
+                # Feature description - parse markdown-style formatting
+                desc_frame = ctk.CTkFrame(body, fg_color="transparent")
+                desc_frame.pack(fill="x", pady=(8, 0), padx=5)
+                self._render_formatted_description(desc_frame, desc_text)
+            for table_data in tables:
+                self._render_feature_table(body, table_data)
+
+        # The description and tables are built when the feature comes near the view: until then an empty frame
+        # of about their height keeps the page (and its scroll bar) the right length
+        width = max(300, self.content_scroll._parent_canvas.winfo_width() - 70)
+        rows = sum(len(t.get("rows", [])) + 2 for t in tables if isinstance(t, dict))
+        height = estimate_text_height(desc_text, width, ui_font("body"), extra_lines=rows) + 8
+        self._lazy.add(feature_frame, build, height, fill="x")
     
     def _render_feature_table(self, parent, table_data: dict):
         """Render a table within a feature description."""
@@ -1166,7 +1153,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         name_label = ctk.CTkLabel(
             header_frame, text=title,
             font=ui_font("subheading", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         )
         name_label.pack(side="left", padx=5)
 
@@ -1246,7 +1233,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             spell_section, text="Circle Spells by Land Type",
             font=ui_font("body", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(anchor="w", pady=(0, 10))
         
         # Create table showing spells for each land type
@@ -1392,7 +1379,7 @@ class ClassesCollectionView(ctk.CTkFrame):
         ctk.CTkLabel(
             spell_section, text=title,
             font=ui_font("body", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(anchor="w", pady=(0, 8))
         
         # Group spells by level gained
@@ -1555,7 +1542,7 @@ class ClassesCollectionView(ctk.CTkFrame):
                 table_frame,
                 text=title,
                 font=ui_font("small", bold=True),
-                text_color=self.theme.get_current_color('accent_primary')
+                text_color=self.theme.get_current_color('accent_text')
             ).pack(anchor="w", pady=(0, 4))
         
         if not columns or not rows:
@@ -1701,6 +1688,74 @@ class ClassesCollectionView(ctk.CTkFrame):
         popup.focus()
 
 
+class FeatureTable(ThemeListenerMixin, tk.Frame):
+    """A class's feature table: one grid of plain labels. (A CustomTkinter label is three Tk widgets: a full
+    caster's table was some 900 widgets, now about 300.) Every column has a set width but "Class Features", which
+    takes the room left and wraps its text to it; the colours follow theme changes."""
+
+    def __init__(self, master, theme, columns: List[str], widths: dict, pad: int, features_min: int):
+        self.theme = theme
+        super().__init__(master, bg=theme.get_current_color('bg_secondary'), bd=0, highlightthickness=0)
+        self.columns = columns
+        self._pad = pad
+        self._features_min = features_min
+        self._cells = []                      # (label, background role, text role)
+        self._features = []                   # the "Class Features" labels, wrapped to their column
+        self._rows = 0
+        self._fixed = sum(widths.get(c, 0) + 2 * pad for c in columns if c != "Class Features")
+        for i, col in enumerate(columns):
+            if col == "Class Features":
+                self.grid_columnconfigure(i, weight=1, minsize=features_min + 2 * pad)
+            else:
+                self.grid_columnconfigure(i, minsize=widths[col] + 2 * pad)
+        self._widths = widths
+        theme.add_listener(self._on_theme_changed)
+        self.bind("<Configure>", self._wrap, add="+")
+
+    def add_row(self, texts: dict, font, header: bool = False, shade: bool = False):
+        bg_role = 'accent_primary' if header else ('bg_tertiary' if shade else 'bg_secondary')
+        fg_role = 'text_on_accent' if header else 'text_primary'
+        row = self._rows
+        self._rows += 1
+        for i, col in enumerate(self.columns):
+            features = col == "Class Features"
+            label = tk.Label(self, text=texts.get(col, ""), font=font, bd=0, padx=self._pad,
+                             pady=8 if header else 5, bg=self.theme.get_current_color(bg_role),
+                             fg=self.theme.get_current_color(fg_role),
+                             anchor="w" if features and not header else "center",
+                             justify="left" if features else "center",
+                             wraplength=0 if features else self._widths[col])
+            label.grid(row=row, column=i, sticky="nsew")
+            self._cells.append((label, bg_role, fg_role))
+            if features and not header:
+                self._features.append(label)
+                self._wrap_one(label)
+
+    def header_labels(self) -> list:
+        return [cell for cell, _b, _f in self._cells[:len(self.columns)]]
+
+    def _features_width(self) -> int:
+        return max(self._features_min, self.winfo_width() - self._fixed - 2 * self._pad - 4)
+
+    def _wrap_one(self, label):
+        if self.winfo_width() > 1:
+            label.configure(wraplength=self._features_width())
+
+    def _wrap(self, _event=None):
+        width = self._features_width()
+        for label in self._features:
+            if int(label.cget("wraplength") or 0) != width:
+                label.configure(wraplength=width)
+
+    def _on_theme_changed(self):
+        try:
+            self.configure(bg=self.theme.get_current_color('bg_secondary'))
+            for label, bg_role, fg_role in self._cells:
+                label.configure(bg=self.theme.get_current_color(bg_role), fg=self.theme.get_current_color(fg_role))
+        except Exception:
+            pass
+
+
 class FeatureDetailPopup(ctk.CTkToplevel):
     """Popup dialog showing feature details."""
     
@@ -1737,7 +1792,7 @@ class FeatureDetailPopup(ctk.CTkToplevel):
         ctk.CTkLabel(
             container, text=title,
             font=ui_font("heading", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(anchor="w", pady=(0, 15))
         
         # Description in scrollable frame with rich text

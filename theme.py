@@ -4,9 +4,10 @@ Centralizes all color definitions for easy customization.
 """
 
 import customtkinter as ctk
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Tuple, Dict, Optional, List, Callable
 import copy
+import functools
 import json
 import os
 import uuid
@@ -134,6 +135,38 @@ class ThemeColors:
     menu_bg_dark: str = "#2b2b2b"
     menu_fg_dark: str = "#ffffff"
     
+    def _as_text(self, role: str) -> ThemeColor:
+        """A background colour (the accent, a button colour) as a colour for *text* on the app's backgrounds.
+
+        Those colours are made to sit behind white text, so as text on a dark panel they can be very hard to read:
+        the default theme's accent blue is 1.8:1 there, its delete-button red 1.6:1. This is the colour itself
+        where that reads well, and otherwise the nearest lighter (dark mode) or darker (light mode) shade of the
+        same hue. Worked out from the theme, never saved, so custom themes get it too."""
+        pair = getattr(self, role)
+        out = []
+        for i in (0, 1):
+            try:
+                out.append(readable(readable(pair[i], self.bg_secondary[i]), self.bg_primary[i]))
+            except Exception:
+                out.append(pair[i])
+        return (out[0], out[1])
+
+    @property
+    def accent_text(self) -> ThemeColor:
+        return self._as_text("accent_primary")
+
+    @property
+    def danger_text(self) -> ThemeColor:
+        return self._as_text("button_danger")
+
+    @property
+    def success_text(self) -> ThemeColor:
+        return self._as_text("button_success")
+
+    @property
+    def warning_text(self) -> ThemeColor:
+        return self._as_text("button_warning")
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON storage."""
         return asdict(self)
@@ -173,6 +206,54 @@ def _hls_to_hex(h: float, l: float, s: float) -> str:
     import colorsys
     r, g, b = colorsys.hls_to_rgb(h % 1.0, l, s)
     return "#%02x%02x%02x" % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def _luminance(value: str) -> float:
+    h = value.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    parts = []
+    for i in (0, 2, 4):
+        v = int(h[i:i + 2], 16) / 255
+        parts.append(v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * parts[0] + 0.7152 * parts[1] + 0.0722 * parts[2]
+
+
+def contrast(a: str, b: str) -> float:
+    """How well two ``#rrggbb`` colours stand apart (1 = identical, 21 = black on white; 4.5 reads comfortably)."""
+    la, lb = _luminance(a), _luminance(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+@functools.lru_cache(maxsize=1024)
+def readable(color: str, background: str, least: float = 4.5) -> str:
+    """``color`` if text in it can be read on ``background``; otherwise the nearest shade of the same hue that can:
+    lighter on a dark background, darker on a light one. Anything that isn't ``#rrggbb`` is returned as it is."""
+    try:
+        if contrast(color, background) >= least:
+            return color
+        hue, lightness, saturation = _hex_to_hls(color)
+        # Towards whichever of white and black stands out more from the background (they tie at a luminance of
+        # 0.179: a mid blue is already better served by dark text than by white).
+        step = 0.02 if _luminance(background) < 0.179 else -0.02
+        shade = color
+        while True:
+            lightness = min(1.0, max(0.0, lightness + step))
+            shade = _hls_to_hex(hue, lightness, saturation)
+            if contrast(shade, background) >= least or lightness in (0.0, 1.0):
+                break
+        return shade
+    except (ValueError, IndexError, TypeError):
+        return color
+
+
+def readable_if_lost(color: str, background: str, lost: float = 3.0) -> str:
+    """``color`` unless text in it is really lost on ``background`` (under ``lost`` : 1), then a shade that reads
+    well. For text whose colour was chosen with care but for another background: a list row once it is selected."""
+    try:
+        return color if contrast(color, background) >= lost else readable(color, background)
+    except (ValueError, IndexError, TypeError):
+        return color
 
 
 def derive_label_color(colors: "ThemeColors") -> ThemeColor:
@@ -557,6 +638,25 @@ THEME_PRESETS.update({
     "mint": _create_mint_theme,
     "high_contrast": _create_high_contrast_theme,
 })
+
+def _with_readable_text(factory: Callable[[], ThemeColors]) -> Callable[[], ThemeColors]:
+    """A built-in theme whose link and label colours are shifted, only as far as it takes, until they read at
+    4.5 : 1 on its panels. Several were well under that (the default theme's links in light mode: 1.7 : 1)."""
+    import functools
+
+    @functools.wraps(factory)
+    def make() -> ThemeColors:
+        colors = factory()
+        for role in ("spell_link", "text_label"):
+            pair = getattr(colors, role)
+            setattr(colors, role, tuple(readable(readable(pair[i], colors.bg_secondary[i]), colors.bg_primary[i])
+                                        for i in (0, 1)))
+        return colors
+    return make
+
+
+for _key, _factory in list(THEME_PRESETS.items()):
+    THEME_PRESETS[_key] = _with_readable_text(_factory)
 
 # Human-readable names for the theme selector in Settings. Order here is the
 # order shown in the dropdown; keys must exist in THEME_PRESETS.
@@ -1021,3 +1121,6 @@ COLOR_GROUPS: Dict[str, List[Tuple[str, str]]] = {
 
 # Friendly label for every role (used to name a colour in the sheet style panel).
 ROLE_LABELS: Dict[str, str] = {name: label for group in COLOR_GROUPS.values() for name, label in group}
+# (worked out from the theme's own colours so that they can be read as text: see ThemeColors._as_text)
+ROLE_LABELS.update({"accent_text": "Accent text", "danger_text": "Danger text", "success_text": "Success text",
+                    "warning_text": "Warning text"})

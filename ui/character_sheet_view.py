@@ -8,6 +8,7 @@ from ui.description_popup import DescriptionPopup
 from ui.base_widgets import create_context_menu, show_context_menu
 from ui.window_utils import add_cancel_save, center_on_parent
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 from ui.restyle import style_name, widget_kind
 from ui.sheet_style import SheetStyler, StylePanel, PANEL_WIDTH
@@ -20,7 +21,7 @@ from character_sheet import (
     CharacterSheet, AbilityScore, Skill, HitPoints, DeathSaves,
     CLASS_HIT_DICE, get_hit_dice_for_classes, calculate_hp_maximum, get_default_proficiencies,
     calculate_proficiency_bonus, ArmorType, COMMON_ARMOR_OPTIONS, SHIELD_OPTIONS, calculate_ac,
-    calculate_carry_capacity, calculate_encumbrance_threshold, calculate_push_drag_lift
+    calculate_carry_capacity, calculate_encumbrance_threshold, calculate_push_drag_lift, MAX_EXHAUSTION
 )
 from spell import CharacterClass
 from settings import get_settings_manager
@@ -28,7 +29,7 @@ from legacy_content import apply_legacy_filter
 from theme import get_theme_manager
 from character_class import get_class_manager, ClassAbility
 from feat import get_feat_manager
-from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json
+from atomic_io import HeldSaves, SaveErrorListeners, atomic_write_json, unreadable_note
 from paths import user_data_path
 from ui.platform_compat import bind_right_click
 from ui.object_link_widgets import attach_object_linking, open_link_popup
@@ -47,6 +48,12 @@ class CharacterSheetManager(HeldSaves, SaveErrorListeners):
         self.file_path = file_path or user_data_path(self.DEFAULT_FILE)
         self._sheets: Dict[str, CharacterSheet] = {}  # character_name -> CharacterSheet
         self._error_listeners: List[Callable[[str], None]] = []
+        self._saved_listeners: List[Callable[[], None]] = []
+
+    def add_saved_listener(self, callback: Callable[[], None]):
+        """Call ``callback()`` after each successful save (on the thread that saved, the UI's)."""
+        if callback not in self._saved_listeners:
+            self._saved_listeners.append(callback)
 
     def load(self) -> bool:
         """Load character sheets from file."""
@@ -56,16 +63,27 @@ class CharacterSheetManager(HeldSaves, SaveErrorListeners):
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self._sheets = {
-                    name: CharacterSheet.from_dict(sheet_data)
-                    for name, sheet_data in data.get("sheets", {}).items()
-                }
-            return True
+            records = data.get("sheets", {}) if isinstance(data, dict) else None
+            if not isinstance(records, dict):
+                raise ValueError("it does not hold character sheets")
         except Exception as e:
             print(f"Error loading character sheets: {e}")
-            self._notify_error(f"Could not load character_sheets.json: {e}")
+            # (the copy matters: with nothing loaded, the next save would write an empty file over this one)
             self._sheets = {}
+            self._notify_error(f"Could not load character_sheets.json: {e}.{unreadable_note(self.file_path)}")
             return False
+        sheets, skipped = {}, 0
+        for name, sheet_data in records.items():    # one sheet that can't be read must not lose the others
+            try:
+                sheets[name] = CharacterSheet.from_dict(sheet_data)
+            except Exception as e:
+                skipped += 1
+                print(f"Skipped the sheet of {name!r}, which could not be read: {e!r}")
+        self._sheets = sheets
+        if skipped:
+            self._notify_error(f"Could not load {skipped} of the sheets in character_sheets.json; the others are "
+                               f"here.{unreadable_note(self.file_path)}")
+        return True
 
     def save(self) -> bool:
         """Save character sheets to file."""
@@ -78,11 +96,16 @@ class CharacterSheetManager(HeldSaves, SaveErrorListeners):
                 }
             }
             atomic_write_json(self.file_path, data)
-            return True
         except Exception as e:
             print(f"Error saving character sheets: {e}")
             self._notify_error(f"Could not save your character sheet changes: {e}")
             return False
+        for listener in list(self._saved_listeners):
+            try:
+                listener()
+            except Exception as e:
+                print(f"Character sheets: a listener failed after saving: {e}")
+        return True
     
     def get_sheet(self, character_name: str) -> Optional[CharacterSheet]:
         """Get character sheet by name."""
@@ -193,7 +216,7 @@ class AbilityScoreWidget(ctk.CTkFrame):
         self.modifier_label = ctk.CTkLabel(
             self, text=mod_text,
             font=ui_font("heading", 16, bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         )
         self.modifier_label.pack(pady=(2, 8))
     
@@ -324,7 +347,7 @@ class SkillWidget(ctk.CTkFrame):
         if self.prof_level == 0:
             return self.theme.get_current_color('bg_tertiary')
         elif self.prof_level == 1:
-            return self.theme.get_current_color('accent_primary')
+            return self.theme.get_current_color('accent_text')
         else:
             return self.theme.get_current_color('accent_secondary')
     
@@ -473,7 +496,8 @@ class DeathSavesWidget(ctk.CTkFrame):
     
     def __init__(self, parent, death_saves: DeathSaves, inspiration: bool = False,
                  on_change: Optional[Callable[[DeathSaves], None]] = None,
-                 on_inspiration_change: Optional[Callable[[bool], None]] = None):
+                 on_inspiration_change: Optional[Callable[[bool], None]] = None,
+                 exhaustion: int = 0, on_exhaustion_change: Optional[Callable[[int], None]] = None):
         self.theme = get_theme_manager()
         super().__init__(parent, fg_color=self.theme.get_current_color('bg_secondary'),
                          corner_radius=8)
@@ -482,6 +506,8 @@ class DeathSavesWidget(ctk.CTkFrame):
         self.on_change = on_change
         self.on_inspiration_change = on_inspiration_change
         self.inspiration = inspiration
+        self.exhaustion = exhaustion
+        self.on_exhaustion_change = on_exhaustion_change
         
         self._create_widgets()
     
@@ -544,6 +570,52 @@ class DeathSavesWidget(ctk.CTkFrame):
             checkbox_width=24, checkbox_height=24
         )
         insp_check.pack(pady=5)
+
+        # Middle column: Exhaustion (2024 rules: -2 per level to d20 tests, -5 ft speed per level; 6 is death)
+        exh_col = ctk.CTkFrame(main_row, fg_color="transparent")
+        exh_col.pack(side="right", padx=(10, 0))
+        ctk.CTkLabel(exh_col, text="EXHAUSTION", font=ui_font("small", 10, bold=True)).pack(anchor="center")
+        stepper = ctk.CTkFrame(exh_col, fg_color="transparent")
+        stepper.pack(pady=3)
+        neutral = {"fg_color": self.theme.get_current_color('button_normal'),
+                   "hover_color": self.theme.get_current_color('button_hover'),
+                   "text_color": self.theme.get_current_color('text_primary')}
+        self._exh_minus = ctk.CTkButton(stepper, text="−", width=24, height=24, font=ui_font("body", bold=True),
+                                        command=lambda: self._step_exhaustion(-1), **neutral)
+        self._exh_minus.pack(side="left")
+        self._exh_label = ctk.CTkLabel(stepper, text="0", width=28, font=ui_font("subheading", bold=True))
+        self._exh_label.pack(side="left", padx=2)
+        self._exh_plus = ctk.CTkButton(stepper, text="+", width=24, height=24, font=ui_font("body", bold=True),
+                                       command=lambda: self._step_exhaustion(1), **neutral)
+        self._exh_plus.pack(side="left")
+        self._exh_tip = HoverTooltip(self._exh_label, "")
+        self._show_exhaustion()
+
+    def _step_exhaustion(self, step: int):
+        level = max(0, min(MAX_EXHAUSTION, self.exhaustion + step))
+        if level == self.exhaustion:
+            return
+        self.exhaustion = level
+        self._show_exhaustion()
+        if self.on_exhaustion_change:
+            self.on_exhaustion_change(level)
+
+    def _show_exhaustion(self):
+        level = self.exhaustion
+        if level >= MAX_EXHAUSTION:
+            colour, tip = self.theme.get_current_color('danger_text'), "Exhaustion 6: the character dies."
+        elif level:
+            colour = self.theme.get_text_warning()
+            tip = (f"Exhaustion {level}: -{2 * level} to every d20 test (checks, attacks, saves) and "
+                   f"-{5 * level} ft speed. A long rest removes one level.")
+        else:
+            colour = self.theme.get_current_color('text_primary')
+            tip = ("Exhaustion levels (0-6). Each is -2 to every d20 test and -5 ft speed; "
+                   "a long rest removes one.")
+        self._exh_label.configure(text=str(level), text_color=colour)
+        self._exh_tip.update_text(tip)
+        self._exh_minus.configure(state="normal" if level > 0 else "disabled")
+        self._exh_plus.configure(state="normal" if level < MAX_EXHAUSTION else "disabled")
     
     def _on_success_change(self):
         self.death_saves.successes = sum(1 for v in self.success_vars if v.get())
@@ -559,10 +631,13 @@ class DeathSavesWidget(ctk.CTkFrame):
         if self.on_inspiration_change:
             self.on_inspiration_change(self.inspiration_var.get())
     
-    def set_values(self, death_saves: DeathSaves, inspiration: bool):
+    def set_values(self, death_saves: DeathSaves, inspiration: bool, exhaustion: Optional[int] = None):
         """Update the widget values (used during long rest)."""
         self.death_saves = death_saves
         self.inspiration = inspiration
+        if exhaustion is not None:
+            self.exhaustion = exhaustion
+            self._show_exhaustion()
         
         # Update success checkboxes
         for i, var in enumerate(self.success_vars):
@@ -2107,7 +2182,9 @@ class CharacterSheetView(ctk.CTkFrame):
             combat_frame, sheet.death_saves,
             inspiration=sheet.inspiration,
             on_change=self._on_death_saves_change,
-            on_inspiration_change=self._on_inspiration_change
+            on_inspiration_change=self._on_inspiration_change,
+            exhaustion=sheet.exhaustion,
+            on_exhaustion_change=self._on_exhaustion_change
         )
         self.death_widget.pack(fill="x", padx=8, pady=(3, 8))
         self._refresh_stat_boxes()
@@ -2424,9 +2501,13 @@ class CharacterSheetView(ctk.CTkFrame):
         if not hasattr(self, 'speed_entry') or not self.speed_entry.winfo_exists():
             return
         severity, tooltip_text = self._get_speed_reduction_info()
+        exhaustion = int(getattr(self.current_sheet, "exhaustion", 0) or 0) if self.current_sheet else 0
+        if exhaustion:
+            note = f"Exhaustion {exhaustion}: speed reduced by {5 * exhaustion} ft."
+            tooltip_text = f"{tooltip_text}\n{note}" if tooltip_text else note
         if severity == "hard":
-            color = self.theme.get_current_color('button_danger')
-        elif severity == "soft":
+            color = self.theme.get_current_color('danger_text')
+        elif severity == "soft" or exhaustion:
             color = self.theme.get_text_warning()
         else:
             color = self.theme.get_current_color('text_primary')
@@ -2481,6 +2562,11 @@ class CharacterSheetView(ctk.CTkFrame):
                                     speed_bonus = int(match.group(1))
                                     speed += speed_bonus
                     break  # Only one Monk class matters
+
+        # Exhaustion: 5 ft less per level
+        exhaustion = int(getattr(sheet, "exhaustion", 0) or 0)
+        if exhaustion:
+            speed = max(0, speed - 5 * exhaustion)
 
         # Carrying-capacity encumbrance: over full capacity always wins (5 ft
         # floor) over the optional Encumbrance variant rule's -10 ft, since
@@ -2697,9 +2783,12 @@ class CharacterSheetView(ctk.CTkFrame):
         settings = get_settings_manager().settings
         hit_dice_mode = settings.long_rest_hit_dice  # "all", "half", or "none"
         
-        # 1. Restore HP to maximum
+        # 1. Restore HP to maximum (temporary hit points end with a long rest)
         self.current_sheet.hit_points.current = self.current_sheet.hit_points.maximum
         self.current_hp_var.set(str(self.current_sheet.hit_points.maximum))
+        self.current_sheet.hit_points.temporary = 0
+        if hasattr(self, "temp_hp_var"):
+            self.temp_hp_var.set("0")
         
         # 2. Restore hit dice based on settings
         hit_dice_message = ""
@@ -2733,11 +2822,17 @@ class CharacterSheetView(ctk.CTkFrame):
         else:  # "none"
             hit_dice_message = "• Hit dice not restored"
         
-        # 3. Reset death saves
+        # 3. Reset death saves; a long rest removes one level of exhaustion
         self.current_sheet.death_saves.successes = 0
         self.current_sheet.death_saves.failures = 0
+        exhaustion_message = ""
+        if self.current_sheet.exhaustion > 0:
+            self.current_sheet.exhaustion -= 1
+            exhaustion_message = f"• Exhaustion lowered to {self.current_sheet.exhaustion}\n"
+            self._recalculate_speed()
         if hasattr(self, 'death_widget'):
-            self.death_widget.set_values(self.current_sheet.death_saves, self.current_sheet.inspiration)
+            self.death_widget.set_values(self.current_sheet.death_saves, self.current_sheet.inspiration,
+                                         self.current_sheet.exhaustion)
         
         # 4. Restore all class feature uses to max
         if hasattr(self, '_feature_use_widgets'):
@@ -2745,31 +2840,15 @@ class CharacterSheetView(ctk.CTkFrame):
                 var.set(str(max_value))
                 self.current_sheet.class_feature_uses[key] = max_value
         
-        # 5. Restore spell slots and mystic arcanum via character
+        # 5. Restore spell slots and mystic arcanum via character (the same way the Spell Lists page does it, so
+        #    third casters and characters with their own slot numbers get theirs back too)
         if self.current_character:
-            # Reset spell slots to max
-            from spell_slots import get_max_spell_slots
-            class_levels = [(cl.character_class, cl.level) for cl in self.current_character.classes]
-            max_slots = get_max_spell_slots(class_levels)
-            self.current_character.current_slots = dict(max_slots)
-            
-            # Reset warlock pact magic slots
-            warlock_level = sum(cl.level for cl in self.current_character.classes 
-                               if cl.character_class == CharacterClass.WARLOCK)
-            if warlock_level > 0:
-                warlock_slots = min(4, 1 + (warlock_level - 1) // 2)  # 1 at 1, 2 at 2, 3 at 11, 4 at 17
-                if warlock_level >= 17:
-                    warlock_slots = 4
-                elif warlock_level >= 11:
-                    warlock_slots = 3
-                elif warlock_level >= 2:
-                    warlock_slots = 2
-                else:
-                    warlock_slots = 1
-                self.current_character.warlock_slots_current = warlock_slots
-            
-            # Clear mystic arcanum used
-            self.current_character.mystic_arcanum_used = []
+            from spell_slots import get_warlock_level, get_warlock_pact_slots
+            from ui.character_spells_panel import get_effective_max_slots
+            warlock_level = get_warlock_level(self.current_character.get_class_levels_tuple())
+            warlock_slots, _ = get_warlock_pact_slots(warlock_level)
+            self.current_character.current_slots = {}
+            self.current_character.long_rest(get_effective_max_slots(self.current_character), warlock_slots)
             
             # Save character changes
             self.character_manager.save_characters()
@@ -2786,6 +2865,7 @@ class CharacterSheetView(ctk.CTkFrame):
                            f"• HP restored to maximum\n"
                            f"{hit_dice_message}\n"
                            f"• Death saves reset\n"
+                           f"{exhaustion_message}"
                            f"• Class features restored\n"
                            f"• Spell slots restored\n"
                            f"• Mystic Arcanum restored")
@@ -3151,7 +3231,7 @@ class CharacterSheetView(ctk.CTkFrame):
         ctk.CTkLabel(
             class_frame, text=header_text,
             font=ui_font("body", bold=True),
-            text_color=self.theme.get_current_color('accent_primary')
+            text_color=self.theme.get_current_color('accent_text')
         ).pack(anchor="w", pady=(0, 4))
         
         # Stats container - use grid for wrapping when many features
@@ -4292,6 +4372,13 @@ class CharacterSheetView(ctk.CTkFrame):
         if self.current_sheet:
             self.current_sheet.inspiration = inspiration
             self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
+
+    def _on_exhaustion_change(self, level: int):
+        """Exhaustion went up or down: its speed penalty is applied and the sheet saved (rolls read it)."""
+        if self.current_sheet:
+            self.current_sheet.exhaustion = level
+            self._recalculate_speed()
+            self.sheet_manager.update_sheet(self.current_character.name, self.current_sheet)
     
     def _on_proficiency_change(self, event=None):
         """Handle proficiency bonus change."""
@@ -4869,7 +4956,7 @@ class CharacterSheetView(ctk.CTkFrame):
 
         # Extra properties - free text for anything beyond the catalog description
         extra_var = ctk.StringVar(value=item.get("extra_properties", ""))
-        extra_entry = ctk.CTkEntry(
+        extra_entry = PlaceholderEntry(
             content, textvariable=extra_var,
             height=26, placeholder_text="Extra properties (e.g. charges remaining)"
         )
@@ -5009,7 +5096,7 @@ class CharacterSheetView(ctk.CTkFrame):
             return
         
         # Import spell lists view components
-        from ui.spell_lists_view import CharacterSpellsPanel
+        from ui.character_spells_panel import CharacterSpellsPanel
         
         # Create the spell list detail panel for this character
         # Use scrollable=False since the parent content_scroll already handles scrolling

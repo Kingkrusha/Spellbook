@@ -16,7 +16,7 @@ import json
 import os
 import tempfile
 from contextlib import contextmanager
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 
 def atomic_write_text(path: str, text: str, encoding: str = "utf-8") -> None:
@@ -53,15 +53,52 @@ def atomic_write_json(
     path: str,
     data: Any,
     *,
-    indent: int = 2,
+    indent: Optional[int] = 2,
     ensure_ascii: bool = True,
 ) -> None:
     """Atomically serialize ``data`` to JSON at ``path``.
 
+    ``indent=None`` writes it on one line: about half the size and twice as quick, for big files nobody reads.
+
     Raises on failure (caller is responsible for logging / returning a status).
     """
-    text = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii)
+    if indent is None:
+        text = json.dumps(data, separators=(",", ":"), ensure_ascii=ensure_ascii)
+    else:
+        text = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii)
     atomic_write_text(path, text)
+
+
+def keep_unreadable_copy(path: str) -> Optional[str]:
+    """A data file could not be read (or parts of it): keep a copy next to it before anything saves over it.
+
+    After a failed load the app carries on with nothing loaded, and the next save would replace the file - and
+    with it whatever could still have been rescued from it by hand. The copy is named after its contents
+    (``characters.unreadable-1a2b3c4d.json``), so a file that stays unreadable is copied once however often the
+    app starts. Returns the copy's path, or None when there was nothing to keep or it could not be written."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError:
+        return None
+    if not raw.strip():
+        return None
+    stem, ext = os.path.splitext(path)
+    copy = f"{stem}.unreadable-{hashlib.sha1(raw).hexdigest()[:8]}{ext}"
+    if not os.path.exists(copy):
+        try:
+            with open(copy, "wb") as f:
+                f.write(raw)
+        except OSError:
+            return None
+    return copy
+
+
+def unreadable_note(path: str) -> str:
+    """Keeps the copy (see :func:`keep_unreadable_copy`) and says where it is, for the message shown or logged."""
+    copy = keep_unreadable_copy(path)
+    return f" The file as it was is kept as {os.path.basename(copy)}." if copy else ""
 
 
 class SaveErrorListeners:

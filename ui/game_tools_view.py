@@ -76,32 +76,59 @@ class GameToolsView(ctk.CTkFrame):
             self._cards.append(self._card(self._row, 0, *tool))
             self.cards_by_key[tool[0]] = self._cards[-1]
         self._columns = 0
+        self._width = 0
         outer.bind("<Configure>", self._on_resize)
         self._layout(3)
 
-    CARD_SPAN = 330
+    CARD_WIDTH = 300
+    CARD_HEIGHT = 220
+    CARD_PAD = 14
+
+    def _scaling(self) -> float:
+        try:
+            return float(self._get_widget_scaling())
+        except Exception:
+            return 1.0
+
+    def _card_span(self) -> int:
+        """How many pixels one card takes across, with its gaps. Everything here is in screen pixels: with
+        Windows display scaling at 150% a card is half as wide again, so counting it as 300 pixels put more
+        cards in a row than fit, and the last ones were cut off."""
+        scale = self._scaling()
+        widest = max([card.winfo_reqwidth() for card in self._cards] + [round(self.CARD_WIDTH * scale)])
+        return widest + 2 * round(self.CARD_PAD * scale)
 
     def _on_resize(self, event):
-        # (less the scrollbar's width)
-        self._layout(max(1, (event.width - 60) // self.CARD_SPAN))
+        self._width = event.width
+        # (less the scrollbar and its margin)
+        room = event.width - round(40 * self._scaling())
+        self._layout(max(1, room // max(1, self._card_span())))
 
     def _layout(self, columns: int):
         columns = max(1, min(columns, len(self._cards)))
         if columns == self._columns:
             return
         self._columns = columns
+        scale = self._scaling()
+        rows = -(-len(self._cards) // columns)
+        for c in range(len(self._cards)):
+            # every column as wide as the widest card, every row as tall as the tallest (a larger text size
+            # makes the cards grow instead of cutting their text off)
+            self._row.grid_columnconfigure(c, uniform="card" if c < columns else "",
+                                           minsize=round(self.CARD_WIDTH * scale) if c < columns else 0)
+            self._row.grid_rowconfigure(c, uniform="card" if c < rows else "",
+                                        minsize=round(self.CARD_HEIGHT * scale) if c < rows else 0)
+        pad = round(self.CARD_PAD * scale)
         for i, card in enumerate(self._cards):
-            card.grid(row=i // columns, column=i % columns, padx=14, pady=10, sticky="n")
+            card.grid(row=i // columns, column=i % columns, padx=pad, pady=round(10 * scale), sticky="nsew")
 
     def _card(self, parent, column: int, key: str, title: str, description: str, enabled: bool):
-        card = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_secondary'),
-                            corner_radius=14, width=300, height=220)
-        card.pack_propagate(False)
+        card = ctk.CTkFrame(parent, fg_color=self.theme.get_current_color('bg_secondary'), corner_radius=14)
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=22, pady=22)
 
         ctk.CTkLabel(
-            inner, text=title, font=ui_font("heading", 20, bold=True),
+            inner, text=title, font=ui_font("heading", 20, bold=True), wraplength=250, justify="left",
             text_color=self.theme.get_current_color('text_primary') if enabled
             else self.theme.get_text_secondary()).pack(anchor="w")
         ctk.CTkLabel(inner, text=description, font=ui_font("body"),
@@ -110,7 +137,7 @@ class GameToolsView(ctk.CTkFrame):
 
         if key == "session" and self.service is not None and self.service.in_session:
             ctk.CTkLabel(inner, text="● A session is running", font=ui_font("small", bold=True),
-                         text_color=self.theme.get_current_color('button_success')
+                         text_color=self.theme.get_current_color('success_text')
                          ).pack(side="bottom", anchor="w", pady=(0, 6))
 
         if enabled:

@@ -6,6 +6,7 @@ Provides global utilities for rendering formatted text, tables, and spell popups
 from ui.window_utils import add_cancel_save, center_on_parent
 from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from rules import split_cells as split_table_cells
 from typography import ui_font
 import tkinter as tk
@@ -890,7 +891,7 @@ class SpellSelectorDialog(ctk.CTkToplevel):
         
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", self._on_search_changed)
-        self.search_entry = ctk.CTkEntry(
+        self.search_entry = PlaceholderEntry(
             search_frame, 
             textvariable=self.search_var,
             placeholder_text="Search spells...",

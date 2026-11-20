@@ -6,6 +6,7 @@ to the right and cannot be closed.
 """
 
 import sys
+import tkinter as tk
 import customtkinter as ctk
 from typography import ui_font
 from tkinter import Menu
@@ -121,7 +122,64 @@ class TabWidget(ctk.CTkFrame):
                 command=self._on_close_click
             )
             self.close_btn.pack(side="right", padx=(0, 5), pady=5)
-    
+        self._fit_to_font()
+        self._watched_fonts = []
+        for font in [self.label.cget("font")] + ([self.close_btn.cget("font")] if self.is_closable else []):
+            if hasattr(font, "add_size_configure_callback") and all(font is not f for f in self._watched_fonts):
+                self._watched_fonts.append(font)
+        for font in self._watched_fonts:                    # the text size can change while the tab is open
+            font.add_size_configure_callback(self._on_font_size)
+
+    def _fit_to_font(self):
+        """The tab's height and its close button's size, from the text size (fixed sizes cut larger text off)."""
+        try:
+            height = max(34, self._unscaled(self.label.cget("font").metrics("linespace")) + 14)
+            if self.is_closable:
+                side = max(20, self._unscaled(self.close_btn.cget("font").metrics("linespace")) + 2)
+                self.close_btn.configure(width=side, height=side)
+                height = max(height, side + 14)              # (the button sits 5 above and below, in a 2 inset)
+            self.configure(height=height)
+        except (tk.TclError, AttributeError):
+            pass
+
+    def _unscaled(self, pixels: int) -> int:
+        """Font pixels (already at the display's scaling) as widget units (which CustomTkinter scales again)."""
+        try:
+            return int(round(pixels / self._get_widget_scaling()))
+        except Exception:
+            return pixels
+
+    def _on_font_size(self):
+        try:
+            if self.winfo_exists():
+                self._fit_to_font()
+                self.set_width(self._tab_width)
+        except tk.TclError:
+            pass
+
+    def destroy(self):
+        for font in getattr(self, "_watched_fonts", ()):
+            try:
+                font.remove_size_configure_callback(self._on_font_size)
+            except (ValueError, Exception):
+                pass
+        self._watched_fonts = []
+        super().destroy()
+
+    def _text_width(self, text: str) -> int:
+        try:
+            return self._unscaled(self.label.cget("font").measure(text))
+        except (tk.TclError, AttributeError):
+            return len(text) * 7
+
+    def _close_space(self) -> int:
+        if not self.is_closable:
+            return 0
+        try:
+            return max(self.CLOSE_BTN_WIDTH, int(self.close_btn.cget("width")) + 5)
+        except (tk.TclError, ValueError):
+            return self.CLOSE_BTN_WIDTH
+
     def _bind_events(self):
         """Bind mouse events for interaction."""
         # Click to select
@@ -242,19 +300,25 @@ class TabWidget(ctk.CTkFrame):
             self.inner_frame.configure(fg_color=self.theme.get_current_color('accent_primary'))
         else:
             self.inner_frame.configure(fg_color="transparent")
-    
-    def update_colors(self):
-        """Update colors to match current theme."""
-        self.label.configure(text_color=self.theme.get_current_color('text_primary'))
+        self._color_close_button()
+
+    def _color_close_button(self):
+        """The × in the colour of the tab's name on the selected tab (the muted grey was lost on the accent)."""
         if self.is_closable:
             self.close_btn.configure(
                 hover_color=self.theme.get_current_color('button_hover'),
-                text_color=self.theme.get_text_secondary()
+                text_color=self.theme.get_current_color('text_primary') if self.is_active
+                else self.theme.get_text_secondary()
             )
+
+    def update_colors(self):
+        """Update colors to match current theme."""
+        self.label.configure(text_color=self.theme.get_current_color('text_primary'))
         if self.is_active:
             self.inner_frame.configure(fg_color=self.theme.get_current_color('accent_primary'))
         else:
             self.inner_frame.configure(fg_color="transparent")
+        self._color_close_button()
     
     def set_width(self, width: int):
         """Set the tab width and truncate text if needed."""
@@ -263,17 +327,18 @@ class TabWidget(ctk.CTkFrame):
         
         # Calculate available text width
         padding = 20  # Left padding
-        close_space = self.CLOSE_BTN_WIDTH if self.is_closable else 0
-        available_width = self._tab_width - padding - close_space
-        
-        # Truncate text if needed (roughly 7 pixels per character)
-        chars_that_fit = max(3, available_width // 7)
-        
-        if len(self.full_text) > chars_that_fit:
-            self.display_text = self.full_text[:chars_that_fit - 2] + "…"
-        else:
-            self.display_text = self.full_text
-        
+        available_width = self._tab_width - padding - self._close_space()
+
+        # Shorten the name until it fits, measured in the tab's own font (a guess of 7 pixels a letter pushed the
+        # close button out of the tab once the text was made larger)
+        text = self.full_text
+        if self._text_width(text) > available_width:
+            keep = len(text)
+            while keep > 1 and self._text_width(text[:keep].rstrip() + "…") > available_width:
+                keep -= 1
+            text = text[:keep].rstrip() + "…"
+        self.display_text = text
+
         self.label.configure(text=self.display_text)
     
     def set_text(self, text: str):
@@ -284,9 +349,7 @@ class TabWidget(ctk.CTkFrame):
     
     def get_preferred_width(self) -> int:
         """Get the preferred width based on full text."""
-        base_width = len(self.full_text) * 8 + 25
-        if self.is_closable:
-            base_width += self.CLOSE_BTN_WIDTH
+        base_width = self._text_width(self.full_text) + 25 + self._close_space()
         return max(self.MIN_TAB_WIDTH, min(base_width, self.MAX_TAB_WIDTH))
 
 

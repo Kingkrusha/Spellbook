@@ -124,10 +124,11 @@ def calculate_multiclass_caster_level(class_levels: List[Tuple[CharacterClass, i
     
     - Full casters: count full levels
     - Half casters: count half levels (round up)
-    - Third casters (Eldritch Knight): count third levels (round up)
+    - Third casters (Eldritch Knight, Arcane Trickster): a third of their levels, rounded down
     - Warlock: NOT counted (uses Pact Magic separately)
     
-    Returns the effective caster level for the full caster spell slot table.
+    Returns the effective caster level for the full caster spell slot table. A third caster with no other
+    spellcasting class doesn't use this: they follow their own table (see get_max_spell_slots).
     """
     total = 0
     
@@ -139,10 +140,9 @@ def calculate_multiclass_caster_level(class_levels: List[Tuple[CharacterClass, i
             total += (level + 1) // 2
         # Warlock and Fighter (not EK) are not counted for multiclass spell slots
     
-    # Add Eldritch Knight contribution (third caster)
+    # Add the third caster's share: a third of their levels, rounded down (level 3 = 1, level 6 = 2 ...)
     if eldritch_knight_level >= 3:
-        # Third casters: round up (level 3 = 1, level 6 = 2, level 9 = 3, etc.)
-        total += (eldritch_knight_level + 2) // 3
+        total += eldritch_knight_level // 3
     
     return min(total, 20)  # Cap at 20
 
@@ -158,14 +158,13 @@ def get_max_spell_slots(class_levels: List[Tuple[CharacterClass, int]], eldritch
         class_levels: List of (class, level) tuples
         eldritch_knight_level: Fighter level if character has Eldritch Knight subclass
     """
+    other_caster = any(level > 0 and (char_class in FULL_CASTER_CLASSES or char_class in HALF_CASTER_CLASSES)
+                       for char_class, level in class_levels)
+    if eldritch_knight_level >= 3 and not other_caster:
+        # Their only spellcasting comes from the subclass: its own table (which rounds a third of the levels up)
+        return ELDRITCH_KNIGHT_SLOTS.get(min(eldritch_knight_level, 20), {}).copy()
+    
     caster_level = calculate_multiclass_caster_level(class_levels, eldritch_knight_level)
-    
-    if caster_level == 0:
-        # Check if only Eldritch Knight (no other casters)
-        if eldritch_knight_level >= 3:
-            return ELDRITCH_KNIGHT_SLOTS.get(eldritch_knight_level, {}).copy()
-        return {}
-    
     return FULL_CASTER_SLOTS.get(caster_level, {}).copy()
 
 

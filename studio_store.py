@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from atomic_io import atomic_write_json
+from atomic_io import atomic_write_json, unreadable_note
 from paths import user_data_path
 
 FILE_NAME = "studio.json"
@@ -145,14 +145,23 @@ class StudioStore:
             with open(self.path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, ValueError) as e:
-            print(f"Studio: could not read {self.path}: {e}")
+            print(f"Studio: could not read {self.path}: {e}.{unreadable_note(self.path)}")
             return
         if not isinstance(data, dict):
+            print(f"Studio: {self.path} does not hold drafts.{unreadable_note(self.path)}")
             return
-        for raw in data.get("drafts") or []:
-            if isinstance(raw, dict) and raw.get("kind") in KINDS:
-                self.drafts.append(Draft.from_dict(raw))
-        self.panels = [p for p in (data.get("panels") or []) if isinstance(p, dict)]
+        skipped = 0
+        for raw in data.get("drafts") if isinstance(data.get("drafts"), list) else []:
+            if isinstance(raw, dict) and isinstance(raw.get("kind"), str) and raw["kind"] in KINDS:
+                try:
+                    self.drafts.append(Draft.from_dict(raw))
+                except Exception as e:                 # one draft that can't be read must not lose the others
+                    skipped += 1
+                    print(f"Studio: skipped a draft that could not be read: {e!r}")
+        if skipped:
+            print(f"Studio: {skipped} drafts could not be read.{unreadable_note(self.path)}")
+        panels = data.get("panels")
+        self.panels = [p for p in panels if isinstance(p, dict)] if isinstance(panels, list) else []
         self.last_draft = str(data.get("last_draft") or "")
 
     def save(self) -> bool:

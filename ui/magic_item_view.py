@@ -10,6 +10,7 @@ from ui.label_text import LabeledLabel
 from typing import List, Optional
 
 from magic_item import MagicItem, Rarity, DEFAULT_MAGIC_ITEM_TYPE, get_magic_item_manager
+from theme import readable
 from ui.item_editor_base import ItemEditorBody
 from ui.item_view_base import ItemDetailBase, ItemViewBase
 from ui.virtual_list import VirtualListPanel
@@ -40,7 +41,11 @@ class MagicItemListPanel(VirtualListPanel):
         return f"{name}  ({item.rarity.value})"
 
     def row_text_color(self, item: MagicItem):
-        return RARITY_COLORS.get(item.rarity, self.theme.get_current_color('text_primary'))
+        color = RARITY_COLORS.get(item.rarity)
+        if color is None:
+            return self.theme.get_current_color('text_primary')
+        # the rarity's colour, in a shade that can be read on the list's background (purple on black can't)
+        return readable(color, str(self.theme.get_current_color('bg_primary')))
 
     def get_selected_item(self) -> Optional[MagicItem]:
         return self.get_selected()
@@ -82,7 +87,7 @@ class MagicItemDetailPanel(ItemDetailBase):
         self.attunement_label = ctk.CTkLabel(
             self.scroll_frame, text="",
             font=ui_font("body", bold=True),
-            text_color=self.theme.get_current_color('button_warning'),
+            text_color=self.theme.get_current_color('warning_text'),
             wraplength=400, justify="left"
         )
 
@@ -102,9 +107,9 @@ class MagicItemDetailPanel(ItemDetailBase):
 
     def _update_colors(self):
         self.type_badge.configure(fg_color=self.theme.get_current_color('accent_primary'))
-        self.attunement_label.configure(text_color=self.theme.get_current_color('button_warning'))
+        self.attunement_label.configure(text_color=self.theme.get_current_color('warning_text'))
         self.crafting_frame.configure(fg_color=self.theme.get_current_color('bg_secondary'))
-        self.tags_label.configure(text_color=self.theme.get_current_color('accent_primary'))
+        self.tags_label.configure(text_color=self.theme.get_current_color('accent_text'))
 
     def show_item(self, item: Optional[MagicItem]):
         """Display an item, then the fields the user added to Magic Items (custom_collections.py)."""

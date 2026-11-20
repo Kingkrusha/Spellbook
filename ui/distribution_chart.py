@@ -132,14 +132,23 @@ class DistributionChart(ChartCanvas):
         label = self._c("text_label")
         self.create_line(mx, y0 - 6, mx, y1, fill=label, dash=(4, 3), width=2)
         side, anchor = (mx + 5, "w") if mx < (x0 + x1) / 2 else (mx - 5, "e")
-        self.create_text(side, y0 - 12, text=f"average {mean:.2f}", anchor=anchor, fill=label, font=ui_font("small", 11, bold=True))
+        average = self.create_text(side, y0 - 12, text=f"average {mean:.2f}", anchor=anchor, fill=label,
+                                   font=ui_font("small", 11, bold=True))
 
         if self.target is not None and lo_v <= self.target <= hi_v + 1:
             tx = x0 + self._x_of(self.target) * (x1 - x0)
             self.create_line(tx, y0, tx, y1, fill=self._c("compare_better"), width=2)
 
         title = "chance of rolling this or higher" if self.cumulative else "chance of each total"
-        self.create_text(x0 - 6, 8, text=title, anchor="w", fill=text2, font=small)
+        title = self.create_text(x0 - 6, 8, text=title, anchor="w", fill=text2, font=small)
+        a, t = self.bbox(average), self.bbox(title)
+        if a and t and a[0] < t[2] + 6:                     # a narrow chart: the average's label runs into the title
+            self.itemconfigure(average, anchor="w")         # ... so it goes to the right of its line,
+            self.coords(average, mx + 5, y0 - 12)
+            a = self.bbox(average)
+            if a[2] > x1 + PAD_R - 2:                       # ... or, with no room there, says less
+                self.itemconfigure(average, anchor="e", text=f"avg {mean:.2f}")
+                self.coords(average, mx - 5, y0 - 12)
         if self._hover is not None:
             self._draw_tip(self._hover, values)
 

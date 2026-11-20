@@ -73,10 +73,37 @@
     el.hidden = !text;
   }
 
-  session.on("joined", () => { /* the DM sends the map straight after the welcome */ });
+  // ------------------------------------------------------------------ patches (table_patch.py in the app)
+  // After a change the DM's app sends only what changed in my view, numbered; a patch that doesn't start from
+  // the view I hold (or doesn't fit it) means asking for the whole view again.
+  const applyOps = window.SpellbookTablePatch.applyOps;
+
+  let viewSeq = null, syncing = false;
+  function askForWholeView() {
+    viewSeq = null;
+    syncing = !!session.send("table_sync", {});
+  }
+  session.on("joined", askForWholeView);
+  session.on("table_patch", (body) => {
+    if (syncing) return;                                   // (the whole view is on its way)
+    let view = null;
+    if (state.view && viewSeq !== null && body.base === viewSeq && Number.isInteger(body.seq)) {
+      view = typeof structuredClone === "function" ? structuredClone(state.view) : JSON.parse(JSON.stringify(state.view));
+      if (!applyOps(view, body.ops) || !view.scene || !Array.isArray(view.scene.tokens)) view = null;
+    }
+    if (!view) { askForWholeView(); return; }
+    viewSeq = body.seq;
+    onView(view);
+  });
   session.on("table_state", (body) => {
     const view = body.view;
     if (!view || typeof view !== "object") return;
+    viewSeq = Number.isInteger(body.seq) ? body.seq : null;
+    syncing = false;
+    onView(view);
+  });
+
+  function onView(view) {
     const scene = view.scene && typeof view.scene === "object" && Array.isArray(view.scene.tokens) ? view.scene : null;
     state.view = view;
     state.scene = scene;
@@ -102,7 +129,7 @@
       fetchMissing(scene);
     }
     showScene();
-  });
+  }
   session.on("table_asset", (body) => receivePart(body));
   session.on("table_error", (body) => {
     toast(body.message || "That couldn't be done.");

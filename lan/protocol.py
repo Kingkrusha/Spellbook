@@ -14,6 +14,7 @@ import hmac
 import json
 import re
 import struct
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
@@ -84,16 +85,25 @@ async def read_frame(reader: asyncio.StreamReader, max_size: int = MAX_FRAME) ->
     return decode_payload(data)
 
 
+# Characters that turn the text after them around or wrap it in another direction. With them a message or a
+# name can be made to read as something else than it is ("the DM" spelled backwards, say), so they are dropped.
+_DIRECTION_MARKS = frozenset(map(chr, [*range(0x202A, 0x202F), *range(0x2066, 0x206A)]))
+
+
 def clean_text(value, max_len: int) -> str:
     """Printable text only (newline and tab allowed), trimmed and capped."""
     if not isinstance(value, str):
         return ""
-    text = "".join(ch for ch in value if ch in "\n\t" or (ch >= " " and ch != "\x7f"))
+    text = "".join(ch for ch in value if ch in "\n\t" or
+                   (unicodedata.category(ch) != "Cc" and ch not in _DIRECTION_MARKS))
     return text.strip()[:max_len]
 
 
 def clean_name(value, fallback: str = "Player") -> str:
-    name = " ".join(clean_text(value, MAX_NAME * 2).split())[:MAX_NAME].strip()
+    """A name on one line, with nothing in it that can't be seen (zero-width and direction characters), so
+    two names that look the same are the same."""
+    text = "".join(ch for ch in clean_text(value, MAX_NAME * 2) if unicodedata.category(ch) != "Cf")
+    name = " ".join(text.split())[:MAX_NAME].strip()
     return name or fallback
 
 
@@ -101,7 +111,8 @@ MAX_PORTRAIT = 64 * 1024           # bytes of a character's portrait (a small JP
 
 
 def clean_character(body) -> dict:
-    """The character a player says they are playing: ``{name, hp, hp_max, ac, summary, portrait}``.
+    """The character a player says they are playing: ``{name, hp, hp_max, ac, init, summary, portrait}``
+    (``init`` is their initiative bonus).
 
     Everything is optional except the name; an empty name means "nobody yet" (returns ``{}``). The portrait
     is base64 of a small JPEG or PNG and is dropped if it is too big or isn't one."""
@@ -117,7 +128,8 @@ def clean_character(body) -> dict:
             return None
         return max(low, min(high, int(value)))
     out = {"name": name, "hp": number("hp", 0, 9999), "hp_max": number("hp_max", 0, 9999),
-           "ac": number("ac", 0, 50), "summary": " ".join(clean_text(body.get("summary"), 120).split())[:80]}
+           "ac": number("ac", 0, 50), "init": number("init", -20, 30),
+           "summary": " ".join(clean_text(body.get("summary"), 120).split())[:80]}
     if out["hp"] is not None and out["hp_max"] is None:
         out["hp_max"] = out["hp"]
     portrait = body.get("portrait")

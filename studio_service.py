@@ -9,6 +9,7 @@ What the Homebrew Studio knows about the rest of the collection, without any UI.
 
 from __future__ import annotations
 
+import sys
 import threading
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -168,6 +169,12 @@ class StudioService:
             self._building = True
 
         def work():
+            # Seconds of plain Python on this thread. The window's thread hands the interpreter over at every
+            # call into Tk and waits for it back, by default up to 5 ms each time, which makes the whole app
+            # crawl meanwhile: ask for shorter turns while the index is built.
+            interval = sys.getswitchinterval()
+            if not wait:
+                sys.setswitchinterval(min(interval, 0.0005))
             try:
                 fresh = HI.HomebrewIndex().build(self.spell_manager)
                 from object_links import get_link_targets
@@ -181,6 +188,8 @@ class StudioService:
                 self._error = str(e)
                 print(f"Studio: could not build the index: {e}")
             finally:
+                if not wait:
+                    sys.setswitchinterval(interval)
                 self._building = False
 
         if wait:

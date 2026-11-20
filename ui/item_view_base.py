@@ -11,6 +11,7 @@ and says what its extra filters are. See ``ui/equipment_view.py`` and ``ui/magic
 from typing import List, Optional
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from tkinter import messagebox
 
 from typography import ui_font
@@ -77,7 +78,7 @@ class ItemDetailBase(ctk.CTkFrame):
         self.tags_label = ctk.CTkLabel(
             self.scroll_frame, text="",
             font=ui_font("body"),
-            text_color=self.theme.get_current_color('accent_primary'),
+            text_color=self.theme.get_current_color('accent_text'),
             wraplength=400, justify="left"
         )
 
@@ -296,13 +297,13 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         ctk.CTkLabel(bar, text="Price (gp):").pack(side="left", padx=(0, 5))
         self.min_price_var = ctk.StringVar()
         self.min_price_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(
+        PlaceholderEntry(
             bar, width=70, height=35, placeholder_text="Min", textvariable=self.min_price_var
         ).pack(side="left", padx=(0, 5))
         ctk.CTkLabel(bar, text="-").pack(side="left", padx=(0, 5))
         self.max_price_var = ctk.StringVar()
         self.max_price_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(
+        PlaceholderEntry(
             bar, width=70, height=35, placeholder_text="Max", textvariable=self.max_price_var
         ).pack(side="left", padx=(0, 20))
 

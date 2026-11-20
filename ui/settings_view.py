@@ -305,10 +305,24 @@ class SettingsView(ctk.CTkFrame):
             self.feedback_btn.pack(side="right")
             ctk.CTkLabel(
                 content,
-                text="Report a bug or suggest an idea, straight to the developer. You choose whether to include "
-                     "your app version and recent errors, and can see exactly what is sent. Shortcut: Shift+F1.",
+                text="Report a bug or suggest an idea, straight to the developer, with pictures if you like. The "
+                     "app's logs and version go along unless you untick them, and you can see exactly what is "
+                     "sent. Shortcut: Shift+F1.",
                 font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
                 wraplength=640, anchor="w", justify="left").pack(fill="x", pady=(8, 0))
+            self.crash_reports_var = ctk.BooleanVar(
+                value=bool(getattr(self.settings_manager.settings, "send_crash_reports", True)))
+            ctk.CTkCheckBox(
+                content, text="Send a crash report automatically if Spellbook closes unexpectedly",
+                variable=self.crash_reports_var, font=ui_font("body"),
+                command=lambda: self.settings_manager.update(send_crash_reports=self.crash_reports_var.get())
+            ).pack(anchor="w", pady=(12, 0))
+            ctk.CTkLabel(
+                content,
+                text="The next time it starts, Spellbook sends the end of its logs from the run that crashed or "
+                     "froze, with your user name taken out, plus the app version and system details.",
+                font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
+                wraplength=640, anchor="w", justify="left").pack(fill="x", pady=(4, 0))
 
     def _build_typography_section(self):
         """Build the Typography section (built after the window is up: see _build_remaining)."""
@@ -1286,15 +1300,31 @@ class SettingsView(ctk.CTkFrame):
         self._check_updates_btn.configure(state="disabled")
         self._update_status_label.configure(text="Checking…")
 
+        import queue
+        results = queue.Queue()
+
         def worker():
+            # (only the queue here: Tk is left to its own thread, which picks the answer up below)
             try:
                 from updater import check_for_update
-                info = check_for_update()
-                self.after(0, lambda: self._on_update_check_done(info, None))
+                results.put((check_for_update(), None))
             except Exception as exc:  # noqa: BLE001
-                self.after(0, lambda: self._on_update_check_done(None, str(exc)))
+                results.put((None, str(exc)))
 
         threading.Thread(target=worker, daemon=True).start()
+        self._poll_update_check(results)
+
+    def _poll_update_check(self, results):
+        import queue
+        try:
+            info, error = results.get_nowait()
+        except queue.Empty:
+            try:
+                self.after(200, lambda: self._poll_update_check(results))
+            except Exception:
+                pass                       # the page was closed
+            return
+        self._on_update_check_done(info, error)
 
     def _on_update_check_done(self, info, error):
         """Back on the UI thread with the result of a manual update check."""

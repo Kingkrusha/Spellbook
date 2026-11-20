@@ -157,6 +157,36 @@ def test_multiclass_characters_can_learn_from_each_list(spells):
     assert rules.allows(spells.get_spell("Cure Wounds")) and rules.allows(spells.get_spell("Shield"))
 
 
+def test_each_class_prepares_spells_only_up_to_the_level_it_could_on_its_own(spells):
+    """A Wizard 3 / Cleric 3 has 3rd-level slots, but each class prepares as if it were the only one: 2nd level."""
+    from validation import validate_spell_for_character
+    c = make([("Wizard", 3), ("Cleric", 3)])
+    rules = access.learn_rules(c)
+    assert rules.max_level == 3 and rules.list_levels == {"wizard": 2, "cleric": 2}
+    fireball, weapon = spells.get_spell("Fireball"), spells.get_spell("Spiritual Weapon")
+    assert not rules.allows(fireball) and "up to level 2" in rules.why_not(fireball)
+    assert rules.allows(weapon)
+    assert any("up to level 2" in w for w in validate_spell_for_character(fireball, c))
+    assert validate_spell_for_character(weapon, c) == []
+    # the higher class decides for a spell on both lists; a lone class still uses its own slots
+    both = access.learn_rules(make([("Wizard", 5), ("Cleric", 1)]))
+    assert both.allows(fireball) and not both.allows(spells.get_spell("Spirit Guardians"))
+    assert access.learn_rules(make([("Wizard", 5)])).list_levels == {}
+    knight = access.learn_rules(make([("Fighter", 7, "Eldritch Knight"), ("Cleric", 1)]))
+    assert knight.list_levels == {"wizard": 2, "cleric": 1}
+
+
+def test_a_multiclass_character_prepares_the_sum_of_each_classes_own_count():
+    from character import get_max_prepared_spells, prepared_spells_by_class
+    assert get_max_prepared_spells(make([("Cleric", 5)])) == 9                 # the 2024 table, not the level
+    assert prepared_spells_by_class(make([("Wizard", 3), ("Cleric", 3)])) == {"Wizard": 6, "Cleric": 6}
+    assert get_max_prepared_spells(make([("Fighter", 7, "Eldritch Knight"), ("Wizard", 2)])) == 5 + 5
+    assert get_max_prepared_spells(make([("Fighter", 7), ("Rogue", 3)])) is None
+    legacy = make([("Cleric (Legacy)", 5), ("Bard (Legacy)", 2)])               # level + Wisdom; a 2014 Bard knows
+    assert prepared_spells_by_class(legacy, modifier={"WIS": 3}.get) == {"Cleric (Legacy)": 8}
+    assert get_max_prepared_spells(make([("Paladin (Legacy)", 5)]), modifier=lambda a: 2) == 4
+
+
 def test_a_warlock_can_also_learn_the_spells_their_patron_adds(spells):
     plain = access.learn_rules(make([("Warlock", 5)]))
     patron = access.learn_rules(make([("Warlock", 5, "Fiend Patron")]))
@@ -250,7 +280,7 @@ def test_a_character_whose_spells_come_only_from_a_species_gets_the_best_mental_
 def test_arcane_tricksters_and_mystic_arts_monks_cast_like_eldritch_knights(spells):
     from character import get_max_prepared_spells
     from spell_slots import get_max_spell_slots
-    from ui.spell_lists_view import get_effective_max_cantrips, get_effective_max_slots
+    from ui.character_spells_panel import get_effective_max_cantrips, get_effective_max_slots
     knight = make([("Fighter", 7, "Eldritch Knight")])
     trickster = make([("Rogue", 7, "Arcane Trickster")])
     monk = make([("Monk", 7, "Warrior of the Mystic Arts")])
@@ -282,3 +312,41 @@ def test_the_warrior_of_the_mystic_arts_casts_with_wisdom():
 def test_a_divine_soul_can_learn_cleric_spells(spells):
     rules = access.learn_rules(make([("Sorcerer (Legacy)", 5, "Divine Soul")]))
     assert rules.allows(spells.get_spell("Cure Wounds (Legacy)")) or rules.allows(spells.get_spell("Cure Wounds"))
+
+
+def test_a_third_caster_with_another_spellcasting_class_counts_a_third_of_their_levels_rounded_down():
+    from spell_slots import ELDRITCH_KNIGHT_SLOTS, FULL_CASTER_SLOTS, get_max_spell_slots
+    for level in range(1, 21):                                             # on their own: their own table
+        assert get_max_spell_slots([(CharacterClass.FIGHTER, level)], level) == ELDRITCH_KNIGHT_SLOTS.get(level, {})
+    # Fighter 5 (Eldritch Knight) / Wizard 3 casts as a 4th-level caster (3 + 5 // 3), not a 5th-level one
+    assert get_max_spell_slots([(CharacterClass.FIGHTER, 5), (CharacterClass.WIZARD, 3)], 5) == FULL_CASTER_SLOTS[4]
+    assert get_max_spell_slots([(CharacterClass.FIGHTER, 6), (CharacterClass.WIZARD, 3)], 6) == FULL_CASTER_SLOTS[5]
+    assert get_max_spell_slots([(CharacterClass.ROGUE, 4), (CharacterClass.PALADIN, 2)], 4) == FULL_CASTER_SLOTS[2]
+    # a Warlock's Pact Magic is counted apart, so this one still follows the third caster's table
+    assert get_max_spell_slots([(CharacterClass.FIGHTER, 4), (CharacterClass.WARLOCK, 3)], 4) == {1: 3}
+
+
+def test_pact_slots_a_warlock_has_used_stay_used_until_a_rest():
+    warlock = make([("Warlock", 5, "")])
+    warlock.ensure_pact_slots(2)                                           # first look: they start with both
+    assert warlock.warlock_slots_current == 2
+    warlock.warlock_slots_current = 0
+    warlock.ensure_pact_slots(2)                                           # opened again: still none left
+    assert warlock.warlock_slots_current == 0
+    again = type(warlock).from_dict(warlock.to_dict())                     # and after the app was closed
+    again.ensure_pact_slots(2)
+    assert again.warlock_slots_current == 0
+    again.short_rest(2)
+    assert again.warlock_slots_current == 2
+
+    old_file = warlock.to_dict()
+    del old_file["pact_slots_set"]                                         # a character saved before this was kept
+    old = type(warlock).from_dict(old_file)
+    old.ensure_pact_slots(2)
+    assert old.warlock_slots_current == 2
+
+    fighter = make([("Fighter", 3, "")])
+    fighter.long_rest({}, 0)
+    fighter.ensure_pact_slots(0)
+    fighter.ensure_pact_slots(1)                                           # they took a Warlock level later
+    assert fighter.warlock_slots_current == 1

@@ -8,7 +8,8 @@ worker thread, not the UI thread. After that everything arrives on :attr:`events
 * ``roll`` - ``seq, from, name, expr, detail, total, label, crit, private, ts``
 * ``tracker_state`` - the initiative tracker as this player may see it: ``view``
 * ``tracker_error`` - the host refused a tracker command: ``message, seq``
-* ``table_state`` - the tabletop scene as this player may see it: ``view``
+* ``table_state`` - the tabletop scene as this player may see it: ``view, seq``
+* ``table_patch`` - what changed in it since view number ``base``: ``ops, base, seq`` (``table_patch.py``)
 * ``table_asset`` - one part of a tabletop picture: ``id, part, parts, data`` (base64)
 * ``table_error`` - the host refused a tabletop command: ``message, seq``
 * ``table_ping`` - someone pointed at the map: ``ping``
@@ -264,7 +265,12 @@ class LanClient:
         elif kind == "table_state":
             view = body.get("view")
             if isinstance(view, dict):
-                self.events.put("table_state", view=view)
+                seq = body.get("seq")
+                self.events.put("table_state", view=view, seq=seq if isinstance(seq, int) else None)
+        elif kind == "table_patch":
+            ops, base, seq = body.get("ops"), body.get("base"), body.get("seq")
+            if isinstance(ops, list) and isinstance(base, int) and isinstance(seq, int):
+                self.events.put("table_patch", ops=ops, base=base, seq=seq)
         elif kind == "table_asset":
             data = body.get("data")
             if isinstance(data, str) and isinstance(body.get("id"), str):

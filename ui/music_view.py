@@ -22,9 +22,10 @@ import customtkinter as ctk
 
 import music_player
 from music_library import (AUDIO_EXTENSIONS, MusicLibrary, Track, format_time, get_music_library, link_kind,
-                           parse_tags)
+                           parse_tags, safe_link)
 from theme import get_theme_manager
 from typography import ui_font
+from ui.flow_bar import FlowBar
 from ui.virtual_list import VirtualListPanel
 from ui.window_utils import add_cancel_save, center_on_parent
 
@@ -372,6 +373,7 @@ class MusicView(ctk.CTkFrame):
         self.loop_var = ctk.StringVar(value=LOOP_LABELS["all"])
         ctk.CTkOptionMenu(transport, variable=self.loop_var, values=list(LOOP_LABELS.values()), width=150,
                           height=32, command=self._on_loop).pack(side="right", padx=(0, 10))
+        self._transport_flow = FlowBar(transport)
 
         track = self._card(right, "Track")
         self.track_hint = ctk.CTkLabel(track, text="Pick a track on the left.", font=ui_font("small"), anchor="w",
@@ -662,7 +664,11 @@ class MusicView(ctk.CTkFrame):
         self.wait_window(dialog)
         if dialog.result:
             url, title, tags = dialog.result
-            track = self.library.add_link(url, title, tags)
+            try:
+                track = self.library.add_link(url, title, tags)
+            except ValueError:
+                self.status.configure(text="That isn't a web link (it should look like https://…).")
+                return
             self.library.save()
             self.refresh_list()
             self.tracks.select_by_name(track.id)
@@ -725,7 +731,11 @@ class MusicView(ctk.CTkFrame):
         if track is None:
             return
         if track.is_link:
-            webbrowser.open(track.url)
+            url = safe_link(track.url)
+            if url:
+                webbrowser.open(url)
+            else:
+                self.status.configure(text="That link can't be opened: it isn't a web address.")
             return
         if not music_player.available():
             messagebox.showinfo("Music", "Sound needs the miniaudio package (pip install miniaudio).",

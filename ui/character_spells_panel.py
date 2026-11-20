@@ -1,18 +1,15 @@
-"""
-Spell Lists View for D&D Spellbook.
-Displays and manages character spell lists.
-"""
+"""The spells part of a character sheet: slots, prepared spells, the spell list by level, and the dialog for a
+Custom class's own slot limits."""
 
 from ui.theme_listener import ThemeListenerMixin
 import customtkinter as ctk
 from typography import ui_font
-import tkinter as tk
 from tkinter import messagebox
 from typing import Callable, Optional, List, Dict
-from character import CharacterSpellList, get_max_prepared_spells
+from character import CharacterSpellList, prepared_spells_by_class
 from character_manager import CharacterManager
 from spell_manager import SpellManager
-from spell import Spell, CharacterClass
+from spell import Spell
 from spell_slots import (
     get_max_spell_slots, get_warlock_level, get_warlock_pact_slots,
     get_warlock_mystic_arcanum_levels, is_multiclass_caster, get_max_cantrips
@@ -20,6 +17,7 @@ from spell_slots import (
 from settings import SettingsManager, get_settings_manager
 from theme import get_theme_manager
 from ui.tooltip import HoverTooltip
+from ui.window_utils import center_on_parent
 
 
 def get_effective_max_slots(character: CharacterSpellList) -> Dict[int, int]:
@@ -39,6 +37,19 @@ def get_effective_max_cantrips(character: CharacterSpellList) -> int:
     class_levels = character.get_class_levels_tuple()
     ek_level = character.get_eldritch_knight_level()
     return get_max_cantrips(class_levels, ek_level) + character.third_caster_extra_cantrips()
+
+
+def ability_modifier(character: CharacterSpellList, ability: str) -> int:
+    """The character's modifier for an ability ("WIS"), read from their sheet; 0 without one."""
+    try:
+        from ui.character_sheet_view import get_sheet_manager
+        from character_sheet import AbilityScore
+        sheet = get_sheet_manager().get_sheet(character.name)
+        if sheet is None:
+            return 0
+        return sheet.get_effective_ability_modifier(AbilityScore.from_short_name(ability))
+    except Exception:
+        return 0
 
 
 def default_spell_stats(character: CharacterSpellList, spell_manager) -> list:
@@ -66,97 +77,6 @@ def default_spell_stats(character: CharacterSpellList, spell_manager) -> list:
     granted = bool(character.known_spells or character.subclass_spells)
     return spell_numbers(character, sheet, lookups, extra_casters=granted)
 
-
-class CharacterCard(ctk.CTkFrame):
-    """A card widget displaying a character's spell list summary."""
-    def __init__(self, parent, character: CharacterSpellList,
-                 on_select: Callable[["CharacterCard"], None],
-                 on_edit: Callable[[CharacterSpellList], None],
-                 on_delete: Callable[[CharacterSpellList], None],
-                 is_selected: bool = False):
-        # Use theme manager for colors so the card updates with theme changes
-        self.theme = get_theme_manager()
-        selected_color = self.theme.get_current_color('accent_primary')
-        unselected_color = self.theme.get_current_color('bg_secondary')
-        super().__init__(parent, corner_radius=10,
-                         fg_color=selected_color if is_selected else unselected_color,
-                         cursor="hand2")
-        
-        self.character = character
-        self.on_select = on_select
-        self.on_edit = on_edit
-        self.on_delete = on_delete
-        self._is_selected = is_selected
-        
-        self._create_widgets()
-        
-        # Bind click events
-        self.bind("<Button-1>", self._on_click)
-        for child in self.winfo_children():
-            child.bind("<Button-1>", self._on_click)
-    
-    def _create_widgets(self):
-        """Create the card content."""
-        content = ctk.CTkFrame(self, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=15, pady=12)
-        
-        header = ctk.CTkFrame(content, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 8))
-        
-        self.name_label = ctk.CTkLabel(
-            header, text=self.character.name,
-            font=ui_font("heading", 16, bold=True),
-            anchor="w"
-        )
-        self.name_label.pack(side="left", fill="x", expand=True)
-        self.name_label.bind("<Button-1>", self._on_click)
-        
-        btn_text = self.theme.get_current_color('text_primary')
-        edit_btn = ctk.CTkButton(header, text="Edit", width=50, height=28,
-                                  fg_color=self.theme.get_current_color('button_normal'), hover_color=self.theme.get_current_color('button_hover'),
-                                  text_color=btn_text,
-                                  command=lambda: self.on_edit(self.character))
-        edit_btn.pack(side="right", padx=(5, 0))
-        
-        delete_btn = ctk.CTkButton(header, text="✕", width=28, height=28,
-                                    fg_color=self.theme.get_current_color('button_danger'), hover_color=self.theme.get_current_color('button_danger_hover'),
-                                    text_color=btn_text,
-                                    command=lambda: self.on_delete(self.character))
-        delete_btn.pack(side="right")
-        
-        theme = get_theme_manager()
-        text_secondary = theme.get_text_secondary()
-        class_label = ctk.CTkLabel(
-            content, text=self.character.display_classes(),
-            font=ui_font("body", 13),
-            text_color=text_secondary,
-            anchor="w"
-        )
-        class_label.pack(fill="x", pady=(0, 5))
-        class_label.bind("<Button-1>", self._on_click)
-        
-        spell_count = len(self.character.known_spells)
-        count_label = ctk.CTkLabel(
-            content, 
-            text=f"{spell_count} spell{'s' if spell_count != 1 else ''} known",
-            font=ui_font("body"),
-            text_color=text_secondary,
-            anchor="w"
-        )
-        count_label.pack(fill="x")
-        count_label.bind("<Button-1>", self._on_click)
-    
-    def _on_click(self, event=None):
-        self.on_select(self)
-    
-    def set_selected(self, selected: bool):
-        self._is_selected = selected
-        # Update using theme manager so selection reflects current theme
-        # Reconfigure background based on selection
-        try:
-            self.configure(fg_color=(self.theme.get_current_color('accent_primary') if selected else self.theme.get_current_color('bg_secondary')))
-        except Exception:
-            pass
 
 
 class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
@@ -468,7 +388,6 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
         if not self._current_character or not self._current_character.has_custom_class:
             return
         
-        from ui.character_editor import CustomSpellSlotsDialog
         dialog = CustomSpellSlotsDialog(self.winfo_toplevel(), self._current_character)
         self.wait_window(dialog)
         
@@ -515,11 +434,12 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
             self.prepared_label.configure(text="")
             return
         
-        max_prepared = get_max_prepared_spells(self._current_character)
-        if max_prepared is None:
+        by_class = self._prepared_by_class()
+        if not by_class:
             # Not a prepared caster
             self.prepared_label.configure(text="")
             return
+        max_prepared = sum(by_class.values())
         
         # Count prepared spells (not including subclass spells)
         prepared_count = self._current_character.get_prepared_count()
@@ -527,16 +447,24 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
         # Color code: red if over limit, normal if under
         theme = get_theme_manager()
         if prepared_count > max_prepared:
-            color = theme.get_current_color('button_danger')
+            color = theme.get_current_color('danger_text')
         elif prepared_count == max_prepared:
-            color = theme.get_current_color('accent_primary')
+            color = theme.get_current_color('accent_text')
         else:
             color = theme.get_text_secondary()
         
+        split = f" ({' + '.join(f'{name} {n}' for name, n in by_class.items())})" if len(by_class) > 1 else ""
         self.prepared_label.configure(
-            text=f"Prepared: {prepared_count}/{max_prepared}",
+            text=f"Prepared: {prepared_count}/{max_prepared}{split}",
             text_color=color
         )
+
+    def _prepared_by_class(self) -> Dict[str, int]:
+        """What each class lets the character prepare (2014 classes add the modifier from the character's sheet)."""
+        character = self._current_character
+        if character is None:
+            return {}
+        return prepared_spells_by_class(character, modifier=lambda ability: ability_modifier(character, ability))
     
     def _toggle_prepared_filter(self):
         """Toggle showing only prepared spells using visibility, not rebuild."""
@@ -842,11 +770,8 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
                 character.current_slots[level] = max_count
         
         class_levels = character.get_class_levels_tuple()
-        warlock_level = get_warlock_level(class_levels)
-        if warlock_level > 0:
-            warlock_slots, _ = get_warlock_pact_slots(warlock_level)
-            if character.warlock_slots_current == 0:
-                character.warlock_slots_current = warlock_slots
+        warlock_slots, _ = get_warlock_pact_slots(get_warlock_level(class_levels))
+        character.ensure_pact_slots(warlock_slots)
     
     def _setup_warlock_display(self, character: CharacterSpellList):
         """Setup the warlock pact magic display."""
@@ -1164,7 +1089,7 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
                 star = ctk.CTkLabel(
                     row, text="★",
                     font=ui_font("small", 10),
-                    text_color=self.theme.get_current_color('accent_primary')
+                    text_color=self.theme.get_current_color('accent_text')
                 )
                 star.pack(side="right", padx=(0, 2))
                 from ui.tooltip import HoverTooltip
@@ -1226,9 +1151,10 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
         if not settings.settings.warn_too_many_prepared:
             return
         
-        max_prepared = get_max_prepared_spells(self._current_character)
-        if max_prepared is None:
+        by_class = self._prepared_by_class()
+        if not by_class:
             return  # Not a prepared caster
+        max_prepared = sum(by_class.values())
         
         prepared_count = self._current_character.get_prepared_count()
         if prepared_count > max_prepared:
@@ -1246,257 +1172,147 @@ class CharacterSpellsPanel(ThemeListenerMixin, ctk.CTkFrame):
             self.on_spell_click(spell_name)
 
 
-class SpellListsView(ctk.CTkFrame):
-    """Main view for managing character spell lists."""
+class CustomSpellSlotsDialog(ctk.CTkToplevel):
+    """Dialog for editing custom spell slot limits for Custom class characters."""
     
-    def __init__(self, parent, character_manager: CharacterManager,
-                 spell_manager: SpellManager,
-                 on_navigate_to_spell: Optional[Callable[[str], None]] = None,
-                 settings_manager: Optional[SettingsManager] = None):
-        super().__init__(parent, fg_color="transparent")
+    def __init__(self, parent, character: CharacterSpellList):
+        super().__init__(parent)
         
-        self.character_manager = character_manager
-        self.spell_manager = spell_manager
-        self.on_navigate_to_spell = on_navigate_to_spell
-        self.settings_manager = settings_manager or get_settings_manager()
-        self._selected_card: Optional[CharacterCard] = None
-        self._character_cards: List[CharacterCard] = []
+        self.result: Optional[CharacterSpellList] = None
+        self._character = character
         
+        # Window setup
+        self.title(f"Custom Spell Slots - {character.name}")
+        self.geometry("400x550")
+        self.minsize(350, 500)
+        self.resizable(True, True)
+        
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+        
+        # Create widgets
         self._create_widgets()
         
-        self.character_manager.add_listener(self._refresh_characters)
-        self._refresh_characters()
-        # Listen for theme changes to update colors live
-        theme = get_theme_manager()
-        theme.add_listener(self._on_theme_changed)
-        # keep reference for cleanup
-        self._theme = theme
-
-    def destroy(self):
-        """Clean up listeners when the view is destroyed."""
-        try:
-            if hasattr(self, '_theme'):
-                self._theme.remove_listener(self._on_theme_changed)
-        except Exception:
-            pass
-
-        try:
-            self.character_manager.remove_listener(self._refresh_characters)
-        except Exception:
-            pass
-
-        super().destroy()
-
-    def _on_theme_changed(self):
-        """Handle theme changes by refreshing color-sensitive UI."""
-        # Update paned colors and rebuild character cards (they use theme for fg_color)
-        self.update_paned_colors()
-        # Update text color for count label
-        theme = get_theme_manager()
-        self.char_count_label.configure(text_color=theme.get_text_secondary())
-        # The left panel card has an explicit fg_color, so it won't repaint on
-        # its own.
-        if hasattr(self, 'left_panel'):
-            self.left_panel.configure(fg_color=theme.get_current_color('bg_primary'))
-        # Rebuild character cards to pick up any fg_color/bg changes
-        self._refresh_characters()
+        # Center on parent
+        center_on_parent(self, parent, root_coords=False)
     
     def _create_widgets(self):
-        """Create the view widgets."""
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=15, pady=(15, 10))
-        
-        ctk.CTkLabel(header, text="Character Spell Lists",
-                     font=ui_font("heading", 20, bold=True)).pack(side="left")
-        
+        """Create all dialog widgets."""
         theme = get_theme_manager()
-        btn_text = theme.get_current_color('text_primary')
-        ctk.CTkButton(header, text="+ New Character", width=130,
-                      text_color=btn_text,
-                      command=self._on_new_character).pack(side="right")
         
-        content = ctk.CTkFrame(self, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
         
-        # Create a PanedWindow for resizable panels
-        # opaqueresize=False for smooth dragging (shows ghost line, resizes on release)
-        self.paned = tk.PanedWindow(
-            content,
-            orient=tk.HORIZONTAL,
-            sashwidth=8,
-            sashrelief=tk.RAISED,
-            handlesize=0,
-            opaqueresize=False,
-            sashcursor="sb_h_double_arrow"
-        )
-        self.paned.pack(fill="both", expand=True)
-        self.update_paned_colors()
-        
-        theme = get_theme_manager()
-        self.left_panel = ctk.CTkFrame(self.paned, corner_radius=10,
-                                        fg_color=theme.get_current_color('bg_primary'))
-        left_panel = self.left_panel
-
-        char_header = ctk.CTkFrame(left_panel, fg_color="transparent")
-        char_header.pack(fill="x", padx=15, pady=(15, 10))
-        
-        ctk.CTkLabel(char_header, text="Characters",
-                     font=ui_font("heading", 16, bold=True)).pack(side="left")
-        
-        theme = get_theme_manager()
-        text_secondary = theme.get_text_secondary()
-        self.char_count_label = ctk.CTkLabel(
-            char_header, text="0 characters",
+        # Instructions
+        ctk.CTkLabel(
+            container,
+            text="Set maximum spell slots for this Custom class character.\n"
+                 "Leave at 0 to disable that spell level.",
             font=ui_font("body"),
-            text_color=text_secondary
+            text_color=theme.get_text_secondary(),
+            justify="left"
+        ).pack(fill="x", pady=(0, 15))
+        
+        # Cantrips section
+        cantrip_frame = ctk.CTkFrame(container, fg_color="transparent")
+        cantrip_frame.pack(fill="x", pady=(0, 15))
+        
+        ctk.CTkLabel(
+            cantrip_frame, text="Max Cantrips:",
+            font=ui_font("subheading", 13, bold=True)
+        ).pack(side="left")
+        
+        self.cantrip_var = ctk.StringVar(value=str(self._character.custom_max_cantrips))
+        self.cantrip_entry = ctk.CTkEntry(
+            cantrip_frame, textvariable=self.cantrip_var,
+            width=60, justify="center"
         )
-        self.char_count_label.pack(side="right")
+        self.cantrip_entry.pack(side="left", padx=(10, 0))
         
-        self.cards_frame = ctk.CTkScrollableFrame(left_panel, fg_color="transparent")
-        self.cards_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        ctk.CTkLabel(
+            cantrip_frame, text="(0 = unlimited)",
+            font=ui_font("small"),
+            text_color=theme.get_text_secondary()
+        ).pack(side="left", padx=(10, 0))
         
-        self.empty_placeholder = ctk.CTkLabel(
-            self.cards_frame,
-            text="No characters yet.\nClick '+ New Character' to create one.",
-            font=ui_font("body", 13),
-            text_color=text_secondary,
-            justify="center"
-        )
+        # Spell slots section
+        ctk.CTkLabel(
+            container, text="Maximum Spell Slots by Level:",
+            font=ui_font("subheading", 13, bold=True)
+        ).pack(fill="x", pady=(0, 10))
         
-        self.spells_panel = CharacterSpellsPanel(
-            self.paned, self.spell_manager, self.character_manager,
-            self._on_remove_spell,
-            on_spell_click=self._on_spell_click,
-            on_character_updated=self._on_character_updated,
-            settings_manager=self.settings_manager
-        )
+        # Slots frame
+        slots_frame = ctk.CTkFrame(container, fg_color=theme.get_current_color('bg_secondary'))
+        slots_frame.pack(fill="x", pady=(0, 15))
         
-        # Add panes with minimum sizes
-        self.paned.add(left_panel, minsize=280, stretch="always")
-        self.paned.add(self.spells_panel, minsize=400, stretch="always")
+        self.slot_vars = {}
+        self.slot_entries = {}
         
-        # Set initial sash position (roughly 1:2 ratio)
-        self.after(100, lambda: self.paned.sash_place(0, 320, 0))
-    
-    def update_paned_colors(self):
-        """Update PanedWindow sash colors based on current theme."""
-        # Use ThemeManager so the sash/background updates with selected theme
-        theme = get_theme_manager()
-        sash_color = theme.get_current_color("pane_sash")
-        self.paned.configure(bg=sash_color)
-    
-    def _refresh_characters(self):
-        """Refresh the character cards list."""
-        for card in self._character_cards:
-            card.destroy()
-        self._character_cards = []
-        
-        characters = self.character_manager.characters
-        
-        count = len(characters)
-        self.char_count_label.configure(
-            text=f"{count} character{'s' if count != 1 else ''}"
-        )
-        
-        if not characters:
-            self.empty_placeholder.pack(pady=50)
-            self._selected_card = None
-            self.spells_panel.set_character(None)
-            return
-        
-        self.empty_placeholder.pack_forget()
-        
-        selected_name = None
-        if self._selected_card:
-            selected_name = self._selected_card.character.name
-        
-        new_selected = None
-        for char in characters:
-            is_selected = bool(selected_name and char.name.lower() == selected_name.lower())
-            card = CharacterCard(
-                self.cards_frame, char,
-                on_select=self._on_card_select,
-                on_edit=self._on_edit_character,
-                on_delete=self._on_delete_character,
-                is_selected=is_selected
-            )
-            card.pack(fill="x", pady=5)
-            self._character_cards.append(card)
+        for level in range(1, 10):
+            row = ctk.CTkFrame(slots_frame, fg_color="transparent")
+            row.pack(fill="x", padx=15, pady=5)
             
-            if is_selected:
-                new_selected = card
+            ctk.CTkLabel(
+                row, text=f"Level {level}:",
+                font=ui_font("body"),
+                width=70, anchor="w"
+            ).pack(side="left")
+            
+            current_max = self._character.custom_max_slots.get(level, 0)
+            var = ctk.StringVar(value=str(current_max))
+            self.slot_vars[level] = var
+            
+            entry = ctk.CTkEntry(row, textvariable=var, width=60, justify="center")
+            entry.pack(side="left", padx=(10, 0))
+            self.slot_entries[level] = entry
         
-        self._selected_card = new_selected
-        if new_selected:
-            updated_char = self.character_manager.get_character(new_selected.character.name)
-            if updated_char:
-                new_selected.character = updated_char
-            self.spells_panel.set_character(new_selected.character)
-        else:
-            self.spells_panel.set_character(None)
-    
-    def _on_card_select(self, card: CharacterCard):
-        if self._selected_card and self._selected_card != card:
-            self._selected_card.set_selected(False)
+        # Buttons
+        button_frame = ctk.CTkFrame(container, fg_color="transparent")
+        button_frame.pack(fill="x", pady=(15, 0))
         
-        card.set_selected(True)
-        self._selected_card = card
+        btn_text = theme.get_current_color('text_primary')
         
-        updated_char = self.character_manager.get_character(card.character.name)
-        if updated_char:
-            card.character = updated_char
-        self.spells_panel.set_character(card.character)
-    
-    def _on_spell_click(self, spell_name: str):
-        if self.on_navigate_to_spell:
-            self.on_navigate_to_spell(spell_name)
-    
-    def _on_character_updated(self):
-        """Called when character data is updated."""
-        pass
-    
-    def _on_new_character(self):
-        from ui.character_editor import CharacterEditorDialog
-        dialog = CharacterEditorDialog(self.winfo_toplevel(), "New Character")
-        self.wait_window(dialog)
+        ctk.CTkButton(
+            button_frame, text="Cancel", width=100,
+            fg_color=theme.get_current_color('button_normal'),
+            hover_color=theme.get_current_color('button_hover'),
+            text_color=btn_text,
+            command=self._on_cancel
+        ).pack(side="right", padx=(10, 0))
         
-        if dialog.result:
-            if self.character_manager.add_character(dialog.result):
-                self._refresh_characters()
-                for card in self._character_cards:
-                    if card.character.name == dialog.result.name:
-                        self._on_card_select(card)
-                        break
-            else:
-                messagebox.showerror("Error",
-                    f"A character named '{dialog.result.name}' already exists.")
+        ctk.CTkButton(
+            button_frame, text="Save", width=100,
+            text_color=btn_text,
+            command=self._on_save
+        ).pack(side="right")
     
-    def _on_edit_character(self, character: CharacterSpellList):
-        from ui.character_editor import CharacterEditorDialog
-        dialog = CharacterEditorDialog(self.winfo_toplevel(), "Edit Character", character)
-        self.wait_window(dialog)
-        
-        if dialog.result:
-            if self.character_manager.update_character(character.name, dialog.result):
-                self._refresh_characters()
-            else:
-                messagebox.showerror("Error",
-                    f"A character named '{dialog.result.name}' already exists.")
+    def _on_save(self):
+        """Save the custom spell slot configuration."""
+        try:
+            # Parse cantrips
+            cantrips = int(self.cantrip_var.get() or 0)
+            cantrips = max(0, cantrips)
+            
+            # Parse slots
+            custom_slots = {}
+            for level in range(1, 10):
+                value = int(self.slot_vars[level].get() or 0)
+                if value > 0:
+                    custom_slots[level] = value
+            
+            # Update character
+            self._character.custom_max_cantrips = cantrips
+            self._character.custom_max_slots = custom_slots
+            
+            self.result = self._character
+            self.destroy()
+            
+        except ValueError:
+            messagebox.showerror("Invalid Input", 
+                "Please enter valid numbers for all fields.", parent=self)
     
-    def _on_delete_character(self, character: CharacterSpellList):
-        if messagebox.askyesno("Confirm Delete",
-                               f"Are you sure you want to delete '{character.name}'?\n\n"
-                               f"This will remove all {len(character.known_spells)} known spells."):
-            self.character_manager.delete_character(character.name)
-    
-    def _on_remove_spell(self, spell_name: str):
-        if self._selected_card:
-            self.character_manager.remove_spell_from_character(
-                self._selected_card.character.name, spell_name
-            )
-            updated_char = self.character_manager.get_character(
-                self._selected_card.character.name
-            )
-            if updated_char:
-                self._selected_card.character = updated_char
-                self.spells_panel.set_character(updated_char)
+    def _on_cancel(self):
+        """Cancel without saving."""
+        self.result = None
+        self.destroy()

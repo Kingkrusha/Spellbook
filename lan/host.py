@@ -13,9 +13,13 @@ Events put on ``events`` (all plain dicts with a ``type``):
 * ``error`` - ``code, message`` (the host typed something invalid, e.g. a bad ``/roll``)
 * ``dm`` - ``from, name, to, text, ts`` (only DMs sent to or by the host)
 * ``approval_request`` - ``request_id, name, address``; answer with :meth:`resolve_approval`
+* ``approval_closed`` - ``request_id``: that prompt is over however it ended (answered, timed out, the
+  player gave up or asked again), so close it
 * ``tracker_cmd`` - a player's initiative-tracker command: ``peer_id, name, cmd, seq``
 * ``table_cmd`` - a player's tabletop command (move a token, draw, ping): ``peer_id, name, cmd, seq``
 * ``table_asset_req`` - a player is missing tabletop pictures: ``peer_id, ids``
+* ``device_blocked`` - the DM blocked a device from the join prompt: ``count`` (blocked this session)
+* ``table_sync`` - a player wants their whole view of the map again (and takes patches after): ``peer_id``
 * ``xfer`` - something sent to the host: ``from, name, xfer_id, title, payload, ts``
 * ``xfer_reply`` - the recipient answered a transfer: ``from, name, xfer_id, status, detail``
 """
@@ -24,10 +28,11 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import ipaddress
 import json
 import secrets
 import time
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from lan import dice
 from lan import discovery
@@ -38,11 +43,16 @@ from lan.security import generate_session_cert, server_context
 
 HOST_ID = "host"
 MAX_PENDING = 8                 # connections still being admitted
+MAX_PENDING_PER_ADDRESS = 3     # ... and how many of those one address may hold
 APPROVAL_TIMEOUT = 60.0         # how long the DM has to say yes
+DENY_COOLDOWN = 30.0            # after the DM says no, the same player can't ask again for this long
+DENY_COOLDOWN_MAX = 600.0       # ... doubling each time the DM says no to the same address, up to this
+WRONG_PASSWORDS = 5             # this many wrong passwords from one address ...
+WRONG_PASSWORD_WINDOW = 60.0    # ... within this long, and that address has to wait before the next try
 MAX_STRIKES = 20                # rate-limit violations before a peer is dropped
 
 # What a browser player may send (see lan/web.py): no characters or homebrew
-WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req", "character"}
+WEB_TYPES = {"chat", "dm", "tracker_cmd", "table_cmd", "table_asset_req", "table_sync", "character"}
 
 Handler = Callable[["LanHost", "_Peer", dict], Awaitable[None]]
 
@@ -63,6 +73,93 @@ class _Bucket:
             self.tokens -= 1
             return True
         return False
+
+
+class _Door:
+    """What each address has done on its way in, so that one machine can't hold every waiting place, keep
+    guessing the password, or (with a new name and id each time) keep asking a DM who said no.
+
+    The DM's own computer (127.0.0.1) isn't counted: a second window there, or a tunnel that brings players
+    in from the internet, makes everyone look like that one address."""
+
+    KEPT = 256                          # addresses remembered at most
+
+    def __init__(self):
+        self.count_loopback = False     # (the tests turn this on: they have no other address)
+        self._waiting: Dict[str, int] = {}
+        self._wrong: Dict[str, List[float]] = {}
+        self._refused: Dict[str, Tuple[int, float]] = {}
+
+    def counted(self, address: str) -> bool:
+        if self.count_loopback:
+            return True
+        try:
+            ip = ipaddress.ip_address(str(address).split("%")[0])
+        except ValueError:
+            return False                # no address to count by
+        ip = getattr(ip, "ipv4_mapped", None) or ip
+        return not ip.is_loopback
+
+    def enter(self, address: str) -> bool:
+        """A connection starts being admitted. False: this address already holds its share of the places."""
+        if not self.counted(address):
+            return True
+        waiting = self._waiting.get(address, 0)
+        if waiting >= MAX_PENDING_PER_ADDRESS:
+            return False
+        self._waiting[address] = waiting + 1
+        return True
+
+    def leave(self, address: str) -> None:
+        waiting = self._waiting.get(address, 0) - 1
+        if waiting > 0:
+            self._waiting[address] = waiting
+        else:
+            self._waiting.pop(address, None)
+
+    def wrong_password(self, address: str) -> None:
+        if self.counted(address):
+            self._wrong.setdefault(address, []).append(time.monotonic())
+            self._trim(self._wrong)
+
+    def locked_out(self, address: str) -> bool:
+        """Whether this address has guessed wrong too often to try again yet."""
+        now = time.monotonic()
+        recent = [t for t in self._wrong.get(address, ()) if now - t < WRONG_PASSWORD_WINDOW]
+        if recent:
+            self._wrong[address] = recent
+        else:
+            self._wrong.pop(address, None)
+        return len(recent) >= WRONG_PASSWORDS
+
+    def refused(self, address: str) -> None:
+        """The DM said no to someone at this address."""
+        if self.counted(address):
+            times = self._refused.get(address, (0, 0.0))[0]
+            self._refused[address] = (times + 1, time.monotonic())
+            self._trim(self._refused)
+
+    def let_in(self, address: str) -> None:
+        self._refused.pop(address, None)
+
+    def wait_left(self, address: str) -> float:
+        """Seconds until this address may ask the DM again (0 = now)."""
+        times, when = self._refused.get(address, (0, 0.0))
+        if not times:
+            return 0.0
+        wait = min(DENY_COOLDOWN_MAX, DENY_COOLDOWN * 2 ** (times - 1))
+        return max(0.0, wait - (time.monotonic() - when))
+
+    def _trim(self, table: dict) -> None:
+        while len(table) > self.KEPT:
+            table.pop(next(iter(table)))
+
+
+def _wait_words(seconds: float) -> str:
+    if seconds <= DENY_COOLDOWN:
+        return "The DM said no. Wait a little before asking again."
+    minutes = max(1, round(seconds / 60))
+    return f"The DM said no. Wait about {minutes} minute{'s' if minutes != 1 else ''} before asking again."
 
 
 class StreamChannel:
@@ -150,6 +247,16 @@ class LanHost:
         self._server: Optional[asyncio.AbstractServer] = None
         self._peers: Dict[str, _Peer] = {}
         self._approvals: Dict[str, "asyncio.Future[tuple]"] = {}
+        # The DM is asked once per player per session: someone they let in (by install id) rejoins after a
+        # dropped connection without asking again, until the DM removes them
+        self._approved: set = set()
+        self._asking: Dict[str, str] = {}      # install id -> request id of its open prompt
+        self._denied: Dict[str, float] = {}    # install id -> when the DM last said no (monotonic)
+        # Devices the DM blocked from the prompt: never asked about again while this session lasts (by install
+        # id, and by address, since a browser can pick a new id)
+        self._blocked_ids: set = set()
+        self._blocked_addresses: set = set()
+        self._door = _Door()                   # the same, and wrong passwords, by address
         self._handlers: Dict[str, Handler] = {}
         self._pending = 0
         self._seq = 0
@@ -164,6 +271,7 @@ class LanHost:
         self.register_handler("tracker_cmd", self._on_tracker_cmd)
         self.register_handler("table_cmd", self._on_table_cmd)
         self.register_handler("table_asset_req", self._on_table_asset_req)
+        self.register_handler("table_sync", self._on_table_sync)
         self.register_handler("xfer_reply", self._on_xfer_reply)
         self.register_handler("character", self._on_character)
 
@@ -249,7 +357,7 @@ class LanHost:
             self._server.close()
         for fut in list(self._approvals.values()):
             if not fut.done():
-                fut.set_result((False, "The session closed."))
+                fut.set_result((False, "The session closed.", False, False))
         for peer in list(self._peers.values()):
             await self._drop(peer, "The host closed the session.", notify=True)
 
@@ -291,13 +399,30 @@ class LanHost:
         if self._started:
             self._runner.submit(self._kick(peer_id, reason))
 
-    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.") -> None:
+    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.",
+                         block: bool = False) -> None:
+        """The DM's answer to a join prompt. ``block`` (with a no) keeps that device out for the rest of the
+        session without asking again."""
         def go():
             fut = self._approvals.get(request_id)
             if fut is not None and not fut.done():
-                fut.set_result((accept, reason))
+                fut.set_result((accept, reason, True, bool(block) and not accept))
         if self._started:
             self._runner.call_soon(go)
+
+    @property
+    def blocked_count(self) -> int:
+        """How many devices the DM blocked this session."""
+        return len(self._blocked_ids)
+
+    def unblock_all(self) -> None:
+        def go():
+            self._blocked_ids.clear()
+            self._blocked_addresses.clear()
+        if self._started:
+            self._runner.call_soon(go)
+        else:
+            go()
 
     # ----------------------------------------------------------- loop-thread internals
 
@@ -309,7 +434,8 @@ class LanHost:
 
     async def accept(self, channel) -> None:
         """Admit and then serve one connection (an app player's, or a browser's from :mod:`lan.web`)."""
-        if self._pending >= MAX_PENDING:
+        address = channel.address
+        if self._pending >= MAX_PENDING or not self._door.enter(address):
             channel.close()
             return
         self._pending += 1
@@ -330,12 +456,17 @@ class LanHost:
                 return
         finally:
             self._pending -= 1
+            self._door.leave(address)
 
+        keepalive = getattr(channel, "keepalive", None)
+        pinging = asyncio.ensure_future(keepalive()) if keepalive is not None else None
         try:
             await self._serve(peer)
         except (ProtocolError, asyncio.TimeoutError, OSError):
             pass
         finally:
+            if pinging is not None:
+                pinging.cancel()
             await self._drop(peer, "")
 
     async def _admit(self, channel) -> _Peer:
@@ -346,9 +477,14 @@ class LanHost:
         if body.get("proto") != P.PROTOCOL_VERSION:
             raise LanError("version", "This session uses a different version of the Spellbook network "
                                       "protocol. Please make sure everyone is on the same app version.")
+        address = channel.address
         if self._password:
+            if self._door.locked_out(address):
+                raise LanError("password", "Too many wrong passwords from this device. Wait a minute, "
+                                           "then try again.")
             given = str(body.get("password") or "")
             if not hmac.compare_digest(given.encode("utf-8"), self._password.encode("utf-8")):
+                self._door.wrong_password(address)
                 await asyncio.sleep(0.5)               # slows down guessing
                 raise LanError("password", "Wrong session password.")
         if len(self._peers) >= self.max_peers:
@@ -361,16 +497,26 @@ class LanHost:
             client_id = "web:" + "".join(ch for ch in client_id if ch.isalnum())[:32]
         elif client_id.startswith("web:"):
             client_id = secrets.token_hex(8)        # (nor can an app pass for a browser)
-        address = channel.address
 
-        if self.require_approval:
-            accepted, reason = await self._ask_dm(name, address, web=channel.web)
+        if client_id in self._blocked_ids or (address in self._blocked_addresses and client_id not in self._approved):
+            raise LanError("declined", "The DM isn't letting this device join this session.")
+        if self.require_approval and client_id not in self._approved:
+            said_no = self._denied.get(client_id)
+            wait = self._door.wait_left(address)
+            if said_no is not None:
+                wait = max(wait, DENY_COOLDOWN - (time.monotonic() - said_no))
+            if wait > 0:
+                raise LanError("declined", _wait_words(wait))
+            accepted, reason = await self._ask_dm(name, address, channel, client_id, web=channel.web)
             if not accepted:
                 raise LanError("declined", reason)
+            self._approved.add(client_id)
+            self._door.let_in(address)
 
         # The same install reconnecting replaces its stale connection
-        for old in [p for p in self._peers.values() if p.client_id == client_id]:
-            await self._drop(old, "Replaced by a new connection.", notify=True)
+        stale = [p for p in self._peers.values() if p.client_id == client_id]
+        for old in stale:
+            await self._drop(old, "Replaced by a new connection.", notify=True, replaced=True)
 
         peer = _Peer(self._new_peer_id(), self._unique_name(name), client_id, channel, address)
         peer.app_version = "browser" if channel.web else P.clean_text(body.get("app_version"), 20)
@@ -388,20 +534,56 @@ class LanHost:
         await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
                                "body": {"event": "join", "peer": peer.public()}}, exclude=peer.peer_id)
         # (client_id goes only to the host's own UI, never into the broadcast presence message)
-        self._emit("peer_joined", peer=peer.public(), client_id=peer.client_id)
+        self._emit("peer_joined", peer=peer.public(), client_id=peer.client_id, rejoined=bool(stale))
         return peer
 
-    async def _ask_dm(self, name: str, address: str, web: bool = False):
+    async def _ask_dm(self, name: str, address: str, channel, client_id: str, web: bool = False):
+        """Ask the DM whether to let someone in: ``(accepted, reason)``.
+
+        Each player has at most one prompt open: asking again (a second tab, or a retry after a dropped
+        connection) closes the old one. The prompt also closes if the player stops waiting, so the DM is
+        never left answering someone who has gone."""
+        earlier = self._approvals.get(self._asking.get(client_id, ""))
+        if earlier is not None and not earlier.done():
+            earlier.set_result((False, "You asked again from somewhere else.", False, False))
         request_id = secrets.token_hex(6)
         fut: "asyncio.Future[tuple]" = asyncio.get_running_loop().create_future()
         self._approvals[request_id] = fut
+        self._asking[client_id] = request_id
         self._emit("approval_request", request_id=request_id, name=name, address=address, web=web)
+        # Someone waiting to be let in sends nothing, so anything arriving now (most often the
+        # connection closing) means they gave up
+        gone = asyncio.ensure_future(channel.read(P.MAX_PREAUTH_FRAME))
         try:
-            return await asyncio.wait_for(fut, APPROVAL_TIMEOUT)
-        except asyncio.TimeoutError:
+            await asyncio.wait({fut, gone}, timeout=APPROVAL_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
+            if fut.done():
+                accepted, reason, by_dm, block = fut.result()
+                if block:
+                    self._blocked_ids.add(client_id)
+                    if self._door.counted(address):
+                        self._blocked_addresses.add(address)
+                    self._emit("device_blocked", count=len(self._blocked_ids))
+                    return False, "The DM isn't letting this device join this session."
+                if by_dm and not accepted:
+                    self._denied.pop(client_id, None)       # (so the newest answer is the last one kept)
+                    self._denied[client_id] = time.monotonic()
+                    while len(self._denied) > _Door.KEPT:
+                        self._denied.pop(next(iter(self._denied)))
+                    self._door.refused(address)
+                return accepted, reason
+            if gone.done():
+                return False, "You stopped waiting."
             return False, "The DM did not answer in time."
         finally:
+            if not gone.done():
+                gone.cancel()
+            await asyncio.wait({gone})          # (so the next read of this connection starts cleanly)
+            if not gone.cancelled():
+                gone.exception()                # (read, so asyncio doesn't report it as never retrieved)
             self._approvals.pop(request_id, None)
+            if self._asking.get(client_id) == request_id:
+                del self._asking[client_id]
+            self._emit("approval_closed", request_id=request_id)
 
     def _new_peer_id(self) -> str:
         while True:
@@ -429,6 +611,8 @@ class LanHost:
             if kind == "ping":
                 await peer.send({"type": "pong", "from": HOST_ID, "ts": time.time(), "body": {}})
                 continue
+            if kind == "pong":                      # a browser answering our keep-alive
+                continue
             if not peer.bucket.allow():
                 peer.strikes += 1
                 if peer.strikes >= MAX_STRIKES:
@@ -445,7 +629,7 @@ class LanHost:
                 continue
             await handler(self, peer, body)
 
-    async def _drop(self, peer: _Peer, reason: str, notify: bool = False) -> None:
+    async def _drop(self, peer: _Peer, reason: str, notify: bool = False, replaced: bool = False) -> None:
         if peer.dropped:
             return
         peer.dropped = True
@@ -460,13 +644,14 @@ class LanHost:
             del self._peers[peer.peer_id]
             self._client_ids = {k: v for k, v in self._client_ids.items() if k != peer.peer_id}
             self._refresh_public()
-            self._emit("peer_left", peer=peer.public(), reason=reason)
+            self._emit("peer_left", peer=peer.public(), reason=reason, replaced=replaced)
             await self._broadcast({"type": "presence", "from": HOST_ID, "ts": time.time(),
                                    "body": {"event": "leave", "peer": peer.public()}})
 
     async def _kick(self, peer_id: str, reason: str) -> None:
         peer = self._peers.get(peer_id)
         if peer is not None:
+            self._approved.discard(peer.client_id)      # (coming back means asking the DM again)
             await self._drop(peer, reason, notify=True)
 
     async def _broadcast(self, msg: dict, exclude: Optional[str] = None) -> None:
@@ -607,6 +792,9 @@ class LanHost:
             ids = [i for i in ids if isinstance(i, str) and len(i) <= 40][:50]
             if ids:
                 self._emit("table_asset_req", peer_id=peer.peer_id, ids=ids)
+
+    async def _on_table_sync(self, host: "LanHost", peer: _Peer, body: dict) -> None:
+        self._emit("table_sync", peer_id=peer.peer_id)
 
     # ------------------------------------------------------------------ transfers
 

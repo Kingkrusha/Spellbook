@@ -14,6 +14,7 @@ import tkinter.font as tkfont
 from typing import Callable, List, Optional
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from theme import get_theme_manager
 from typography import installed_families
@@ -132,7 +133,7 @@ class FontPicker(ctk.CTkFrame):
         outer.pack(fill="both", expand=True)
 
         self._filter_var = tk.StringVar()
-        self._filter_entry = ctk.CTkEntry(outer, textvariable=self._filter_var, height=28,
+        self._filter_entry = PlaceholderEntry(outer, textvariable=self._filter_var, height=28,
                                           placeholder_text="Type to filter fonts…")
         self._filter_entry.pack(fill="x", padx=6, pady=(6, 4))
 

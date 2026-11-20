@@ -19,6 +19,7 @@ is overridden - everything else is inherited from ``CTkComboBox`` unchanged.
 import tkinter as tk
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from theme import get_theme_manager
 from ui.popup_window import PopupWindow, watch_popup
@@ -72,7 +73,7 @@ class ScrollableComboBox(ctk.CTkComboBox):
         search_var = None
         if show_search:
             search_var = ctk.StringVar()
-            search_entry = ctk.CTkEntry(
+            search_entry = PlaceholderEntry(
                 outer, textvariable=search_var, placeholder_text="Type to filter...",
                 height=26,
             )

@@ -281,3 +281,27 @@ def test_secondary_click_follows_the_apps_platform_convention(tk_root, hub):
             assert "<Button-2>" not in bound and "<Button-3>" in bound
     finally:
         table.destroy()
+
+
+def test_adding_a_connected_player_fills_in_their_character(tk_root, hub):
+    from ui.initiative_dialogs import AddCombatantDialog
+    dm = hub.dm()
+    players = [("Robin", "web:abc", {"name": "Aria", "hp": 17, "hp_max": 24, "ac": 15, "init": 3}),
+               ("Sam", "def456", {})]
+    dialog = AddCombatantDialog(tk_root, dm, get_players=lambda: players)
+    try:
+        pump(tk_root)
+        values = lambda: {k: dialog.pl[k].get() for k in ("name", "hp", "ac", "bonus")}
+        assert values() == {"name": "Aria", "hp": "17", "ac": "15", "bonus": "3"}
+        dialog.p_who.set("Sam")
+        dialog._player_picked("Sam")                 # (someone who hasn't said who they play)
+        assert values() == {"name": "Sam", "hp": "10", "ac": "12", "bonus": "0"}
+        dialog.p_who.set("Robin")
+        dialog._player_picked("Robin")
+        dialog.tabs.set("Player")
+        dialog.roll_var.set(False)
+        dialog._add()
+        e = next(e for e in hub.tracker.state.entries if e.name == "Aria")
+        assert (e.hp, e.hp_max, e.ac, e.init_bonus, e.owner) == (17, 24, 15, 3, "web:abc")
+    finally:
+        dialog.destroy()

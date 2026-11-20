@@ -193,6 +193,10 @@ _SIMPLE = ("adv", "dis", "flat", "die", "rescue_add", "rescue_reroll", "rescue_s
 
 
 def apply_rules(d20: D20, ctx: Ctx, roll: RollInfo, state: Dict[str, object]) -> None:
+    exhaustion = int(getattr(ctx.sheet, "exhaustion", 0) or 0)
+    if exhaustion > 0:
+        d20.add("Exhaustion", -2 * exhaustion)
+        d20.notes.append(f"Exhaustion {exhaustion}: -{2 * exhaustion} to every d20 test.")
     for rule in all_rules(ctx):
         if not _present(ctx, rule) or not rule.matches(roll):
             continue

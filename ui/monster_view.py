@@ -6,6 +6,7 @@ laid out the same way as the Spells/Feats/Magic Items pages.
 
 from ui.window_utils import center_on_parent
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 import tkinter as tk
 from dataclasses import replace
@@ -938,7 +939,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         min_var, max_var = ctk.StringVar(), ctk.StringVar()
         for i, var in enumerate((min_var, max_var)):
             var.trace_add("write", lambda *args: self._on_filter_changed())
-            ctk.CTkEntry(parent, width=width, height=35, textvariable=var,
+            PlaceholderEntry(parent, width=width, height=35, textvariable=var,
                          placeholder_text="Min" if i == 0 else "Max").pack(side="left", padx=(0, 5))
             if i == 0:
                 ctk.CTkLabel(parent, text="-").pack(side="left", padx=(0, 5))
@@ -966,7 +967,7 @@ class MonsterView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
 
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(bar, width=200, height=35, placeholder_text="Search monsters...",
+        PlaceholderEntry(bar, width=200, height=35, placeholder_text="Search monsters...",
                      textvariable=self.search_var).pack(side="left", padx=(0, 10))
 
         self._label(bar, "Type:")

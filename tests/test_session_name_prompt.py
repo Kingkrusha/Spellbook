@@ -137,7 +137,7 @@ def test_joining_asks_which_character_you_play(page):
     dlg.playing.set("Aria")
     dlg._submit()
     pump(root, 0.2)
-    assert svc.my_character == {"name": "Aria", "hp": 31, "hp_max": 31, "ac": 15, "summary": ""}
+    assert svc.my_character == {"name": "Aria", "hp": 31, "hp_max": 31, "ac": 15, "init": None, "summary": ""}
     assert FakeSettings.settings.lan_character == "Aria"
     svc.cancel_join()
     # next time it starts on the same character; hosting never asks

@@ -30,6 +30,7 @@
         <div class="char-row">
           <label>Max HP <input id="char-hp" type="number" min="0" max="9999" inputmode="numeric"></label>
           <label>AC <input id="char-ac" type="number" min="0" max="50" inputmode="numeric"></label>
+          <label>Init bonus <input id="char-init" type="number" min="-20" max="30" inputmode="numeric"></label>
         </div>
         <p class="muted small">The DM sees this and can give you your character's token.</p>
       </details>
@@ -132,7 +133,7 @@
         <div class="add-row">
           <label>HP <input id="add-hp" type="number" min="0" max="9999" value="10" inputmode="numeric"></label>
           <label>AC <input id="add-ac" type="number" min="0" max="50" value="10" inputmode="numeric"></label>
-          <label>Init bonus <input id="add-init" type="number" min="-20" max="20" value="0" inputmode="numeric"></label>
+          <label>Init bonus <input id="add-init" type="number" min="-20" max="30" value="0" inputmode="numeric"></label>
         </div>
         <button type="submit">Add me</button>
       </form>
@@ -147,6 +148,7 @@
         <div class="add-row">
           <label>Max HP <input id="play-hp" type="number" min="0" max="9999" inputmode="numeric"></label>
           <label>AC <input id="play-ac" type="number" min="0" max="50" inputmode="numeric"></label>
+          <label>Init bonus <input id="play-init" type="number" min="-20" max="30" inputmode="numeric"></label>
         </div>
         <button type="submit">Tell the DM</button>
       </form>
@@ -157,6 +159,7 @@
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="geometry.js"></script>
+<script src="patch.js"></script>
 <script src="table.js"></script>
 <script src="tabletop.js"></script>
 <script src="side.js"></script>

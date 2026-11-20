@@ -18,6 +18,7 @@ from typography import ui_font
 from ui.initiative_dialogs import (AddCombatantDialog, ConditionsPopover, PromptDialog, SettingsPopover,
                                    StatsPopover)
 from ui.initiative_table import InitiativeTable, TableCallbacks
+from ui.rich_text_utils import follow_width
 
 
 class InitiativeView(ctk.CTkFrame):
@@ -97,11 +98,12 @@ class InitiativeView(ctk.CTkFrame):
         self.table.pack(fill="both", expand=True)
 
         self.hint = ctk.CTkLabel(
-            outer, font=ui_font("small"), text_color=self.theme.get_text_secondary(), anchor="w",
+            outer, font=ui_font("small"), text_color=self.theme.get_text_secondary(), anchor="w", justify="left",
             text="Click HP, AC or conditions to change them · click the initiative number to set it · "
                  "drag ⠿ to reorder · right-click or ⋯ for more · Ctrl/Shift-click to select several · "
                  "Ctrl+→ next turn, Ctrl+← back, Ctrl+Z undo, Delete removes")
         self.hint.pack(fill="x", pady=(6, 0))
+        follow_width(outer, self.hint)          # (it is longer than the window at its default size)
 
         self.backend.listen(self._schedule_change)
         self._on_change()

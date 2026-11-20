@@ -65,15 +65,23 @@ CATEGORIES: "OrderedDict[str, Tuple[str, str]]" = OrderedDict([
 ])
 
 # settings.json keys that belong to this computer, not to the person: never exported or imported
-LOCAL_SETTINGS = {"lan_client_id", "lan_last_invite", "pdf_folders", "tracker_window_state",
-                  "skipped_update_version", "initial_official_tag_applied"}
+LOCAL_SETTINGS = {"lan_client_id", "lan_last_invite", "pdf_folders", "tracker_window_state", "window_geometry",
+                  "skipped_update_version", "initial_official_tag_applied", "crash_report_done", "crash_reports_sent",
+                  "lan_overlay_toggle_pos", "lan_overlay_panel_pos",
+                  # the example character a tour is using is deleted at the next start: only ever this install's
+                  "tutorial_example_character"}
 SETTINGS_FILES = ("settings.json", "font_settings.json", "custom_themes.json")
 
 MAX_JSON_BYTES = 256 * 1024 * 1024          # one JSON member of a backup
+PICTURE_TYPES = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 
 
 class BackupError(ValueError):
     """The file can't be used (the message is meant for the person reading it)."""
+
+
+class NotEnoughSpace(BackupError):
+    """A restore would fill the disk. Nothing has been written."""
 
 
 def label(key: str) -> str:
@@ -677,6 +685,96 @@ def _members(z: zipfile.ZipFile, prefix: str) -> List[Tuple[zipfile.ZipInfo, str
 
 
 # --------------------------------------------------------------------------- #
+# Room for a restore
+# --------------------------------------------------------------------------- #
+
+SPACE_MARGIN = 50 * 1024 * 1024             # left free after a restore (the app and the system need some too)
+
+# Where in a backup each category is
+_PARTS = {"settings": "settings/", "content": "content.json", "random_tables": "random_tables.json",
+          "characters": "characters.json", "studio": "studio.json", "calendars": "calendars.json",
+          "images": "images/", "tabletop": "tabletop/", "tokens": "tokens/", "pdfs": "pdfs/",
+          "music": "music/music.json", "music_files": "music/files/"}
+
+
+def _destination(key: str, src: Sources, rel: str) -> Tuple[str, Optional[str]]:
+    """The folder a member of category ``key`` is written to, and the file itself when that's known (a file
+    that is already there, the same size, is left alone and needs no room)."""
+    if key == "images":
+        folder = src.image_store.folder
+        return folder, os.path.join(folder, *rel.split("/"))
+    if key == "tabletop" and rel.startswith("assets/"):
+        return src.assets.folder, os.path.join(src.assets.folder, rel[len("assets/"):])
+    if key == "tokens":
+        return src.token_folder, os.path.join(src.token_folder, *rel.split("/"))
+    if key == "pdfs":
+        return src.pdf_target, os.path.join(src.pdf_target, *rel.split("/"))
+    if key == "music_files":
+        return src.music_folder, os.path.join(src.music_folder, rel.split("/")[-1])
+    return src.path(""), None
+
+
+def _existing(folder: str) -> str:
+    """``folder``, or the nearest folder above it that exists (the drive it will be made on)."""
+    folder = os.path.abspath(folder)
+    while not os.path.isdir(folder):
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            break
+        folder = parent
+    return folder
+
+
+def space_needed(z: zipfile.ZipFile, src: Sources, keys: Iterable[str]) -> List[Tuple[str, int, int]]:
+    """``(folder, bytes needed, bytes free)`` for every drive a restore of ``keys`` writes to. "Needed" counts
+    what the backup unpacks to, less files already here as they are, plus :data:`SPACE_MARGIN`."""
+    need: Dict[object, List] = {}
+    wanted = set(keys)
+    for info in z.infolist():
+        if info.is_dir():
+            continue
+        for key, part in _PARTS.items():
+            if key not in wanted or not (info.filename == part or (part.endswith("/") and
+                                                                   info.filename.startswith(part))):
+                continue
+            rel = info.filename[len(part):] if part.endswith("/") else ""
+            folder, dest = _destination(key, src, rel)
+            if dest is not None:
+                try:
+                    if os.path.getsize(dest) == info.file_size:
+                        break
+                except OSError:
+                    pass
+            where = _existing(folder)
+            try:
+                drive = os.stat(where).st_dev
+            except OSError:
+                drive = where
+            entry = need.setdefault(drive, [where, 0])
+            entry[1] += info.file_size
+            break
+    out = []
+    for where, size in need.values():
+        try:
+            free = shutil.disk_usage(where).free
+        except OSError:
+            continue                                     # (can't tell: don't stand in the way)
+        out.append((where, size + SPACE_MARGIN, free))
+    return out
+
+
+def check_space(z: zipfile.ZipFile, src: Sources, keys: Iterable[str]) -> None:
+    """Raise :class:`NotEnoughSpace` before a restore that would run out of room part way (and leave a mix of
+    old and new files)."""
+    for where, need, free in space_needed(z, src, keys):
+        if need > free:
+            raise NotEnoughSpace(
+                f"There isn't enough free space to restore this backup. It needs about {format_size(need)} on "
+                f"the drive with {where}, and {format_size(free)} is free.\n\nFree up some room there, or untick "
+                f"the larger parts (PDFs, music files, pictures) and restore the rest.")
+
+
+# --------------------------------------------------------------------------- #
 # Import
 # --------------------------------------------------------------------------- #
 
@@ -713,6 +811,7 @@ def import_backup(path: str, src: Sources, keys: Iterable[str], replace: bool = 
     with _open_zip(path) as z:
         manifest = _manifest(z)
         wanted = [k for k in CATEGORIES if k in set(keys) and k in manifest.categories]
+        check_space(z, src, wanted)
         for i, key in enumerate(wanted):
             if progress:
                 progress(f"Importing {label(key).lower()}…", i / max(1, len(wanted)))
@@ -938,8 +1037,8 @@ def _import_images(z, src: Sources, replace: bool, result: ImportResult) -> str:
                 continue
             rel = safe_member("images/" + str(entry.get("file") or ""), "images/")
             info = members.get(rel) if rel else None
-            if info is None:
-                continue
+            if info is None or os.path.splitext(rel)[1].lower() not in PICTURE_TYPES:
+                continue                                # (only pictures are unpacked into the pictures folder)
             existing = store._index.get(kind, {}).get(name_key(str(entry.get("name") or key)))
             if existing and not replace:
                 kept += 1

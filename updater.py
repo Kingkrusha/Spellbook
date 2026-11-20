@@ -172,6 +172,8 @@ def open_release_page(info: Optional[UpdateInfo] = None) -> None:
     never touches an executable).
     """
     url = (info.release_url if info else None) or RELEASES_PAGE_URL
+    if not url.startswith(RELEASES_PAGE_URL):
+        url = RELEASES_PAGE_URL             # only ever this project's own releases page
     try:
         webbrowser.open(url)
     except Exception:

@@ -2,6 +2,7 @@
 Main application window for D&D Spellbook (CustomTkinter version).
 """
 
+import os
 from collections import OrderedDict
 
 import customtkinter as ctk
@@ -154,6 +155,19 @@ class MainWindow(ctk.CTkFrame):
         something is wrong, and repeated identical popups (e.g. from a
         permanently read-only data folder) would just be noise.
         """
+        if message.startswith("Could not load"):           # a data file (or part of one) could not be read
+            if getattr(self, "_shown_load_error", False):
+                return
+            self._shown_load_error = True
+            try:
+                messagebox.showerror(
+                    "Could not read your data",
+                    f"{message}\n\nSpellbook carries on without what it could not read. If you have a backup, "
+                    "Settings > Backup and Transfer can bring it back."
+                )
+            except Exception:
+                pass
+            return
         if getattr(self, "_shown_save_error", False):
             return
         self._shown_save_error = True
@@ -238,21 +252,32 @@ class MainWindow(ctk.CTkFrame):
         except Exception:
             return
 
+        import queue
+        import threading
+        results = queue.Queue()
+
         def worker():
             try:
                 from updater import check_for_update
-                info = check_for_update()
+                results.put(check_for_update())
             except Exception:
-                return  # stay quiet on any failure
-            if info is None:
-                return
-            try:
-                self.after(0, lambda: self._show_update_dialog(info))
-            except Exception:
-                pass
+                results.put(None)  # stay quiet on any failure
 
-        import threading
+        def poll():
+            # (on Tk's thread: the worker only fills the queue)
+            try:
+                info = results.get_nowait()
+            except queue.Empty:
+                try:
+                    self.after(500, poll)
+                except Exception:
+                    pass
+                return
+            if info is not None:
+                self._show_update_dialog(info)
+
         threading.Thread(target=worker, daemon=True).start()
+        self.after(500, poll)
 
     def _show_update_dialog(self, info):
         """Show the update dialog unless the user has skipped this version."""
@@ -399,9 +424,10 @@ class MainWindow(ctk.CTkFrame):
             self._open_page_in_new_tab("initiative")
 
     def _tracker_players(self):
-        """``[(display name, install id)]`` of the players connected to the session being hosted."""
+        """``[(display name, install id, character)]`` of the players connected to the session being hosted;
+        ``character`` is who they said they're playing (``{name, hp, hp_max, ac, init}``, or ``{}``)."""
         s = self.session
-        return [(p["name"], s.client_ids[p["peer_id"]]) for p in s.peers
+        return [(p["name"], s.client_ids[p["peer_id"]], s.player_character(p["peer_id"])) for p in s.peers
                 if p["peer_id"] != s.my_id and p["peer_id"] in s.client_ids]
 
     def open_tracker_window(self, which: str = "dm"):
@@ -478,6 +504,8 @@ class MainWindow(ctk.CTkFrame):
             self._update_session_bar()
         if kind == 'state':
             self._sync_tracker_links()
+            if self.session.my_character:
+                self._watch_played_character()
         elif kind == 'tracker_state':
             self._maybe_open_tracker_for_player(data.get('view') or {})
         elif kind == 'table_state':
@@ -492,7 +520,8 @@ class MainWindow(ctk.CTkFrame):
             request_id = data['request_id']
             self._approval_dialogs[request_id] = ApprovalDialog(
                 self.winfo_toplevel(), data['name'], data['address'],
-                lambda accept, rid=request_id: self.session.resolve_approval(rid, accept), web=bool(data.get('web')))
+                lambda accept, block=False, rid=request_id: self.session.resolve_approval(rid, accept, block=block),
+                web=bool(data.get('web')))
         elif kind == 'approval_done':
             dialog = self._approval_dialogs.pop(data['request_id'], None)
             if dialog is not None:
@@ -884,7 +913,7 @@ class MainWindow(ctk.CTkFrame):
                 return None
             return {"type": "add_entry", "kind": T.KIND_PLAYER, "name": c["name"], "hp": c.get("hp") or 0,
                     "hp_max": c.get("hp_max") or c.get("hp") or 0, "ac": c.get("ac") if c.get("ac") is not None else 10,
-                    "owner": token.get("owner", "")}
+                    "init_bonus": c.get("init") or 0, "owner": token.get("owner", "")}
         return None
 
     def _session_character_names(self) -> list:
@@ -905,20 +934,52 @@ class MainWindow(ctk.CTkFrame):
             info["summary"] = " ".join(b for b in bits if b)
         sheet = get_sheet_manager().get_sheet(name)
         if sheet is not None:
-            info.update(hp=sheet.hit_points.current, hp_max=sheet.hit_points.maximum, ac=sheet.armor_class)
+            info.update(hp=sheet.hit_points.current, hp_max=sheet.hit_points.maximum, ac=sheet.armor_class,
+                        init=sheet.get_initiative())
             path = portraits.portrait_path(getattr(sheet, "portrait", "") or "")
             if path:
                 try:
-                    from PIL import Image, ImageOps
-                    with Image.open(path) as image:
-                        image = ImageOps.exif_transpose(image).convert("RGB")
-                        image.thumbnail((160, 160))
-                        data = io.BytesIO()
-                        image.save(data, "JPEG", quality=82)
-                    info["portrait"] = base64.b64encode(data.getvalue()).decode("ascii")
+                    key = (path, os.path.getmtime(path))
+                    cached = getattr(self, "_portrait_thumb", None)
+                    if cached is None or cached[0] != key:
+                        from PIL import Image, ImageOps
+                        with Image.open(path) as image:
+                            image = ImageOps.exif_transpose(image).convert("RGB")
+                            image.thumbnail((160, 160))
+                            data = io.BytesIO()
+                            image.save(data, "JPEG", quality=82)
+                        cached = self._portrait_thumb = (key, base64.b64encode(data.getvalue()).decode("ascii"))
+                    info["portrait"] = cached[1]
                 except Exception as e:                  # the portrait is a nicety; the rest still goes
                     print(f"Session: couldn't shrink the portrait of {name}: {e}")
         return info
+
+    def _watch_played_character(self):
+        """Player: once in a session, keep the DM's copy of our character's HP, AC and initiative current."""
+        if getattr(self, "_watching_sheets", False):
+            return
+        self._watching_sheets = True
+        from ui.character_sheet_view import get_sheet_manager
+        get_sheet_manager().add_saved_listener(self._played_character_saved)
+
+    def _played_character_saved(self):
+        if getattr(self, "_played_refresh_after", None) is None:
+            self._played_refresh_after = self.after(600, self._refresh_played_character)
+
+    def _refresh_played_character(self):
+        self._played_refresh_after = None
+        from lan.service import CLIENT
+        mine = self.session.my_character or {}
+        if self.session.role != CLIENT or not mine.get("name"):
+            return
+        try:
+            from lan.protocol import clean_character
+            info = clean_character(self._session_character_info(mine["name"]))   # (as the DM would get it)
+        except Exception as e:
+            print(f"Session: couldn't read {mine['name']}: {e}")
+            return
+        if any(info.get(k) != mine.get(k) for k in ("hp", "hp_max", "ac", "init", "summary", "portrait")):
+            self.session.set_my_character(info)
 
     def _tabletop_characters(self):
         """``[{name, portrait, hp, hp_max}]`` for the Tabletop's "Character…" button."""
@@ -1029,6 +1090,11 @@ class MainWindow(ctk.CTkFrame):
     # on every navigation is what made switching feel sluggish.
     CACHEABLE_PAGES = ("home", "collections", "characters", "character_sheet")
     PAGE_CACHE_SIZE = 3        # left pages kept per tab
+    # Game Tools pages a tab left are kept too (the last few), so going back to Initiative, the Tabletop or the Dice
+    # Analyzer is instant instead of a rebuild. A kept tool page goes on working as it does in a background tab.
+    KEPT_TOOL_PAGES = ("game_tools", "session", "initiative", "dice_analyzer", "matchup", "random_tables",
+                       "calendar", "pdf_library", "music", "tabletop")
+    TOOL_CACHE_SIZE = 3
     SUB_VIEW_CACHE_SIZE = 3    # collection pages kept per tab
 
     def _page_key(self, page_type: str, character: Optional[str] = None) -> tuple:
@@ -1052,6 +1118,10 @@ class MainWindow(ctk.CTkFrame):
             if entry['sub_views']:
                 info['sub_views'] = entry['sub_views']
             info.pop('fresh', None)  # a reused page catches up with changes when it is shown
+            if page_type == 'tabletop':
+                from lan.service import CLIENT
+                if self.session.role != CLIENT:
+                    self._tabletop_initiative()     # catch the tokens up with the tracker, as a new page does
         else:
             info['view'] = self._build_page(tab_id, page_type, character=character)
             info['fresh'] = True  # just built: nothing to catch up on when it is first shown
@@ -1082,19 +1152,26 @@ class MainWindow(ctk.CTkFrame):
         info.pop('sub_view_key', None)
         loaded = info.pop('pending_character', None) is None  # a sheet that never showed has nothing to keep
 
-        if page_type in self.CACHEABLE_PAGES and key and loaded:
+        kept = page_type in self.CACHEABLE_PAGES or page_type in self.KEPT_TOOL_PAGES
+        if kept and key and loaded:
             if page_type == 'character_sheet' and not self._sheet_still_valid(view):
                 self._dispose_entry(entry)
                 return
             cache = info.setdefault('cache', OrderedDict())
             stale = cache.pop(key, None)
             if stale is not None:
-                self._dispose_entry(stale)
+                self._dispose_entry(stale, immediately=self._is_tool_key(key))
             cache[key] = entry
-            while len(cache) > self.PAGE_CACHE_SIZE:
-                self._dispose_entry(cache.popitem(last=False)[1])
+            for tools, limit in ((False, self.PAGE_CACHE_SIZE), (True, self.TOOL_CACHE_SIZE)):
+                keys = [k for k in cache if self._is_tool_key(k) == tools]
+                for old_key in keys[:max(0, len(keys) - limit)]:          # the least recently left go first
+                    self._dispose_entry(cache.pop(old_key), immediately=tools)
         else:
             self._dispose_entry(entry, immediately=page_type not in self.CACHEABLE_PAGES)
+
+    def _is_tool_key(self, key) -> bool:
+        """A Game Tools page: those have their own teardown (sessions, sound, timers), so they go at once."""
+        return bool(key) and key[0] in self.KEPT_TOOL_PAGES
 
     def _take_cached_page(self, info: dict, key: tuple):
         """The cached page for ``key`` (removed from the cache), or None."""
@@ -1118,14 +1195,14 @@ class MainWindow(ctk.CTkFrame):
 
     def _dispose_tab(self, info: dict, immediately: bool = False):
         """Get rid of everything a closed (or suspended) tab was holding."""
-        entries = list((info.pop('cache', None) or {}).values())
+        entries = [(entry, self._is_tool_key(key)) for key, entry in (info.pop('cache', None) or {}).items()]
         if info.get('view') is not None:
-            entries.append({'view': info['view'], 'sub_views': info.pop('sub_views', None) or {}})
+            entries.append(({'view': info['view'], 'sub_views': info.pop('sub_views', None) or {}}, False))
             info['view'] = None
         else:
             info.pop('sub_views', None)
-        for entry in entries:
-            self._dispose_entry(entry, immediately)
+        for entry, tool in entries:
+            self._dispose_entry(entry, immediately or tool)
         info.pop('sub_view', None)
         info.pop('sub_view_key', None)
         info.pop('pending_character', None)
@@ -1367,7 +1444,7 @@ class MainWindow(ctk.CTkFrame):
         elif kind == 'cache' and info is not None:
             entry = (info.get('cache') or {}).pop(key, None)
             if entry is not None:
-                self._dispose_entry(entry, immediately)
+                self._dispose_entry(entry, immediately or self._is_tool_key(key))
         elif kind == 'sub' and info is not None:
             self._dispose_view((info.get('sub_views') or {}).pop(key, None), immediately)
         elif kind == 'tab' and info is not None:

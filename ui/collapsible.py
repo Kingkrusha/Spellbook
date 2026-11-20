@@ -22,7 +22,7 @@ class CollapsibleSection(ctk.CTkFrame):
         c = self.theme.get_current_color
         self.header = ctk.CTkButton(
             self, text="", anchor="w", height=30, fg_color="transparent", hover_color=c("button_hover"),
-            text_color=c("accent_primary"), font=ui_font("subheading", 15, bold=True), command=self.toggle)
+            text_color=c("accent_text"), font=ui_font("subheading", 15, bold=True), command=self.toggle)
         self.header.pack(fill="x", pady=(10, 0))
         self.rule = ctk.CTkFrame(self, height=2, fg_color=c("border"))
         self.rule.pack(fill="x", pady=(0, 6))

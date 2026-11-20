@@ -9,7 +9,8 @@ size or modification time changes, so a rescan of an unchanged library takes a m
 
 PDF reading uses pypdfium2 (PDFium, the engine in Chrome): text extraction here and page rendering in the
 viewer (ui/pdf_library_view.py). Scanned PDFs without a text layer have nothing to index; they still open in
-the viewer.
+the viewer. PDFium must never be used by two threads at once, not even on different documents, so the scan
+(a background thread) and the viewer take turns through ``PDFIUM_LOCK``, a page at a time.
 """
 
 from __future__ import annotations
@@ -26,6 +27,9 @@ INDEX_FILE = "pdf_index.db"
 DEFAULT_FOLDER = "PDFs"
 SCHEMA_VERSION = 1
 SNIPPET_CHARS = 170
+
+# Held around every PDFium call (see the module docstring). Re-entrant, so a caller may hold it around a few.
+PDFIUM_LOCK = threading.RLock()
 
 
 def available() -> bool:
@@ -309,41 +313,49 @@ def _snippet(flat: str, lower: str, terms: List[str], phrase: str) -> str:
 
 
 def read_pdf(path: str) -> Tuple[str, List[str], List[TocEntry]]:
-    """(title, the text of each page, bookmarks) of a PDF."""
+    """(title, the text of each page, bookmarks) of a PDF. Takes PDFium a page at a time, so the viewer can
+    draw between two pages of a long book."""
     import pypdfium2 as pdfium
-    pdf = pdfium.PdfDocument(path)
+    with PDFIUM_LOCK:
+        pdf = pdfium.PdfDocument(path)
     try:
         title = ""
-        try:
-            title = (pdf.get_metadata_dict().get("Title") or "").strip()
-        except Exception:
-            pass
+        with PDFIUM_LOCK:
+            try:
+                title = (pdf.get_metadata_dict().get("Title") or "").strip()
+            except Exception:
+                pass
+            count = len(pdf)
         if not title or title.lower() in ("untitled", "microsoft word"):
             title = os.path.splitext(os.path.basename(path))[0]
         pages = []
-        for i in range(len(pdf)):
-            page = pdf[i]
-            try:
-                textpage = page.get_textpage()
+        for i in range(count):
+            with PDFIUM_LOCK:
+                page = pdf[i]
                 try:
-                    pages.append(clean_text(textpage.get_text_range()))
+                    textpage = page.get_textpage()
+                    try:
+                        text = textpage.get_text_range()
+                    finally:
+                        textpage.close()
                 finally:
-                    textpage.close()
-            finally:
-                page.close()
+                    page.close()
+            pages.append(clean_text(text))
         toc = []
-        try:
-            for item in pdf.get_toc(max_depth=4):
-                dest = item.get_dest()
-                page_index = dest.get_index() if dest is not None else None
-                title_text = (item.get_title() or "").strip()
-                if page_index is not None and page_index >= 0 and title_text:
-                    toc.append(TocEntry(int(item.level), title_text, int(page_index)))
-        except Exception:
-            pass
+        with PDFIUM_LOCK:
+            try:
+                for item in pdf.get_toc(max_depth=4):
+                    dest = item.get_dest()
+                    page_index = dest.get_index() if dest is not None else None
+                    title_text = (item.get_title() or "").strip()
+                    if page_index is not None and page_index >= 0 and title_text:
+                        toc.append(TocEntry(int(item.level), title_text, int(page_index)))
+            except Exception:
+                pass
         return title, pages, toc
     finally:
-        pdf.close()
+        with PDFIUM_LOCK:
+            pdf.close()
 
 
 _library: Optional[PdfLibrary] = None

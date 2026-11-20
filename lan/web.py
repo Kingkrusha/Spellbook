@@ -36,6 +36,8 @@ DEFAULT_WEB_PORT = 8742
 MAX_REQUEST = 8 * 1024             # request line and headers
 MAX_WEB_FRAME = 256 * 1024         # largest message a browser may send (a long freehand line is ~20 KB)
 REQUEST_TIMEOUT = 10.0
+MAX_WAITING = 48                    # connections that haven't finished sending their request yet ...
+MAX_WAITING_PER_ADDRESS = 12        # ... and how many of those one address may hold
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 # The page and its files: published path -> (file in lan/web, content type)
@@ -45,6 +47,7 @@ FILES = {
     "/table.css": ("table.css", "text/css; charset=utf-8"),
     "/table.js": ("table.js", "text/javascript; charset=utf-8"),
     "/geometry.js": ("geometry.js", "text/javascript; charset=utf-8"),
+    "/patch.js": ("patch.js", "text/javascript; charset=utf-8"),
     "/tabletop.js": ("tabletop.js", "text/javascript; charset=utf-8"),
     "/side.js": ("side.js", "text/javascript; charset=utf-8"),
 }
@@ -163,7 +166,10 @@ class WebSocketChannel:
         self._closed = False
 
     async def read(self, max_size: int = MAX_WEB_FRAME) -> dict:
-        """The next JSON message (pings are answered and skipped; a long message may come in pieces)."""
+        """The next JSON message (pings are answered and skipped; a long message may come in pieces).
+
+        A pong (the browser answering :meth:`keepalive`) comes back as ``{"type": "pong"}``, so the
+        host counts it as a sign of life."""
         parts = []
         size = 0
         while True:
@@ -174,6 +180,8 @@ class WebSocketChannel:
                 await self._send_raw(encode_ws(payload[:125], 0xA))
                 continue
             if opcode == 0xA:
+                if not parts:
+                    return {"type": "pong", "body": {}}
                 continue
             if opcode not in (0x0, 0x1, 0x2) or (opcode == 0x0) != bool(parts):
                 raise ProtocolError("unexpected frame")
@@ -189,6 +197,16 @@ class WebSocketChannel:
         if len(data) > P.MAX_FRAME:
             raise ProtocolError("message too large to send")
         await self._send_raw(encode_ws(data))
+
+    async def keepalive(self, every: Optional[float] = None) -> None:
+        """Ping the browser now and then. The browser answers by itself, even while the page's own timers
+        are slowed down (a hidden tab, a phone with its screen off), so the player isn't dropped as idle."""
+        try:
+            while not self._closed:
+                await asyncio.sleep(every or P.PING_INTERVAL)
+                await self._send_raw(encode_ws(b"sb", 0x9))
+        except (ConnectionError, OSError, asyncio.TimeoutError, RuntimeError):
+            pass
 
     async def _send_raw(self, frame: bytes) -> None:
         async with self._lock:
@@ -243,6 +261,7 @@ class WebServer:
         self.port = 0
         self._server: Optional[asyncio.AbstractServer] = None
         self._folder = web_folder()
+        self._waiting: Dict[str, int] = {}      # address -> connections still sending their request
 
     async def start(self, bind: str = "0.0.0.0", port: int = DEFAULT_WEB_PORT) -> int:
         self._server = await asyncio.start_server(self._on_connect, bind, port, limit=MAX_REQUEST * 2)
@@ -263,12 +282,25 @@ class WebServer:
         if not is_local_address(address):
             writer.close()
             return
+        # A connection that opens and then says nothing holds a place for REQUEST_TIMEOUT: one machine can't
+        # take them all and keep everyone else off the page
+        mine = self._waiting.get(address, 0)
+        if mine >= MAX_WAITING_PER_ADDRESS or sum(self._waiting.values()) >= MAX_WAITING:
+            writer.close()
+            return
+        self._waiting[address] = mine + 1
         try:
             try:
                 raw = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), REQUEST_TIMEOUT)
             except (asyncio.LimitOverrunError, asyncio.IncompleteReadError, asyncio.TimeoutError):
                 writer.close()
                 return
+            finally:
+                left = self._waiting.get(address, 1) - 1
+                if left > 0:
+                    self._waiting[address] = left
+                else:
+                    self._waiting.pop(address, None)
             if len(raw) > MAX_REQUEST:
                 await self._respond(writer, 431, "text/plain", b"Request too large.")
                 return

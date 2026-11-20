@@ -159,3 +159,116 @@ def test_views_with_damaged_areas_or_heights_are_refused():
     assert not N.valid_view({"scene": dict(base, areas=[dict(good, shape="blob")])})
     assert not N.valid_view({"scene": dict(base, areas=[dict(good, size="big")])})
     assert not N.valid_view({"scene": dict(base, zones=[{"pts": [], "elev": "up"}])})
+
+
+# ---- how much work a change is for the DM's computer
+
+class _Recorder:
+    """A session that only notes what the link sends."""
+    my_id = "host"
+
+    def __init__(self, players=("p1", "p2")):
+        self.peers = [{"peer_id": "host"}] + [{"peer_id": p} for p in players]
+        self.client_ids = {p: f"install-{p}" for p in players}
+        self.sent = []
+
+    def add_listener(self, fn):
+        pass
+
+    def remove_listener(self, fn):
+        pass
+
+    def send_table_state(self, peer_id, view, seq=None):
+        self.sent.append((peer_id, view))
+
+    def send_table_error(self, *args):
+        pass
+
+
+def _two_maps(tmp_path):
+    table = T.Tabletop(str(tmp_path / "tabletop.json"))
+    shown = table.apply({"op": "scene_new", "scene_data": {"name": "Shown", "w": 800, "h": 600}})["scene"]
+    other = table.apply({"op": "scene_new", "scene_data": {"name": "Next room", "w": 800, "h": 600}})["scene"]
+    table.apply({"op": "scene_show", "scene": shown})
+    return table, shown, other
+
+
+def test_work_on_a_map_the_players_arent_shown_sends_nothing(tmp_path):
+    table, shown, other = _two_maps(tmp_path)
+    svc = _Recorder()
+    link = N.TableHostLink(svc, table, T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c")))
+    assert len(svc.sent) == 2                               # everyone gets the map when the link starts
+    svc.sent.clear()
+    views = []
+    table.view_for, real = (lambda viewer: views.append(viewer) or real(viewer)), table.view_for
+    table.apply({"op": "token_add", "scene": other, "token": {"name": "Ogre", "x": 100, "y": 100}})
+    table.apply({"op": "draw_add", "scene": other, "drawing": {"kind": "line", "pts": [0, 0, 50, 50]}})
+    assert svc.sent == [] and views == []                   # (not even worked out)
+    table.apply({"op": "token_add", "scene": shown, "token": {"name": "Guard", "x": 100, "y": 100}})
+    assert [p for p, _v in svc.sent] == ["p1", "p2"]
+    svc.sent.clear()
+    table.apply({"op": "scene_show", "scene": other})       # now they are shown the other one
+    assert [v["scene"]["name"] for _p, v in svc.sent] == ["Next room", "Next room"]
+    svc.sent.clear()
+    table.apply({"op": "scene_delete", "scene": other})     # and it is taken away
+    assert [v["scene"] for _p, v in svc.sent] == [None, None]
+    svc.sent.clear()
+    table.set_turn(["e1"])                                  # whose turn it is isn't about one map
+    assert views[-2:] == ["install-p1", "install-p2"]
+    link.close()
+
+
+def test_a_view_that_did_not_change_is_not_sent_again(tmp_path):
+    table, shown, _other = _two_maps(tmp_path)
+    svc = _Recorder()
+    link = N.TableHostLink(svc, table, T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c")))
+    svc.sent.clear()
+    hidden = table.apply({"op": "token_add", "scene": shown,
+                          "token": {"name": "Lurker", "x": 10, "y": 10, "hidden": True}})["token"]
+    table.apply({"op": "token_move", "scene": shown, "id": hidden, "x": 300, "y": 300})
+    assert svc.sent == []                                   # a hidden token is in nobody's view
+    assert N._digest({"a": [1.5, "x", None, True]}) == N._digest({"a": [1.5, "x", None, True]})
+    assert N._digest({"a": [1.5]}) != N._digest({"a": [1.6]})
+    assert N._digest({"a": object()})                       # (something odd falls back to the slow way)
+    link.close()
+
+
+def test_the_table_is_saved_a_little_after_a_change_not_after_each_one(tmp_path):
+    table, shown, _other = _two_maps(tmp_path)
+    table.save()
+    saves, jobs = [], []
+    real_save = table.save
+    table.save = lambda: saves.append(1) or real_save()
+    link = N.TableHostLink(_Recorder(), table, T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c")),
+                           schedule=lambda ms, fn: jobs.append((ms, fn)))
+    for i in range(5):                                      # a burst of moves
+        table.apply({"op": "token_add", "scene": shown, "token": {"name": f"T{i}", "x": 10 * i, "y": 10}})
+        for ms, fn in [j for j in jobs if j[0] == link.COALESCE_MS]:
+            jobs.remove((ms, fn))
+            fn()
+    assert saves == []
+    assert [ms for ms, _fn in jobs] == [link.SAVE_MS]       # one save is on its way
+    jobs.pop()[1]()
+    assert saves == [1] and not table.dirty
+    link._save()                                            # nothing changed since: nothing written
+    assert saves == [1]
+    table.apply({"op": "token_add", "scene": shown, "token": {"name": "Late", "x": 5, "y": 5}})
+    link.close()                                            # closing doesn't wait for the timer
+    assert saves == [1, 1]
+    assert any(t["name"] == "Late" for t in T.Tabletop(table.path).scene(shown)["tokens"])
+
+
+def test_the_dms_view_is_copied_once_per_change(tmp_path):
+    table, shown, other = _two_maps(tmp_path)
+    local = N.LocalTable(table, T.AssetStore(str(tmp_path / "a"), str(tmp_path / "c")))
+    first = local.view()
+    assert local.view() is first                            # asked again: the same copy
+    table.apply({"op": "token_add", "scene": shown, "token": {"name": "Guard", "x": 10, "y": 10}})
+    second = local.view()
+    assert second is not first and [t["name"] for t in second["scene"]["tokens"]] == ["Guard"]
+    assert first["scene"]["tokens"] == []                   # (the old copy is left as it was)
+    local.select_scene(other)
+    assert local.view()["scene"]["name"] == "Next room"
+    table.set_turn(["e1"])
+    assert local.view() is not second
+    local.close()

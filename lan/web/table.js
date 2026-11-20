@@ -55,6 +55,11 @@
     handlers: {},            // message type -> [fn(body, msg)]
     pingTimer: null,
     retry: 0,
+    rejoining: false,        // was in, lost the connection, trying to get back (the page stays as it is)
+    rejoinTimer: null,
+    password: "",
+    heardAt: 0,              // when anything last arrived from the DM's computer
+    pingedAt: 0,             // when we last asked "are you there?"
     on(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     emit(type, body, msg) {
       for (const fn of this.handlers[type] || []) {
@@ -74,48 +79,101 @@
 
   function connect(name, password) {
     session.name = name;
+    session.password = password || "";
     session.wanted = true;
+    clearTimeout(session.rejoinTimer);
     const scheme = location.protocol === "https:" ? "wss://" : "ws://";
     let ws;
     try {
       ws = new WebSocket(scheme + location.host + "/ws");
     } catch (e) {
-      failed("Couldn't reach the DM's computer.");
+      if (session.rejoining) rejoinLater();
+      else failed("Couldn't reach the DM's computer.");
       return;
     }
     session.ws = ws;
     ws.onopen = () => {
-      setStatus(document.body.dataset.approval === "0" ? "Joining…" : "Waiting for the DM to let you in…");
+      if (!session.rejoining) {
+        setStatus(document.body.dataset.approval === "0" ? "Joining…" : "Waiting for the DM to let you in…");
+      }
       ws.send(JSON.stringify({ type: "hello", body: {
-        proto: PROTOCOL, name: name, client_id: clientId(), password: password || "", app_version: "browser",
+        proto: PROTOCOL, name: name, client_id: clientId(), password: session.password, app_version: "browser",
       } }));
     };
     ws.onmessage = (ev) => {
+      session.heardAt = Date.now();
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (!msg || typeof msg.type !== "string") return;
       received(msg);
     };
-    ws.onclose = () => {
-      if (session.ws !== ws) return;
-      clearInterval(session.pingTimer);
-      const wasIn = session.joined;
-      session.joined = false;
-      session.ws = null;
-      $("conn").classList.add("off");
-      if (wasIn && session.wanted) {
-        // the page stays as it is; try to get back in
-        toast("Lost the connection to the DM. Reconnecting…", 6000);
-        const wait = Math.min(15000, 1000 * Math.pow(2, session.retry++));
-        setTimeout(() => { if (session.wanted && !session.ws) connect(session.name, password); }, wait);
-      } else if (session.wanted) {
-        failed("The connection closed before the DM let you in.");
-      }
-    };
+    ws.onclose = () => lost(ws);
   }
+
+  // The connection is gone (closed, or silent when asked). Once we've been let in, the page stays as it is
+  // and keeps trying to get back; the DM's app remembers who it let in, so nobody is asked again.
+  function lost(ws) {
+    if (session.ws !== ws) return;
+    clearInterval(session.pingTimer);
+    const wasIn = session.joined;
+    session.joined = false;
+    session.ws = null;
+    ws.onclose = ws.onmessage = ws.onopen = null;
+    try { ws.close(); } catch (e) { /* already closed */ }
+    $("conn").classList.add("off");
+    if (!session.wanted) return;
+    if (wasIn || session.rejoining) {
+      if (wasIn) toast("Lost the connection to the DM. Reconnecting…", 6000);
+      session.rejoining = true;
+      rejoinLater();
+    } else {
+      failed("The connection closed before the DM let you in.");
+    }
+  }
+
+  function rejoinLater(now) {
+    clearTimeout(session.rejoinTimer);
+    const wait = now ? 0 : Math.min(15000, 1000 * Math.pow(2, session.retry++));
+    session.rejoinTimer = setTimeout(() => {
+      if (session.wanted && !session.ws) connect(session.name, session.password);
+    }, wait);
+  }
+
+  // Ask the DM's computer whether it's still there; no answer within a few seconds means the connection
+  // died quietly (a phone that slept, a network that changed), so start again.
+  function probe(within) {
+    const ws = session.ws;
+    if (!ws || ws.readyState !== 1 || !session.joined) return;
+    if (session.pingedAt && session.heardAt < session.pingedAt && Date.now() - session.pingedAt > within) {
+      lost(ws);
+      return;
+    }
+    if (session.heardAt >= session.pingedAt) session.pingedAt = Date.now();
+    ws.send('{"type":"ping","body":{}}');
+  }
+
+  function wakeUp() {
+    if (!session.wanted) return;
+    if (!session.ws && session.rejoining) {
+      session.retry = 0;
+      rejoinLater(true);
+    } else if (session.ws && session.joined && session.ws.readyState === 1) {
+      session.pingedAt = Date.now();
+      session.ws.send('{"type":"ping","body":{}}');
+      const ws = session.ws;
+      setTimeout(() => {
+        if (session.ws === ws && session.heardAt < session.pingedAt) lost(ws);
+      }, 6000);
+    }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeUp(); });
+  window.addEventListener("online", wakeUp);
+  window.addEventListener("pageshow", wakeUp);
 
   function failed(text) {
     session.wanted = false;
+    session.rejoining = false;
+    clearTimeout(session.rejoinTimer);
     $("join-btn").disabled = false;
     setStatus(text, true);
     showJoin();
@@ -127,8 +185,10 @@
       if (msg.type === "welcome") {
         welcome(body);
       } else if (msg.type === "error") {
+        const ws = session.ws;
+        if (session.rejoining) toast(body.message || "The DM's computer refused the connection.", 8000);
         failed(body.message || "The DM's computer refused the connection.");
-        if (session.ws) session.ws.close();
+        if (ws) lost(ws);
       }
       return;
     }
@@ -146,6 +206,8 @@
         break;
       case "bye":
         session.wanted = false;
+        session.rejoining = false;
+        clearTimeout(session.rejoinTimer);
         toast(body.reason || "The session ended.", 8000);
         $("waiting-title").textContent = "The session ended.";
         $("waiting-text").textContent = body.reason || "";
@@ -157,16 +219,16 @@
     }
   }
 
-  // the character this player says they're playing: {name, hp, hp_max, ac} (the DM's app checks it)
+  // the character this player says they're playing: {name, hp, hp_max, ac, init} (the DM's app checks it)
   function readCharacter(prefix) {
     const name = $(prefix + "-name").value.replace(/\s+/g, " ").trim();
     if (!name) return { name: "" };
-    const num = (id, hi) => {
+    const num = (id, lo, hi) => {
       const v = parseInt($(id).value, 10);
-      return Number.isFinite(v) ? Math.max(0, Math.min(hi, v)) : undefined;
+      return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : undefined;
     };
-    const hp = num(prefix + "-hp", 9999);
-    const out = { name: name, ac: num(prefix + "-ac", 50) };
+    const hp = num(prefix + "-hp", 0, 9999);
+    const out = { name: name, ac: num(prefix + "-ac", 0, 50), init: num(prefix + "-init", -20, 30) };
     if (hp !== undefined) { out.hp = hp; out.hp_max = hp; }
     return out;
   }
@@ -179,8 +241,11 @@
   session.readCharacter = readCharacter;
 
   function welcome(body) {
+    const back = session.rejoining;
     session.joined = true;
     session.retry = 0;
+    session.rejoining = false;
+    session.pingedAt = 0;
     session.me = String(body.peer_id || "");
     session.name = String(body.name || session.name);
     session.hostName = String((body.host && body.host.name) || "the DM");
@@ -194,10 +259,9 @@
     document.title = session.hostName + "'s table";
     renderPeople();
     clearInterval(session.pingTimer);
-    session.pingTimer = setInterval(() => {
-      if (session.ws && session.ws.readyState === 1) session.ws.send('{"type":"ping","body":{}}');
-    }, PING_MS);
+    session.pingTimer = setInterval(() => probe(PING_MS), PING_MS);
     if (session.character.name) session.send("character", session.character);
+    if (back) toast("Back at the table.", 2500);
     session.emit("joined", body);
   }
 
@@ -270,6 +334,7 @@
       $("char-name").value = saved.name;
       if (saved.hp_max !== undefined) $("char-hp").value = saved.hp_max;
       if (saved.ac !== undefined) $("char-ac").value = saved.ac;
+      if (saved.init !== undefined) $("char-init").value = saved.init;
       $("join-char").open = true;
     }
   } catch (e) { /* nothing saved */ }

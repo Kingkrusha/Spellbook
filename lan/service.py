@@ -15,7 +15,7 @@ Listener events - ``listener(kind, **data)``:
 * ``line``             - ``line`` was appended to :attr:`chat` (a dict, see :meth:`_add_line`);
                          a dice roll has ``kind == "roll"`` and a ``roll`` dict
 * ``approval_request`` - host only: ``request_id, name, address``
-* ``approval_done``    - host only: ``request_id`` (answered, so close any prompt)
+* ``approval_done``    - host only: ``request_id`` (answered, timed out or abandoned: close any prompt)
 * ``scan_done``        - discovery finished; the results are in :attr:`discovered`
 * ``peer_joined``      - host only: ``peer``, ``client_id`` (the player's install id)
 * ``tracker_cmd``      - host only: ``peer_id, name, cmd, seq`` from a player
@@ -113,6 +113,7 @@ class SessionService:
         self.player_characters: Dict[str, dict] = {}  # host: peer id -> their character (+ player, client_id)
 
         self._host: Optional[LanHost] = None
+        self._blocked_here = 0                         # devices blocked from the join prompt this session
         self._client: Optional[LanClient] = None
         self._local = EventQueue()                    # results of the join thread
         self._listeners: List[Callable[..., None]] = []
@@ -220,6 +221,7 @@ class SessionService:
         self.peers = host.peers()
         self.chat = []
         self.last_end_reason = ""
+        self._blocked_here = 0
         self._remember(lan_player_name=name, lan_port=port, lan_require_approval=require_approval,
                        lan_discovery=bool(discoverable))
         self._add_line("system", "Session started. Share an invite with your players.")
@@ -276,10 +278,25 @@ class SessionService:
     def is_web_peer(self, peer_id: str) -> bool:
         return any(p.get("web") for p in self.peers if p["peer_id"] == peer_id)
 
-    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.") -> None:
+    def resolve_approval(self, request_id: str, accept: bool, reason: str = "The DM declined.",
+                         block: bool = False) -> None:
+        """Host: answer a join prompt. ``block`` turns a no into "never ask about this device again" for the
+        rest of the session (see :meth:`unblock_all`)."""
         if self._host is not None:
-            self._host.resolve_approval(request_id, accept, reason)
+            self._host.resolve_approval(request_id, accept, reason, block=block)
         self._notify("approval_done", request_id=request_id)
+
+    @property
+    def blocked_devices(self) -> int:
+        """Host: how many devices were blocked from the join prompt this session."""
+        return self._blocked_here if self._host is not None else 0
+
+    def unblock_all(self) -> None:
+        """Host: blocked devices may ask to join again."""
+        if self._host is not None:
+            self._host.unblock_all()
+        self._blocked_here = 0
+        self._notify("state")
 
     def kick(self, peer_id: str) -> None:
         if self._host is not None:
@@ -318,10 +335,15 @@ class SessionService:
 
     # ---------------------------------------------------------------- tabletop
 
-    def send_table_state(self, peer_id: str, view: dict) -> None:
-        """Host: give one player their view of the scene they're shown."""
+    def send_table_state(self, peer_id: str, view: dict, seq: Optional[int] = None) -> None:
+        """Host: give one player their view of the scene they're shown (``seq`` numbers it, for patches)."""
         if self._host is not None:
-            self._host.send_to(peer_id, "table_state", {"view": view})
+            self._host.send_to(peer_id, "table_state", {"view": view, "seq": seq})
+
+    def send_table_patch(self, peer_id: str, ops: list, base: int, seq: int) -> None:
+        """Host: what changed in a player's view since view number ``base`` (see ``table_patch.py``)."""
+        if self._host is not None:
+            self._host.send_to(peer_id, "table_patch", {"ops": ops, "base": base, "seq": seq})
 
     def send_table_error(self, peer_id: str, message: str, seq: Optional[int] = None) -> None:
         if self._host is not None:
@@ -341,6 +363,13 @@ class SessionService:
         if self._client is None or self.role != CLIENT:
             return False
         self._client.send("table_cmd", {"cmd": cmd, "seq": seq})
+        return True
+
+    def request_table_sync(self) -> bool:
+        """Player: ask the host for our whole view of the map again; it also says we take patches."""
+        if self._client is None or self.role != CLIENT:
+            return False
+        self._client.send("table_sync", {})
         return True
 
     def request_table_assets(self, ids: List[str]) -> bool:
@@ -581,7 +610,7 @@ class SessionService:
             self._set_peer(ev["peer"])
             if ev.get("client_id"):
                 self.client_ids[ev["peer"]["peer_id"]] = ev["client_id"]
-            self._add_line("system", f"{ev['peer']['name']} joined.")
+            self._add_line("system", f"{ev['peer']['name']} " + ("reconnected." if ev.get("rejoined") else "joined."))
             self._notify("state")
             self._notify("peer_joined", peer=ev["peer"], client_id=ev.get("client_id", ""))
         elif kind == "peer_character":                  # host: a player picked (or dropped) a character
@@ -609,8 +638,12 @@ class SessionService:
             self._notify("table_cmd", peer_id=ev["peer_id"], name=ev["name"], cmd=ev["cmd"], seq=ev.get("seq"))
         elif kind == "table_asset_req":
             self._notify("table_asset_req", peer_id=ev["peer_id"], ids=ev["ids"])
+        elif kind == "table_sync":
+            self._notify("table_sync", peer_id=ev["peer_id"])
         elif kind == "table_state":
-            self._notify("table_state", view=ev["view"])
+            self._notify("table_state", view=ev["view"], seq=ev.get("seq"))
+        elif kind == "table_patch":
+            self._notify("table_patch", ops=ev["ops"], base=ev["base"], seq=ev["seq"])
         elif kind == "table_asset":
             self._notify("table_asset", id=ev["id"], part=ev.get("part"), parts=ev.get("parts"), data=ev["data"])
         elif kind == "table_error":
@@ -621,13 +654,22 @@ class SessionService:
             self.client_ids.pop(ev["peer"]["peer_id"], None)
             self.player_characters.pop(ev["peer"]["peer_id"], None)
             self._drop_peer(ev["peer"])
-            why = f" ({ev['reason']})" if ev.get("reason") else ""
-            self._add_line("system", f"{ev['peer']['name']} left{why}.")
+            self._notify("peer_left", peer=ev["peer"])
+            if not ev.get("replaced"):                  # (a reconnect says "reconnected" when they're back)
+                why = f" ({ev['reason']})" if ev.get("reason") else ""
+                self._add_line("system", f"{ev['peer']['name']} left{why}.")
             self._notify("state")
         elif kind == "approval_request":
             self._notify("approval_request", request_id=ev["request_id"], name=ev["name"], address=ev["address"],
                          web=bool(ev.get("web")))
+        elif kind == "device_blocked":
+            self._blocked_here = int(ev.get("count") or 0)
+            self._notify("state")
+        elif kind == "approval_closed":                 # timed out, the player gave up or asked again
+            self._notify("approval_done", request_id=ev["request_id"])
         elif kind == "error":
+            if ev.get("code") == "unknown_type" and "'table_sync'" in (ev.get("message") or ""):
+                return                                  # a DM's app from before patches: it sends whole views
             self._add_line("system", ev.get("message") or "Something went wrong.")
         elif kind == "disconnected":
             self.leave(ev.get("reason") or "The connection was lost.")

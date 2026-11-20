@@ -302,7 +302,9 @@ class StudioView(ctk.CTkFrame):
         self.bind("<Destroy>", self._on_destroy, add="+")
 
         # ---- start up
-        self.service.ensure_index()
+        # The index of every collection takes seconds to build on another thread, and while it runs it and
+        # this page take turns: started now, the page itself would take several times longer to appear
+        self._jobs["start_index"] = self.after(350, self._start_index)
         self._restore_panels()
         self._restore_drafts()
         self._jobs["tick"] = self.after(TICK_MS, self._tick)
@@ -356,11 +358,18 @@ class StudioView(ctk.CTkFrame):
         box = self.welcome
         ctk.CTkLabel(box, text="What are you making?", font=ui_font("title", 22, bold=True)).pack(
             anchor="w", padx=24, pady=(40, 4))
-        ctk.CTkLabel(box, text="Write it here with the rest of the collection beside you. Insights points out "
-                               "existing content that already does the same thing, and checks a monster's numbers "
-                               "against its CR. Nothing is added to your collections until you publish.",
-                     font=ui_font("body"), text_color=c("text_secondary"), wraplength=520, justify="left").pack(
-            anchor="w", padx=24, pady=(0, 16))
+        blurb = ctk.CTkLabel(box, text="Write it here with the rest of the collection beside you. Insights points out "
+                                       "existing content that already does the same thing, and checks a monster's "
+                                       "numbers against its CR. Nothing is added to your collections until you publish.",
+                             font=ui_font("body"), text_color=c("text_secondary"), wraplength=520, justify="left")
+        blurb.pack(anchor="w", padx=24, pady=(0, 16))
+
+        def fit(event, state={"wrap": 520}):          # the pane can be narrower than the text: wrap to what there is
+            wrap = max(160, min(520, int(event.width / blurb._get_widget_scaling()) - 52))
+            if abs(wrap - state["wrap"]) > 4:
+                state["wrap"] = wrap
+                blurb.configure(wraplength=wrap)
+        box.bind("<Configure>", fit, add="+")
         grid = ctk.CTkFrame(box, fg_color="transparent")
         grid.pack(anchor="w", padx=20)
         for i, kind in enumerate(KIND_ORDER):
@@ -504,7 +513,7 @@ class StudioView(ctk.CTkFrame):
         except Exception as e:
             self._editor_error = ctk.CTkLabel(self.editor_host, text=f"This draft cannot be opened: {e}",
                                               font=ui_font("body"), wraplength=480, justify="left",
-                                              text_color=self.theme.get_current_color("button_danger"))
+                                              text_color=self.theme.get_current_color("danger_text"))
             self._editor_error.pack(anchor="w", padx=20, pady=30)
             self.editor = None
             return
@@ -780,6 +789,11 @@ class StudioView(ctk.CTkFrame):
             return
         if self._token:
             self._jobs["poll"] = self.after(70, self._poll_analysis)
+
+    def _start_index(self):
+        self._jobs["start_index"] = None
+        if self._alive:
+            self.service.ensure_index()
 
     def _poll_index(self):
         self._jobs["index"] = None

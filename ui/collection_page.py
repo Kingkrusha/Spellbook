@@ -21,9 +21,11 @@ from tkinter import messagebox
 from typing import Callable, List, Optional, Sequence
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from typography import ui_font
 from ui.filter_widgets import SourceFilterDialog, SourceFilterMode
+from ui.flow_bar import FlowBar
 from ui.tooltip import HoverTooltip
 
 
@@ -109,6 +111,7 @@ class SearchTitlesMixin:
         box = ctk.CTkCheckBox(bar, text="Titles only", variable=self.titles_var, width=24,
                               command=lambda: self._on_filter_changed(immediate=True))
         box.pack(side="left", padx=padx)
+        box.flow_with_previous = True           # (stays beside the search box when the bar wraps: ui/flow_bar.py)
         HoverTooltip(box, "Search the names only, not the descriptions or tags.")
         return box
 
@@ -198,7 +201,7 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
         """The search box and, beside it, the "Titles only" tick-box."""
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *args: self._on_filter_changed())
-        ctk.CTkEntry(
+        PlaceholderEntry(
             bar, width=width, height=35,
             placeholder_text=placeholder, textvariable=self.search_var
         ).pack(side="left", padx=(0, 8))
@@ -293,6 +296,15 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
             self.edit_btn.configure(state="disabled")
             self.delete_btn.configure(state="disabled")
 
+    def _set_edit_buttons(self, entry):
+        """Edit and Delete work only on an entry of the person's own (official content is copied, not changed): they
+        are greyed out otherwise, as on the other collection pages."""
+        own = entry is not None and not (getattr(entry, "is_official", False)
+                                         and not getattr(entry, "is_custom", False))
+        state = "normal" if own else "disabled"
+        self.edit_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+
     def _filter_row(self, pady=(0, 10)):
         """A further row of filters under the first."""
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -310,7 +322,11 @@ class CollectionPageMixin(CharacterPickMixin, SearchTitlesMixin, SourceFilterMix
         """The filter bar, then a resizable list | detail split (``self.paned``).
 
         The page supplies the two panes in ``_create_panes`` and adds them to ``self.paned``."""
+        before = set(self.winfo_children())
         self._create_filter_bar()
+        # Each row of the filter bar wraps when the window is too narrow for it, so no control is squeezed out.
+        self._flow_bars = [FlowBar(row) for row in self.winfo_children()
+                           if row not in before and isinstance(row, ctk.CTkFrame)]
 
         self.content = ctk.CTkFrame(self, fg_color="transparent")
         self.content.pack(fill="both", expand=True, padx=10, pady=(0, 10))

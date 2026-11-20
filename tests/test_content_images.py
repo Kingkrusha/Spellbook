@@ -134,5 +134,8 @@ def test_picture_widget_follows_the_store(tk_root, fresh_fonts, store, tmp_path,
     assert widget.image_label.winfo_manager() and not widget.add_button.winfo_manager()
     widget.show(None)
     assert not widget.image_label.winfo_manager()
+    tk_root.update()
+    # With nothing to show the slot takes no room (an empty CustomTkinter frame is 200 x 200: a blank band)
+    assert widget.winfo_reqheight() <= 4 and widget.winfo_reqwidth() <= 4
     widget.destroy()
     assert widget._on_store_changed not in store._listeners

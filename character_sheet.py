@@ -617,6 +617,17 @@ def prune_style(style: Optional[dict]) -> dict:
     return out
 
 
+MAX_EXHAUSTION = 6
+
+
+def exhaustion_level(value) -> int:
+    """An exhaustion level from saved data, kept to 0-6."""
+    try:
+        return max(0, min(MAX_EXHAUSTION, int(value or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
 @dataclass
 class CharacterSheet:
     """
@@ -656,6 +667,8 @@ class CharacterSheet:
     hit_points: HitPoints = field(default_factory=HitPoints)
     death_saves: DeathSaves = field(default_factory=DeathSaves)
     inspiration: bool = False
+    # Exhaustion level, 0-6 (2024 rules: each level is -2 to every d20 test and -5 ft of speed; 6 is death)
+    exhaustion: int = 0
     
     # Attacks (list of dicts with name, attack_bonus, damage)
     attacks: List[Dict[str, str]] = field(default_factory=list)
@@ -860,6 +873,7 @@ class CharacterSheet:
             "hit_points": self.hit_points.to_dict(),
             "death_saves": self.death_saves.to_dict(),
             "inspiration": self.inspiration,
+            **({"exhaustion": self.exhaustion} if self.exhaustion else {}),
             "attacks": self.attacks,
             "proficiency_bonus": self.proficiency_bonus,
             "equipment": self.equipment,
@@ -917,6 +931,7 @@ class CharacterSheet:
             hit_points=HitPoints.from_dict(data.get("hit_points", {})),
             death_saves=DeathSaves.from_dict(data.get("death_saves", {})),
             inspiration=data.get("inspiration", False),
+            exhaustion=exhaustion_level(data.get("exhaustion", 0)),
             attacks=data.get("attacks", []),
             proficiency_bonus=data.get("proficiency_bonus", 2),
             equipment=data.get("equipment", ""),

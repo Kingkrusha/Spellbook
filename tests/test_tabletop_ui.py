@@ -385,6 +385,33 @@ def test_the_game_tools_page_scrolls(window, tk_root):
     view.destroy()
 
 
+@pytest.mark.parametrize("scale", [1.0, 1.5])
+def test_the_game_tools_cards_wrap_to_fit_the_window(window, tk_root, scale):
+    """At any width (and with Windows display scaling) every card is in view and shows all of its text."""
+    import customtkinter as ctk
+    from ui.game_tools_view import GameToolsView
+    ctk.set_widget_scaling(scale)
+    try:
+        for width in (640, 1000, 1300):
+            window.geometry(f"{width}x800")
+            view = GameToolsView(window, on_open=lambda k: None)
+            view.pack(fill="both", expand=True)
+            pump(tk_root, 15)
+            seen = view.scroll._parent_canvas               # the part of the page in view
+            right = max(c.winfo_rootx() + c.winfo_width() for c in view._cards)
+            assert right - seen.winfo_rootx() <= seen.winfo_width(), (scale, width)
+            for card in view._cards:
+                inner = card.winfo_children()[-1]
+                assert card.winfo_height() >= inner.winfo_reqheight(), (scale, width)
+            # as many in a row as fit: one more wouldn't
+            assert (view._columns + 1) * view._card_span() > seen.winfo_width() or \
+                view._columns == len(view._cards)
+            view.destroy()
+    finally:
+        ctk.set_widget_scaling(1.0)
+        pump(tk_root)
+
+
 def test_lines_snap_straight_shift_squares_and_ctrl_centres(page, tk_root):
     sid = with_map(page, tk_root)
     c = page.canvas
@@ -580,3 +607,131 @@ def test_the_dm_gives_a_token_to_a_player_and_takes_it_back(page, tk_root):
     menu.invoke(0)
     pump(tk_root)
     assert page.canvas.token(tid)["owner"] == ""
+
+
+def test_a_tokens_picture_can_be_changed_after_it_is_made(page, tk_root, tmp_path, monkeypatch):
+    import base64
+    from PIL import Image
+    import ui.tabletop_view as V
+    sid = with_map(page, tk_root)
+    tid = page.table_.apply({"op": "token_add", "scene": sid,
+                             "token": {"name": "Wolf", "x": 105, "y": 105}})["token"]
+    pump(tk_root)
+    choices = lambda: dict(page._picture_choices(page.canvas.token(tid)))  # noqa: E731
+    assert list(choices()) == ["A picture file…", "From the token library…"]
+
+    # a picture file (cut square for the round token)
+    pic = tmp_path / "wolf.png"
+    Image.new("RGB", (300, 500), (90, 90, 90)).save(pic)
+    monkeypatch.setattr(V.filedialog, "askopenfilename", lambda **k: str(pic))
+    page._change_picture(tid, choices()["A picture file…"])
+    first = page.canvas.token(tid)["image"]
+    assert first and page.assets.size(first) == (T.TOKEN_MAX_SIDE,) * 2
+
+    # one from the token library
+    bear = tmp_path / "bear.png"
+    Image.new("RGB", (200, 200), (120, 60, 10)).save(bear)
+    library = V.LibraryPickDialog(page.winfo_toplevel(), [("Beasts", "Bear", str(bear))], page._thumbs)
+    pump(tk_root)
+    grid = library.shown.winfo_children()[0]
+    assert len(grid.winfo_children()) == 1
+    library.search.insert(0, "dragon")
+    library._fill()
+    assert library.shown.winfo_children()[0].cget("text") == "No tokens match."
+    library._pick(str(bear))
+    assert library.result == str(bear)
+    monkeypatch.setattr(V, "LibraryPickDialog", lambda parent, files, thumbs: library)
+    monkeypatch.setattr(page.winfo_toplevel(), "wait_window", lambda w: None)
+    page._change_picture(tid, choices()["From the token library…"])
+    second = page.canvas.token(tid)["image"]
+    assert second and second != first
+
+    # a monster's image pack picture, and a player's portrait
+    goblin = tmp_path / "goblin.png"
+    Image.new("RGB", (80, 80), (10, 120, 10)).save(goblin)
+    monkeypatch.setattr(V, "_content_picture", lambda kind, name: str(goblin) if name == "Goblin" else None)
+    page._dispatch({"op": "token_update", "id": tid, "fields": {"source": "monster:Goblin"}})
+    assert "The Goblin picture" in choices()
+    picture = io.BytesIO()
+    Image.new("RGB", (60, 80), (30, 120, 200)).save(picture, "PNG")
+    page.service = FakeHost(base64.b64encode(picture.getvalue()).decode("ascii"))
+    page._dispatch({"op": "token_update", "id": tid, "fields": {"source": "player:Aria"}})
+    page._change_picture(tid, choices()["Their character's portrait"])
+    assert page.canvas.token(tid)["image"] not in ("", first, second)
+
+    # and none at all: the token shows its letter again
+    page._change_picture(tid, choices()["No picture (show a letter)"])
+    assert page.canvas.token(tid)["image"] == ""
+    assert "No picture (show a letter)" not in choices()
+    pump(tk_root)
+    assert page.canvas.find_withtag(f"t:{tid}")
+
+
+def test_the_token_dialog_changes_the_picture_only_when_saved(page, tk_root, tmp_path):
+    from PIL import Image
+    from ui.tabletop_view import TokenDialog
+    sid = with_map(page, tk_root)
+    pic = tmp_path / "hero.png"
+    Image.new("RGB", (100, 100), (200, 30, 30)).save(pic)
+    asset = page.assets.add_image(str(pic), token=True)[0]
+    tid = page.table_.apply({"op": "token_add", "scene": sid,
+                             "token": {"name": "Hero", "x": 105, "y": 105, "image": asset}})["token"]
+    token = page.canvas.token(tid)
+    dialog = TokenDialog(page.winfo_toplevel(), token, [], **page._picture_options(token))
+    pump(tk_root)
+    assert dialog.preview.cget("text") == ""                    # the picture is shown
+    dialog._choose_picture(dict(dialog.pictures)["No picture (show a letter)"])
+    assert dialog.image == "" and dialog.preview.cget("text") == "H"
+    assert page.canvas.token(tid)["image"] == asset            # nothing changes before Save
+    dialog._accept()
+    assert dialog.result["image"] == ""
+    page._dispatch({"op": "token_update", "id": tid, "fields": dialog.result})
+    assert page.canvas.token(tid)["image"] == ""
+
+
+def test_a_library_picture_can_go_on_the_selected_token(page, tk_root, tmp_path, monkeypatch):
+    import tkinter as tk
+    from types import SimpleNamespace
+    from PIL import Image
+    sid = with_map(page, tk_root)
+    tid = page.table_.apply({"op": "token_add", "scene": sid,
+                             "token": {"name": "Wolf", "x": 105, "y": 105}})["token"]
+    pump(tk_root)
+    bear = tmp_path / "bear.png"
+    Image.new("RGB", (90, 90), (120, 60, 10)).save(bear)
+    menus = []
+    monkeypatch.setattr(tk.Menu, "tk_popup", lambda self, *a, **k: menus.append(self))
+    click = SimpleNamespace(x_root=0, y_root=0)
+    page.canvas.select(None)
+    page._library_menu(click, str(bear), "Bear")
+    assert menus[-1].entrycget(1, "state") == "disabled"          # nothing selected
+    page.canvas.select(tid)
+    page._library_menu(click, str(bear), "Bear")
+    assert menus[-1].entrycget(1, "label") == "Use for Wolf"
+    menus[-1].invoke(1)
+    assert page.canvas.token(tid)["image"]
+
+
+def test_a_dragged_token_stops_at_a_wall_unless_the_dm_holds_shift(page, tk_root):
+    sid = with_map(page, tk_root)
+    page._dispatch({"op": "wall_add", "wall": {"pts": [350, 0, 350, 490]}})
+    page._dispatch({"op": "token_add", "token": {"name": "Orc", "x": 105, "y": 105}})
+    pump(tk_root)
+    token = lambda: page.table_.scene(sid)["tokens"][0]
+    statuses = []
+    page.canvas.on_status = statuses.append
+
+    def drag(to_x, to_y, state=0):
+        sx, sy = page.canvas.to_screen(token()["x"], token()["y"])
+        ex, ey = page.canvas.to_screen(to_x, to_y)
+        page.canvas._press(type("E", (), {"x": sx, "y": sy, "state": 0})())
+        for i in range(1, 6):
+            page.canvas._motion(type("E", (), {"x": sx + (ex - sx) * i / 5, "y": sy + (ey - sy) * i / 5,
+                                               "state": state})())
+        page.canvas._release(type("E", (), {"x": ex, "y": ey, "state": state})())
+        pump(tk_root)
+
+    drag(595, 105)
+    assert token()["x"] == 315 and any("Stopped at a wall" in s and "Shift" in s for s in statuses)
+    drag(595, 105, state=0x0001)                          # Shift held as it is dropped: through the wall
+    assert token()["x"] == 595

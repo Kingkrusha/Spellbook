@@ -1,7 +1,7 @@
 """
 Search-and-add dialog for a character's spells.
 
-Opened from the Spells section of a character sheet (and the Spell Lists page): type to search the spell
+Opened from the Spells section of a character sheet: type to search the spell
 collection, filter by level, and add spells to the character without leaving the page. A switch limits the list
 to what the character can actually learn - spells on their class's list, up to the highest level they can cast,
 including the extra spells a Warlock patron or a feature adds to the list (see ``spell_access``).
@@ -17,6 +17,7 @@ from ui.window_utils import center_on_parent
 from typing import Callable, List, Optional
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 
 from spell_access import learn_rules
 from theme import get_theme_manager
@@ -96,7 +97,7 @@ class AddSpellsDialog(ctk.CTkToplevel):
         controls.pack(fill="x")
         self.query = tk.StringVar()
         self.query.trace_add("write", lambda *_a: self._schedule())
-        self.search = ctk.CTkEntry(controls, textvariable=self.query, height=32, placeholder_text="Search spells...")
+        self.search = PlaceholderEntry(controls, textvariable=self.query, height=32, placeholder_text="Search spells...")
         self.search.pack(side="left", fill="x", expand=True)
         self.level_menu = ctk.CTkOptionMenu(controls, values=LEVELS, width=120, height=32, command=lambda _v: self._refresh())
         self.level_menu.pack(side="left", padx=(8, 0))
@@ -180,6 +181,10 @@ class AddSpellsDialog(ctk.CTkToplevel):
         if r.any_class and not r.class_labels:
             lists = "any class"
         top = "cantrips only" if r.max_level == 0 else f"up to level {r.max_level}"
+        if r.max_level and r.list_levels and len(set(r.list_levels.values())) > 1:
+            top = ", ".join(f"{name.title()} up to level {lvl}" for name, lvl in r.list_levels.items())
+        elif r.max_level and r.list_levels:
+            top = f"up to level {min(r.max_level, max(r.list_levels.values()))}"
         extra = f", plus {len(r.expanded)} added by features" if r.expanded else ""
         return f"{lists} spell list{'s' if len(r.class_labels) > 1 else ''}, {top}{extra}."
 

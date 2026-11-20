@@ -157,7 +157,7 @@ def labels(widget):
 def test_the_spell_panel_shows_the_spell_attack_and_save_dc(tk_root, spells):
     import customtkinter as ctk
     from character_rolls import SpellStat
-    from ui.spell_lists_view import CharacterSpellsPanel
+    from ui.character_spells_panel import CharacterSpellsPanel
 
     frame = ctk.CTkFrame(tk_root)
     frame.pack(fill="both", expand=True)

@@ -4,6 +4,7 @@ Provides reusable widgets to reduce code duplication across views.
 """
 
 import customtkinter as ctk
+from ui.placeholder_entry import PlaceholderEntry
 from typography import ui_font
 import tkinter as tk
 from typing import TypeVar, Generic, List, Optional, Callable, Any
@@ -382,7 +383,7 @@ class FilterBar(ctk.CTkFrame):
     def add_search(self, placeholder: str = "Search...", width: int = 200) -> ctk.CTkEntry:
         """Add a search entry field."""
         search_var = ctk.StringVar()
-        search_entry = ctk.CTkEntry(
+        search_entry = PlaceholderEntry(
             self,
             placeholder_text=placeholder,
             width=width,
