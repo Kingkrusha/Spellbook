@@ -303,6 +303,7 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         self._add_filter_combo(filter_bar2, "prereq", "Prerequisite:", "Any",
                                ["Any", "Has Prerequisite", "No Prerequisite"], 110, (0, 20))
         self._add_field_filter(filter_bar2, "feats")
+        self._add_sort_control(filter_bar2, "feats")
         self._add_clear_button(filter_bar2)
 
     def _create_context_menu(self):
@@ -502,7 +503,7 @@ class FeatsView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         
         # One entry per feat: its versions (2024, 2014) are switched in the detail panel's Source
         # drop-down; the Legacy content setting decides which are offered
-        filtered = self._catalog.collapse(filtered, legacy_filter)
+        filtered = self._sorted(self._catalog.collapse(filtered, legacy_filter))
 
         self._filtered_feats = filtered
         self.list_panel.set_feats(filtered)

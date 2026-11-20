@@ -136,6 +136,8 @@ class AppSettings:
     show_content_images: bool = True
     # Extra folders the PDF library reads (its own PDFs folder is always read; see pdf_library.py)
     pdf_folders: list = field(default_factory=list)
+    # How each collection page is sorted: collection -> [choice, descending] (see collection_sort.py)
+    collection_sort: dict = field(default_factory=dict)
 
     initial_official_tag_applied: bool = False  # True after first run marks spells as Official
     # Guided tour (Settings > Help): offered once, at the first start after it was added
@@ -185,10 +187,13 @@ class AppSettings:
             'tracker_window_state', 'tracker_turn_beep', 'tracker_auto_open', 'window_geometry',
             'hotkeys', 'show_content_images', 'pdf_folders',
             'tutorial_offered', 'tutorial_example_character',
+            'collection_sort',
         }
         filtered_data = {k: v for k, v in data.items() if k in known_fields}
         if not isinstance(filtered_data.get('hotkeys', {}), dict):
             filtered_data.pop('hotkeys')
+        if not isinstance(filtered_data.get('collection_sort', {}), dict):
+            filtered_data.pop('collection_sort')
         return cls(**filtered_data)
 
 

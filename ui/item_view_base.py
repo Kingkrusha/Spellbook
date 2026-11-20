@@ -308,6 +308,7 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         ).pack(side="left", padx=(0, 20))
 
         self._add_field_filter(bar, self.STUDIO_KIND)
+        self._add_sort_control(bar, self.STUDIO_KIND)
         self._add_clear_button(bar)
 
     # ---- context menu ----------------------------------------------------------------
@@ -514,7 +515,7 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
 
             filtered.append(item)
 
-        self.list_panel.set_items(filtered)
+        self.list_panel.set_items(self._sorted(filtered))
 
     # ---- selection and editing ---------------------------------------------------------------
 
