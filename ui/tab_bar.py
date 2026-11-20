@@ -129,6 +129,32 @@ class TabWidget(ctk.CTkFrame):
                 self._watched_fonts.append(font)
         for font in self._watched_fonts:                    # the text size can change while the tab is open
             font.add_size_configure_callback(self._on_font_size)
+        # A change in Settings > Typography gives the label and button new font objects (the restyle pass
+        # re-points them), so the callbacks above never hear of it: refit when they are given a new font.
+        self._refit_job = None
+        for widget in [self.label] + ([self.close_btn] if self.is_closable else []):
+            self._refit_on_new_font(widget)
+
+    def _refit_on_new_font(self, widget):
+        original = widget.configure
+
+        def configure(require_redraw=False, **kwargs):
+            original(require_redraw=require_redraw, **kwargs)
+            if "font" in kwargs and self._refit_job is None:
+                try:
+                    self._refit_job = self.after_idle(self._refit_now)
+                except tk.TclError:
+                    pass
+        widget.configure = configure
+
+    def _refit_now(self):
+        self._refit_job = None
+        self._on_font_size()
+        bar = self.master
+        while bar is not None and not hasattr(bar, "_on_resize"):
+            bar = getattr(bar, "master", None)
+        if bar is not None:
+            bar._on_resize()                                # (the names need new widths in the new font)
 
     def _fit_to_font(self):
         """The tab's height and its close button's size, from the text size (fixed sizes cut larger text off)."""
@@ -158,6 +184,12 @@ class TabWidget(ctk.CTkFrame):
             pass
 
     def destroy(self):
+        if getattr(self, "_refit_job", None) is not None:
+            try:
+                self.after_cancel(self._refit_job)
+            except Exception:
+                pass
+            self._refit_job = None
         for font in getattr(self, "_watched_fonts", ()):
             try:
                 font.remove_size_configure_callback(self._on_font_size)

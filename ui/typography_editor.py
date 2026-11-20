@@ -13,8 +13,8 @@ import customtkinter as ctk
 
 from theme import get_theme_manager
 from typography import (FONT_PRESETS, MAX_SIZE, MIN_SIZE, ROLES, ROLE_LABELS, ROLE_SAMPLES,
-                        ROLE_STOCK_SIZE, FontScope, get_font_manager, installed_families,
-                        default_family)
+                        ROLE_STOCK_SIZE, FontScope, FontSettings, get_font_manager, installed_families,
+                        default_family, preset_settings)
 from typography import ui_font
 from ui.busy import run_busy
 from ui.font_picker import FontPicker
@@ -46,40 +46,90 @@ class TypographyModel:
     def role_overridden(self, role: str) -> bool: ...
 
 
+class _DraftSource:
+    """Stands in for the font manager behind a preview scope: the settings being edited, not yet applied."""
+
+    def __init__(self, settings: FontSettings):
+        self.settings = settings
+
+
+def _copy(settings: FontSettings) -> FontSettings:
+    return FontSettings.from_dict(settings.to_dict())
+
+
 class GlobalTypographyModel(TypographyModel):
+    """The app-wide fonts. Changes go into a draft that only the editor's samples show (``scope`` is a preview
+    scope over the draft); ``commit()`` applies the draft to the whole app. Rebuilding every page for each click
+    of a size button made the app stop for a moment between clicks, so Settings applies them together."""
+
     can_preset = True
     family_hint = "Applies to the whole app."
+    deferred = True
 
     def __init__(self):
         self.manager = get_font_manager()
-        self.scope = self.manager.scope
+        self.draft = _copy(self.manager.settings)
+        self.scope = FontScope(_DraftSource(self.draft))
+
+    def _changed(self):
+        self.scope.refresh()
 
     def get_family(self):
-        return self.manager.settings.family
+        return self.draft.family
 
     def set_family(self, family):
-        self.manager.set_family(family)
+        self.draft.family = family or ""
+        self._changed()
 
     def role_values(self, role):
-        style = self.manager.settings.roles[role]
+        style = self.draft.roles[role]
         return {"family": style.family, "size": style.size, "weight": style.weight, "slant": style.slant}
 
     def role_family_own(self, role):
-        return self.manager.settings.roles[role].family
+        return self.draft.roles[role].family
 
     def set_role(self, role, **changes):
-        self.manager.set_role(role, **changes)
+        style = self.draft.roles[role]
+        for key, value in changes.items():
+            if hasattr(style, key):
+                setattr(style, key, value)
+        style.size = max(MIN_SIZE, min(MAX_SIZE, int(style.size)))
+        self._changed()
 
     def reset_role(self, role):
-        from typography import RoleStyle
-        self.manager.set_role(role, family="", size=ROLE_STOCK_SIZE[role], weight="default", slant="default")
+        self.set_role(role, family="", size=ROLE_STOCK_SIZE[role], weight="default", slant="default")
 
     def reset_all(self):
-        self.manager.reset()
+        self._use(FontSettings())
+
+    def apply_preset(self, name: str):
+        settings = preset_settings(name)
+        if settings is not None:
+            self._use(settings)
+
+    def _use(self, settings: FontSettings):
+        self.draft = _copy(settings)
+        self.scope.manager.settings = self.draft
+        self._changed()
 
     def role_overridden(self, role):
-        style = self.manager.settings.roles[role]
+        style = self.draft.roles[role]
         return (style.family, style.size, style.weight, style.slant) != ("", ROLE_STOCK_SIZE[role], "default", "default")
+
+    # -- applying -------------------------------------------------------------
+
+    def pending(self) -> bool:
+        """True while the draft differs from what the app shows."""
+        return self.draft.to_dict() != self.manager.settings.to_dict()
+
+    def commit(self, restyle: bool = True):
+        """Apply the draft to the whole app (and save it)."""
+        if self.pending():
+            self.manager.replace(self.draft, restyle=restyle)
+
+    def reload(self):
+        """Forget the draft: start again from what the app shows."""
+        self._use(self.manager.settings)
 
 
 class SheetTypographyModel(TypographyModel):
@@ -147,6 +197,7 @@ class TypographyEditor(ctk.CTkFrame):
         self._on_changed = on_changed
         self._compact = compact
         self._loading = False
+        self._deferred = bool(getattr(model, "deferred", False))
         self._rows: Dict[str, dict] = {}
         self._build()
         self.refresh()
@@ -182,11 +233,29 @@ class TypographyEditor(ctk.CTkFrame):
         for role in ROLES:
             self._build_role(role)
 
-        ctk.CTkButton(self, text="Reset all fonts", width=130, height=28,
+        bottom = ctk.CTkFrame(self, fg_color="transparent")
+        bottom.pack(fill="x", pady=(10, 0))
+        ctk.CTkButton(bottom, text="Reset all fonts", width=130, height=28,
                       fg_color=theme.get_current_color("button_normal"),
                       hover_color=theme.get_current_color("button_hover"),
                       text_color=theme.get_current_color("text_primary"),
-                      command=self._reset_all).pack(anchor="e", pady=(10, 0))
+                      command=self._reset_all).pack(side="right")
+        self.apply_btn = self.undo_btn = self.pending_label = None
+        if self._deferred:
+            # Changes show in the samples above first; the rest of the app gets them all at once
+            self.apply_btn = ctk.CTkButton(bottom, text="Apply", width=90, height=28,
+                                           command=self.apply_pending)
+            self.apply_btn.pack(side="right", padx=(0, 8))
+            self.undo_btn = ctk.CTkButton(bottom, text="Undo changes", width=120, height=28,
+                                          fg_color=theme.get_current_color("button_normal"),
+                                          hover_color=theme.get_current_color("button_hover"),
+                                          text_color=theme.get_current_color("text_primary"),
+                                          command=self.discard_pending)
+            self.undo_btn.pack(side="right", padx=(0, 8))
+            self.pending_label = ctk.CTkLabel(
+                bottom, text="", font=ui_font("small"), text_color=muted, anchor="w", justify="left",
+                wraplength=300)
+            self.pending_label.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
     def _build_role(self, role: str):
         theme = get_theme_manager()
@@ -261,11 +330,32 @@ class TypographyEditor(ctk.CTkFrame):
                 row["slant"].set(SLANT_LABELS.get(vals["slant"], "Auto slant"))
                 dim = theme_dim(self.model.role_overridden(role))
                 row["reset"].configure(text_color=dim)
+                if self._deferred:              # (the preview scope's fonts were made again)
+                    row["sample"].configure(font=self.model.scope.font(
+                        role, bold=role in ("title", "heading", "subheading")))
         finally:
             self._loading = False
+        self._show_pending()
+
+    def _show_pending(self):
+        if not self._deferred:
+            return
+        pending = self.model.pending()
+        state = "normal" if pending else "disabled"
+        self.apply_btn.configure(state=state)
+        self.undo_btn.configure(state=state)
+        self.pending_label.configure(
+            text="Not applied yet: shown in the samples above. Press Apply, or they are applied when you leave "
+                 "Settings." if pending else "")
 
     def _apply(self, change: Callable[[], None]):
-        """Run a model change (which restyles what is on screen) behind the busy card."""
+        """Run a model change. A deferred model only updates the samples; otherwise the change restyles what
+        is on screen, behind the busy card."""
+        if self._deferred:
+            change()
+            self.refresh()
+            return
+
         def work():
             change()
             flush_restyle()
@@ -274,10 +364,49 @@ class TypographyEditor(ctk.CTkFrame):
         if self._on_changed:
             self._on_changed()
 
+    def has_pending(self) -> bool:
+        return self._deferred and self.model.pending()
+
+    def apply_pending(self, restyle: bool = True):
+        """Apply the changes waiting in a deferred model to the whole app (one restyle for all of them).
+        ``restyle=False`` only saves them (the app is closing)."""
+        if not self.has_pending():
+            return
+        if not restyle:
+            self.model.commit(restyle=False)
+            return
+
+        def work():
+            self.model.commit()
+            flush_restyle()
+        run_busy("font", "Applying fonts…", work)
+        try:
+            if self.winfo_exists():
+                self.refresh()
+        except Exception:
+            pass
+        if self._on_changed:
+            self._on_changed()
+
+    def discard_pending(self):
+        """Forget the changes not applied yet."""
+        if self._deferred:
+            self.model.reload()
+            self.refresh()
+
+    def reload(self):
+        """Show the app's current fonts again (after they were changed from elsewhere, e.g. Reset to Defaults)."""
+        if self._deferred:
+            self.model.reload()
+        self.refresh()
+
     # -- handlers ---------------------------------------------------------------
 
     def _on_preset(self, name: str):
-        self._apply(lambda: get_font_manager().apply_preset(name))
+        if self._deferred:
+            self._apply(lambda: self.model.apply_preset(name))
+        else:
+            self._apply(lambda: get_font_manager().apply_preset(name))
 
     def _on_family(self, value: str):
         if self._loading:
