@@ -21,6 +21,7 @@ from collections import OrderedDict
 from typing import Callable, List, Optional, Tuple
 
 import tabletop as T
+import tabletop_shapes as S
 from ui.platform_compat import bind_right_click
 
 ZOOM_MIN, ZOOM_MAX = 0.1, 6.0
@@ -42,6 +43,12 @@ MODE_TOOLS = {"free": ("draw", "wall", "height"), "line": ("draw", "wall"), "rec
               "ellipse": SHAPE_MODES}
 ELLIPSE_SIDES = 32                  # Shift-dragging a token this far up raises it one step (the grid's feet)
 FOG_SCALE_MAX = 1024          # the fog mask is kept at most this many pixels across
+PICK_COLOR = "#5DADE2"        # the box and handles round a drawing or shape being changed
+HANDLE_PX = 5                 # half a handle's side, on screen
+PICK_LISTS = {"d": "drawings", "w": "walls", "z": "zones", "a": "areas"}
+HANDLE_CURSORS = {"nw": "size_nw_se", "se": "size_nw_se", "ne": "size_ne_sw", "sw": "size_ne_sw",
+                  "n": "sb_v_double_arrow", "s": "sb_v_double_arrow", "e": "sb_h_double_arrow",
+                  "w": "sb_h_double_arrow"}
 
 
 class _ImageCache:
@@ -96,6 +103,8 @@ class MapCanvas(tk.Canvas):
         self.draw_private = False
         self.place: Optional[dict] = None  # a token waiting to be put down (from the library)
         self.selected: Optional[str] = None
+        # a drawing, wall(s), raised area or spell area picked to move or resize: {"kind": "d"/"w"/"z"/"a", "ids"}
+        self.picked: Optional[dict] = None
         self.show_grid = True
         self.show_walls = True             # the DM sees the walls they drew
         self.preview_sight = False         # the DM sees the map dimmed as the players' tokens see it
@@ -216,6 +225,7 @@ class MapCanvas(tk.Canvas):
         if new_scene != self._scene_id:
             self._scene_id = new_scene
             self.selected = None
+            self.picked = None
             self._drag = None
             if self.on_select:
                 self.on_select(None)
@@ -226,6 +236,9 @@ class MapCanvas(tk.Canvas):
             self.selected = None
             if self.on_select:
                 self.on_select(None)
+        if self.picked and self._drag is None:
+            ids = [i for i in self.picked["ids"] if self._item(self.picked["kind"], i) is not None]
+            self.picked = dict(self.picked, ids=ids) if ids else None
         self.schedule_render(5)
 
     def token(self, token_id: Optional[str]) -> Optional[dict]:
@@ -509,6 +522,7 @@ class MapCanvas(tk.Canvas):
         for x, y, text, tags in self._area_labels:
             self.create_text(x + 1, y + 1, text=text, fill="#000000", font=("TkDefaultFont", 9, "bold"), tags=tags)
             self.create_text(x, y, text=text, fill="white", font=("TkDefaultFont", 9, "bold"), tags=tags)
+        self._draw_pick()
         self._draw_pings()
         if self._measure:
             self._draw_measure(*self._measure)
@@ -531,17 +545,20 @@ class MapCanvas(tk.Canvas):
             self.create_oval(*_box(pts[:4]), outline=color, width=width, tags=tags, dash=dash)
 
     def _draw_walls(self, scene: dict):
-        width = max(2.0, min(5.0, 3 * self.zoom))
         for w in scene.get("walls") or []:
-            a, b = self.to_screen(*w["pts"][:2]), self.to_screen(*w["pts"][2:4])
-            tags = ("overlay", "wall", f"w:{w['id']}")
-            if w.get("door"):
-                is_open = bool(w.get("open"))
-                color = OPEN_DOOR_COLOR if is_open else LOCKED_DOOR_COLOR if w.get("locked") else DOOR_COLOR
-                self.create_line(*a, *b, fill=color, width=width * 2,
-                                 dash=(6, 4) if is_open else None, capstyle="butt", tags=tags)
-            else:
-                self.create_line(*a, *b, fill=WALL_COLOR, width=width, capstyle="round", tags=tags)
+            self._draw_wall(w)
+
+    def _draw_wall(self, w: dict):
+        width = max(2.0, min(5.0, 3 * self.zoom))
+        a, b = self.to_screen(*w["pts"][:2]), self.to_screen(*w["pts"][2:4])
+        tags = ("overlay", "wall", f"w:{w['id']}")
+        if w.get("door"):
+            is_open = bool(w.get("open"))
+            color = OPEN_DOOR_COLOR if is_open else LOCKED_DOOR_COLOR if w.get("locked") else DOOR_COLOR
+            self.create_line(*a, *b, fill=color, width=width * 2,
+                             dash=(6, 4) if is_open else None, capstyle="butt", tags=tags)
+        else:
+            self.create_line(*a, *b, fill=WALL_COLOR, width=width, capstyle="round", tags=tags)
 
     def wall_at(self, sx: float, sy: float) -> Optional[str]:
         """The id of the wall drawn under a canvas point, if any."""
@@ -551,13 +568,16 @@ class MapCanvas(tk.Canvas):
                     return tag[2:]
         return None
 
-    def _wall_snap(self, sx: float, sy: float) -> Tuple[float, float]:
-        """Where a wall corner clicked here goes: onto a nearby wall end, else a nearby grid corner."""
+    def _wall_snap(self, sx: float, sy: float, skip=()) -> Tuple[float, float]:
+        """Where a wall corner clicked here goes: onto a nearby wall end, else a nearby grid corner. ``skip`` holds
+        (wall id, end) pairs that don't count (the ends being dragged)."""
         mx, my = self.to_map(sx, sy)
         reach = WALL_SNAP_PX / self.zoom
         best, best_d = None, reach
         for w in (self._scene or {}).get("walls") or []:
-            for px, py in ((w["pts"][0], w["pts"][1]), (w["pts"][2], w["pts"][3])):
+            for end, (px, py) in enumerate(((w["pts"][0], w["pts"][1]), (w["pts"][2], w["pts"][3]))):
+                if (w["id"], end) in skip:
+                    continue
                 d = math.hypot(px - mx, py - my)
                 if d <= best_d:
                     best, best_d = (px, py), d
@@ -608,21 +628,24 @@ class MapCanvas(tk.Canvas):
     # ---- raised and sunken ground
     def _draw_zones(self, scene: dict):
         for z in scene.get("zones") or []:
-            pts = []
-            for i in range(0, len(z["pts"]) - 1, 2):
-                pts.extend(self.to_screen(z["pts"][i], z["pts"][i + 1]))
-            if len(pts) < 6:
-                continue
-            tags = ("overlay", "zone", f"z:{z['id']}")
-            self.create_polygon(*pts, outline=ZONE_COLOR, fill="", width=2, dash=(8, 4), tags=tags)
-            # the height, just inside the area's top corner (clear of the tokens standing in the middle)
-            top = min(range(len(pts) // 2), key=lambda i: (pts[2 * i + 1], pts[2 * i]))
-            cx, cy = pts[2 * top] + 6, pts[2 * top + 1] + 6
-            text = "⛰ " + (height_text(z["elev"]) or "0 ft")
-            self.create_text(cx + 1, cy + 1, text=text, fill="#000000", font=("TkDefaultFont", 10, "bold"),
-                             anchor="nw", tags=tags)
-            self.create_text(cx, cy, text=text, fill=ZONE_COLOR, font=("TkDefaultFont", 10, "bold"), anchor="nw",
-                             tags=tags)
+            self._draw_zone(z)
+
+    def _draw_zone(self, z: dict):
+        pts = []
+        for i in range(0, len(z["pts"]) - 1, 2):
+            pts.extend(self.to_screen(z["pts"][i], z["pts"][i + 1]))
+        if len(pts) < 6:
+            return
+        tags = ("overlay", "zone", f"z:{z['id']}")
+        self.create_polygon(*pts, outline=ZONE_COLOR, fill="", width=2, dash=(8, 4), tags=tags)
+        # the height, just inside the area's top corner (clear of the tokens standing in the middle)
+        top = min(range(len(pts) // 2), key=lambda i: (pts[2 * i + 1], pts[2 * i]))
+        cx, cy = pts[2 * top] + 6, pts[2 * top + 1] + 6
+        text = "⛰ " + (height_text(z["elev"]) or "0 ft")
+        self.create_text(cx + 1, cy + 1, text=text, fill="#000000", font=("TkDefaultFont", 10, "bold"),
+                         anchor="nw", tags=tags)
+        self.create_text(cx, cy, text=text, fill=ZONE_COLOR, font=("TkDefaultFont", 10, "bold"), anchor="nw",
+                         tags=tags)
 
     def zone_at(self, sx: float, sy: float) -> Optional[str]:
         mx, my = self.to_map(sx, sy)
@@ -922,6 +945,226 @@ class MapCanvas(tk.Canvas):
             return T.token_elevation(self._scene, t)
         return T.ground_at(self._scene, x, y)
 
+    # ------------------------------------------------------------------ changing drawings and shapes
+
+    def _item(self, kind: str, item_id: str) -> Optional[dict]:
+        return next((x for x in (self._scene or {}).get(PICK_LISTS[kind]) or [] if x["id"] == item_id), None)
+
+    def _picked_items(self) -> List[dict]:
+        if not self.picked:
+            return []
+        return [x for x in (self._item(self.picked["kind"], i) for i in self.picked["ids"]) if x is not None]
+
+    def can_edit_drawing(self, d: Optional[dict]) -> bool:
+        if d is None:
+            return False
+        return self.is_dm or bool(d.get("mine") and (self._scene or {}).get("players_draw"))
+
+    def _walls_shown(self) -> bool:
+        return self.is_dm and (self.show_walls or self.tool in WALL_TOOLS)
+
+    def pick(self, kind: Optional[str], ids=()):
+        """Pick a drawing ("d"), walls ("w"), a raised area ("z") or a spell area ("a") to move or resize."""
+        picked = {"kind": kind, "ids": list(ids)} if kind and ids else None
+        if picked == self.picked:
+            return
+        self.picked = picked
+        if picked and self.selected:
+            self.select(None)                          # (redraws)
+        else:
+            self._draw_overlay()
+        if picked:
+            self.on_status("Drag to move it, or a handle to resize it (Shift keeps its shape). Delete removes it.")
+        else:
+            self.on_status("")
+
+    def _pick_box(self) -> Optional[S.Box]:
+        """The box round what is picked, when it is changed by a box (not by its two ends)."""
+        items = self._picked_items()
+        if not items or self.picked["kind"] == "a":
+            return None
+        if len(items) == 1 and (self.picked["kind"] == "w" or items[0].get("kind") == "line"):
+            return None
+        return S.bounds([v for x in items for v in x["pts"]])
+
+    def _pick_handles(self) -> dict:
+        items = self._picked_items()
+        if not items:
+            return {}
+        kind = self.picked["kind"]
+        if kind == "a":
+            return {"reach": S.area_handle(self._scene, items[0])}
+        box = self._pick_box()
+        if box is None:
+            p = items[0]["pts"]
+            return {"p0": (p[0], p[1]), "p1": (p[-2], p[-1])}
+        return S.handle_points(box)
+
+    def _draw_pick(self):
+        self.delete("pick")
+        items = self._picked_items()
+        if not items or (self.picked["kind"] == "w" and not self._walls_shown()):
+            return
+        box = self._pick_box()
+        if box is not None:
+            x0, y0 = self.to_screen(box[0], box[1])
+            x1, y1 = self.to_screen(box[2], box[3])
+            self.create_rectangle(x0 - 3, y0 - 3, x1 + 3, y1 + 3, outline=PICK_COLOR, dash=(4, 3), width=1,
+                                  tags=("overlay", "pick"))
+        h = HANDLE_PX
+        for name, (x, y) in self._pick_handles().items():
+            sx, sy = self.to_screen(x, y)
+            tags = ("overlay", "pick", f"ph:{name}")
+            if name == "reach":
+                self.create_oval(sx - h - 1, sy - h - 1, sx + h + 1, sy + h + 1, fill="white", outline=PICK_COLOR,
+                                 width=2, tags=tags)
+            else:
+                self.create_rectangle(sx - h, sy - h, sx + h, sy + h, fill="white", outline=PICK_COLOR, width=2,
+                                      tags=tags)
+
+    def _pick_handle_at(self, sx: float, sy: float) -> Optional[str]:
+        if not self.picked:
+            return None
+        for item in reversed(self.find_overlapping(sx - 2, sy - 2, sx + 2, sy + 2)):
+            for tag in self.gettags(item):
+                if tag.startswith("ph:"):
+                    return tag[3:]
+        return None
+
+    def _shape_at(self, sx: float, sy: float) -> Optional[Tuple[str, str]]:
+        """The drawing, wall, raised area or spell area under a canvas point that may be changed here."""
+        for item in reversed(self.find_overlapping(sx - 4, sy - 4, sx + 4, sy + 4)):
+            for tag in self.gettags(item):
+                kind, _, item_id = tag.partition(":")
+                if not item_id or kind not in PICK_LISTS or item_id == "preview":
+                    continue
+                if kind == "d" and self.can_edit_drawing(self._item("d", item_id)):
+                    return kind, item_id
+                if kind == "w" and self._walls_shown():
+                    return kind, item_id
+                if kind == "z" and self.is_dm:
+                    return kind, item_id
+                if kind == "a" and self.can_edit_area(self.area(item_id)):
+                    return kind, item_id
+        return None
+
+    def _inside_pick(self, mx: float, my: float) -> bool:
+        box = self._pick_box()
+        if box is None:
+            return False
+        pad = 4 / self.zoom
+        return box[0] - pad <= mx <= box[2] + pad and box[1] - pad <= my <= box[3] + pad
+
+    def _start_shape_drag(self, handle: Optional[str], e) -> None:
+        """Begin moving what is picked (``handle`` None) or dragging one of its handles."""
+        kind = self.picked["kind"]
+        items = self._picked_items()
+        mx, my = self.to_map(e.x, e.y)
+        if kind == "a":
+            area = items[0]
+            if handle == "reach":
+                self._drag = {"kind": "area_reach", "id": area["id"], "moved": False}
+            else:
+                self._drag = {"kind": "area_move", "id": area["id"], "sx": e.x, "sy": e.y, "moved": False}
+            return
+        orig = {x["id"]: list(x["pts"]) for x in items}
+        d = {"kind": "reshape" if handle else "shape_move", "pick": kind, "ids": list(orig), "handle": handle,
+             "orig": orig, "box": self._pick_box(), "mx0": mx, "my0": my, "moved": False}
+        if kind == "w" and handle in ("p0", "p1"):
+            # the end of a wall drags the ends of the walls joined to it, so a room stays closed
+            p = items[0]["pts"]
+            x, y = (p[0], p[1]) if handle == "p0" else (p[2], p[3])
+            walls = self._scene.get("walls") or []
+            d["ends"] = S.wall_ends_at(walls, x, y)
+            d["ids"] = sorted({w for w, _end in d["ends"]})
+            d["orig"] = {w["id"]: list(w["pts"]) for w in walls if w["id"] in d["ids"]}
+        self._drag = d
+
+    def _shape_motion(self, d: dict, e) -> None:
+        mx, my = self.to_map(e.x, e.y)
+        kind = d["pick"]
+        if abs(mx - d["mx0"]) + abs(my - d["my0"]) > 2 / self.zoom:
+            d["moved"] = True
+        if not d["moved"]:
+            return
+        new = {}
+        if d["kind"] == "shape_move":
+            dx, dy = mx - d["mx0"], my - d["my0"]
+            if kind in ("w", "z"):
+                dx, dy = S.grid_step(self._scene, dx, dy)
+            new = {i: S.move(p, dx, dy) for i, p in d["orig"].items()}
+        elif kind == "w" and d.get("ends") is not None:
+            x, y = self._wall_snap(e.x, e.y, skip=set(d["ends"]))
+            walls = [{"id": i, "pts": p} for i, p in d["orig"].items()]
+            new = S.move_wall_ends(walls, d["ends"], x, y)
+        elif d["box"] is None:                          # a line's end
+            p = d["orig"][d["ids"][0]]
+            other = (p[-2], p[-1]) if d["handle"] == "p0" else (p[0], p[1])
+            x, y = axis_snap(other[0], other[1], mx, my)
+            new = {d["ids"][0]: S.reshape(p, d["handle"], x, y)}
+        else:
+            if kind in ("w", "z"):
+                mx, my = self._grid_corner(mx, my)
+            box = S.resize_box(d["box"], d["handle"], mx, my, keep_ratio=bool(e.state & 0x0001),
+                               centred=bool(e.state & 0x0004))
+            new = {i: S.refit(p, d["box"], box) for i, p in d["orig"].items()}
+        for item_id, pts in new.items():
+            item = self._item(kind, item_id)
+            if item is not None:
+                item["pts"] = pts
+                self.delete(f"{kind}:{item_id}")
+                if kind == "d":
+                    self._draw_drawing(item)
+                elif kind == "w":
+                    self._draw_wall(item)
+                else:
+                    self._draw_zone(item)
+        self.tag_raise("token")
+        self._draw_pick()
+
+    def _shape_release(self, d: dict) -> None:
+        if not d["moved"]:
+            return
+        kind = d["pick"]
+        items = [x for x in (self._item(kind, i) for i in d["ids"]) if x is not None]
+        changed = [x for x in items if x["pts"] != d["orig"].get(x["id"])]
+        if not changed:
+            return
+        if kind == "d":
+            for x in changed:
+                self.dispatch({"op": "draw_update", "id": x["id"], "fields": {"pts": x["pts"]}})
+        elif kind == "w":
+            self.dispatch({"op": "wall_reshape", "walls": [{"id": x["id"], "pts": x["pts"]} for x in changed]})
+        elif kind == "z":
+            for x in changed:
+                self.dispatch({"op": "zone_update", "id": x["id"], "pts": x["pts"]})
+        self._draw_overlay()
+
+    def _grid_corner(self, mx: float, my: float) -> Tuple[float, float]:
+        """A point pulled onto a grid corner close by (square grids), as wall corners are."""
+        grid = self.grid
+        if grid.kind == "square":
+            gx = grid.ox + round((mx - grid.ox) / grid.cell) * grid.cell
+            gy = grid.oy + round((my - grid.oy) / grid.cell) * grid.cell
+            if math.hypot(gx - mx, gy - my) <= WALL_SNAP_PX / self.zoom:
+                return gx, gy
+        return mx, my
+
+    def _delete_picked(self) -> bool:
+        items = self._picked_items()
+        if not items:
+            return False
+        kind, ids = self.picked["kind"], [x["id"] for x in items]
+        self.picked = None
+        op = {"d": "draw_delete", "w": "wall_delete", "z": "zone_delete"}.get(kind)
+        if op:
+            self.dispatch({"op": op, "ids": ids})
+        else:
+            self.dispatch({"op": "area_delete", "id": ids[0]})
+        self.on_status("")
+        self._draw_overlay()
+        return True
+
     # ------------------------------------------------------------------ mouse
 
     def set_tool(self, tool: str):
@@ -929,6 +1172,10 @@ class MapCanvas(tk.Canvas):
         was_walls = self.tool in WALL_TOOLS
         self.tool = tool if tool in TOOLS else "select"
         self.place = None
+        if self.tool != "select" and self.picked:
+            self.picked = None
+            if self._scene is not None:
+                self._draw_overlay()
         if self._scene is not None and was_walls != (self.tool in WALL_TOOLS) and not self.show_walls:
             self._draw_overlay()
         self.configure(cursor={"select": "", "measure": "crosshair", "ping": "hand2", "erase": "X_cursor"}.get(
@@ -942,6 +1189,8 @@ class MapCanvas(tk.Canvas):
 
     def _escape(self):
         self.end_wall()
+        if self.picked:
+            self.pick(None)
         self.place = None
         self._drag = None
         self._measure = None
@@ -974,8 +1223,15 @@ class MapCanvas(tk.Canvas):
             self.backend.ping(mx, my)
             return
         if tool == "select":
+            handle = self._pick_handle_at(e.x, e.y)
+            if handle is not None:                      # a handle of the picked drawing or shape
+                self._start_shape_drag(handle, e)
+                return
             t = self._token_at(e.x, e.y)
             if t is not None:
+                if self.picked:
+                    self.picked = None
+                    self.on_status("")
                 self.select(t["id"])
                 if self.can_move(t):
                     if e.state & 0x0001:                # Shift-drag raises or lowers it
@@ -992,8 +1248,21 @@ class MapCanvas(tk.Canvas):
                 return
             area = self.area(self._handle_at(e.x, e.y))
             if self.can_edit_area(area):                # drag an area by its starting point
+                self.pick("a", [area["id"]])
                 self._drag = {"kind": "area_move", "id": area["id"], "sx": e.x, "sy": e.y, "moved": False}
                 return
+            shape = self._shape_at(e.x, e.y)
+            if shape is not None:                       # a drawing or shape: pick it, and dragging moves it
+                kind, item_id = shape
+                if not (self.picked and self.picked["kind"] == kind and item_id in self.picked["ids"]):
+                    self.pick(kind, [item_id])
+                self._start_shape_drag(None, e)
+                return
+            if self.picked and self._inside_pick(mx, my):
+                self._start_shape_drag(None, e)
+                return
+            if self.picked:
+                self.pick(None)
             self.select(None)
             self._pan_start(e)
             return
@@ -1065,7 +1334,21 @@ class MapCanvas(tk.Canvas):
                 d["moved"] = True
             dx, dy = e.x - d["sx"], e.y - d["sy"]
             self.move(f"a:{d['id']}", dx, dy)
+            self.move("pick", dx, dy)
             d["sx"], d["sy"] = e.x, e.y
+        elif kind == "area_reach":
+            area = self.area(d["id"])
+            if area is not None:
+                fields = S.area_from_handle(self._scene, area, mx, my)
+                if any(area.get(k) != v for k, v in fields.items()):
+                    d["moved"] = True
+                    area.update(fields)
+                    touched = T.area_tokens(self._scene, area)
+                    self.on_status(f"{area_text(area, self._scene)}: {len(touched)} creature"
+                                   f"{'s' if len(touched) != 1 else ''} inside")
+                    self._draw_overlay()
+        elif kind in ("shape_move", "reshape"):
+            self._shape_motion(d, e)
         elif kind == "measure":
             self._measure = (d["x0"], d["y0"], mx, my)
             self._draw_measure(*self._measure)
@@ -1143,6 +1426,15 @@ class MapCanvas(tk.Canvas):
                                        "fields": {"x": round(nx, 1), "y": round(ny, 1)}})
                         break
             self._draw_overlay()
+        elif kind == "area_reach":
+            area = self.area(d["id"])
+            self.on_status("")
+            if area is not None and d["moved"]:
+                self.dispatch({"op": "area_update", "id": area["id"],
+                               "fields": {k: area[k] for k in ("size", "dir")}})
+            self._draw_overlay()
+        elif kind in ("shape_move", "reshape"):
+            self._shape_release(d)
         elif kind == "zone":
             self.delete("preview")
             if len(d["pts"]) >= 6:
@@ -1273,6 +1565,10 @@ class MapCanvas(tk.Canvas):
             return
         if self.tool != "select" or not self._scene:
             return
+        shape = self._shape_at(e.x, e.y)
+        if shape is not None and shape[0] == "w":       # a double-click picks the whole run of walls
+            self.pick("w", S.connected_walls(self._scene.get("walls") or [], shape[1]))
+            return
         t = self._token_at(e.x, e.y)
         if t is not None and self.on_token_open and self.is_dm:
             self.on_token_open(t["id"])
@@ -1309,8 +1605,13 @@ class MapCanvas(tk.Canvas):
             return
         t = self._token_at(e.x, e.y)
         if self.tool == "select" and self.place is None:
+            handle = self._pick_handle_at(e.x, e.y)
+            if handle is not None:
+                self.configure(cursor=HANDLE_CURSORS.get(handle, "crosshair"))
+                return
             grab = t is not None and self.can_move(t)
             grab = grab or self.can_edit_area(self.area(self._handle_at(e.x, e.y)))
+            grab = grab or self._shape_at(e.x, e.y) is not None
             self.configure(cursor="fleur" if grab else "")
 
     def _handle_at(self, sx: float, sy: float) -> Optional[str]:
@@ -1361,6 +1662,8 @@ class MapCanvas(tk.Canvas):
             self.on_select(token_id)
 
     def _delete_selected(self):
+        if self._delete_picked():
+            return
         if self.is_dm and self.selected:
             self.dispatch({"op": "token_delete", "id": self.selected})
 

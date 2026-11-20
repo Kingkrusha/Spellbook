@@ -36,6 +36,7 @@
     areaColor: G.AREA_COLORS[0],
     selected: null,            // one of my tokens' ids
     selectedArea: null,        // one of my areas' ids
+    pickedDrawing: null,       // one of my drawings' ids, picked to move or resize
     drag: null,
     pointers: new Map(),       // pointer id -> {x, y} (screen), for pinch-zoom
     pinch: null,
@@ -110,7 +111,7 @@
     const id = scene ? scene.id : "";
     if (id !== state.sceneId) {
       state.sceneId = id;
-      state.selected = state.selectedArea = null;
+      state.selected = state.selectedArea = state.pickedDrawing = null;
       state.drag = null;
       state.measure = null;
       state.pending = [];
@@ -126,6 +127,10 @@
       }
       if (state.selected && !token(state.selected)) state.selected = null;
       if (state.selectedArea && !area(state.selectedArea)) state.selectedArea = null;
+      if (state.pickedDrawing && !canEditDrawing(drawing(state.pickedDrawing)) && !state.drag) {
+        state.pickedDrawing = null;
+        updateSelection();
+      }
       fetchMissing(scene);
     }
     showScene();
@@ -203,6 +208,11 @@
     if (!state.scene || !id) return null;
     return (state.scene.areas || []).find((a) => a.id === id) || null;
   }
+  function drawing(id) {
+    if (!state.scene || !id) return null;
+    return state.scene.drawings.find((d) => d.id === id) || null;
+  }
+  const canEditDrawing = (d) => !!(d && d.mine && state.scene && state.scene.players_draw && !state.erased.has(d.id));
   const grid = () => G.Grid.of(state.scene);
   const canMove = (t) => !!(t && (t.mine || (state.scene && state.scene.players_move_all)));
   const toScreen = (x, y) => [(x - state.vx) * state.zoom, (y - state.vy) * state.zoom];
@@ -361,6 +371,7 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (const [x, y, text] of labels) outlinedText(text, x, y, "#FFFFFF");
+    drawPick();
     if (state.drag && state.drag.kind === "lift") drawLift();
     drawPings(now);
     if (state.measure) drawMeasure(...state.measure);
@@ -878,6 +889,89 @@
     drawDrawing({ kind: state.tool, pts: d.pts, color: state.penColor, width: state.penWidth }, true);
   }
 
+  // ------------------------------------------------------------------ changing my drawings and areas
+  // (like the app: a box drawing gets eight handles, a line one at each end, an area one where it reaches to)
+  const HANDLE_REACH = 14;             // screen pixels: a finger needs room
+  function pickBox(d) { return d.kind === "line" ? null : G.boundsOf(d.pts); }
+  function pickHandles() {
+    const d = drawing(state.pickedDrawing);
+    if (d) {
+      const box = pickBox(d);
+      if (box) return G.handlePoints(box);
+      return { p0: [d.pts[0], d.pts[1]], p1: [d.pts[d.pts.length - 2], d.pts[d.pts.length - 1]] };
+    }
+    const a = area(state.selectedArea);
+    if (a && a.mine && !state.erased.has(a.id)) return { reach: G.areaHandle(state.scene, a) };
+    return {};
+  }
+  function pickHandleAt(sx, sy) {
+    let best = null, bestD = HANDLE_REACH;
+    for (const [name, p] of Object.entries(pickHandles())) {
+      const [hx, hy] = toScreen(p[0], p[1]);
+      const dist = Math.hypot(sx - hx, sy - hy);
+      if (dist <= bestD) { best = name; bestD = dist; }
+    }
+    return best;
+  }
+  function insidePick(mx, my) {
+    const d = drawing(state.pickedDrawing);
+    const box = d && pickBox(d);
+    if (!box) return false;
+    const pad = 6 / state.zoom;
+    return mx >= box[0] - pad && mx <= box[2] + pad && my >= box[1] - pad && my <= box[3] + pad;
+  }
+  function drawingUnder(mx, my) {
+    const list = state.scene.drawings;
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (canEditDrawing(list[i]) && drawingHit(list[i], mx, my, 8 / state.zoom)) return list[i];
+    }
+    return null;
+  }
+  function drawPick() {
+    const handles = pickHandles();
+    const names = Object.keys(handles);
+    if (!names.length) return;
+    ctx.save();
+    const d = drawing(state.pickedDrawing);
+    const box = d && pickBox(d);
+    if (box) {
+      const [x0, y0] = toScreen(box[0], box[1]), [x1, y1] = toScreen(box[2], box[3]);
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = "#5DADE2";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x0 - 3, y0 - 3, x1 - x0 + 6, y1 - y0 + 6);
+      ctx.setLineDash([]);
+    }
+    ctx.lineWidth = 2;
+    for (const name of names) {
+      const [hx, hy] = toScreen(handles[name][0], handles[name][1]);
+      ctx.beginPath();
+      if (name === "reach") ctx.arc(hx, hy, 7, 0, Math.PI * 2);
+      else ctx.rect(hx - 6, hy - 6, 12, 12);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fill();
+      ctx.strokeStyle = "#5DADE2";
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function pickDrawing(id) {
+    state.pickedDrawing = id;
+    state.selected = state.selectedArea = null;
+    updateSelection();
+    redraw();
+  }
+  function deletePicked() {
+    const d = drawing(state.pickedDrawing);
+    if (!d) return false;
+    state.erased.add(d.id);
+    state.pickedDrawing = null;
+    send({ op: "draw_delete", id: d.id });
+    updateSelection();
+    redraw();
+    return true;
+  }
+
   // ------------------------------------------------------------------ erasing: what is under a point
   function distToSeg(px, py, x0, y0, x1, y1) {
     const dx = x1 - x0, dy = y1 - y0;
@@ -1033,6 +1127,17 @@
       return;
     }
     if (tool === "select") {
+      const h = pickHandleAt(sx, sy);
+      if (h === "reach") {
+        state.drag = { kind: "area_reach", id: state.selectedArea, moved: false };
+        return;
+      }
+      if (h) {
+        const dr = drawing(state.pickedDrawing);
+        state.drag = { kind: "reshape", id: dr.id, handle: h, orig: dr.pts.slice(), box: pickBox(dr), mx0: mx, my0: my,
+          moved: false };
+        return;
+      }
       const t = tokenAt(sx, sy);
       if (t) {
         select(t.id);
@@ -1058,7 +1163,13 @@
         state.drag = { kind: "area_move", id: a.id, sx: sx, sy: sy, moved: false, at: null };
         return;
       }
-      if (state.selected || state.selectedArea) { select(null); }
+      const dr = drawingUnder(mx, my) || (insidePick(mx, my) ? drawing(state.pickedDrawing) : null);
+      if (dr) {
+        if (state.pickedDrawing !== dr.id) pickDrawing(dr.id);
+        state.drag = { kind: "shape_move", id: dr.id, orig: dr.pts.slice(), mx0: mx, my0: my, moved: false };
+        return;
+      }
+      if (state.selected || state.selectedArea || state.pickedDrawing) { select(null); }
       state.drag = { kind: "pan", sx: sx, sy: sy };
       return;
     }
@@ -1124,6 +1235,32 @@
     } else if (d.kind === "area_move") {
       if (Math.abs(sx - d.sx) + Math.abs(sy - d.sy) > 3) d.moved = true;
       if (d.moved) { d.at = [mx, my]; redraw(); }
+    } else if (d.kind === "shape_move" || d.kind === "reshape") {
+      if (Math.abs(mx - d.mx0) + Math.abs(my - d.my0) > 2 / state.zoom) d.moved = true;
+      const dr = drawing(d.id);
+      if (!d.moved || !dr) return;
+      const o = d.orig;
+      if (d.kind === "shape_move") {
+        dr.pts = G.movePts(o, mx - d.mx0, my - d.my0);
+      } else if (!d.box) {
+        const other = d.handle === "p0" ? [o[o.length - 2], o[o.length - 1]] : [o[0], o[1]];
+        const [x, y] = G.axisSnap(other[0], other[1], mx, my);
+        dr.pts = G.reshape(o, d.handle, x, y);
+      } else {
+        dr.pts = G.refit(o, d.box, G.resizeBox(d.box, d.handle, mx, my, ev.shiftKey, ev.ctrlKey || ev.metaKey));
+      }
+      redraw();
+    } else if (d.kind === "area_reach") {
+      const a = area(d.id);
+      if (!a) return;
+      const f = G.areaFromHandle(state.scene, a, mx, my);
+      if (f.size !== a.size || (f.dir !== undefined && f.dir !== a.dir)) {
+        d.moved = true;
+        Object.assign(a, f);
+        const n = G.areaTokens(state.scene, a).length;
+        status(G.areaText(a, state.scene) + ": " + n + " creature" + (n === 1 ? "" : "s") + " inside");
+        redraw();
+      }
     } else if (d.kind === "measure") {
       state.measure = [d.x0, d.y0, mx, my];
       redraw();
@@ -1181,6 +1318,16 @@
         send({ op: "area_update", id: a.id, fields: { x: a.x, y: a.y } });
       }
       redraw();
+    } else if (d.kind === "shape_move" || d.kind === "reshape") {
+      const dr = drawing(d.id);
+      if (dr && d.moved) send({ op: "draw_update", id: dr.id, fields: { pts: dr.pts } });
+      redraw();
+    } else if (d.kind === "area_reach") {
+      const a = area(d.id);
+      status("");
+      if (a && d.moved) send({ op: "area_update", id: a.id, fields: { size: a.size, dir: a.dir } });
+      updateSelection();
+      redraw();
     } else if (d.kind === "measure") {
       state.measure = null;
       redraw();
@@ -1202,8 +1349,11 @@
       canvas.style.cursor = state.tool === "ping" ? "pointer" : "crosshair";
       return;
     }
+    if (pickHandleAt(sx, sy)) { canvas.style.cursor = "crosshair"; return; }
     const t = tokenAt(sx, sy);
-    canvas.style.cursor = (t && canMove(t)) || handleAt(sx, sy, true) ? "grab" : "default";
+    const [mx, my] = toMap(sx, sy);
+    canvas.style.cursor = (t && canMove(t)) || handleAt(sx, sy, true) || drawingUnder(mx, my) || insidePick(mx, my)
+      ? "grab" : "default";
   }
 
   function newId() {
@@ -1258,11 +1408,13 @@
   function select(id) {
     state.selected = id;
     state.selectedArea = null;
+    state.pickedDrawing = null;
     updateSelection();
     redraw();
   }
   function selectArea(id) {
     state.selectedArea = id;
+    if (id) state.pickedDrawing = null;
     updateSelection();
     redraw();
   }
@@ -1281,6 +1433,16 @@
     actions.textContent = "";
     const t = token(state.selected);
     const a = area(state.selectedArea);
+    const dr = drawing(state.pickedDrawing);
+    if (dr) {
+      $("sel-title").textContent = "Your drawing: drag it, or its handles to resize";
+      const del = button("Delete", "", deletePicked);
+      del.className = "danger";
+      actions.appendChild(del);
+      actions.appendChild(button("✕", "Close", () => select(null)));
+      box.hidden = false;
+      return;
+    }
     if (a && a.mine) {
       $("sel-title").textContent = G.areaText(a, state.scene);
       const upd = (fields) => send({ op: "area_update", id: a.id, fields: fields });
@@ -1400,6 +1562,8 @@
       state.measure = null;
       status("");
       select(null);
+    } else if ((ev.key === "Delete" || ev.key === "Backspace") && state.pickedDrawing) {
+      deletePicked();
     } else if ((ev.key === "Delete" || ev.key === "Backspace") && state.selectedArea) {
       const a = area(state.selectedArea);
       if (a && a.mine) {
