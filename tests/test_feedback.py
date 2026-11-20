@@ -195,12 +195,7 @@ def test_a_failed_send_keeps_the_message(tk_root):
         _pump(tk_root)
 
 
-# ---------------------------------------------------------------------------------------------- logs, pictures
-
-def _image(w=40, h=30, color=(200, 40, 40)):
-    from PIL import Image
-    return Image.new("RGB", (w, h), color)
-
+# ---------------------------------------------------------------------------------------------- logs, text only
 
 def test_the_logs_go_along_by_default_in_the_window(tk_root):
     from ui.feedback_dialog import FeedbackDialog
@@ -217,93 +212,27 @@ def test_the_logs_go_along_by_default_in_the_window(tk_root):
         _pump(tk_root)
 
 
-def test_pictures_are_shrunk_and_named(tmp_path):
-    big = F.make_picture(_image(4000, 1000), "My Screen?.PNG")
-    from PIL import Image
-    with Image.open(io.BytesIO(big.data)) as img:
-        assert max(img.size) == F.PICTURE_SIDE
-    assert big.name == "My Screen_.png" and big.mime == "image/png"
-    path = tmp_path / "photo.jpg"
-    _image().save(path)
-    assert F.picture_from_file(str(path)).name == "photo.png"
-    (tmp_path / "notes.txt").write_text("hello")
-    with pytest.raises(ValueError, match="isn't a picture"):
-        F.picture_from_file(str(tmp_path / "notes.txt"))
-
-
-def test_a_report_with_pictures_is_posted_as_form_data_with_files():
+def test_reports_are_text_only_and_the_window_offers_no_pictures(tk_root):
+    """Formspree's free plan takes no file uploads, so reports are always plain JSON."""
     seen = []
-    picture = F.make_picture(_image(), "shot")
-    report = F.Report("Bug report", "Look at this", pictures=[picture])
-    assert F.send(report, form_id="abcd1234", opener=_opener(seen=seen)) is None
-    request = seen[0]
-    kind = request.get_header("Content-type")
-    assert kind.startswith("multipart/form-data; boundary=")
-    body = request.data
-    assert b'name="message"' in body and b"Look at this" in body
-    assert b'name="attachment"; filename="shot.png"' in body and picture.data in body
-    assert b"shot.png (" in body                            # (named in the text too)
-
-
-def test_a_form_that_refuses_pictures_still_gets_the_report():
-    seen = []
-
-    def open_(request, timeout):
-        seen.append(request)
-        if request.get_header("Content-type").startswith("multipart/"):
-            raise urllib.error.HTTPError(request.full_url, 403, "no files", {},
-                                         io.BytesIO(b'{"errors": [{"message": "File uploads not allowed"}]}'))
-        return _Response(b'{"ok": true}')
-    report = F.Report("Bug report", "Look at this", pictures=[F.make_picture(_image(), "shot")])
-    note = F.send(report, form_id="abcd1234", opener=open_)
-    assert note and "without the pictures" in note
-    assert len(seen) == 2 and json.loads(seen[1].data)["message"] == "Look at this"
-    assert "not attached" in json.loads(seen[1].data)["pictures"]
-
-
-def test_offline_with_pictures_is_not_retried():
-    seen = []
-
-    def offline(request, timeout):
-        seen.append(request)
-        raise urllib.error.URLError("no network")
-    with pytest.raises(F.SendError) as err:
-        F.send(F.Report("Bug report", "x", pictures=[F.make_picture(_image(), "a")]), form_id="abcd1234",
-               opener=offline)
-    assert err.value.reason == "offline" and len(seen) == 1
-
-
-def test_the_window_attaches_a_screenshot_and_sends_it(tk_root):
+    assert F.send(F.Report("Bug report", "Look at this"), form_id="abcd1234", opener=_opener(seen=seen)) is None
+    assert len(seen) == 1 and seen[0].get_header("Content-type") == "application/json"
+    assert "pictures" not in json.loads(seen[0].data)
     from ui.feedback_dialog import FeedbackDialog
-    sent, boxes = [], []
-
-    def grabber(bbox):
-        boxes.append(bbox)
-        return _image(300, 200)
-    dialog = FeedbackDialog(tk_root, form_id="abcd1234", sender=lambda report, form_id: sent.append(report) or
-                            "Sent, but without the pictures (the form refused them).", grabber=grabber)
+    dialog = FeedbackDialog(tk_root, form_id="abcd1234", sender=lambda report, form_id: None)
     try:
         _pump(tk_root)
-        dialog._screenshot()
-        for _ in range(40):
-            _pump(tk_root, 0.05)
-            if dialog.pictures:
-                break
-        assert boxes and len(dialog.pictures) == 1 and dialog.pictures[0].name == "screenshot-1.png"
-        assert dialog.winfo_viewable() or dialog.state() != "withdrawn"
-        for _ in range(F.MAX_PICTURES):
-            dialog.add_picture(F.make_picture(_image(), "more"))
-        assert len(dialog.pictures) == F.MAX_PICTURES and dialog.attach_btn.cget("state") == "disabled"
-        dialog.remove_picture(dialog.pictures[-1])
-        assert dialog.attach_btn.cget("state") == "normal"
-        dialog.message.insert("1.0", "See the screenshot")
-        dialog._send()
-        for _ in range(50):
-            _pump(tk_root, 0.05)
-            if not dialog._sending:
-                break
-        assert sent and len(sent[0].pictures) == F.MAX_PICTURES - 1
-        assert "without the pictures" in dialog.status.cget("text") and dialog.pictures == []
+        texts = []
+
+        def walk(widget):
+            for child in widget.winfo_children():
+                try:
+                    texts.append(str(child.cget("text")))
+                except Exception:
+                    pass
+                walk(child)
+        walk(dialog)
+        assert not any("picture" in t.lower() or "screenshot" in t.lower() for t in texts)
     finally:
         dialog.close()
         _pump(tk_root)

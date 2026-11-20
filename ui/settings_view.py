@@ -305,7 +305,7 @@ class SettingsView(ctk.CTkFrame):
             self.feedback_btn.pack(side="right")
             ctk.CTkLabel(
                 content,
-                text="Report a bug or suggest an idea, straight to the developer, with pictures if you like. The "
+                text="Report a bug or suggest an idea, straight to the developer. The "
                      "app's logs and version go along unless you untick them, and you can see exactly what is "
                      "sent. Shortcut: Shift+F1.",
                 font=ui_font("small"), text_color=self.theme_manager.get_text_secondary(),
