@@ -59,7 +59,7 @@ class DescriptionPopup(ctk.CTkToplevel):
         options = {} if self.BOLD_PATTERN is None else {"bold_pattern": self.BOLD_PATTERN}
         self._renderer.render_formatted_text(
             parent, text,
-            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s),
+            on_spell_click=lambda s: self._renderer.show_link_popup(self, s),
             **options
         )
 

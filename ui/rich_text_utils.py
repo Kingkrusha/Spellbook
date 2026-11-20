@@ -297,9 +297,20 @@ class RichTextRenderer:
         )
     
     def show_spell_popup(self, parent, spell_name: str):
-        """Show a popup dialog for a spell. Shows error message if spell not found."""
+        """Show a popup dialog for a spell. Shows error message if spell not found.
+
+        Click handlers get the raw inside of a ``[[...]]`` token, so ``spell_name`` may be link markup such as
+        ``spell:Mending`` or ``equipment:Tinker's Tools|tools``: it is parsed first, and a link to anything that
+        is not a spell opens that thing's own popup."""
         from ui.spell_detail import SpellPopupDialog
-        
+        from object_links import parse_link_markup
+
+        category, spell_name, _display = parse_link_markup(spell_name or "")
+        if category != "spell":
+            from ui.object_link_widgets import open_link_popup
+            open_link_popup(parent, category, spell_name)
+            return
+
         spell = self.get_spell(spell_name)
         if spell:
             popup = SpellPopupDialog(parent.winfo_toplevel(), spell)
@@ -318,14 +329,7 @@ class RichTextRenderer:
         `on_spell_click` override was supplied. Dispatches through the
         universal object-link system (spell, feat, equipment, class, ...)
         rather than assuming every link is a spell."""
-        from object_links import parse_link_markup
-        from ui.object_link_widgets import open_link_popup
-
-        category, name, _display = parse_link_markup(inner)
-        if category == "spell":
-            self.show_spell_popup(parent, name)
-        else:
-            open_link_popup(parent, category, name)
+        self.show_spell_popup(parent, inner)
 
     def render_table(self, parent, headers: list, rows: list,
                      on_spell_click: Optional[Callable[[str], None]] = None):
@@ -1819,14 +1823,7 @@ class DynamicText(ThemeListenerMixin, ctk.CTkFrame):
         backward compatibility), this dispatches through the universal
         object-link system - spell, feat, equipment, class, ... - rather
         than assuming every link is a spell."""
-        from object_links import parse_link_markup
-        from ui.object_link_widgets import open_link_popup
-
-        category, name, _display = parse_link_markup(inner)
-        if category == "spell":
-            RichTextRenderer(self.theme).show_spell_popup(self, name)
-        else:
-            open_link_popup(self, category, name)
+        RichTextRenderer(self.theme).show_link_popup(self, inner)
     
 def description_blocks(text: str):
     """A description as [("text" | "table", block)]: paragraphs (separated by blank lines), with every run
@@ -1940,7 +1937,7 @@ def render_description(parent, text: str, theme=None, wraplength: int = 500,
     renderer = RichTextRenderer(theme)
     renderer.render_formatted_text(
         container, text,
-        on_spell_click=lambda s: renderer.show_spell_popup(container, s),
+        on_spell_click=lambda s: renderer.show_link_popup(container, s),
         wraplength=wraplength,
         bold_pattern=bold_pattern
     )

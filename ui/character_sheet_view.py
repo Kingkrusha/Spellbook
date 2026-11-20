@@ -5324,7 +5324,7 @@ class FeaturePopupDialog(DescriptionPopup):
         # Use global renderer for tables
         self._renderer.render_table(
             parent, columns, rows,
-            on_spell_click=lambda s: self._renderer.show_spell_popup(self, s)
+            on_spell_click=lambda s: self._renderer.show_link_popup(self, s)
         )
 
     def _add_below_description(self, scroll_frame):

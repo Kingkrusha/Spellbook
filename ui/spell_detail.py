@@ -737,7 +737,7 @@ class SpellDetailPanel(ThemeListenerMixin, ctk.CTkFrame):
         """Handle clicking a spell link in the description."""
         from ui.rich_text_utils import RichTextRenderer
         renderer = RichTextRenderer(get_theme_manager())
-        renderer.show_spell_popup(self, spell_name)
+        renderer.show_link_popup(self, spell_name)
     
     def apply_comparison(self, other_spell: Spell, is_primary: bool = True):
         """Apply comparison coloring against another spell."""
@@ -1212,7 +1212,7 @@ class SpellPopupDialog(ctk.CTkToplevel):
     
     def _on_spell_link_click(self, spell_name: str):
         """Handle click on a spell link - open another popup."""
-        self._renderer.show_spell_popup(self, spell_name)
+        self._renderer.show_link_popup(self, spell_name)
     
     def _create_widgets(self):
         """Create dialog widgets."""
