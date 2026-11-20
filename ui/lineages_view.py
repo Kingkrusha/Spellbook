@@ -278,24 +278,24 @@ class LineagesView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
     
     def _create_filter_bar(self):
         """Create the filter bar at the top."""
-        filter_bar = ctk.CTkFrame(self, fg_color="transparent")
-        filter_bar.pack(fill="x", padx=10, pady=10)
+        filter_bar = self._top_bar
 
         self._add_back_button(filter_bar)
         self._add_search_entry(filter_bar, "Search lineages...", 200)
-        self._add_filter_combo(filter_bar, "size", "Size:", "All Sizes", ["All Sizes"], 150)
         self._add_filter_combo(filter_bar, "type", "Type:", "All Types", ["All Types"], 150)
+        self._add_sort_control(filter_bar, "lineages", padx=(0, 15))
         self._add_action_buttons(filter_bar, "+ Add Lineage", 120, self._on_add_lineage,
                                  self._on_edit_lineage, self._on_delete_lineage, start_disabled=True)
 
-        # Second row: source, official content, min speed, clear
+        # The "▼ Filters" panel: size, min speed, content; source, your fields, clear
         filter_bar2 = self._filter_row()
-        self._add_source_filter(filter_bar2)
-        self._add_content_filter(filter_bar2)
+        self._add_filter_combo(filter_bar2, "size", "Size:", "All Sizes", ["All Sizes"], 150, (0, 20))
         self._add_filter_combo(filter_bar2, "min_speed", "Min Speed:", "Any", ["Any"], 90, (0, 20))
-        self._add_field_filter(filter_bar2, "lineages")
-        self._add_sort_control(filter_bar2, "lineages")
-        self._add_clear_button(filter_bar2)
+        self._add_content_filter(filter_bar2)
+        filter_bar3 = self._filter_row(pady=(0, 0))
+        self._add_source_filter(filter_bar3)
+        self._add_field_filter(filter_bar3, "lineages")
+        self._add_clear_button(filter_bar3)
 
     def _create_context_menu(self):
         """Create the right-click context menu for lineages."""

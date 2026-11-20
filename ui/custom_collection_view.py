@@ -177,10 +177,13 @@ class CustomCollectionView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             ctk.CTkButton(box, text="← Collections", command=self.on_back).pack()
 
     def _create_filter_bar(self):
-        bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.pack(fill="x", padx=10, pady=10)
+        bar = self._top_bar
         self._add_back_button(bar)
         self._add_search_entry(bar, f"Search {self.ctype.name.lower()}...", 200)
+        import collection_sort
+        # (the page is rebuilt when the fields change, so the control needn't follow them itself)
+        self._add_sort_control(bar, f"custom:{self.key}", watch_fields=False, padx=(0, 15),
+                               fields=lambda: collection_sort.custom_collection_sorts(self.ctype))
         self._add_action_buttons(bar, "+ Add Entry", 110, self._on_add, self._on_edit, self._on_delete,
                                  start_disabled=True)
         ctk.CTkButton(bar, text="⚙ Fields", width=90, height=35,
@@ -204,10 +207,6 @@ class CustomCollectionView(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             self._add_filter_combo(row, name, f"{f.label}:", ANY, options, 130)
             self._field_vars[f.id] = getattr(self, f"{name}_var")
             count += 1
-        import collection_sort
-        # (the page is rebuilt when the fields change, so the control needn't follow them itself)
-        self._add_sort_control(row, f"custom:{self.key}", watch_fields=False,
-                               fields=lambda: collection_sort.custom_collection_sorts(self.ctype))
         self._add_clear_button(row)
 
     def _create_panes(self):

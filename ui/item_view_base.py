@@ -269,6 +269,7 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             bar, text="Select Tags...", width=120, height=35,
             fg_color=self.theme.get_current_color('button_normal'),
             hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
             command=self._open_tag_filter
         )
         self.tags_btn.pack(side="left", padx=(0, 8))
@@ -285,6 +286,7 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
             bar, text="Select Materials...", width=140, height=35,
             fg_color=self.theme.get_current_color('button_normal'),
             hover_color=self.theme.get_current_color('button_hover'),
+            text_color=self.theme.get_current_color('text_primary'),
             command=self._open_material_filter
         )
         self.materials_btn.pack(side="left", padx=(0, 8))
@@ -308,7 +310,6 @@ class ItemViewBase(BulkActionsMixin, CollectionPageMixin, ctk.CTkFrame):
         ).pack(side="left", padx=(0, 20))
 
         self._add_field_filter(bar, self.STUDIO_KIND)
-        self._add_sort_control(bar, self.STUDIO_KIND)
         self._add_clear_button(bar)
 
     # ---- context menu ----------------------------------------------------------------

@@ -25,6 +25,7 @@ from ui.rule_text import RuleTextView
 from ui.scrollable_combobox import ScrollableComboBox
 from ui.tag_editor import TagEditor
 from ui.collection_page import CollectionPageMixin
+from ui.tooltip import HoverTooltip
 from ui.virtual_list import VirtualListPanel
 from ui.editor_host import DialogWindow, EditorBody, EmbeddedWindow
 
@@ -430,8 +431,7 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
 
     def _create_filter_bar(self):
         theme = self.theme
-        bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.pack(fill="x", padx=10, pady=10)
+        bar = self._top_bar
 
         if self.on_back:
             self._button(bar, "← Collections", self.on_back).pack(side="left", padx=(0, 15))
@@ -441,7 +441,13 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
         self.search_entry = PlaceholderEntry(
             bar, width=280, height=35,
             placeholder_text="Search rules (titles and text)...", textvariable=self.search_var)
-        self.search_entry.pack(side="left", padx=(0, 10))
+        self.search_entry.pack(side="left", padx=(0, 8))
+        self.titles_var = ctk.BooleanVar(value=False)
+        titles = ctk.CTkCheckBox(bar, text="Titles only", variable=self.titles_var, width=24,
+                                 command=lambda: self._on_filter_changed(immediate=True))
+        titles.pack(side="left", padx=(0, 15))
+        titles.flow_with_previous = True        # (stays beside the search box when the bar wraps)
+        HoverTooltip(titles, "Search the page titles only, not their text.")
         self.search_entry.bind("<Escape>", lambda _e: self.search_var.set(""))
         self.search_entry.bind("<Return>", lambda _e: self._open_top_hit())
 
@@ -452,6 +458,14 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
             command=lambda _: self._on_filter_changed(immediate=True), state="readonly")
         self.category_combo.pack(side="left", padx=(0, 10))
 
+        ctk.CTkLabel(bar, text="Sort:").pack(side="left", padx=(0, 5))
+        self.sort_var = ctk.StringVar(value=SORT_BOOK)
+        self.sort_combo = ctk.CTkComboBox(
+            bar, width=130, height=35, values=[SORT_BOOK, SORT_NAME], variable=self.sort_var,
+            command=lambda _: self._on_filter_changed(immediate=True), state="readonly")
+        self.sort_combo.pack(side="left", padx=(0, 15))
+        HoverTooltip(self.sort_combo, "A search is always sorted by how well each page matches.")
+
         self._button(bar, "+ Add Page", self._on_add, width=110).pack(side="right")
         self.delete_btn = self._button(bar, "Delete", self._on_delete, width=80, danger=True)
         self.delete_btn.pack(side="right", padx=(0, 5))
@@ -460,8 +474,7 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
         self.edit_btn.configure(state="disabled")
         self.delete_btn.configure(state="disabled")
 
-        bar2 = ctk.CTkFrame(self, fg_color="transparent")
-        bar2.pack(fill="x", padx=10, pady=(0, 10))
+        bar2 = self._filter_row(pady=(0, 0))
         ctk.CTkLabel(bar2, text="Source:").pack(side="left", padx=(0, 5))
         self.source_btn = self._button(bar2, "Select Sources...", self._open_source_filter, width=130)
         self.source_btn.pack(side="left", padx=(0, 8))
@@ -486,20 +499,6 @@ class RulesView(CollectionPageMixin, ctk.CTkFrame):
         self._add_field_filter(bar2, "rules")
 
         self._button(bar2, "Clear Filters", self._clear_filters, width=110, danger=True).pack(side="right")
-
-        bar3 = ctk.CTkFrame(self, fg_color="transparent")
-        bar3.pack(fill="x", padx=10, pady=(0, 10))
-        self.titles_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(bar3, text="Titles only (don't search the text)", variable=self.titles_var,
-                        command=lambda: self._on_filter_changed(immediate=True)).pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(bar3, text="Sort:").pack(side="left", padx=(0, 5))
-        self.sort_var = ctk.StringVar(value=SORT_BOOK)
-        self.sort_combo = ctk.CTkComboBox(
-            bar3, width=130, height=35, values=[SORT_BOOK, SORT_NAME], variable=self.sort_var,
-            command=lambda _: self._on_filter_changed(immediate=True), state="readonly")
-        self.sort_combo.pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(bar3, text="(a search is always sorted by how well each page matches)",
-                     font=ui_font("small"), text_color=theme.get_text_secondary()).pack(side="left")
 
     # ------------------------------------------------------------------ filters
 
